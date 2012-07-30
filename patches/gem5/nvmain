@@ -1,0 +1,1943 @@
+# HG changeset patch
+# Parent e9746ad3071ec133845b1bbff1b9d0aff4f2fffc
+
+diff -r e9746ad3071e configs/example/nvm_classic.py
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/configs/example/nvm_classic.py	Mon Jul 30 11:29:03 2012 -0400
+@@ -0,0 +1,192 @@
++# Copyright (c) 2006-2008 The Regents of The University of Michigan
++# All rights reserved.
++#
++# Redistribution and use in source and binary forms, with or without
++# modification, are permitted provided that the following conditions are
++# met: redistributions of source code must retain the above copyright
++# notice, this list of conditions and the following disclaimer;
++# redistributions in binary form must reproduce the above copyright
++# notice, this list of conditions and the following disclaimer in the
++# documentation and/or other materials provided with the distribution;
++# neither the name of the copyright holders nor the names of its
++# contributors may be used to endorse or promote products derived from
++# this software without specific prior written permission.
++#
++# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
++# A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
++# OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
++# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
++# LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
++# DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
++# THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
++# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
++# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++#
++# Author: Matt Poremba
++
++
++import os
++import optparse
++import sys
++from os.path import join as joinpath
++
++import m5
++from m5.defines import buildEnv
++from m5.objects import *
++from m5.util import addToPath, fatal
++
++if buildEnv['FULL_SYSTEM']:
++    fatal("This script requires syscall emulation mode (*_SE).")
++
++addToPath('../common')
++addToPath('../topologies')
++addToPath('../ruby')
++
++import Options
++import Ruby
++import Simulation
++import CacheConfig
++from Caches import *
++from cpu2000 import *
++
++
++
++# Get paths we might need.  It's expected this file is in m5/configs/example.
++config_path = os.path.dirname(os.path.abspath(__file__))
++config_root = os.path.dirname(config_path)
++m5_root = os.path.dirname(config_root)
++
++parser = optparse.OptionParser()
++Options.addCommonOptions(parser)
++Options.addSEOptions(parser)
++
++if '--ruby' in sys.argv:
++    Ruby.define_options(parser)
++
++# Benchmark options
++parser.add_option("--stdout", action="store_true", help="Print benchmark output to stdout instead of a file.")
++#parser.add_option("-c", "--cmd",
++#    default=joinpath(m5_root, "tests/test-progs/hello/bin/%s/linux/hello" % \
++#            buildEnv['TARGET_ISA']),
++#    help="The binary to run in syscall emulation mode.")
++#parser.add_option("-o", "--options", default="",
++#    help='The options to pass to the binary, use " " around the entire string')
++parser.add_option("--nvmain_PARAM", type="string", default="NULL", help="Set NVMain configuration value for PARAM (e.g., --nvmain_RANKS 4, --nvmain_BANKS 8, etc.)");
++
++
++#
++#  Check for extra nvmain configuration override options and add them as options to python
++#
++argnum = 1
++for arg in sys.argv:
++    if arg[:9] == "--nvmain_":
++        parser.add_option(arg, type="string", default="NULL", help="Set NVMain configuration value for PARAM")
++    argnum = argnum + 1
++
++execfile(os.path.join(config_root, "common", "Options.py"))
++
++
++#
++#  Parse arguments
++#
++(options, args) = parser.parse_args()
++
++
++numThreads = 1
++
++
++#
++#  Setup CPU classic and memory access mode based on options
++#
++(CPUClass, test_mem_mode, FutureClass) = Simulation.setCPUClass(options)
++CPUClass.clock = '2GHz'
++CPUClass.numThreads = numThreads;
++
++np = options.num_cpus
++print "Creating %d CPUs" % np
++print "Test mem mode is %s" % test_mem_mode
++
++#
++#  Create the system
++#
++system = System(cpu = [CPUClass(cpu_id=i) for i in xrange(np)],
++                membus = CoherentBus(), mem_mode = test_mem_mode)
++
++
++#
++#  Use SimpleMemory with ruby (protocol overrides to NVMainControl) and NVMainMemory for classic caches
++#
++if '--ruby' in sys.argv:
++    system.physmem = SimpleMemory(range=AddrRange("2048MB"))
++else:
++    system.physmem = NVMainMemory(range=AddrRange("2048MB"))
++
++options.use_map = True
++
++if options.ruby:
++    Ruby.create_system(options, system)
++    assert(options.num_cpus == len(system.ruby._cpu_ruby_ports))
++
++
++#
++#  Create the configuration overrides string for NVMain
++#
++nvmaincfg = ""
++nvmaincfgparams = ""
++nvmaincfgvalues = ""
++
++argnum = 1
++for arg in sys.argv:
++    if arg[:9] == "--nvmain_":
++        if nvmaincfgparams != "":
++            nvmaincfgparams += ","
++            nvmaincfgvalues += ","
++        nvmaincfgparams += arg[9:]
++        nvmaincfgvalues += sys.argv[argnum]
++
++        if arg == '--nvmain_config':
++            nvmaincfg = sys.argv[argnum]
++    argnum = argnum + 1
++
++
++#
++#  Pass the configuration overrides to NVMainControl or NVMainMemory depending on ruby/classic mode
++#
++if options.ruby:
++    for i in xrange(options.num_dirs):
++        exec("system.dir_cntrl%d.memBuffer.configparams = nvmaincfgparams" % i)
++        exec("system.dir_cntrl%d.memBuffer.configvalues = nvmaincfgvalues" % i)
++else:
++    system.physmem.config = nvmaincfg
++    system.physmem.configparams = nvmaincfgparams
++    system.physmem.configvalues = nvmaincfgvalues
++
++
++
++#
++#  Assign comma delimited programs to each CPU
++#
++for i in xrange(np):
++    process = LiveProcess()
++    process.executable = options.cmd
++    process.cmd = [options.cmd] + options.options.split()
++
++    system.cpu[i].workload = process
++    print "CPU %d is running process %s" % (i, process.cmd)
++
++    system.cpu[i].createInterruptController()
++
++    if options.ruby:
++        system.cpu[i].icache_port = system.ruby._cpu_ruby_ports[i].slave
++        system.cpu[i].dcache_port = system.ruby._cpu_ruby_ports[i].slave
++
++if not options.ruby:
++    system.system_port = system.membus.slave
++    system.physmem.port = system.membus.master
++    CacheConfig.config_cache(options, system)
++
++
++root = Root(full_system = False, system = system)
++Simulation.run(options, root, system, FutureClass)
+diff -r e9746ad3071e configs/example/nvmain_se.py
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/configs/example/nvmain_se.py	Mon Jul 30 11:29:03 2012 -0400
+@@ -0,0 +1,151 @@
++# Copyright (c) 2006-2008 The Regents of The University of Michigan
++# All rights reserved.
++#
++# Redistribution and use in source and binary forms, with or without
++# modification, are permitted provided that the following conditions are
++# met: redistributions of source code must retain the above copyright
++# notice, this list of conditions and the following disclaimer;
++# redistributions in binary form must reproduce the above copyright
++# notice, this list of conditions and the following disclaimer in the
++# documentation and/or other materials provided with the distribution;
++# neither the name of the copyright holders nor the names of its
++# contributors may be used to endorse or promote products derived from
++# this software without specific prior written permission.
++#
++# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
++# A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
++# OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
++# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
++# LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
++# DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
++# THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
++# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
++# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++#
++# Author: Matt Poremba
++
++
++import os
++import optparse
++import sys
++from os.path import join as joinpath
++
++import m5
++from m5.defines import buildEnv
++from m5.objects import *
++from m5.util import addToPath, fatal
++
++if buildEnv['FULL_SYSTEM']:
++    fatal("This script requires syscall emulation mode (*_SE).")
++
++addToPath('../common')
++addToPath('../ruby')
++addToPath('../topologies')
++
++import Options
++import Ruby
++import Simulation
++import CacheConfig
++from Caches import *
++from cpu2000 import *
++
++
++
++# Get paths we might need.  It's expected this file is in m5/configs/example.
++config_path = os.path.dirname(os.path.abspath(__file__))
++config_root = os.path.dirname(config_path)
++m5_root = os.path.dirname(config_root)
++
++parser = optparse.OptionParser()
++Options.addCommonOptions(parser)
++#Options.addSEOptions(parser)
++
++# Benchmark options
++parser.add_option("--stdout", action="store_true", help="Print benchmark output to stdout instead of a file.")
++#parser.add_option("--nvmain_config", type="string", default="NULL", help="Configuration file to use with NVMain")
++parser.add_option("-c", "--cmd",
++    default=joinpath(m5_root, "tests/test-progs/hello/bin/%s/linux/hello" % \
++            buildEnv['TARGET_ISA']),
++    help="The binary to run in syscall emulation mode.")
++parser.add_option("-o", "--options", default="",
++    help='The options to pass to the binary, use " " around the entire string')
++parser.add_option("--nvmain_PARAM", type="string", default="NULL", help="Set NVMain configuration value for PARAM (e.g., --nvmain_RANKS 4, --nvmain_BANKS 8, etc.)");
++
++
++argnum = 1
++for arg in sys.argv:
++    if arg[:9] == "--nvmain_":
++        parser.add_option(arg, type="string", default="NULL", help="Set NVMain configuration value for PARAM")
++    argnum = argnum + 1
++
++execfile(os.path.join(config_root, "common", "Options.py"))
++
++Ruby.define_options(parser)
++
++(options, args) = parser.parse_args()
++
++
++numThreads = 1
++
++
++class CPUClass(TimingSimpleCPU): pass
++test_mem_mode = 'timing'
++FutureClass = None
++
++CPUClass.clock = '2GHz'
++CPUClass.numThreads = numThreads;
++
++np = options.num_cpus
++print "Creating %d CPUs" % np
++
++
++system = System(cpu = [CPUClass(cpu_id=i) for i in xrange(np)],
++                physmem = SimpleMemory(range=AddrRange("2048MB")),
++                mem_mode = test_mem_mode)
++
++options.use_map = True
++Ruby.create_system(options, system)
++print "Creating ruby system"
++assert(options.num_cpus == len(system.ruby._cpu_ruby_ports))
++
++
++nvmaincfgparams = ""
++nvmaincfgvalues = ""
++
++argnum = 1
++for arg in sys.argv:
++    if arg[:9] == "--nvmain_":
++        if nvmaincfgparams != "":
++            nvmaincfgparams += ","
++            nvmaincfgvalues += ","
++        nvmaincfgparams += arg[9:]
++        nvmaincfgvalues += sys.argv[argnum]
++    argnum = argnum + 1
++
++for i in xrange(options.num_dirs):
++    exec("system.dir_cntrl%d.memBuffer.configparams = nvmaincfgparams" % i)
++    exec("system.dir_cntrl%d.memBuffer.configvalues = nvmaincfgvalues" % i)
++
++
++for i in xrange(np):
++    process = LiveProcess()
++    process.executable = options.cmd
++    process.cmd = [options.cmd] + options.options.split()
++
++    system.cpu[i].workload = process
++    print "CPU %d is running process %s" % (i, process.cmd)
++
++    system.cpu[i].icache_port = system.ruby._cpu_ruby_ports[i].slave
++    system.cpu[i].dcache_port = system.ruby._cpu_ruby_ports[i].slave
++
++    system.cpu[i].createInterruptController()
++
++    # not sure what this is, enable at your own risk.
++    if options.fastmem:
++        system.cpu[0].physmem_port = system.physmem.port
++
++root = Root(full_system = False, system = system)
++
++Simulation.run(options, root, system, FutureClass)
+diff -r e9746ad3071e configs/ruby/MESI_CMP_directory.py
+--- a/configs/ruby/MESI_CMP_directory.py	Fri Jul 27 15:07:10 2012 -0400
++++ b/configs/ruby/MESI_CMP_directory.py	Mon Jul 30 11:29:03 2012 -0400
+@@ -144,7 +144,13 @@
+         # Create the Ruby objects associated with the directory controller
+         #
+ 
+-        mem_cntrl = RubyMemoryControl(version = i)
++        try:
++            mem_cntrl = NVMMemoryControl(version = i,
++                                          config = options.nvmain_config,
++                                          physicalMem = system.physmem)
++        except:
++            mem_cntrl = RubyMemoryControl(version = i)
++
+ 
+         dir_size = MemorySize('0B')
+         dir_size.value = mem_module_size
+diff -r e9746ad3071e configs/spec2006/classic.py
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/configs/spec2006/classic.py	Mon Jul 30 11:29:03 2012 -0400
+@@ -0,0 +1,146 @@
++# Copyright (c) 2006-2008 The Regents of The University of Michigan
++# All rights reserved.
++#
++# Redistribution and use in source and binary forms, with or without
++# modification, are permitted provided that the following conditions are
++# met: redistributions of source code must retain the above copyright
++# notice, this list of conditions and the following disclaimer;
++# redistributions in binary form must reproduce the above copyright
++# notice, this list of conditions and the following disclaimer in the
++# documentation and/or other materials provided with the distribution;
++# neither the name of the copyright holders nor the names of its
++# contributors may be used to endorse or promote products derived from
++# this software without specific prior written permission.
++#
++# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
++# A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
++# OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
++# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
++# LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
++# DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
++# THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
++# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
++# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++#
++# Author: Matt Poremba
++
++
++import os
++import optparse
++import sys
++from os.path import join as joinpath
++
++import m5
++from m5.defines import buildEnv
++from m5.objects import *
++from m5.util import addToPath, fatal
++
++if buildEnv['FULL_SYSTEM']:
++    fatal("This script requires syscall emulation mode (*_SE).")
++
++addToPath('../common')
++addToPath('../spec2006')
++addToPath('../topologies')
++
++import Options
++import Simulation
++import CacheConfig
++from Caches import *
++from cpu2000 import *
++from Mybench import *
++
++
++
++# Get paths we might need.  It's expected this file is in m5/configs/example.
++config_path = os.path.dirname(os.path.abspath(__file__))
++config_root = os.path.dirname(config_path)
++m5_root = os.path.dirname(config_root)
++
++parser = optparse.OptionParser()
++Options.addCommonOptions(parser)
++
++# Benchmark options
++parser.add_option("--stdout", action="store_true", help="Print benchmark output to stdout instead of a file.")
++parser.add_option("--nvmain_PARAM", type="string", default="NULL", help="Set NVMain configuration value for PARAM (e.g., --nvmain_RANKS 4, --nvmain_BANKS 8, etc.)");
++
++argnum = 1
++for arg in sys.argv:
++    if arg[:9] == "--nvmain_":
++        parser.add_option(arg, type="string", default="NULL", help="Set NVMain configuration value for PARAM")
++    argnum = argnum + 1
++
++execfile(os.path.join(config_root, "common", "Options.py"))
++
++(options, args) = parser.parse_args()
++
++if not args:
++    print "Error: No benchmarks specified to run!"
++    get_spec_process("") # pass nothing. get error.
++    sys.exit(1)
++
++
++nvmaincfg = ""
++nvmaincfgparams = ""
++nvmaincfgvalues = ""
++
++argnum = 1
++for arg in sys.argv:
++    if arg[:9] == "--nvmain_":
++        if nvmaincfgparams != "":
++            nvmaincfgparams += ","
++            nvmaincfgvalues += ","
++        nvmaincfgparams += arg[9:]
++        nvmaincfgvalues += sys.argv[argnum]
++
++        if arg == '--nvmain_config':
++            nvmaincfg = sys.argv[argnum]
++    argnum = argnum + 1
++
++
++numThreads = 1
++
++
++(CPUClass, test_mem_mode, FutureClass) = Simulation.setCPUClass(options)
++CPUClass.clock = '2GHz'
++CPUClass.numThreads = numThreads;
++
++np = options.num_cpus
++if len(args) != np:
++    print "Warning: Different number of benchmarks and CPUs. Increasing CPU count to %d" % len(args)
++    np = len(args)
++    options.num_cpus = np
++print "Creating %d CPUs" % np
++
++
++system = System(cpu = [CPUClass(cpu_id=i) for i in xrange(np)],
++                physmem = NVMainMemory(range=AddrRange("2048MB")),
++                membus = CoherentBus(), mem_mode = test_mem_mode)
++
++options.use_map = True
++
++
++system.physmem.config = nvmaincfg
++system.physmem.configparams = nvmaincfgparams
++system.physmem.configvalues = nvmaincfgvalues
++
++
++spec_benchmarks = args
++for i in xrange(np):
++    spec_process = get_spec_process(spec_benchmarks[i])
++    if options.stdout:
++        spec_process.output = "cout"
++    system.cpu[i].workload = spec_process
++    print "CPU %d is running process %s" % (i, get_spec_process(spec_benchmarks[i]).cmd)
++
++    system.cpu[i].createInterruptController()
++
++
++system.system_port = system.membus.slave
++system.physmem.port = system.membus.master
++CacheConfig.config_cache(options, system)
++
++root = Root(full_system = False, system = system)
++
++Simulation.run(options, root, system, FutureClass)
+diff -r e9746ad3071e src/mem/NVMainMemory.py
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/src/mem/NVMainMemory.py	Mon Jul 30 11:29:03 2012 -0400
+@@ -0,0 +1,38 @@
++# Copyright (c) 2009 Advanced Micro Devices, Inc.
++# All rights reserved.
++#
++# Redistribution and use in source and binary forms, with or without
++# modification, are permitted provided that the following conditions are
++# met: redistributions of source code must retain the above copyright
++# notice, this list of conditions and the following disclaimer;
++# redistributions in binary form must reproduce the above copyright
++# notice, this list of conditions and the following disclaimer in the
++# documentation and/or other materials provided with the distribution;
++# neither the name of the copyright holders nor the names of its
++# contributors may be used to endorse or promote products derived from
++# this software without specific prior written permission.
++#
++# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
++# A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
++# OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
++# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
++# LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
++# DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
++# THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
++# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
++# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++#
++
++from m5.params import *
++from AbstractMemory import *
++
++
++class NVMainMemory(AbstractMemory):
++    type = 'NVMainMemory'
++    port = SlavePort("Slave ports")
++
++    config = Param.String("NULL", "")
++    configparams = Param.String("", "")
++    configvalues = Param.String("", "")
+diff -r e9746ad3071e src/mem/SConscript
+--- a/src/mem/SConscript	Fri Jul 27 15:07:10 2012 -0400
++++ b/src/mem/SConscript	Mon Jul 30 11:29:03 2012 -0400
+@@ -53,8 +53,10 @@
+ if env['TARGET_ISA'] != 'no':
+     SimObject('AbstractMemory.py')
+     SimObject('SimpleMemory.py')
++    SimObject('NVMainMemory.py')
+     Source('abstract_mem.cc')
+     Source('simple_mem.cc')
++    Source('nvmain_mem.cc')
+     Source('page_table.cc')
+     Source('physical.cc')
+ 
+diff -r e9746ad3071e src/mem/nvmain_mem.cc
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/src/mem/nvmain_mem.cc	Mon Jul 30 11:29:03 2012 -0400
+@@ -0,0 +1,410 @@
++/*
++ * Copyright (c) 1999-2008 Mark D. Hill and David A. Wood
++ * All rights reserved.
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions are
++ * met: redistributions of source code must retain the above copyright
++ * notice, this list of conditions and the following disclaimer;
++ * redistributions in binary form must reproduce the above copyright
++ * notice, this list of conditions and the following disclaimer in the
++ * documentation and/or other materials provided with the distribution;
++ * neither the name of the copyright holders nor the names of its
++ * contributors may be used to endorse or promote products derived from
++ * this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
++ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
++ * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
++ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
++ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
++ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
++ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
++ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
++ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++/*
++ *  This file is part of NVMain- A cycle accurate timing, bit-accurate
++ *  energy simulator for non-volatile memory. Originally developed by
++ *  Matt Poremba at the Pennsylvania State University.
++ *
++ *  Website: http://www.cse.psu.edu/~poremba/nvmain/
++ *  Email: mrp5060@psu.edu
++ *
++ *  ---------------------------------------------------------------------
++ *
++ *  If you use this software for publishable research, please include
++ *  the original NVMain paper in the citation list and mention the use
++ *  of NVMain.
++ *
++ */
++
++#include "SimInterface/Gem5Interface/Gem5Interface.h"
++#include "include/NVMainRequest.h"
++#include "mem/nvmain_mem.hh"
++
++using namespace NVM;
++
++
++void breakGDB() { }
++
++
++NVMainMemory::NVMainMemory(const Params *p)
++    : AbstractMemory(p), port(name() + ".port", *this)
++{
++    char *cfgparams;
++    char *cfgvalues;
++    char *cparam, *cvalue;
++
++    char *saveptr1, *saveptr2;
++
++    m_nvmainPtr = NULL;
++    m_slot_available = true;
++    m_nacked_requests = false;
++
++    m_nvmainConfigPath = p->config;
++
++    m_nvmainConfig = new Config( );
++
++    m_nvmainConfig->Read( m_nvmainConfigPath );
++    std::cout << "NVMainControl: Reading NVMain config file: " << m_nvmainConfigPath << "." << std::endl;
++
++    m_avgAtomicLatency = 100.0f;
++    m_numAtomicAccesses = 0;
++
++    for( cfgparams = (char *)p->configparams.c_str(), cfgvalues = (char *)p->configvalues.c_str()
++         ; ; cfgparams = NULL, cfgvalues = NULL )
++    {
++        cparam = strtok_r( cfgparams, ",", &saveptr1 );
++        cvalue = strtok_r( cfgvalues, ",", &saveptr2 );
++
++        if( cparam == NULL || cvalue == NULL )
++            break;
++
++        std::cout << "NVMain: Overriding parameter `" << cparam << "' with `" << cvalue << "'" << std::endl;
++
++        m_nvmainConfig->SetValue( cparam, cvalue );
++    }
++
++   eventManager = new NVMainMemoryEventManager(&mainEventQueue, *this);
++}
++
++
++void
++NVMainMemory::init()
++{
++    m_nvmainPtr = new NVMain( );
++    m_nvmainSimInterface = new Gem5Interface( );
++
++    m_nvmainConfig->SetSimInterface( m_nvmainSimInterface );
++
++    m_nvmainPtr->SetConfig( m_nvmainConfig );
++
++    if (port.isConnected()) {
++        port.sendRangeChange();
++    }
++
++    eventManager->scheduleWakeup( );
++}
++
++
++SlavePort &
++NVMainMemory::getSlavePort(const std::string& if_name, int idx)
++{
++    if (if_name != "port") {
++        return MemObject::getSlavePort(if_name, idx);
++    } else {
++        return port;
++    }
++}
++
++
++NVMainMemory::MemoryPort::MemoryPort(const std::string& _name, NVMainMemory& _memory)
++    : SimpleTimingPort(_name, &_memory), memory(_memory)
++{
++
++}
++
++
++AddrRangeList NVMainMemory::MemoryPort::getAddrRanges() const
++{
++    AddrRangeList ranges;
++    ranges.push_back(memory.getAddrRange());
++    return ranges;
++}
++
++
++Tick
++NVMainMemory::MemoryPort::recvAtomic(PacketPtr pkt)
++{
++    if (pkt->memInhibitAsserted())
++        return 0;
++
++    if (!pkt->isRead() && !pkt->isWrite()) {
++        std::cout << "NVMainMemory: Received a packet that is neither read nor write" << std::endl;
++
++        return memory.doAtomicAccess(pkt);
++    }
++
++    NVMainRequest *request = new NVMainRequest( );
++
++    bool enqueued;
++    unsigned int transfer_size;
++    uint8_t *hostAddr;
++
++    transfer_size =  memory.m_nvmainConfig->GetValue( "BusWidth" ) / 8;
++    transfer_size *= memory.m_nvmainConfig->GetValue( "tBURST" ) * memory.m_nvmainConfig->GetValue( "RATE" );
++
++    if (pkt->isRead())
++    {
++        Request *dataReq = new Request(pkt->req->getPaddr(), transfer_size, 0, Request::funcMasterId);
++        Packet *dataPkt = new Packet(dataReq, MemCmd::ReadReq);
++        dataPkt->allocate();
++        memory.doFunctionalAccess(dataPkt);
++
++        hostAddr = new uint8_t[ dataPkt->getSize() ];
++        memcpy( hostAddr, dataPkt->getPtr<uint8_t>(), dataPkt->getSize() );
++
++        delete dataPkt;
++        delete dataReq;
++    }
++    else
++    {
++        hostAddr = new uint8_t[ pkt->getSize() ];
++
++        memcpy( hostAddr, pkt->getPtr<uint8_t>(), pkt->getSize() );
++    }
++
++    for(int i = 0; i < transfer_size; i++ )
++    {
++        request->data.SetByte(i, *(hostAddr + (transfer_size - 1) - i));
++    }
++    request->access = UNKNOWN_ACCESS;
++    request->address.SetPhysicalAddress(pkt->req->getPaddr());
++    request->status = MEM_REQUEST_INCOMPLETE;
++    request->type = (pkt->isRead()) ? READ : WRITE;
++
++
++    enqueued = memory.m_nvmainPtr->NewRequest(request);
++    if(enqueued)
++    {
++        memory.m_slot_available = true;
++
++        NVMainMemoryRequest *memRequest = new NVMainMemoryRequest;
++
++        memRequest->request = request;
++        memRequest->packet = pkt;
++        memRequest->issueTick = curTick();
++        memRequest->atomic = true;
++
++        memory.m_request_list.push_back(memRequest);
++    }
++    else
++    {
++        memory.m_slot_available = false;
++
++        NVMainMemoryRequest *memRequest = new NVMainMemoryRequest;
++
++        memRequest->request = request;
++        memRequest->packet = pkt;
++        memRequest->issueTick = curTick();
++        memRequest->atomic = true;
++
++        memory.m_backlog.push_back(memRequest);
++    }
++
++    return memory.doAtomicAccess(pkt);
++}
++
++
++void
++NVMainMemory::MemoryPort::recvFunctional(PacketPtr pkt)
++{
++    pkt->pushLabel(memory.name());
++
++    if (!queue.checkFunctional(pkt)) {
++        memory.doFunctionalAccess(pkt);
++    }
++
++    pkt->popLabel();
++}
++
++
++bool
++NVMainMemory::MemoryPort::recvTimingReq(PacketPtr pkt)
++{
++    if (pkt->memInhibitAsserted()) {
++        delete pkt;
++        return true;
++    }
++
++
++    if (!pkt->isRead() && !pkt->isWrite()) {
++        std::cout << "NVMainMemory: Received a packet that is neither read nor write" << std::endl;
++
++        memory.doAtomicAccess(pkt);
++        queue.schedSendTiming(pkt, curTick() + 1);
++
++        return true;
++    }
++
++    NVMainRequest *request = new NVMainRequest( );
++
++    bool enqueued;
++    unsigned int transfer_size;
++    uint8_t *hostAddr;
++
++    transfer_size =  memory.m_nvmainConfig->GetValue( "BusWidth" ) / 8;
++    transfer_size *= memory.m_nvmainConfig->GetValue( "tBURST" ) * memory.m_nvmainConfig->GetValue( "RATE" );
++
++    if (pkt->isRead())
++    {
++        Request *dataReq = new Request(pkt->req->getPaddr(), transfer_size, 0, Request::funcMasterId);
++        Packet *dataPkt = new Packet(dataReq, MemCmd::ReadReq);
++        dataPkt->allocate();
++        memory.doFunctionalAccess(dataPkt);
++
++        hostAddr = new uint8_t[ dataPkt->getSize() ];
++        memcpy( hostAddr, dataPkt->getPtr<uint8_t>(), dataPkt->getSize() );
++
++        delete dataPkt;
++        delete dataReq;
++    }
++    else
++    {
++        hostAddr = new uint8_t[ pkt->getSize() ];
++
++        memcpy( hostAddr, pkt->getPtr<uint8_t>(), pkt->getSize() );
++    }
++
++    for(int i = 0; i < transfer_size; i++ )
++    {
++        request->data.SetByte(i, *(hostAddr + (transfer_size - 1) - i));
++    }
++    request->access = UNKNOWN_ACCESS;
++    request->address.SetPhysicalAddress(pkt->req->getPaddr());
++    request->status = MEM_REQUEST_INCOMPLETE;
++    request->type = (pkt->isRead()) ? READ : WRITE;
++
++
++    enqueued = memory.m_nvmainPtr->NewRequest(request);
++    if(enqueued)
++    {
++        memory.m_slot_available = true;
++
++        NVMainMemoryRequest *memRequest = new NVMainMemoryRequest;
++
++        memRequest->request = request;
++        memRequest->packet = pkt;
++        memRequest->issueTick = curTick();
++        memRequest->atomic = false;
++
++        memory.m_request_list.push_back(memRequest);
++    }
++    else
++    {
++        memory.m_slot_available = false;
++    }
++
++    return enqueued;
++}
++
++
++
++Tick NVMainMemory::doAtomicAccess(PacketPtr pkt)
++{
++    access(pkt);
++    return static_cast<Tick>(m_avgAtomicLatency);
++}
++
++
++
++void NVMainMemory::doFunctionalAccess(PacketPtr pkt)
++{
++    functionalAccess(pkt);
++}
++
++
++void NVMainMemory::NVMainMemoryEvent::process()
++{
++    std::list<NVMainMemory::NVMainMemoryRequest *>::iterator it;
++
++    // Check for backlogged requests (atomic interface only!)
++    for(it = memory.m_backlog.begin(); it != memory.m_backlog.end(); it++)
++    {
++        if(memory.m_nvmainPtr->NewRequest((*it)->request))
++        {
++            memory.m_request_list.push_back((*it));
++
++            it = memory.m_backlog.erase(it);
++        }
++    }
++
++    // Check for completed requests
++    for(it = memory.m_request_list.begin(); it != memory.m_request_list.end(); it++)
++    {
++        NVMainRequest *creq = (*it)->request;
++
++        if(creq->status == MEM_REQUEST_COMPLETE)
++        {
++            if(!(*it)->atomic)
++            {
++                bool respond = (*it)->packet->needsResponse();
++                memory.access((*it)->packet);
++
++                if(respond)
++                {
++                    memory.port.queue.schedSendTiming((*it)->packet, curTick() + 1);
++
++                    delete (*it);
++                }
++                else
++                {
++                    delete (*it)->packet;
++                    delete (*it);
++                }
++            }
++            else
++            {
++                Tick completionTick = curTick();
++
++                memory.m_avgAtomicLatency = ((memory.m_avgAtomicLatency * memory.m_numAtomicAccesses) + (completionTick - (*it)->issueTick)) / (memory.m_numAtomicAccesses + 1);
++                memory.m_numAtomicAccesses++;
++
++                delete (*it);
++            }
++
++            it = memory.m_request_list.erase(it);
++        }
++    }
++
++
++    // Cycle memory controller
++    memory.m_nvmainPtr->Cycle( );
++
++    memory.eventManager->scheduleWakeup( );
++}
++
++
++NVMainMemory::NVMainMemoryEventManager::NVMainMemoryEventManager(EventQueue* eventq, NVMainMemory &_memory)
++    : EventManager(eventq), memory(_memory)
++{
++    memEvent = new NVMainMemoryEvent(_memory);
++}
++
++
++void NVMainMemory::NVMainMemoryEventManager::scheduleWakeup( )
++{
++    schedule(memEvent, curTick() + 1);
++}
++
++
++NVMainMemory *
++NVMainMemoryParams::create()
++{
++    return new NVMainMemory(this);
++}
++
+diff -r e9746ad3071e src/mem/nvmain_mem.hh
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/src/mem/nvmain_mem.hh	Mon Jul 30 11:29:03 2012 -0400
+@@ -0,0 +1,160 @@
++/*
++ * Copyright (c) 1999-2008 Mark D. Hill and David A. Wood
++ * All rights reserved.
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions are
++ * met: redistributions of source code must retain the above copyright
++ * notice, this list of conditions and the following disclaimer;
++ * redistributions in binary form must reproduce the above copyright
++ * notice, this list of conditions and the following disclaimer in the
++ * documentation and/or other materials provided with the distribution;
++ * neither the name of the copyright holders nor the names of its
++ * contributors may be used to endorse or promote products derived from
++ * this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
++ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
++ * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
++ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
++ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
++ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
++ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
++ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
++ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++/*
++ *  This file is part of NVMain- A cycle accurate timing, bit-accurate
++ *  energy simulator for non-volatile memory. Originally developed by
++ *  Matt Poremba at the Pennsylvania State University.
++ *
++ *  Website: http://www.cse.psu.edu/~poremba/nvmain/
++ *  Email: mrp5060@psu.edu
++ *
++ *  ---------------------------------------------------------------------
++ *
++ *  If you use this software for publishable research, please include
++ *  the original NVMain paper in the citation list and mention the use
++ *  of NVMain.
++ *
++ */
++
++#ifndef __MEM_NVMAIN_MEM_HH__
++#define __MEM_NVMAIN_MEM_HH__
++
++
++#include "NVM/nvmain.h"
++#include "mem/abstract_mem.hh"
++#include "mem/tport.hh"
++#include "params/NVMainMemory.hh"
++#include "sim/eventq.hh"
++#include "src/Config.h"
++#include "src/SimInterface.h"
++
++class NVMainMemory : public AbstractMemory
++{
++  private:
++
++    class MemoryPort : public SimpleTimingPort
++    {
++        friend class NVMainMemory;
++
++        NVMainMemory& memory;
++
++      public:
++
++        MemoryPort(const std::string& _name, NVMainMemory& _memory);
++
++      protected:
++
++        virtual Tick recvAtomic(PacketPtr pkt);
++
++        virtual void recvFunctional(PacketPtr pkt);
++
++        virtual bool recvTimingReq(PacketPtr pkt);
++
++        virtual AddrRangeList getAddrRanges() const;
++
++    };
++
++    class NVMainMemoryEvent : public Event
++    {
++        friend class NVMainMemory;
++
++        NVMainMemory& memory;
++
++      public:
++
++        NVMainMemoryEvent(NVMainMemory &_memory) : memory(_memory) { }
++        ~NVMainMemoryEvent() { }
++
++        void process();
++    };
++
++    class NVMainMemoryEventManager : public EventManager
++    {
++        friend class NVMainMemory;
++
++        NVMainMemory& memory;
++
++        NVMainMemoryEvent *memEvent;
++
++      public:
++
++        NVMainMemoryEventManager(EventQueue *eventq, NVMainMemory &_memory);
++        ~NVMainMemoryEventManager( ) { }
++
++        void scheduleWakeup( );
++    };
++
++    struct NVMainMemoryRequest
++    {
++        PacketPtr packet;
++        NVM::NVMainRequest *request;
++        Tick issueTick;
++        bool atomic;
++    };
++
++    MemoryPort port;
++    NVMainMemoryEventManager *eventManager;
++
++    NVM::NVMain *m_nvmainPtr;
++    NVM::Config *m_nvmainConfig;
++    NVM::SimInterface *m_nvmainSimInterface;
++    std::string m_nvmainConfigPath;
++
++    bool m_nacked_requests;
++    bool m_slot_available;
++    float m_avgAtomicLatency;
++    uint64_t m_numAtomicAccesses;
++
++    std::list<NVMainMemoryRequest *> m_request_list;
++    std::list<NVMainMemoryRequest *> m_backlog;
++
++  public:
++
++    typedef NVMainMemoryParams Params;
++    NVMainMemory(const Params *p);
++    virtual ~NVMainMemory() { }
++
++    SlavePort& getSlavePort(const std::string& if_name, int idx = -1);
++    void init();
++
++    const Params *
++    params() const
++    {
++        return dynamic_cast<const Params *>(_params);
++    }
++
++  protected:
++
++    Tick doAtomicAccess(PacketPtr pkt);
++    void doFunctionalAccess(PacketPtr pkt);
++
++};
++
++#endif
++
+diff -r e9746ad3071e src/mem/protocol/MESI_CMP_directory-dir.sm
+--- a/src/mem/protocol/MESI_CMP_directory-dir.sm	Fri Jul 27 15:07:10 2012 -0400
++++ b/src/mem/protocol/MESI_CMP_directory-dir.sm	Mon Jul 30 11:29:03 2012 -0400
+@@ -37,7 +37,7 @@
+ 
+ machine(Directory, "MESI_CMP_filter_directory protocol") 
+  : DirectoryMemory * directory,
+-   MemoryControl * memBuffer,
++   NVMainControl * memBuffer,
+    int to_mem_ctrl_latency = 1,
+    int directory_latency = 6
+ {
+diff -r e9746ad3071e src/mem/protocol/RubySlicc_Types.sm
+--- a/src/mem/protocol/RubySlicc_Types.sm	Fri Jul 27 15:07:10 2012 -0400
++++ b/src/mem/protocol/RubySlicc_Types.sm	Mon Jul 30 11:29:03 2012 -0400
+@@ -166,6 +166,10 @@
+   void recordRequestType(CacheRequestType);
+ }
+ 
++structure (NVMainControl, inport="yes", outport="yes", external = "yes") {
++
++}
++
+ structure (DMASequencer, external = "yes") {
+   void ackCallback();
+   void dataCallback(DataBlock);
+diff -r e9746ad3071e src/mem/ruby/SConscript
+--- a/src/mem/ruby/SConscript	Fri Jul 27 15:07:10 2012 -0400
++++ b/src/mem/ruby/SConscript	Mon Jul 30 11:29:03 2012 -0400
+@@ -114,3 +114,4 @@
+ MakeInclude('system/Sequencer.hh')
+ MakeInclude('system/TBETable.hh')
+ MakeInclude('system/TimerTable.hh')
++MakeInclude('system/NVMainControl.hh')
+diff -r e9746ad3071e src/mem/ruby/network/Network.hh
+--- a/src/mem/ruby/network/Network.hh	Fri Jul 27 15:07:10 2012 -0400
++++ b/src/mem/ruby/network/Network.hh	Mon Jul 30 11:29:03 2012 -0400
+@@ -94,6 +94,8 @@
+     virtual void clearStats() = 0;
+     virtual void print(std::ostream& out) const = 0;
+ 
++    Topology* getTopologyPtr() const { return m_topology_ptr; }
++
+   protected:
+     // Private copy constructor and assignment operator
+     Network(const Network& obj);
+diff -r e9746ad3071e src/mem/ruby/network/Topology.hh
+--- a/src/mem/ruby/network/Topology.hh	Fri Jul 27 15:07:10 2012 -0400
++++ b/src/mem/ruby/network/Topology.hh	Mon Jul 30 11:29:03 2012 -0400
+@@ -81,6 +81,8 @@
+     void clearStats();
+     void print(std::ostream& out) const { out << "[Topology]"; }
+ 
++    std::vector<AbstractController*> getControllerVector() const { return m_controller_vector; }
++
+   protected:
+     void addLink(SwitchID src, SwitchID dest, BasicLink* link,
+                  LinkDirection dir);
+diff -r e9746ad3071e src/mem/ruby/profiler/CacheProfiler.cc
+--- a/src/mem/ruby/profiler/CacheProfiler.cc	Fri Jul 27 15:07:10 2012 -0400
++++ b/src/mem/ruby/profiler/CacheProfiler.cc	Mon Jul 30 11:29:03 2012 -0400
+@@ -37,6 +37,8 @@
+ {
+     m_description = description;
+ 
++    std::cout << "Created cache profiler : " << m_description << std::endl;
++
+     clearStats();
+ }
+ 
+diff -r e9746ad3071e src/mem/ruby/profiler/CacheProfiler.hh
+--- a/src/mem/ruby/profiler/CacheProfiler.hh	Fri Jul 27 15:07:10 2012 -0400
++++ b/src/mem/ruby/profiler/CacheProfiler.hh	Mon Jul 30 11:29:03 2012 -0400
+@@ -59,6 +59,8 @@
+ 
+     void print(std::ostream& out) const;
+ 
++    int64 getMisses() const { return m_misses; }
++
+   private:
+     // Private copy constructor and assignment operator
+     CacheProfiler(const CacheProfiler& obj);
+diff -r e9746ad3071e src/mem/ruby/slicc_interface/AbstractController.hh
+--- a/src/mem/ruby/slicc_interface/AbstractController.hh	Fri Jul 27 15:07:10 2012 -0400
++++ b/src/mem/ruby/slicc_interface/AbstractController.hh	Mon Jul 30 11:29:03 2012 -0400
+@@ -38,6 +38,7 @@
+ #include "mem/ruby/common/DataBlock.hh"
+ #include "mem/ruby/network/Network.hh"
+ #include "mem/ruby/recorder/CacheRecorder.hh"
++#include "mem/ruby/profiler/CacheProfiler.hh"
+ #include "params/RubyController.hh"
+ #include "sim/sim_object.hh"
+ 
+@@ -68,6 +69,7 @@
+     virtual void clearStats() = 0;
+     virtual void recordCacheTrace(int cntrl, CacheRecorder* tr) = 0;
+     virtual Sequencer* getSequencer() const = 0;
++    virtual CacheProfiler* getCacheProfiler() const = 0;
+ };
+ 
+ #endif // __MEM_RUBY_SLICC_INTERFACE_ABSTRACTCONTROLLER_HH__
+diff -r e9746ad3071e src/mem/ruby/system/CacheMemory.hh
+--- a/src/mem/ruby/system/CacheMemory.hh	Fri Jul 27 15:07:10 2012 -0400
++++ b/src/mem/ruby/system/CacheMemory.hh	Mon Jul 30 11:29:03 2012 -0400
+@@ -129,6 +129,8 @@
+ 
+     Stats::Scalar numTagArrayStalls;
+     Stats::Scalar numDataArrayStalls;
++
++    CacheProfiler *getCacheProfiler() const { return m_profiler_ptr; }
+   private:
+     // convert a Address to its location in the cache
+     Index addressToCacheSet(const Address& address) const;
+diff -r e9746ad3071e src/mem/ruby/system/MemoryNode.hh
+--- a/src/mem/ruby/system/MemoryNode.hh	Fri Jul 27 15:07:10 2012 -0400
++++ b/src/mem/ruby/system/MemoryNode.hh	Mon Jul 30 11:29:03 2012 -0400
+@@ -57,6 +57,7 @@
+         m_addr = addr;
+         m_is_mem_read = is_mem_read;
+         m_is_dirty_wb = !is_mem_read;
++        m_metadata = NULL;
+     }
+ 
+     // new constructor
+@@ -70,6 +71,22 @@
+         m_addr = addr;
+         m_is_mem_read = is_mem_read;
+         m_is_dirty_wb = is_dirty_wb;
++        m_metadata = NULL;
++    }
++
++
++    // new constructor with metadata
++    MemoryNode(const Time& time, const MsgPtr& msgptr,
++               const physical_address_t addr, void * metadata,
++               const bool is_mem_read, const bool is_dirty_wb)
++    {
++        m_time = time;
++        m_msg_counter = 0;
++        m_msgptr = msgptr;
++        m_addr = addr;
++        m_metadata = metadata;
++        m_is_mem_read = is_mem_read;
++        m_is_dirty_wb = is_dirty_wb;
+     }
+ 
+     void print(std::ostream& out) const;
+@@ -80,6 +97,7 @@
+     physical_address_t m_addr;
+     bool m_is_mem_read;
+     bool m_is_dirty_wb;
++    void * m_metadata;
+ };
+ 
+ inline std::ostream&
+diff -r e9746ad3071e src/mem/ruby/system/NVMainControl.cc
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/src/mem/ruby/system/NVMainControl.cc	Mon Jul 30 11:29:03 2012 -0400
+@@ -0,0 +1,372 @@
++/*
++ * Copyright (c) 1999-2008 Mark D. Hill and David A. Wood
++ * All rights reserved.
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions are
++ * met: redistributions of source code must retain the above copyright
++ * notice, this list of conditions and the following disclaimer;
++ * redistributions in binary form must reproduce the above copyright
++ * notice, this list of conditions and the following disclaimer in the
++ * documentation and/or other materials provided with the distribution;
++ * neither the name of the copyright holders nor the names of its
++ * contributors may be used to endorse or promote products derived from
++ * this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
++ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
++ * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
++ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
++ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
++ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
++ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
++ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
++ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++
++#include "SimInterface/NullInterface/NullInterface.h"
++#include "base/cprintf.hh"
++#include "include/NVMainRequest.h"
++#include "mem/ruby/common/Address.hh"
++#include "mem/ruby/common/Consumer.hh"
++#include "mem/ruby/common/Global.hh"
++#include "mem/ruby/network/Network.hh"
++#include "mem/ruby/profiler/Profiler.hh"
++#include "mem/ruby/slicc_interface/NetworkMessage.hh"
++#include "mem/ruby/slicc_interface/RubySlicc_ComponentMapping.hh"
++#include "mem/ruby/system/NVMainControl.hh"
++#include "mem/ruby/system/System.hh"
++#include "mem/packet.hh"
++#include "mem/request.hh"
++#include "mem/simple_mem.hh"
++
++using namespace NVM;
++
++class Consumer;
++
++
++std::ostream&
++operator<<(std::ostream& out, const NVMainControl& obj)
++{
++    obj.print(out);
++    out << std::flush;
++    return out;
++}
++
++
++
++NVMainControl::NVMainControl(const Params *p)
++    : SimObject(p)
++{
++    char *cfgparams;
++    char *cfgvalues;
++    char *cparam, *cvalue;
++
++    char *saveptr1, *saveptr2;
++
++    m_nvmainPtr = NULL;
++    m_slot_available = true;
++    m_nacked_requests = false;
++
++    m_nvmainConfigPath = p->config;
++    m_physMem = p->physicalMem;
++
++    m_nvmainConfig = new Config( );
++
++    m_nvmainConfig->Read( m_nvmainConfigPath );
++    std::cout << "NVMainControl: Reading NVMain config file: " << m_nvmainConfigPath << "." << std::endl;
++
++
++    for( cfgparams = (char *)p->configparams.c_str(), cfgvalues = (char *)p->configvalues.c_str()
++         ; ; cfgparams = NULL, cfgvalues = NULL )
++    {
++        cparam = strtok_r( cfgparams, ",", &saveptr1 );
++        cvalue = strtok_r( cfgvalues, ",", &saveptr2 );
++
++        if( cparam == NULL || cvalue == NULL )
++            break;
++
++        std::cout << "NVMain: Overriding parameter `" << cparam << "' with `" << cvalue << "'" << std::endl;
++
++        m_nvmainConfig->SetValue( cparam, cvalue );
++    }
++}
++
++void
++NVMainControl::init()
++{
++    m_nvmainPtr = new NVMain( );
++    m_nvmainSimInterface = new NullInterface( );
++
++    m_nvmainConfig->SetSimInterface( m_nvmainSimInterface );
++
++    m_nvmainPtr->SetConfig( m_nvmainConfig );
++
++    // Schedule a wakeup.
++    g_eventQueue_ptr->scheduleEvent(this, 1);
++}
++
++NVMainControl::~NVMainControl()
++{
++    std::cout << "NVMainControl dtor called!" << std::endl;
++}
++
++void
++NVMainControl::enqueue(const MsgPtr& message, int latency)
++{
++    Time current_time = g_eventQueue_ptr->getTime();
++    Time arrival_time = current_time + latency;
++
++    const MemoryMsg* memMess = safe_cast<const MemoryMsg*>(message.get());
++    physical_address_t addr = memMess->getAddress().getAddress();
++    MemoryRequestType type = memMess->getType();
++    bool is_mem_read = (type == MemoryRequestType_MEMORY_READ);
++
++    //if(!is_mem_read)
++    //    std::cout << "New memory request (" << m_msg_counter << "): addr 0x" << std::hex
++    //              << addr << ", data is " << memMess->getDataBlk( ) << (is_mem_read ? 'R' : 'W')
++    //              << std::endl;
++
++    NVMainRequest *request = new NVMainRequest( );
++
++    MemoryNode thisReq(arrival_time, message, addr, (void *)request, is_mem_read, !is_mem_read);
++    enqueueMemRef(thisReq);
++}
++
++void
++NVMainControl::enqueueMemRef(MemoryNode& memRef)
++{
++    m_msg_counter++;
++    memRef.m_msg_counter = m_msg_counter;
++    int transfer_size;
++
++    transfer_size = m_nvmainConfig->GetValue( "BusWidth" ) / 8;
++    transfer_size *= m_nvmainConfig->GetValue( "tBURST" ) * m_nvmainConfig->GetValue( "RATE" );
++
++    DPRINTF(RubyMemory, "New memory request%7d: %#08x %c arrived at %lld\n",
++            m_msg_counter, (unsigned int)memRef.m_addr, memRef.m_is_mem_read ? 'R':'W',
++            memRef.m_time * g_eventQueue_ptr->getClock());
++
++
++    // Build NVMainRequest and send to NVMain code.
++    NVMainRequest *request = (NVMainRequest *)memRef.m_metadata;
++    bool enqueued;
++    uint8_t *hostAddr;
++
++    Request *gem5Req = new Request( memRef.m_addr, transfer_size, 0, Request::funcMasterId );
++    Packet *gem5Pkt = new Packet( gem5Req, MemCmd::ReadReq );
++    gem5Pkt->allocate();
++    m_physMem->doFunctionalAccess( gem5Pkt );
++
++    hostAddr = new uint8_t[ transfer_size ];
++    memcpy( hostAddr, gem5Pkt->getPtr<uint8_t>(), gem5Pkt->getSize() );
++
++    //std::cout << "Memory req: " << std::hex << (unsigned int)memRef.m_addr << " "
++    //          << (memRef.m_is_mem_read ? 'R' : 'W') << " has data ";
++    //for(int i = 0; i < transfer_size; i++)
++    //  {
++    //    uint8_t byt = *(hostAddr + (transfer_size - 1) - i);
++    //
++    //    if( byt > 0xF )
++    //      std::cout << (int)byt;
++    //    else
++    //      std::cout << "0" << (int)byt;
++    //  }
++    //std::cout << std::dec << std::endl;
++
++    delete gem5Pkt;
++
++    request->access = UNKNOWN_ACCESS;
++    for(int i = 0; i < transfer_size; i++)
++    {
++        // memRef's m_msgptr's DataBlk is only correct for write data (since data is not read yet)
++        // However, nvmain needs data being read otherwise data is assumed 0 on first write, which
++        // may not be correct.
++        request->data.SetByte(i, *(hostAddr + (transfer_size - 1) - i));
++    }
++    request->address.SetPhysicalAddress(memRef.m_addr);
++    request->status = MEM_REQUEST_INCOMPLETE;
++    request->type = (memRef.m_is_mem_read) ? READ : WRITE;
++
++    //if(!memRef.m_is_mem_read)
++    //    std::cout << ((memRef.m_is_mem_read) ? "Read" : "Write") << " request for 0x"  << std::hex
++    //              << request->address.GetPhysicalAddress() << " has data " << request->data << std::endl;
++
++    //std::cout << "MemReq for 0x" << std::hex << request->address.GetPhysicalAddress( ) << " from PC "
++    //          << request->programCounter << " in core " << request->threadId << std::endl;
++
++    enqueued = m_nvmainPtr->NewRequest(request);
++    if(enqueued)
++    {
++            m_input_queue.push_back(memRef);
++        m_request_list.push_back(request);
++            m_slot_available = true;
++    }
++    else
++    {
++            m_slot_available = false;
++    }
++
++    // Schedule a wakeup.
++    g_eventQueue_ptr->scheduleEvent(this, 1);
++}
++
++void
++NVMainControl::dequeue()
++{
++    assert(isReady());
++    m_response_queue.pop_front();
++}
++
++const Message*
++NVMainControl::peek()
++{
++    MemoryNode node = peekNode();
++    Message* msg_ptr = node.m_msgptr.get();
++    assert(msg_ptr != NULL);
++    return msg_ptr;
++}
++
++MemoryNode
++NVMainControl::peekNode()
++{
++    assert(isReady());
++    MemoryNode req = m_response_queue.front();
++    DPRINTF(RubyMemory, "Peek: memory request%7d: %#08x %c\n",
++            req.m_msg_counter, req.m_addr, req.m_is_mem_read ? 'R':'W');
++
++    return req;
++}
++
++bool
++NVMainControl::isReady()
++{
++    bool rv;
++
++    rv = ((!m_response_queue.empty()) &&
++            (m_response_queue.front().m_time <= g_eventQueue_ptr->getTime()));
++
++    return rv;
++}
++
++void
++NVMainControl::setConsumer(Consumer* consumer_ptr)
++{
++    m_consumer_ptr = consumer_ptr;
++}
++
++void
++NVMainControl::print(std::ostream& out) const
++{
++}
++
++void
++NVMainControl::printConfig(std::ostream& out)
++{
++    out << "hai2u" << std::endl;
++}
++
++void
++NVMainControl::clearStats() const
++{
++    std::cout << "clearing stats in NVMainControl!!" << std::endl;
++}
++
++void
++NVMainControl::printStats(std::ostream& out) const
++{
++    std::cout << "printing stats from NVMainControl!!" << std::endl;
++}
++
++// Queue up a completed request to send back to directory
++void
++NVMainControl::enqueueToDirectory(MemoryNode req, int latency)
++{
++    Time arrival_time = g_eventQueue_ptr->getTime() + latency;
++    req.m_time = arrival_time;
++    m_response_queue.push_back(req);
++
++    DPRINTF(RubyMemory, "Enqueueing msg %#08x %c back to directory at %lld\n",
++            req.m_addr, req.m_is_mem_read ? 'R':'W',
++            arrival_time * g_eventQueue_ptr->getClock());
++
++    // schedule the wake up
++    g_eventQueue_ptr->scheduleEventAbsolute(m_consumer_ptr, arrival_time);
++}
++
++
++bool
++NVMainControl::areNSlotsAvailable(int n)
++{
++    //std::cout << "NSlotsAvail called! Requests " << n << std::endl;
++    return m_nvmainPtr->CanIssue( NULL );
++    //return true;
++}
++
++
++bool
++NVMainControl::queueReady(int bank)
++{
++    return true;
++}
++
++
++void
++NVMainControl::issueRequest(int bank)
++{
++}
++
++void
++NVMainControl::executeCycle()
++{
++    std::list<NVMainRequest *>::iterator it;
++
++    // Check for completed requests
++    for(it = m_request_list.begin(); it != m_request_list.end(); it++)
++    {
++        NVMainRequest *creq = *it;
++
++        if(creq->status == MEM_REQUEST_COMPLETE)
++        {
++            // Find memRef in m_input_queue, remove it, and send to directory
++            std::list<MemoryNode>::iterator mit;
++
++            for(mit = m_input_queue.begin(); mit != m_input_queue.end(); mit++)
++            {
++                MemoryNode memRef = (*mit);
++
++                if(memRef.m_addr == creq->address.GetPhysicalAddress())
++                {
++                    m_input_queue.erase( mit );
++                    enqueueToDirectory( memRef, 1 );
++                    break;
++                }
++            }
++
++            it = m_request_list.erase(it);
++        }
++    }
++
++
++    // Cycle memory controller
++    m_nvmainPtr->Cycle( );
++}
++
++void
++NVMainControl::wakeup()
++{
++    // execute ALL THE THINGS!
++    executeCycle();
++
++    g_eventQueue_ptr->scheduleEvent(this, 1);
++}
++
++NVMainControl *
++NVMMemoryControlParams::create()
++{
++    return new NVMainControl(this);
++}
++
+diff -r e9746ad3071e src/mem/ruby/system/NVMainControl.hh
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/src/mem/ruby/system/NVMainControl.hh	Mon Jul 30 11:29:03 2012 -0400
+@@ -0,0 +1,131 @@
++/*
++ * Copyright (c) 1999-2008 Mark D. Hill and David A. Wood
++ * All rights reserved.
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions are
++ * met: redistributions of source code must retain the above copyright
++ * notice, this list of conditions and the following disclaimer;
++ * redistributions in binary form must reproduce the above copyright
++ * notice, this list of conditions and the following disclaimer in the
++ * documentation and/or other materials provided with the distribution;
++ * neither the name of the copyright holders nor the names of its
++ * contributors may be used to endorse or promote products derived from
++ * this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
++ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
++ * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
++ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
++ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
++ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
++ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
++ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
++ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++/*
++ *  This file is part of NVMain- A cycle accurate timing, bit-accurate
++ *  energy simulator for non-volatile memory. Originally developed by
++ *  Matt Poremba at the Pennsylvania State University.
++ *
++ *  Website: http://www.cse.psu.edu/~poremba/nvmain/
++ *  Email: mrp5060@psu.edu
++ *
++ *  ---------------------------------------------------------------------
++ *
++ *  If you use this software for publishable research, please include
++ *  the original NVMain paper in the citation list and mention the use
++ *  of NVMain.
++ *
++ */
++
++#ifndef __MEM_RUBY_SYSTEM_NVMAIN_CONTROL_HH__
++#define __MEM_RUBY_SYSTEM_NVMAIN_CONTROL_HH__
++
++#include <iostream>
++#include <list>
++#include <string>
++
++#include "NVM/nvmain.h"
++#include "mem/protocol/MemoryMsg.hh"
++#include "mem/ruby/common/Address.hh"
++#include "mem/ruby/common/Consumer.hh"
++#include "mem/ruby/common/Global.hh"
++#include "mem/ruby/profiler/MemCntrlProfiler.hh"
++#include "mem/ruby/slicc_interface/Message.hh"
++#include "mem/ruby/system/AbstractMemOrCache.hh"
++#include "mem/ruby/system/MemoryNode.hh"
++#include "mem/ruby/system/System.hh"
++#include "mem/physical.hh"
++#include "params/NVMMemoryControl.hh"
++#include "sim/sim_object.hh"
++#include "src/Config.h"
++#include "src/SimInterface.h"
++
++class Consumer;
++
++class NVMainControl :
++    public SimObject, public Consumer, public AbstractMemOrCache
++{
++  public:
++    typedef NVMMemoryControlParams Params;
++    NVMainControl(const Params *p);
++    void init();
++
++    ~NVMainControl();
++
++    void wakeup();
++
++    void setConsumer(Consumer* consumer_ptr);
++    Consumer* getConsumer() { return m_consumer_ptr; };
++    void setDescription(const std::string& name) { m_description = name; };
++    std::string getDescription() { return m_description; };
++
++    void enqueue(const MsgPtr& message, int latency );
++    void enqueueMemRef(MemoryNode& memRef);
++    void dequeue();
++    const Message* peek();
++    MemoryNode peekNode();
++    bool isReady();
++    bool areNSlotsAvailable(int n);
++
++
++    void printConfig(std::ostream& out);
++    void print(std::ostream& out) const;
++    void clearStats() const;
++    void printStats(std::ostream& out) const;
++
++
++  private:
++    void enqueueToDirectory(MemoryNode req, int latency);
++    bool queueReady(int bank);
++    void issueRequest(int bank);
++    void executeCycle();
++
++    NVMainControl (const NVMainControl& obj);
++    NVMainControl& operator=(const NVMainControl& obj);
++
++    Consumer* m_consumer_ptr;
++    std::string m_description;
++    int m_msg_counter;
++    int m_awakened;
++
++    bool m_slot_available;
++    bool m_nacked_requests;
++    NVM::NVMain *m_nvmainPtr;
++    SimpleMemory *m_physMem;
++    NVM::SimInterface *m_nvmainSimInterface;
++    NVM::Config *m_nvmainConfig;
++    std::string m_nvmainConfigPath;
++
++    std::list<MemoryNode> m_response_queue;
++    std::list<MemoryNode> m_input_queue;
++    std::list<MemoryNode>* m_bankQueues;
++
++    std::list<NVM::NVMainRequest *> m_request_list;
++};
++
++#endif // __MEM_RUBY_SYSTEM_MEMORY_CONTROL_HH__
+diff -r e9746ad3071e src/mem/ruby/system/NVMainControl.py
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/src/mem/ruby/system/NVMainControl.py	Mon Jul 30 11:29:03 2012 -0400
+@@ -0,0 +1,40 @@
++# Copyright (c) 2009 Advanced Micro Devices, Inc.
++# All rights reserved.
++#
++# Redistribution and use in source and binary forms, with or without
++# modification, are permitted provided that the following conditions are
++# met: redistributions of source code must retain the above copyright
++# notice, this list of conditions and the following disclaimer;
++# redistributions in binary form must reproduce the above copyright
++# notice, this list of conditions and the following disclaimer in the
++# documentation and/or other materials provided with the distribution;
++# neither the name of the copyright holders nor the names of its
++# contributors may be used to endorse or promote products derived from
++# this software without specific prior written permission.
++#
++# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
++# A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
++# OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
++# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
++# LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
++# DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
++# THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
++# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
++# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++#
++
++from m5.params import *
++from m5.SimObject import SimObject
++
++class NVMMemoryControl(SimObject):
++    type = 'NVMMemoryControl'
++    cxx_class = 'NVMainControl'
++    version = Param.Int("")
++    config = Param.String("NULL", "")
++    physicalMem = Param.SimpleMemory("")
++
++    configparams = Param.String("", "")
++    configvalues = Param.String("", "")
++
+diff -r e9746ad3071e src/mem/ruby/system/SConscript
+--- a/src/mem/ruby/system/SConscript	Fri Jul 27 15:07:10 2012 -0400
++++ b/src/mem/ruby/system/SConscript	Mon Jul 30 11:29:03 2012 -0400
+@@ -37,6 +37,7 @@
+ SimObject('Sequencer.py')
+ SimObject('DirectoryMemory.py')
+ SimObject('MemoryControl.py')
++SimObject('NVMainControl.py')
+ SimObject('WireBuffer.py')
+ SimObject('RubySystem.py')
+ SimObject('RubyMemoryControl.py')
+@@ -46,6 +47,7 @@
+ Source('SparseMemory.cc')
+ Source('CacheMemory.cc')
+ Source('MemoryControl.cc')
++Source('NVMainControl.cc')
+ Source('WireBuffer.cc')
+ Source('RubyMemoryControl.cc')
+ Source('MemoryNode.cc')
+diff -r e9746ad3071e src/mem/simple_mem.hh
+--- a/src/mem/simple_mem.hh	Fri Jul 27 15:07:10 2012 -0400
++++ b/src/mem/simple_mem.hh	Mon Jul 30 11:29:03 2012 -0400
+@@ -104,7 +104,7 @@
+         return dynamic_cast<const Params *>(_params);
+     }
+ 
+-  protected:
++  //protected:
+ 
+     Tick doAtomicAccess(PacketPtr pkt);
+     void doFunctionalAccess(PacketPtr pkt);
+diff -r e9746ad3071e src/mem/slicc/symbols/StateMachine.py
+--- a/src/mem/slicc/symbols/StateMachine.py	Fri Jul 27 15:07:10 2012 -0400
++++ b/src/mem/slicc/symbols/StateMachine.py	Mon Jul 30 11:29:03 2012 -0400
+@@ -40,6 +40,7 @@
+                     "Sequencer": "RubySequencer",
+                     "DirectoryMemory": "RubyDirectoryMemory",
+                     "MemoryControl": "MemoryControl",
++                    "NVMainControl": "NVMMemoryControl",
+                     "DMASequencer": "DMASequencer"
+                     }
+ 
+@@ -271,6 +272,7 @@
+     void unblock(Address addr);
+     void recordCacheTrace(int cntrl, CacheRecorder* tr);
+     Sequencer* getSequencer() const;
++    CacheProfiler* getCacheProfiler() const;
+ 
+ private:
+ ''')
+@@ -716,6 +718,26 @@
+     return $seq_ident;
+ }
+ 
++
++CacheProfiler*
++$c_ident::getCacheProfiler() const
++{
++''')
++
++        code.indent()
++        foundCacheMemory = False
++        for param in self.config_parameters:
++            if param.type_ast.type.ident == "CacheMemory":
++                code('return m_${{param.ident}}_ptr->getCacheProfiler();')
++                foundCacheMemory = True
++                break
++
++        if foundCacheMemory == False:
++            code('return NULL;')
++
++        code.dedent()
++        code('''}
++
+ const int &
+ $c_ident::getVersion() const
+ {
