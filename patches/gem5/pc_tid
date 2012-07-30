@@ -1,0 +1,182 @@
+# HG changeset patch
+# Parent b9e2ca8690f8a99d4e9f9c1d4d1129dd61150ec1
+
+diff -r b9e2ca8690f8 src/mem/nvmain_mem.cc
+--- a/src/mem/nvmain_mem.cc	Mon Jul 30 11:29:05 2012 -0400
++++ b/src/mem/nvmain_mem.cc	Mon Jul 30 11:30:00 2012 -0400
+@@ -187,6 +187,8 @@
+     request->status = MEM_REQUEST_INCOMPLETE;
+     request->type = (pkt->isRead()) ? READ : WRITE;
+ 
++    request->programCounter = pkt->req->_pc;
++    request->threadId = pkt->req->_contextId;
+ 
+     enqueued = memory.m_nvmainPtr->NewRequest(request);
+     if(enqueued)
+@@ -289,6 +291,8 @@
+     request->status = MEM_REQUEST_INCOMPLETE;
+     request->type = (pkt->isRead()) ? READ : WRITE;
+ 
++    request->programCounter = pkt->req->_pc;
++    request->threadId = pkt->req->_contextId;
+ 
+     enqueued = memory.m_nvmainPtr->NewRequest(request);
+     if(enqueued)
+diff -r b9e2ca8690f8 src/mem/protocol/MESI_CMP_directory-L1cache.sm
+--- a/src/mem/protocol/MESI_CMP_directory-L1cache.sm	Mon Jul 30 11:29:05 2012 -0400
++++ b/src/mem/protocol/MESI_CMP_directory-L1cache.sm	Mon Jul 30 11:30:00 2012 -0400
+@@ -377,6 +377,8 @@
+         out_msg.MessageSize := MessageSizeType:Control;
+         out_msg.Prefetch := in_msg.Prefetch;
+         out_msg.AccessMode := in_msg.AccessMode;
++        out_msg.ProgramCounter := in_msg.ProgramCounter;
++        out_msg.ThreadId := in_msg.contextId;
+       }
+     }
+   }
+@@ -394,6 +396,8 @@
+         out_msg.MessageSize := MessageSizeType:Control;
+         out_msg.Prefetch := in_msg.Prefetch;
+         out_msg.AccessMode := in_msg.AccessMode;
++        out_msg.ProgramCounter := in_msg.ProgramCounter;
++        out_msg.ThreadId := in_msg.contextId;
+       }
+     }
+   }
+@@ -413,6 +417,8 @@
+         out_msg.MessageSize := MessageSizeType:Control;
+         out_msg.Prefetch := in_msg.Prefetch;
+         out_msg.AccessMode := in_msg.AccessMode;
++        out_msg.ProgramCounter := in_msg.ProgramCounter;
++        out_msg.ThreadId := in_msg.contextId;
+       }
+     }
+   }
+@@ -430,6 +436,8 @@
+         out_msg.MessageSize := MessageSizeType:Control;
+         out_msg.Prefetch := in_msg.Prefetch;
+         out_msg.AccessMode := in_msg.AccessMode;
++        out_msg.ProgramCounter := in_msg.ProgramCounter;
++        out_msg.ThreadId := in_msg.contextId;
+       }
+     }
+   }
+diff -r b9e2ca8690f8 src/mem/protocol/MESI_CMP_directory-L2cache.sm
+--- a/src/mem/protocol/MESI_CMP_directory-L2cache.sm	Mon Jul 30 11:29:05 2012 -0400
++++ b/src/mem/protocol/MESI_CMP_directory-L2cache.sm	Mon Jul 30 11:30:00 2012 -0400
+@@ -401,6 +401,8 @@
+         out_msg.Requestor := machineID;
+         out_msg.Destination.add(map_Address_to_Directory(address));
+         out_msg.MessageSize := MessageSizeType:Control;
++        out_msg.ProgramCounter := in_msg.ProgramCounter;
++        out_msg.ThreadId := in_msg.ThreadId;
+       }
+     }
+   }
+@@ -414,6 +416,8 @@
+         out_msg.Requestor := in_msg.Requestor;
+         out_msg.Destination.add(cache_entry.Exclusive);
+         out_msg.MessageSize := MessageSizeType:Request_Control;
++        out_msg.ProgramCounter := in_msg.ProgramCounter;
++        out_msg.ThreadId := in_msg.ThreadId;
+       }
+     }
+   }
+diff -r b9e2ca8690f8 src/mem/protocol/MESI_CMP_directory-dir.sm
+--- a/src/mem/protocol/MESI_CMP_directory-dir.sm	Mon Jul 30 11:29:05 2012 -0400
++++ b/src/mem/protocol/MESI_CMP_directory-dir.sm	Mon Jul 30 11:30:00 2012 -0400
+@@ -311,6 +311,8 @@
+         out_msg.MessageSize := in_msg.MessageSize;
+         out_msg.Prefetch := in_msg.Prefetch;
+         out_msg.DataBlk := getDirectoryEntry(in_msg.Address).DataBlk;
++        out_msg.ProgramCounter := in_msg.ProgramCounter;
++        out_msg.ThreadId := in_msg.ThreadId;
+ 
+         DPRINTF(RubySlicc, "%s\n", out_msg);
+       }
+@@ -350,6 +352,8 @@
+         out_msg.OriginalRequestorMachId := machineID;
+         out_msg.MessageSize := in_msg.MessageSize;
+         out_msg.DataBlk := getDirectoryEntry(address).DataBlk;
++        out_msg.ProgramCounter := in_msg.ProgramCounter;
++        out_msg.ThreadId := in_msg.ThreadId;
+         DPRINTF(RubySlicc, "%s\n", out_msg);
+       }
+     }
+diff -r b9e2ca8690f8 src/mem/protocol/MESI_CMP_directory-msg.sm
+--- a/src/mem/protocol/MESI_CMP_directory-msg.sm	Mon Jul 30 11:29:05 2012 -0400
++++ b/src/mem/protocol/MESI_CMP_directory-msg.sm	Mon Jul 30 11:30:00 2012 -0400
+@@ -70,6 +70,8 @@
+   int Len;
+   bool Dirty, default="false",  desc="Dirty bit";
+   PrefetchBit Prefetch,         desc="Is this a prefetch request";
++  Address ProgramCounter,       desc="PC that caused this request";
++  int ThreadId,                 desc="Context ID of issuing request";
+ }
+ 
+ // ResponseMsg
+diff -r b9e2ca8690f8 src/mem/protocol/RubySlicc_MemControl.sm
+--- a/src/mem/protocol/RubySlicc_MemControl.sm	Mon Jul 30 11:29:05 2012 -0400
++++ b/src/mem/protocol/RubySlicc_MemControl.sm	Mon Jul 30 11:30:00 2012 -0400
+@@ -61,4 +61,6 @@
+   PrefetchBit Prefetch,         desc="Is this a prefetch request";
+   bool ReadX,                   desc="Exclusive";
+   int Acks,                     desc="How many acks to expect";
++  Address ProgramCounter,       desc="Program Counter causing miss";
++  int ThreadId,                 desc="Context ID of issuing request";
+ }
+diff -r b9e2ca8690f8 src/mem/request.hh
+--- a/src/mem/request.hh	Mon Jul 30 11:29:05 2012 -0400
++++ b/src/mem/request.hh	Mon Jul 30 11:30:00 2012 -0400
+@@ -140,13 +140,14 @@
+     static const PrivateFlagsType STICKY_PRIVATE_FLAGS =
+         VALID_CONTEXT_ID | VALID_THREAD_ID;
+ 
+-  private:
++  public:
+     /**
+      * The physical address of the request. Valid only if validPaddr
+      * is set.
+      */
+     Addr _paddr;
+ 
++  private:
+     /**
+      * The size of the request. This field must be set when vaddr or
+      * paddr is written via setVirt() or setPhys(), so it is always
+@@ -183,8 +184,10 @@
+      * store conditional or the compare value for a CAS. */
+     uint64_t _extraData;
+ 
++  public:
+     /** The context ID (for statistics, typically). */
+     int _contextId;
++
+     /** The thread ID (id within this CPU) */
+     int _threadId;
+ 
+diff -r b9e2ca8690f8 src/mem/ruby/common/Address.hh
+--- a/src/mem/ruby/common/Address.hh	Mon Jul 30 11:29:05 2012 -0400
++++ b/src/mem/ruby/common/Address.hh	Mon Jul 30 11:30:00 2012 -0400
+@@ -88,7 +88,7 @@
+         m_address |= (physical_address_t) offset;
+     }
+ 
+-  private:
++  //private:
+     physical_address_t m_address;
+ };
+ 
+diff -r b9e2ca8690f8 src/mem/ruby/system/NVMainControl.cc
+--- a/src/mem/ruby/system/NVMainControl.cc	Mon Jul 30 11:29:05 2012 -0400
++++ b/src/mem/ruby/system/NVMainControl.cc	Mon Jul 30 11:30:00 2012 -0400
+@@ -132,6 +132,9 @@
+ 
+     NVMainRequest *request = new NVMainRequest( );
+ 
++    request->programCounter = memMess->m_ProgramCounter.m_address;
++    request->threadId = memMess->m_ThreadId;
++
+     MemoryNode thisReq(arrival_time, message, addr, (void *)request, is_mem_read, !is_mem_read);
+     enqueueMemRef(thisReq);
+ }

@@ -1,0 +1,70 @@
+read-configuration /home/grads/poremba/class/CSE530/GEMS/gems-2.1/NVMAIN_WORKSPACE/nvmain.config
+
+magic-break-enable;
+run-python-file /home/grads/poremba/class/CSE530/GEMS/gems-2.1/NVMAIN_WORKSPACE/magic-handle.py
+
+
+
+@conf.con0.input = "cd /host\n";
+@conf.con0.input = "cd barnes; ./barnes < input_1. &\n";
+c
+echo "Magic Break 1"
+c 1
+
+@conf.con0.input = "cd ../lu/non_cont; ./lu -p1 -n1024 &\n";
+c
+echo "Magic Break 2"
+c 1
+
+echo "Binding Cores"
+@conf.con0.input = "PID=`pgrep barnes`;\n";
+@conf.con0.input = "pbind -b 0 $PID\n";
+@conf.con0.input = "PID=`pgrep lu`\n";
+@conf.con0.input = "pbind -b 1 $PID\n";
+echo "Cores bound"
+
+
+istc-disable
+dstc-disable
+cpu-switch-time 1
+instruction-fetch-mode instruction-fetch-trace
+
+load-module ruby
+ruby0.setparam g_NUM_PROCESSORS 2
+ruby0.setparam g_PROCS_PER_CHIP 2
+ruby0.setparam g_MEMORY_SIZE_BYTES 268435456
+ruby0.setparam NUMBER_OF_VIRTUAL_NETWORKS 5
+ruby0.setparam L2_CACHE_ASSOC 2
+ruby0.setparam L2_CACHE_NUM_SETS_BITS 11
+ruby0.setparam L1_CACHE_ASSOC 2
+ruby0.setparam L1_CACHE_NUM_SETS_BITS 8
+ruby0.init
+
+load-module opal
+opal0.setparam MAX_FETCH 1
+opal0.setparam MAX_DECODE 1
+opal0.setparam MAX_DISPATCH 1
+opal0.setparam MAX_EXECUTE 1
+opal0.setparam MAX_RETIRE 1
+opal0.setparam IL1_SET_BITS 8
+opal0.setparam IL1_ASSOC 2
+opal0.setparam IL1_BLOCK_BITS 6
+opal0.setparam DL1_SET_BITS 8
+opal0.setparam DL1_ASSOC 2
+opal0.setparam DL1_BLOCK_BITS 6
+opal0.setparam L2_SET_BITS 11
+opal0.setparam L2_ASSOC 2
+opal0.setparam L2_BLOCK_BITS 6
+opal0.init
+
+ruby0.tracer-output-file "blstest.trace"
+ruby0.debug-start-time "1"
+
+ruby0.periodic-stats-file "b_l_shared.pstats"
+opal0.sim-start "b_l_shared.opal"
+opal0.sim-step 100000
+
+opal0.stats
+ruby0.dump-stats "b_l_shared.stats"
+echo "Endpoint"
+exit
