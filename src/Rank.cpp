@@ -106,9 +106,12 @@ void Rank::SetConfig( Config *c )
 
           newBank->SetConfig( c );
 
-          nextRefresh = ((conf->GetValue( "tRFI" )) / (conf->GetValue( "ROWS" ) / conf->GetValue( "RefreshRows" )));
-          nextRefresh = static_cast<ncycle_t>(static_cast<float>(nextRefresh) * (static_cast<float>(j + 1) / static_cast<float>(bankCount)));
-          newBank->SetNextRefresh( nextRefresh );
+          if( c->KeyExists( "UseRefresh" ) && c->GetString( "UseRefresh" ) == "true" ) 
+            {
+              nextRefresh = ((conf->GetValue( "tRFI" )) / (conf->GetValue( "ROWS" ) / conf->GetValue( "RefreshRows" )));
+              nextRefresh = static_cast<ncycle_t>(static_cast<float>(nextRefresh) * (static_cast<float>(j + 1) / static_cast<float>(bankCount)));
+              newBank->SetNextRefresh( nextRefresh );
+            }
 
           formatter << j;
           newBank->SetName( formatter.str( ) );
