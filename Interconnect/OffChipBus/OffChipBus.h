@@ -87,6 +87,8 @@ class OffChipBus : public Interconnect
   Rank **ranks;
   MemOp *nextOp;
   std::list<DelayedReq *> delayQueue;
+
+  float CalculateIOPower( bool isRead, unsigned int bitValue );
 };
 
 };

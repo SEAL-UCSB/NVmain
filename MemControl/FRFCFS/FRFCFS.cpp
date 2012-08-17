@@ -171,8 +171,7 @@ int FRFCFS::StartCommand( MemOp *mop )
     mem_writes++;
 
   Gem5Interface *face = (Gem5Interface*)GetConfig( )->GetSimInterface( );
-  unsigned int inst;
-  inst = face->GetInstructionCount( 0 );
+  cpu_insts = static_cast<uint64_t>(face->GetInstructionCount( 0 ));
 
   /*
    *  Return whether the request could be queued. Return false if the queue is full.
@@ -528,6 +527,8 @@ void FRFCFS::PrintStats( )
   std::cout << "i" << psInterval << "." << statName << id << ".averageQueueLatency " << averageQueueLatency << std::endl;
   std::cout << "i" << psInterval << "." << statName << id << ".measuredLatencies " << measuredLatencies << std::endl;
   std::cout << "i" << psInterval << "." << statName << id << ".measuredQueueLatencies " << measuredQueueLatencies << std::endl;
+  std::cout << "i" << psInterval << "." << statName << id << ".cpu_insts " << cpu_insts << std::endl;
+  std::cout << "i" << psInterval << "." << statName << id << ".currentCycle " << currentCycle << std::endl;
 
   MemoryController::PrintStats( );
 

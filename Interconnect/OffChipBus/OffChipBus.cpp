@@ -289,4 +289,242 @@ void OffChipBus::Cycle( )
 }
 
 
+float OffChipBus::CalculateIOPower( bool isRead, unsigned int bitValue )
+{
+  unsigned int Rtt_nom, Rtt_wr, Rtt_cont;
+  float VDDQ, VSSQ;
+  unsigned int ranksPerDimm;
+  float Pdq; 
+
+  Pdq = 0.0f;
+
+  if( conf->KeyExists( "Rtt_nom" ) && conf->KeyExists( "Rtt_wr" ) && conf->KeyExists( "Rtt_cont" )
+      && conf->KeyExists( "Vddq" ) && conf->KeyExists( "Vssq" ) )
+    {
+      Rtt_nom  = conf->GetValue( "Rtt_nom" );
+      Rtt_wr   = conf->GetEnergy( "Rtt_wr" );
+      Rtt_cont = conf->GetEnergy( "Rtt_conf" );
+
+      VDDQ = conf->GetEnergy( "Vddq" );
+      VSSQ = conf->GetEnergy( "Vssq" );
+    }
+  else
+    {
+      Rtt_nom  = 30; /* Default to 30 ohms for read. This means 60 ohms for pull up and pull down. */
+      Rtt_wr   = 60; /* Default to 120 ohms for write. This means 240 ohms for pull up and pull down. */
+      Rtt_cont = 75; /* Default to 75 ohms for termination at the controller. This means 150 ohms for pull up and pull down. */
+
+      VDDQ = 1.5; /* Default 1.5 Volts */
+      VSSQ = 0.0; /* Default 0 Volts */
+    }
+
+  if( conf->KeyExists( "RanksPerDIMM" ) )
+    {
+      ranksPerDimm = conf->GetValue( "RanksPerDIMM" );
+    }
+  else
+    {
+      ranksPerDimm = 1;
+    }
+
+
+  if( ranksPerDimm == 1 )
+    {
+      if( isRead )
+        {
+          /* Simple resistor network. Calculate the bus voltage, then current, and finally power. */
+          float Rttpu, Rttpd, Rdevice, Rs, Ron;
+          float Vread;
+
+          Rs = 15.0;  /* Series resistance of device. */
+          Ron = 34.0; /* Resistance of device output driver. */
+
+          Rttpu = static_cast<float>(Rtt_nom * 2.0);
+          Rttpd = static_cast<float>(Rtt_nom * 2.0);
+          Rdevice = Rs + Ron;
+
+          Vread = (bitValue == 0) ? VSSQ : VDDQ;
+
+          /* Bus voltage equation */
+          float Vbus;
+
+          Vbus = ( (VDDQ / Rttpu) + (VSSQ / Rttpd) + (Vread / Rdevice) ) / ( (1.0 / Rttpu) + (1.0 / Rttpd) + (1.0 / Rdevice) );
+
+          /* Bus current equation. */
+          float Ibus, Ipu, Ipd;
+
+          Ipu = (VDDQ - Vbus) / Rttpu; /* Current through controller pull up. */
+          Ipd = (Vbus - VSSQ) / Rttpd; /* Current through controller pull down. */
+          Ibus = (Vbus - Vread) / Rdevice; /* Current sourced/sinked by device. */
+
+          /* Power calculation equation. */
+          Pdq = Ipu * Ipu * Rttpu + Ipd * Ipd * Rttpd + Ibus * Ibus * Rdevice;
+        }
+      else
+        {
+          float Rttpu, Rttpd, Rdevice, Rs, Ron;
+          float Vwrite;
+
+          Rs = 15.0;  /* Series resistance of device. */
+          Ron = 34.0; /* Resistance of device output driver. */
+
+          Rttpu = static_cast<float>(Rtt_wr * 2.0);
+          Rttpd = static_cast<float>(Rtt_wr * 2.0);
+          Rdevice = Rs + Ron;
+
+          Vwrite = (bitValue == 0) ? VSSQ : VDDQ;
+
+          /* Bus voltage equation. */
+          float Vbus;
+
+          Vbus = ( (VDDQ / Rttpu) + (VSSQ / Rttpd) + (Vwrite / Rdevice) ) / ( (1.0 / Rttpu) + (1.0 / Rttpd) + (1.0 / Rdevice) );
+
+          /* Bus current equation. */
+          float Ibus, Ipu, Ipd;
+
+          Ipu = (VDDQ - Vbus) / Rttpu;
+          Ipd = (Vbus - VSSQ) / Rttpd;
+          Ibus = (Vbus - Vwrite) / Rdevice;
+
+          /* Power calculation equation. */
+          Pdq = Ipu * Ipu * Rttpu + Ipd * Ipd * Rttpd + Ibus * Ibus * Rdevice;
+        }
+    }
+  /*
+   *  For 3 and 4 ranks per dimm, we assume one rank is terminated, and the remaining 1 or 2 ranks have ODT off (i.e., High-Z) 
+   */
+  else if( ranksPerDimm == 2 || ranksPerDimm == 3 || ranksPerDimm == 4 ) 
+    {
+      if( isRead )
+        {
+          /* Calculate using delta-wye transformation and then solving for bus and terminated rank voltages, followed by currents and power. */
+          float R1, R2, R3, R4, R5;
+          float Rttpu, Rttpd, Rothpu, Rothpd, Rdevice, Rs, Ron;
+
+          Rs = 15.0;  /* Series resistance of device. */
+          Ron = 34.0; /* Resistance of device output driver. */
+
+          Rdevice = Rs + Ron;
+
+          /* Pull-up/Pull-down at controller. */
+          Rttpu = static_cast<float>(Rtt_cont * 2.0);
+          Rttpd = static_cast<float>(Rtt_cont * 2.0);
+
+          /* Pull-up/Pull-down at terminated rank. */
+          Rothpu = static_cast<float>(Rtt_nom * 2.0);
+          Rothpd = static_cast<float>(Rtt_nom * 2.0);
+
+          if( bitValue == 0 )
+            {
+              R1 = Rttpu;
+              R2 = 1.0 / ( (1.0 / Rttpu) + (1.0 / Rdevice) ); /* Device resistors are in parallel with controller pull-down. */
+            }
+          else
+            {
+              R1 = 1.0 / ( (1.0 / Rttpu) + (1.0 / Rdevice) ); /* Device resistors are in parallel with controller pull-up. */
+              R2 = Rttpd;
+            }
+
+          R3 = Rs;
+          R4 = Rothpu;
+          R5 = Rothpd;
+
+          /* Delta-wye transformation */
+          float RP, RA, RB, RC;
+          RP = R3*R4 + R4*R5 + R5*R3;
+          RA = RP / R3;
+          RB = RP / R5;
+          RC = RP / R4;
+
+          /* Combine parallel resistors. */
+          float RX, RY;
+          RX = 1.0 / ( (1.0 / R1) + (1.0 / RB) );
+          RY = 1.0 / ( (1.0 / R2) + (1.0 / RC) );
+
+          /* Bus voltage calculation. */
+          float Vbus, Ibus;
+
+          Ibus = (VDDQ - VSSQ) / (RX + RY);
+          Vbus = VSSQ + Ibus * RY;
+
+          /* Voltage at terminated rank. */
+          float Vterm;
+
+          Vterm = -1.0 * R3 * ( ((VDDQ - Vbus) / R1) - ((Vbus - VSSQ) / R2) ) + Vbus;
+
+          /* Current through each resistor. */
+          float I1, I2, I3, I4, I5;
+
+          I1 = (VDDQ - Vbus) / R1;
+          I2 = (Vbus - VSSQ) / R2;
+          I3 = (Vbus - Vterm) / R3;
+          I4 = (VDDQ - Vterm) / R4;
+          I5 = (Vterm - VSSQ) / R5;
+
+          /* Power calculation equation. */
+          Pdq = I1 * I1 * R1 + I2 * I2 * R2 + I3 * I3 * R3 + I4 * I4 * R4 + I5 * I5 * R5;
+        }
+      else
+        {
+          /* Calculate using two delta-wye transformations and then solving for bus and termated rank voltages, followed by currents and power. */
+          float Rothpu, Rothpd, Rttpu, Rttpd, Rs, Ron;
+          float Vwrite;
+
+          Rttpu = static_cast<float>(Rtt_wr * 2.0);
+          Rttpd = static_cast<float>(Rtt_wr * 2.0);
+          Rothpu = static_cast<float>(Rtt_nom * 2.0);
+          Rothpd = static_cast<float>(Rtt_nom * 2.0);
+
+          Rs = 15.0;  /* Series resistance of DRAM device. */
+          Ron = 34.0; /* Controller output driver resistance. */
+
+          Vwrite = (bitValue == 0) ? VSSQ : VDDQ;
+
+          /* Do delta-wye transforms. */
+          float RAL, RBL, RCL, RAR, RBR, RCR;
+          float RPL, RPR;
+
+          RPL = Rothpu*Rothpd + Rothpd*Rs + Rs*Rothpu;
+          RAL = RPL / Rothpd;
+          RBL = RPL / Rothpu;
+          RCL = RPL / Rs;
+
+          RPR = Rttpu*Rttpd + Rttpd*Rs + Rs*Rttpu;
+          RAR = RPR / Rttpd;
+          RBR = RPR / Rttpu;
+          RCR = RPR / Rs;
+
+          /* Calculate bus voltage. */
+          float Vbus;
+
+          Vbus = ( (VSSQ / RBL) + (VSSQ / RBR) + (VDDQ / RAL) + (VDDQ / RAR) + (Vwrite / Ron) )
+               / ( (1.0f / RBL) + (1.0f / RBR) + (1.0f / RAL) + (1.0f / RAR) + (1.0f / Ron) );
+
+          /* Calculate terminated node voltages. */
+          float Vterm, Voterm;
+
+          Vterm  = ( (VDDQ / Rttpu) + (VSSQ / Rttpd) + (Vbus / Rs) ) / ( (1.0f / Rttpu) + (1.0f / Rttpd) + (1.0f / Rs) );
+          Voterm = ( (VDDQ / Rothpu) + (VSSQ / Rothpd) + (Vbus / Rs ) ) / ( (1.0f / Rothpu) + (1.0f / Rothpd) + (1.0f / Rs) );
+
+
+          /* Calculate resistor currents. */
+          float Ittpu, Ittpd, Irs1, Irs2, Iothpu, Iothpd, Ibus;
+
+          Ittpu = (VDDQ - Vterm) / Rttpu;
+          Ittpd = (Vterm - VSSQ) / Rttpd;
+          Iothpu = (VDDQ - Voterm) / Rothpu;
+          Iothpd = (Voterm - VSSQ) / Rothpd;
+          Irs1 = (Vbus - Vterm) / Rs;
+          Irs2 = (Vbus - Voterm) / Rs;
+          Ibus = (Vwrite - Vbus) / Ron;
+
+          /* Calculate total power. */
+          Pdq = Ittpu*Ittpu*Rttpu + Ittpd*Ittpd*Rttpd + Iothpu*Iothpu*Rothpu + Iothpd*Iothpd*Rothpd
+              + Irs1*Irs1*Rs + Irs2*Irs2*Rs + Ibus*Ibus*Ron;
+        }
+    }
+
+
+  return Pdq;
+}
 
