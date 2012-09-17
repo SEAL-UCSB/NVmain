@@ -30,7 +30,7 @@ class PerfectMemory : public MemoryController
   ~PerfectMemory( ) { }
 
 
-  int StartCommand( MemOp *mop );
+  bool IssueCommand( NVMainRequest *req );
 
   void PrintStats( );
 

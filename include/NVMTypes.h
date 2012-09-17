@@ -19,10 +19,13 @@
 
 
 #include <stdint.h>
+#include <deque>
+#include <list>
 
 
 namespace NVM {
 
+class NVMainRequest;
 
 typedef uint64_t  ncycle_t;
 typedef int64_t   ncycles_t;
@@ -30,7 +33,11 @@ typedef int64_t   ncycles_t;
 typedef uint64_t  ncounter_t;
 
 
+typedef std::list<NVMainRequest *> NVMTransactionQueue;
+typedef std::deque<NVMainRequest *> NVMCommandQueue;
+
 };
+
 
 
 #endif 

@@ -30,7 +30,7 @@ class SimpleClosePage : public MemoryController
   ~SimpleClosePage( ) { }
 
 
-  int StartCommand( MemOp *mop );
+  bool IssueCommand( NVMainRequest *req );
 
 };
 

@@ -22,7 +22,7 @@
 #include <string>
 
 
-#include "src/Cycler.h"
+#include "src/NVMObject.h"
 #include "src/Bank.h"
 
 
@@ -35,7 +35,7 @@ namespace NVM {
  *  is a single device containing internal banks. For other times of
  *  memory, this class can be used as a general container for banks.
  */
-class Device : public Cycler
+class Device : public NVMObject
 {
  public:
   Device();

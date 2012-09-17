@@ -21,13 +21,13 @@
 #include <stdint.h>
 #include <map>
 
-#include "src/Cycler.h"
+#include "src/NVMObject.h"
 #include "src/Config.h"
-#include "src/MemOp.h"
 #include "src/GenericBus.h"
 #include "src/EnduranceModel.h"
 #include "include/NVMAddress.h"
-#include "src/NVMNet.h"
+#include "include/NVMainRequest.h"
+#include "src/Params.h"
 
 #include <iostream>
 
@@ -57,7 +57,7 @@ enum BankState { BANK_UNKNOWN,  /***< Unknown state. Uh oh. */
 enum WriteMode { WRITE_BACK, WRITE_THROUGH, DELAYED_WRITE };
 
 
-class Bank : public Cycler, public NVMNet
+class Bank : public NVMObject
 {
  public:
   Bank( );
@@ -72,9 +72,10 @@ class Bank : public Cycler, public NVMNet
   bool PowerDown( BankState pdState );
 
   bool WouldConflict( uint64_t checkRow );
-  bool IsIssuable( MemOp *mop, ncycle_t delay = 0 );
+  bool IsIssuable( NVMainRequest *req, ncycle_t delay = 0 );
 
   void SetConfig( Config *c );
+  void SetParams( Params *params ) { p = params; }
 
   BankState GetState( );
 
@@ -102,8 +103,6 @@ class Bank : public Cycler, public NVMNet
   void StatName( std::string name ) { statName = name; }
 
   void Cycle( );
-
-  void RecvMessage( NVMNetMessage * ) { }
 
  private:
   Config *conf;
@@ -157,6 +156,9 @@ class Bank : public Cycler, public NVMNet
   int bankId;
  
   std::map<NVMainRequest *, int> notifyComplete;
+
+  Params *p;
+
 
 };
 

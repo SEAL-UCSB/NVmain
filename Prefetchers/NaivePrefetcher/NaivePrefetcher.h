@@ -30,7 +30,7 @@ class NaivePrefetcher : public Prefetcher
   NaivePrefetcher( ) { }
   ~NaivePrefetcher( ) { }
 
-  bool DoPrefetch( MemOp *triggerOp, std::vector<NVMAddress>& prefetchList );
+  bool DoPrefetch( NVMainRequest *triggerOp, std::vector<NVMAddress>& prefetchList );
 
 };
 

@@ -19,12 +19,10 @@
 
 
 #include "MemControl/SimpleClosePage/SimpleClosePage.h"
-#include "MemControl/TestController/TestController.h"
 #include "MemControl/StackFCFSTimer/StackFCFSTimer.h"
 #include "MemControl/FRFCFS/FRFCFS.h"
-#include "MemControl/StatController/StatController.h"
 #include "MemControl/PerfectMemory/PerfectMemory.h"
-#include "MemControl/DRCController/DRCController.h"
+//#include "MemControl/DRCController/DRCController.h"
 
 
 namespace NVM {

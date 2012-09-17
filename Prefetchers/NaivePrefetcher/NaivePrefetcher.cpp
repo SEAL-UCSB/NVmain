@@ -20,7 +20,7 @@
 using namespace NVM;
 
 
-bool NaivePrefetcher::DoPrefetch( MemOp *triggerOp, std::vector<NVMAddress>& prefetchList )
+bool NaivePrefetcher::DoPrefetch( NVMainRequest *triggerOp, std::vector<NVMAddress>& prefetchList )
 {
   NVMAddress pfAddr;
   
@@ -29,8 +29,8 @@ bool NaivePrefetcher::DoPrefetch( MemOp *triggerOp, std::vector<NVMAddress>& pre
    */
   for( int i = 1; i < 4; i++ )
     {
-      pfAddr = triggerOp->GetRequest( )->address;
-      pfAddr.SetPhysicalAddress( triggerOp->GetRequest( )->address.GetPhysicalAddress( ) + 64*i );
+      pfAddr = triggerOp->address;
+      pfAddr.SetPhysicalAddress( triggerOp->address.GetPhysicalAddress( ) + 64*i );
 
       prefetchList.push_back( pfAddr );
     }

@@ -136,19 +136,18 @@ bool Device::PowerDown( bool fastExit )
 bool Device::CanPowerUp( uint64_t whichBank )
 {
   bool issuable = true;
-  MemOp mop;
+  NVMainRequest req;
   NVMAddress address;
 
   /*
    *  Create a dummy operation to determine if we can issue.
    */
-  mop.SetOperation( POWERUP );
-  address.SetTranslatedAddress( 0, 0, whichBank, 0, 0 );
-  address.SetPhysicalAddress( 0 );
-  mop.SetAddress( address );
+  req.type = POWERUP;
+  req.address.SetTranslatedAddress( 0, 0, whichBank, 0, 0 );
+  req.address.SetPhysicalAddress( 0 );
 
 
-  if( whichBank >= count || !banks[whichBank]->IsIssuable( &mop ) )
+  if( whichBank >= count || !banks[whichBank]->IsIssuable( &req ) )
     issuable = false;
 
 
@@ -159,19 +158,18 @@ bool Device::CanPowerUp( uint64_t whichBank )
 bool Device::CanPowerDown( OpType pdOp )
 {
   bool issuable = true;
-  MemOp mop;
+  NVMainRequest req;
   NVMAddress address;
 
   /*
    *  Create a dummy operation to determine if we can issue.
    */
-  mop.SetOperation( pdOp );
-  address.SetTranslatedAddress( 0, 0, 0, 0, 0 );
-  address.SetPhysicalAddress( 0 );
-  mop.SetAddress( address );
+  req.type = pdOp;
+  req.address.SetTranslatedAddress( 0, 0, 0, 0, 0 );
+  req.address.SetPhysicalAddress( 0 );
 
   for( uint64_t i = 0; i < count; i++ )
-    if( !banks[i]->IsIssuable( &mop ) )
+    if( !banks[i]->IsIssuable( &req ) )
       {
         issuable = false;
         break;

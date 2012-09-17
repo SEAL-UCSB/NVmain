@@ -20,8 +20,8 @@
 
 
 
-#include "src/MemOp.h"
 #include "include/NVMAddress.h"
+#include "include/NVMainRequest.h"
 
 #include <vector>
 
@@ -36,8 +36,8 @@ class Prefetcher
   Prefetcher( ) { }
   virtual ~Prefetcher( ) { }
 
-  virtual bool NotifyAccess( MemOp *accessOp, std::vector<NVMAddress>& prefetchList );
-  virtual bool DoPrefetch( MemOp *triggerOp, std::vector<NVMAddress>& prefetchList );
+  virtual bool NotifyAccess( NVMainRequest *accessOp, std::vector<NVMAddress>& prefetchList );
+  virtual bool DoPrefetch( NVMainRequest *triggerOp, std::vector<NVMAddress>& prefetchList );
 
 };
 

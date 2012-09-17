@@ -18,28 +18,22 @@
 #define __INTERCONNECT_H__
 
 
-#include "src/Cycler.h"
-#include "src/MemOp.h"
+#include "src/NVMObject.h"
 #include "src/Config.h"
-#include "src/NVMNet.h"
 #include "include/NVMTypes.h"
+#include "include/NVMainRequest.h"
 
 
 namespace NVM {
 
 
-class Interconnect : public Cycler, public NVMNet
+class Interconnect : public NVMObject
 {
  public:
   Interconnect( ) { }
   virtual ~Interconnect( ) { }
 
   virtual void SetConfig( Config *c ) = 0;
-
-  virtual bool IssueCommand( MemOp *mop ) = 0;
-  virtual bool IsIssuable( MemOp *mop, ncycle_t delay = 0 ) = 0;
-
-  virtual void RequestComplete( NVMainRequest *request );
 
   void StatName( std::string name ) { statName = name; }
   virtual void PrintStats( ) { }

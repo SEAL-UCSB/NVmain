@@ -23,7 +23,7 @@
 #include <string>
 
 
-#include "src/Cycler.h"
+#include "src/NVMObject.h"
 #include "src/Config.h"
 #include "include/NVMTypes.h"
 
@@ -31,7 +31,7 @@
 namespace NVM {
 
 
-class GenericBus : public Cycler 
+class GenericBus : public NVMObject 
 {
  public:
   GenericBus( );

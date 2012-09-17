@@ -19,9 +19,7 @@
 
 
 #include "src/Rank.h"
-#include "src/Cycler.h"
 #include "src/Interconnect.h"
-#include "src/NVMNet.h"
 
 #include <list>
 
@@ -36,11 +34,12 @@ class OffChipBus : public Interconnect
   ~OffChipBus( );
 
   void SetConfig( Config *c );
+  void SetParams( Params *params ) { p = params; }
 
-  bool IssueCommand( MemOp *mop );
-  bool IsIssuable( MemOp *mop, ncycle_t delay = 0 );
+  bool IssueCommand( NVMainRequest *req );
+  bool IsIssuable( NVMainRequest *req, ncycle_t delay = 0 );
 
-  void RequestComplete( NVMainRequest *request );
+  bool RequestComplete( NVMainRequest *request );
 
   ncycle_t GetNextActivate( uint64_t rank, uint64_t bank );
   ncycle_t GetNextRead( uint64_t rank, uint64_t bank );
@@ -51,8 +50,6 @@ class OffChipBus : public Interconnect
   void PrintStats( );
 
   void Cycle( );
-
-  void RecvMessage( NVMNetMessage * ) { }
 
   Rank *GetRank( uint64_t rank ) { return ranks[rank]; }
 
@@ -85,10 +82,13 @@ class OffChipBus : public Interconnect
 
   Config *conf;
   Rank **ranks;
-  MemOp *nextOp;
+  NVMainRequest *nextReq;
   std::list<DelayedReq *> delayQueue;
 
   float CalculateIOPower( bool isRead, unsigned int bitValue );
+
+  Params *p;
+
 };
 
 };

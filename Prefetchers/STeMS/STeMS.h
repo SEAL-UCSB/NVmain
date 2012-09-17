@@ -49,8 +49,8 @@ class STeMS : public Prefetcher
   STeMS( ) { }
   ~STeMS( ) { }
 
-  bool NotifyAccess( MemOp *accessOp, std::vector<NVMAddress>& prefetchList );
-  bool DoPrefetch( MemOp *triggerOp, std::vector<NVMAddress>& prefetchList );
+  bool NotifyAccess( NVMainRequest *accessOp, std::vector<NVMAddress>& prefetchList );
+  bool DoPrefetch( NVMainRequest *triggerOp, std::vector<NVMAddress>& prefetchList );
 
  private:
   std::map<uint64_t, PatternSequence*> PST; // Pattern Sequence Table

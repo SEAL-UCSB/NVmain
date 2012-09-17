@@ -25,7 +25,8 @@
 #include "src/Bank.h"
 #include "src/GenericBus.h"
 #include "src/Device.h"
-#include "src/NVMNet.h"
+#include "src/Params.h"
+#include "src/NVMObject.h"
 
 
 #include <iostream>
@@ -34,16 +35,17 @@
 namespace NVM {
 
 
-class Rank : public Cycler, public NVMNet
+class Rank : public NVMObject
 {
 public:
   Rank( );
   ~Rank( );
 
   void SetConfig( Config *c );
+  void SetParams( Params *params ) { p = params; }
 
-  void AddCommand( MemOp *mop );
-  bool IsIssuable( MemOp *mop, ncycle_t delay = 0 );
+  bool IssueCommand( NVMainRequest *mop );
+  bool IsIssuable( NVMainRequest *mop, ncycle_t delay = 0 );
   void Notify( OpType op );
 
   void SetName( std::string name );
@@ -57,8 +59,6 @@ public:
   ncycle_t GetNextRefresh( uint64_t bank );
 
   void Cycle( );
-
-  void RecvMessage( NVMNetMessage * ) { }
 
   Device *GetDevice( uint64_t device ) { return &(devices[device]); }
 
@@ -76,7 +76,7 @@ private:
   ncounter_t busWidth;
   ncycles_t lastActivate[4];
   ncounter_t FAWindex;
-  MemOp *nextOp;
+  NVMainRequest *nextReq;
 
   ncycle_t nextRead;
   ncycle_t nextWrite;
@@ -102,6 +102,8 @@ private:
   bool Refresh( NVMainRequest *request );
 
   bool PowerUp( NVMainRequest *request );
+
+  Params *p;
 
 };
 

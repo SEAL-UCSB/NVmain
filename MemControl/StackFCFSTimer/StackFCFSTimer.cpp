@@ -62,7 +62,7 @@ StackFCFSTimer::StackFCFSTimer( Interconnect *memory, AddressTranslator *transla
 
   /*
    *  This memory controller will have two queues: An issue queue, and a re-issue or NACK queue.
-   *  The issue queue is commandQueue[0] and the NACK queue is commandQueue[1].
+   *  The issue queue is transactionQueues[0] and the NACK queue is transactionQueues[1].
    */
   InitQueues( 2 );
 
@@ -103,15 +103,15 @@ unsigned int StackFCFSTimer::GetMLValue( BulkCommand /*cmd*/ )
  *  This method is called whenever a new transaction from the processor issued to
  *  this memory controller / channel. All scheduling decisions should be made here.
  */
-int StackFCFSTimer::StartCommand( MemOp *mop )
+bool StackFCFSTimer::IssueCommand( NVMainRequest *req )
 {
-  MemOp *nextOp;
+  NVMainRequest *nextReq;
 
   
   /*
    *  Limit the number of commands in the queue. This will stall the caches/CPU.
    */
-  if( commandQueue[0].size( ) >= 16 || commandQueue[1].size( ) >= 16 )
+  if( transactionQueues[0].size( ) >= 16 || transactionQueues[1].size( ) >= 16 )
     return false;
 
   
@@ -119,16 +119,16 @@ int StackFCFSTimer::StartCommand( MemOp *mop )
    *  The stack interface always issues an activate+read+precharge bulk command.
    *  We will look for a slot in the stack interface network in Cycle().
    */
-  nextOp = new MemOp( );
+  nextReq = new NVMainRequest( );
 
-  *nextOp = *mop;
+  *nextReq = *req;
 
-  if( nextOp->GetOperation( ) == READ )
-    nextOp->SetBulkCmd( CMD_ACTREADPRE );
-  else if( nextOp->GetOperation( ) == WRITE )
-    nextOp->SetBulkCmd( CMD_ACTWRITEPRE );
+  if( nextReq->type == READ )
+    nextReq->bulkCmd = CMD_ACTREADPRE;
+  else if( nextReq->type == WRITE )
+    nextReq->bulkCmd = CMD_ACTWRITEPRE;
   else
-    std::cout << "StackFCFS: Unknown next op: " << nextOp->GetOperation( ) << std::endl;
+    std::cout << "StackFCFS: Unknown next op: " << nextReq->type << std::endl;
 
 
   /*
@@ -136,9 +136,9 @@ int StackFCFSTimer::StartCommand( MemOp *mop )
    *  command. The bank will automatically figure out the implicit
    *  commands from the bulk command.
    */
-  nextOp->SetOperation( ACTIVATE );
+  nextReq->type = ACTIVATE;
 
-  commandQueue[0].push_back( nextOp ); 
+  transactionQueues[0].push_back( nextReq ); 
 
   /*
    *  Return whether the request could be queued. Return false if the queue is full.
@@ -149,7 +149,7 @@ int StackFCFSTimer::StartCommand( MemOp *mop )
 
 void StackFCFSTimer::Cycle( )
 {
-  MemOp *nextOp;
+  NVMainRequest *nextReq;
   unsigned int issueQueue;
 
 
@@ -193,7 +193,7 @@ void StackFCFSTimer::Cycle( )
   /*
    *  Check if the queues are empty, if not, we will attempt to issue the command to memory.
    */
-  if( !commandQueue[0].empty( ) || !commandQueue[1].empty( ) )
+  if( !transactionQueues[0].empty( ) || !transactionQueues[1].empty( ) )
     {
       /*
        *  Make sure the bank timer is at 0 to prevent potentially many conflicting
@@ -201,24 +201,24 @@ void StackFCFSTimer::Cycle( )
        */
       uint64_t bank, rank;
       bool foundReady = false;
-      std::vector<MemOp *>::iterator iter;
+      std::list<NVMainRequest *>::iterator iter;
       
-      nextOp = NULL;
+      nextReq = NULL;
       issueQueue = 1;
 
-      for( iter = commandQueue[1].begin( ); iter != commandQueue[1].end( ); ++iter )
+      for( iter = transactionQueues[1].begin( ); iter != transactionQueues[1].end( ); ++iter )
         {
-          nextOp = *iter;
+          nextReq = *iter;
 
-          nextOp->GetAddress( ).GetTranslatedAddress( NULL, NULL, &bank, &rank, NULL );
+          nextReq->address.GetTranslatedAddress( NULL, NULL, &bank, &rank, NULL );
 
-          if( memory->IsIssuable( nextOp ) && bankTimer[rank][bank] == 0 && slotTimer == 0 )
+          if( memory->IsIssuable( nextReq ) && bankTimer[rank][bank] == 0 && slotTimer == 0 )
             {
               foundReady = true;
               issueQueue = 1;
 
-              iter = commandQueue[1].erase( iter );
-              commandQueue[1].insert( commandQueue[1].begin( ), nextOp );
+              iter = transactionQueues[1].erase( iter );
+              transactionQueues[1].insert( transactionQueues[1].begin( ), nextReq );
 
               break;
             }
@@ -226,19 +226,19 @@ void StackFCFSTimer::Cycle( )
       
       if( !foundReady )
         {
-          for( iter = commandQueue[0].begin( ); iter != commandQueue[0].end( ); ++iter )
+          for( iter = transactionQueues[0].begin( ); iter != transactionQueues[0].end( ); ++iter )
             {
-              nextOp = *iter;
+              nextReq = *iter;
 
-              nextOp->GetAddress( ).GetTranslatedAddress( NULL, NULL, &bank, &rank, NULL );
+              nextReq->address.GetTranslatedAddress( NULL, NULL, &bank, &rank, NULL );
 
-              if( GetMemory( )->IsIssuable( nextOp ) && bankTimer[rank][bank] == 0 && slotTimer == 0 )
+              if( GetMemory( )->IsIssuable( nextReq ) && bankTimer[rank][bank] == 0 && slotTimer == 0 )
                 {
                   foundReady = true;
                   issueQueue = 0;
 
-                  iter = commandQueue[0].erase( iter );
-                  commandQueue[0].insert( commandQueue[0].begin( ), nextOp );
+                  iter = transactionQueues[0].erase( iter );
+                  transactionQueues[0].insert( transactionQueues[0].begin( ), nextReq );
 
                   break;
                 }
@@ -246,37 +246,31 @@ void StackFCFSTimer::Cycle( )
         }
 
       if( foundReady )
-        nextOp = commandQueue[issueQueue].front( );
+        nextReq = transactionQueues[issueQueue].front( );
       else
-        nextOp = NULL;
+        nextReq = NULL;
 
 
-      if( nextOp != NULL )
-        nextOp->GetAddress( ).GetTranslatedAddress( NULL, NULL, &bank, &rank, NULL );
+      if( nextReq != NULL )
+        nextReq->address.GetTranslatedAddress( NULL, NULL, &bank, &rank, NULL );
 
       /*
        *  Find out if the command can be issued.
        */
-      if( nextOp != NULL && memory->IsIssuable( nextOp ) && bankTimer[rank][bank] == 0 && slotTimer == 0 )
+      if( nextReq != NULL && memory->IsIssuable( nextReq ) && bankTimer[rank][bank] == 0 && slotTimer == 0 )
         {
-          /*
-           *  Copy bulk command to the nvmain request.
-           */
-          nextOp->GetRequest( )->bulkCmd = nextOp->GetBulkCmd( );
-
-
           /*
            *  If we can issue, send 
            */
-          memory->IssueCommand( nextOp );
+          memory->IssueCommand( nextReq );
 
-          bankTimer[rank][bank] = GetMLValue( nextOp->GetBulkCmd( ) );
+          bankTimer[rank][bank] = GetMLValue( nextReq->bulkCmd );
           slotTimer = slotLen;
 
-          if( !accessTime.count( nextOp->GetAddress( ).GetPhysicalAddress( ) ) )
-            accessTime[ nextOp->GetAddress( ).GetPhysicalAddress( ) ] = currentCycle;
+          if( !accessTime.count( nextReq->address.GetPhysicalAddress( ) ) )
+            accessTime[ nextReq->address.GetPhysicalAddress( ) ] = currentCycle;
 
-          commandQueue[issueQueue].erase( commandQueue[issueQueue].begin( ) );
+          transactionQueues[issueQueue].erase( transactionQueues[issueQueue].begin( ) );
         }
     }
 
@@ -310,34 +304,34 @@ void StackFCFSTimer::Cycle( )
            *
            *  If the NACK'd request was previously NACK'd, add it to the front.
            */
-          if( !nackList.count( sreq->memOp->GetAddress( ).GetPhysicalAddress( ) ) )
-            commandQueue[1].push_back( sreq->memOp );
+          if( !nackList.count( sreq->memReq->address.GetPhysicalAddress( ) ) )
+            transactionQueues[1].push_back( sreq->memReq );
           else
-            commandQueue[1].insert( commandQueue[1].begin( ), sreq->memOp );
+            transactionQueues[1].insert( transactionQueues[1].begin( ), sreq->memReq );
 
           /*
            *  Count the number of times this request was NACK'd
            */
-          if( !nackList.count( sreq->memOp->GetAddress( ).GetPhysicalAddress( ) ) )
-            nackList[ sreq->memOp->GetAddress( ).GetPhysicalAddress( ) ] = 0;
+          if( !nackList.count( sreq->memReq->address.GetPhysicalAddress( ) ) )
+            nackList[ sreq->memReq->address.GetPhysicalAddress( ) ] = 0;
           else
-            nackList[ sreq->memOp->GetAddress( ).GetPhysicalAddress( ) ]++;
+            nackList[ sreq->memReq->address.GetPhysicalAddress( ) ]++;
         }
       /* ACK */
       else
         {
-          if( sreq->memOp->GetOperation( ) == READ || sreq->memOp->GetOperation( ) == WRITE 
-              || sreq->memOp->GetBulkCmd( ) == CMD_READPRE || sreq->memOp->GetBulkCmd( ) == CMD_WRITEPRE )
+          if( sreq->memReq->type == READ || sreq->memReq->type == WRITE 
+              || sreq->memReq->bulkCmd == CMD_READPRE || sreq->memReq->bulkCmd == CMD_WRITEPRE )
             {
-              EndCommand( sreq->memOp, ENDMODE_NORMAL );
+              EndCommand( sreq->memReq, ENDMODE_NORMAL );
             }
-          else if( sreq->memOp->GetBulkCmd( ) == CMD_ACTREADPRE || sreq->memOp->GetBulkCmd( ) == CMD_ACTWRITEPRE )
+          else if( sreq->memReq->bulkCmd == CMD_ACTREADPRE || sreq->memReq->bulkCmd == CMD_ACTWRITEPRE )
             {
               unsigned int endTime;
 
               endTime = config->GetValue( "tRCD" ) + config->GetValue( "tCAS" ) + config->GetValue( "tBURST" );
 
-              EndCommand( sreq->memOp, ENDMODE_CUSTOM, endTime );
+              EndCommand( sreq->memReq, ENDMODE_CUSTOM, endTime );
             }
 
           /*
@@ -346,14 +340,14 @@ void StackFCFSTimer::Cycle( )
            */
           uint64_t nackd;
 
-          if( ( nackd = nackList.count( sreq->memOp->GetAddress( ).GetPhysicalAddress( ) ) ) != 0 )
+          if( ( nackd = nackList.count( sreq->memReq->address.GetPhysicalAddress( ) ) ) != 0 )
             {
               std::map< uint64_t, unsigned char >::iterator nackIter;
 
               nackCount += nackd;
               nackRequests++;
               
-              nackIter = nackList.find( sreq->memOp->GetAddress( ).GetPhysicalAddress( ) );
+              nackIter = nackList.find( sreq->memReq->address.GetPhysicalAddress( ) );
               nackList.erase( nackIter );
             }
 
@@ -365,9 +359,9 @@ void StackFCFSTimer::Cycle( )
           double thisAccess;
           std::map< uint64_t, uint64_t >::iterator timeIter;
 
-          thisAccess = (double)( currentCycle - accessTime[ sreq->memOp->GetAddress( ).GetPhysicalAddress( ) ] );
+          thisAccess = (double)( currentCycle - accessTime[ sreq->memReq->address.GetPhysicalAddress( ) ] );
 
-          timeIter = accessTime.find( sreq->memOp->GetAddress( ).GetPhysicalAddress( ) );
+          timeIter = accessTime.find( sreq->memReq->address.GetPhysicalAddress( ) );
           accessTime.erase( timeIter );
 
           //std::cout << "Request completed after " << thisAccess << " cycles." << std::endl;
@@ -400,8 +394,8 @@ void StackFCFSTimer::PrintStats( )
 	    << " --- Number of Accesses: " << accessCount << std::endl;
   std::cout << " --- NACK requests: " << nackRequests << std::endl
 	    << " --- Number of NACKs: " << nackCount << std::endl;
-  std::cout << " --- Requests in Access queue: " << commandQueue[0].size( ) << std::endl
-	    << " --- Requests in NACK queue: " << commandQueue[1].size( ) << std::endl;
+  std::cout << " --- Requests in Access queue: " << transactionQueues[0].size( ) << std::endl
+	    << " --- Requests in NACK queue: " << transactionQueues[1].size( ) << std::endl;
 
   MemoryController::PrintStats( );
 }

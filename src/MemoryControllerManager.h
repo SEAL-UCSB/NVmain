@@ -22,7 +22,7 @@
 #include <vector>
 
 
-#include "src/Cycler.h"
+#include "src/NVMObject.h"
 #include "src/Config.h"
 #include "src/MemoryControllerMessage.h"
 
@@ -37,7 +37,7 @@ namespace NVM {
 class MemoryController;
 
 
-class MemoryControllerManager : public Cycler
+class MemoryControllerManager : public NVMObject
 {
  public:
   MemoryControllerManager( );

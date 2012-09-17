@@ -19,9 +19,8 @@
 
 
 #include "src/Rank.h"
-#include "src/Cycler.h"
 #include "src/Interconnect.h"
-#include "src/NVMNet.h"
+#include "src/Params.h"
 
 
 #include <iostream>
@@ -37,9 +36,10 @@ class OnChipBus : public Interconnect
   ~OnChipBus( );
 
   void SetConfig( Config *c );
+  void SetParams( Params *params ) { p = params; }
 
-  bool IssueCommand( MemOp *mop );
-  bool IsIssuable( MemOp *mop, ncycle_t delay );
+  bool IssueCommand( NVMainRequest *mop );
+  bool IsIssuable( NVMainRequest *mop, ncycle_t delay );
 
   ncycle_t GetNextActivate( uint64_t rank, uint64_t bank );
   ncycle_t GetNextRead( uint64_t rank, uint64_t bank );
@@ -51,8 +51,6 @@ class OnChipBus : public Interconnect
 
   void Cycle( );
 
-  void RecvMessage( NVMNetMessage * ) { }
-
   Rank *GetRank( uint64_t rank ) { return ranks[rank]; }
   
  private:
@@ -63,7 +61,9 @@ class OnChipBus : public Interconnect
 
   Config *conf;
   Rank **ranks;
-  MemOp *nextOp;
+  NVMainRequest *nextReq;
+
+  Params *p;
 
 };
 

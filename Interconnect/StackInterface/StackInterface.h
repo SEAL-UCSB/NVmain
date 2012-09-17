@@ -20,7 +20,6 @@
 
 #include "src/Rank.h"
 #include "src/Interconnect.h"
-#include "src/MemOp.h"
 
 #include <deque>
 
@@ -37,7 +36,7 @@ struct StackRequest
 {
   unsigned int slot;
   AckType status;
-  MemOp *memOp;
+  NVMainRequest *memReq;
 };
 
 
@@ -52,8 +51,8 @@ class StackInterface : public Interconnect
   void SetMLRValue( unsigned int mlr );
   void SetMLWValue( unsigned int mlw );
 
-  bool IssueCommand( MemOp *mop );
-  bool IsIssuable( MemOp *mop, ncycle_t delay = 0 );
+  bool IssueCommand( NVMainRequest *req );
+  bool IsIssuable( NVMainRequest *req, ncycle_t delay = 0 );
 
   bool GetCompletedRequest( StackRequest **req );
 
@@ -61,8 +60,6 @@ class StackInterface : public Interconnect
 
   void Cycle( );
 
-  void RecvMessage( NVMNetMessage * ) { }
-  
  private:
   bool configSet;
   ncounter_t numRanks;

@@ -22,6 +22,11 @@
 #include <stdint.h>
 
 
+#include "src/Params.h"
+#include "src/NVMObject.h"
+#include "include/NVMainRequest.h"
+
+
 namespace NVM {
 
 
@@ -33,16 +38,19 @@ class AddressTranslator;
 class SimInterface;
 class NVMainRequest;
 
-class NVMain //: public Cycler
+class NVMain : public NVMObject
 {
  public:
   NVMain( );
   ~NVMain( );
 
   void SetConfig( Config *conf );
+  void SetParams( Params *params ) { p = params; } 
 
   int  NewRequest( NVMainRequest *request );
   bool CanIssue( NVMainRequest *request );
+
+  void PrintStats( );
 
   void Cycle( );
 
@@ -58,6 +66,8 @@ class NVMain //: public Cycler
   unsigned int numChannels;
   uint64_t currentCycle;
   std::ofstream pretraceOutput;
+
+  Params *p;
 
 };
 

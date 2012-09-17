@@ -12,7 +12,7 @@
  *  the original NVMain paper in the citation list and mention the use 
  *  of NVMain.
  *
- */
+&dummy */
 
 
 #include "src/Prefetcher.h"
@@ -22,7 +22,7 @@ using namespace NVM;
 
 
 
-bool Prefetcher::NotifyAccess( MemOp * /*accessOp*/, std::vector<NVMAddress>& /*prefetchList*/ )
+bool Prefetcher::NotifyAccess( NVMainRequest * /*accessOp*/, std::vector<NVMAddress>& /*prefetchList*/ )
 {
   return false;
 }
@@ -31,7 +31,7 @@ bool Prefetcher::NotifyAccess( MemOp * /*accessOp*/, std::vector<NVMAddress>& /*
 /*
  *  Default prefetcher - Don't prefetch anything.
  */
-bool Prefetcher::DoPrefetch( MemOp * /*triggerOp*/, std::vector<NVMAddress>& /*prefetchList*/ )
+bool Prefetcher::DoPrefetch( NVMainRequest * /*triggerOp*/, std::vector<NVMAddress>& /*prefetchList*/ )
 {
   return false;
 }

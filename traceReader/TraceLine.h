@@ -20,8 +20,7 @@
 
 #include <stdint.h>
 
-
-#include "src/MemOp.h"
+#include "include/NVMainRequest.h"
 
 
 namespace NVM {

@@ -59,7 +59,7 @@ unsigned int Gem5Interface::GetInstructionCount( int core )
     /* Valid for timing simple CPU... need to check O3 etc. */
     if( core == -1 )
       {
-        fmt << "simInsts";
+        fmt << "sim_insts";
       }
     else
       {
