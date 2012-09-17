@@ -23,16 +23,5 @@
 using namespace NVM;
 
 
-void Interconnect::RequestComplete( NVMainRequest *request )
-{
-  /*
-   *  By default, just tell the issuing controller the request has been completed
-   *  as soon as it arrives on the interconnect.
-   */
-  if( request->issueController != NULL )
-    {
-      request->issueController->RequestComplete( request );
-    }
-}
 
 

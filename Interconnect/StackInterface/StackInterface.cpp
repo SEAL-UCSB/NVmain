@@ -86,10 +86,8 @@ void StackInterface::SetConfig( Config *c )
       formatter << i;
       ranks[i]->SetName( formatter.str( ) );
 
-      NVMNetNode *nodeInfo = new NVMNetNode( NVMNETDESTTYPE_RANK, 0, i, 0 );
-      NVMNetNode *parentInfo = new NVMNetNode( NVMNETDESTTYPE_INT, 0, 0, 0 );
-      ranks[i]->AddParent( this, parentInfo );
-      AddChild( ranks[i], nodeInfo );
+      ranks[i]->SetParent( this );
+      AddChild( ranks[i] );
     }
 }
 
@@ -129,7 +127,7 @@ unsigned int StackInterface::GetMLValue( BulkCommand /*cmd*/ )
  
 
 
-bool StackInterface::IssueCommand( MemOp *mop )
+bool StackInterface::IssueCommand( NVMainRequest *nreq )
 {
   if( !configSet || numRanks == 0 )
     {
@@ -142,7 +140,7 @@ bool StackInterface::IssueCommand( MemOp *mop )
    * set by this function. In this wrapper, only one operation is allowed to be issued, as there is
    * presumably only a single bus per channel.
    */
-  if( !IsIssuable( mop ) )
+  if( !IsIssuable( nreq ) )
     {
       std::cerr << "Warning: Only one command can be issued per cycle. Check memory controller code." << std::endl;
       return false;
@@ -155,7 +153,7 @@ bool StackInterface::IssueCommand( MemOp *mop )
   StackRequest *req = new StackRequest;
 
   req->slot = 0;
-  req->memOp = mop;
+  req->memReq = nreq;
 
   stackRequests.push_front( req );
 
@@ -164,8 +162,8 @@ bool StackInterface::IssueCommand( MemOp *mop )
    */
   req = new StackRequest;
 
-  req->memOp = mop;
-  req->slot = GetMLValue( req->memOp->GetBulkCmd( ) );
+  req->memReq = nreq;
+  req->slot = GetMLValue( req->memReq->bulkCmd );
 
 
   std::deque<StackRequest *>::iterator iter;
@@ -196,7 +194,7 @@ bool StackInterface::IssueCommand( MemOp *mop )
  *  In this stack interface implementation, we say a request is issuable
  *  if the current slot is empty.
  */
-bool StackInterface::IsIssuable( MemOp * /*mop*/, ncycle_t /*delay*/ )
+bool StackInterface::IsIssuable( NVMainRequest * /*req*/, ncycle_t /*delay*/ )
 {
   /*
    *  If there are no requests in the queue, or the first slot is not
@@ -259,7 +257,7 @@ void StackInterface::Cycle( )
 {
   float cpuFreq;
   float busFreq;
-  MemOp *nextOp;
+  NVMainRequest *nextReq;
 
   /* GetEnergy is used since it returns a float. */
   cpuFreq = conf->GetEnergy( "CPUFreq" );
@@ -280,30 +278,30 @@ void StackInterface::Cycle( )
   currentCycle++;
 
   if( !stackRequests.empty( ) && (stackRequests.front())->slot == 0 )
-    nextOp = (stackRequests.front())->memOp;
+    nextReq = (stackRequests.front())->memReq;
   else
-    nextOp = NULL;
+    nextReq = NULL;
   
-  if( nextOp != NULL )
+  if( nextReq != NULL )
     {
       uint64_t opRank;
       uint64_t opBank;
       uint64_t opRow;
       uint64_t opCol;
 
-      nextOp->GetAddress( ).GetTranslatedAddress( &opCol, &opRow, &opBank, &opRank, NULL );
+      nextReq->address.GetTranslatedAddress( &opCol, &opRow, &opBank, &opRank, NULL );
 
       /*
        *  If the bank is ready to issue, issue and delete backup slot.
        */
-      if( ranks[opRank]->IsIssuable( nextOp ) )
+      if( ranks[opRank]->IsIssuable( nextReq ) )
         {
-          if( nextOp->GetOperation( ) == 0 )
+          if( nextReq->type == 0 )
             {
               std::cout << "StackInterface got unknown op.\n";
             }
 
-          ranks[opRank]->AddCommand( nextOp );
+          ranks[opRank]->IssueCommand( nextReq );
 
           /*
            *  To preserve rank-to-rank switching time, we need to notify the
@@ -311,16 +309,16 @@ void StackInterface::Cycle( )
            */
           for( ncounter_t i = 0; i < numRanks; i++ )
             if( (uint64_t)(i) != opRank )
-              ranks[i]->Notify( nextOp->GetOperation( ) );
+              ranks[i]->Notify( nextReq->type );
 
           /*
            *  Put the request in the completed queue.
            */
           StackRequest *req = new StackRequest;
           
-          req->memOp = nextOp;
+          req->memReq = nextReq;
           req->status = ACK_ACK;
-          req->slot = GetMLValue( req->memOp->GetBulkCmd( ) );
+          req->slot = GetMLValue( req->memReq->bulkCmd );
 
           std::deque<StackRequest *>::iterator iter;
           for( iter = completedRequests.begin( ); iter != completedRequests.end( ); iter++ )
@@ -345,7 +343,7 @@ void StackInterface::Cycle( )
           iter = stackRequests.begin( );
           while( iter != stackRequests.end( ) )
             {
-              if( (*iter)->memOp == nextOp )
+              if( (*iter)->memReq == nextReq )
                 {
                   deleteCount++;
                   delete (*iter);
@@ -371,7 +369,7 @@ void StackInterface::Cycle( )
             }
 
           
-          nextOp = NULL;
+          nextReq = NULL;
         }
       /*
        *  Bank is not ready... 
@@ -389,7 +387,7 @@ void StackInterface::Cycle( )
 
           for( iter = stackRequests.begin( ); iter != stackRequests.end( ); ++iter )
             {
-              if( (*iter)->memOp == nextOp )
+              if( (*iter)->memReq == nextReq )
                 requestCount++;
             }
 
@@ -400,8 +398,8 @@ void StackInterface::Cycle( )
               StackRequest *req = new StackRequest;
 
               req->status = ACK_NACK;
-              req->memOp = nextOp;
-              req->slot = GetMLValue( req->memOp->GetBulkCmd( ) );
+              req->memReq = nextReq;
+              req->slot = GetMLValue( req->memReq->bulkCmd );
 
               for( iter = completedRequests.begin( ); iter != completedRequests.end( ); iter++ )
                 {
@@ -420,7 +418,7 @@ void StackInterface::Cycle( )
 
           while( iter != stackRequests.end( ) )
             {
-              if( (*iter)->memOp == nextOp )
+              if( (*iter)->memReq == nextReq )
                 {
                   delete (*iter);
                   iter = stackRequests.erase( iter );

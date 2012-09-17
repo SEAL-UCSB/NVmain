@@ -20,7 +20,7 @@
 
 
 #include "src/Config.h"
-#include "src/Cycler.h"
+#include "src/NVMObject.h"
 #include "include/NVMAddress.h"
 
 
@@ -29,7 +29,7 @@ namespace NVM {
 
 class EnduranceModel;
 
-class FaultModel : public Cycler
+class FaultModel : public NVMObject
 {
  public:
   FaultModel( );

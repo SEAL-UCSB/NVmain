@@ -34,7 +34,6 @@
 using namespace NVM;
 
 
-
 NVMain::NVMain( )
 {
   config = NULL;
@@ -96,23 +95,21 @@ void NVMain::SetConfig( Config *conf )
   TranslationMethod *method;
   int channels, ranks, banks, rows, cols;
 
+  Params *params = new Params( );
+  params->SetParams( conf );
+  SetParams( params );
+
   config = conf;
   if( config->GetSimInterface( ) != NULL )
     config->GetSimInterface( )->SetConfig( conf );
   else
     std::cout << "Warning: Sim Interface should be allocated before configuration!" << std::endl;
 
-  rows = config->GetValue( "ROWS" );
-  cols = config->GetValue( "COLS" );
-  banks = config->GetValue( "BANKS" );
-  ranks = config->GetValue( "RANKS" );
-  channels = config->GetValue( "CHANNELS" );
-
-  if( channels < 0 || ranks < 0 || banks < 0 || rows < 0 || cols < 0 )
-    {
-      std::cout << "Error: Configuration is missing number of channels, ranks, banks, rows, or columns.\n";
-      return;
-    }
+  rows = (int)p->ROWS;
+  cols = (int)p->COLS;
+  banks = (int)p->BANKS;
+  ranks = (int)p->RANKS;
+  channels = (int)p->CHANNELS;
 
   if( config->KeyExists( "Decoder" ) )
     translator = DecoderFactory::CreateNewDecoder( config->GetString( "Decoder" ) );
@@ -190,6 +187,13 @@ void NVMain::SetConfig( Config *conf )
       memoryControllers[i]->SetConfig( channelConfig[i] );
 
       memoryControllerManager->AddController( memoryControllers[i] );
+
+      AddChild( memoryControllers[i] );
+
+      memoryControllers[i]->SetParent( this );
+      memoryControllers[i]->AddChild( memory[i] );
+      
+      memory[i]->SetParent( memoryControllers[i] );
     }
   
   numChannels = (unsigned int)channels;
@@ -219,22 +223,18 @@ void NVMain::SetConfig( Config *conf )
 
 bool NVMain::CanIssue( NVMainRequest *request )
 {
-  /*uint64_t channel, rank, bank, row, col;
+  uint64_t channel, rank, bank, row, col;
 
   translator->Translate( request->address.GetPhysicalAddress( ), &row, &col, &rank, &bank, &channel );
-  */
 
-  return !memoryControllers[0]->QueueFull( request );
+  return !memoryControllers[channel]->QueueFull( request );
 }
 
 
 int NVMain::NewRequest( NVMainRequest *request )
 {
-  MemOp *newOp = new MemOp( );
   NVMAddress address;
   uint64_t channel, rank, bank, row, col;
-  unsigned char dataBlock[8];
-  uint64_t *data;
   int mc_rv;
 
   if( !config )
@@ -245,28 +245,11 @@ int NVMain::NewRequest( NVMainRequest *request )
 
 
   /*
-   *  The type of operation is determined before the request leaves the CPU simulator
-   */
-  newOp->SetOperation( request->type );
-
-
-  /*
-   *  Convert the DataBlock structure from GEMS to a simple 64-bit int (assumes 64 bit bus).
-   */
-  for( int i = 0; i < 8; i++ )
-    {
-      dataBlock[8-i-1] = request->data.GetByte( i );
-    }
-  data = (uint64_t *)&(dataBlock[0]);
-  newOp->SetData( *data );
-
-  /*
-   *  Translate the address, then copy to the address struct, and copy to request and MemOp.
+   *  Translate the address, then copy to the address struct, and copy to request.
    */
   translator->Translate( request->address.GetPhysicalAddress( ), &row, &col, &bank, &rank, &channel );
   address.SetTranslatedAddress( row, col, bank, rank, channel );
   address.SetPhysicalAddress( request->address.GetPhysicalAddress( ) );
-  newOp->SetAddress( address );
   request->address = address;
   request->bulkCmd = CMD_NOP;
 
@@ -274,13 +257,8 @@ int NVMain::NewRequest( NVMainRequest *request )
   //          << " decodes to channel " << channel << " rank " << rank << " bank " << bank
   //          << " row " << row << " col " << col << std::endl;
 
-  newOp->SetRequest( request );
-  newOp->SetThreadId( request->threadId );
-  newOp->SetBulkCmd( CMD_NOP );
-  newOp->SetCycle( currentCycle );
 
-
-  mc_rv = memoryControllers[channel]->StartCommand( newOp );
+  mc_rv = memoryControllers[channel]->IssueCommand( request );
   if( mc_rv == true )
     {
       /*
@@ -288,15 +266,15 @@ int NVMain::NewRequest( NVMainRequest *request )
        *
        *  CYCLE OP ADDRESS DATA THREADID
        */
-      if( config->GetString( "PrintPreTrace" ) == "true" )
+      if( p->PrintPreTrace )
         {
-          if( config->GetString( "EchoPreTrace" ) == "true" )
+          if( p->EchoPreTrace )
             {
               /* Output Cycle */
               std::cout << currentCycle << " ";
               
               /* Output operation */
-              if( newOp->GetOperation( ) == READ )
+              if( request->type == READ )
                 std::cout << "R ";
               else
                 std::cout << "W ";
@@ -311,13 +289,13 @@ int NVMain::NewRequest( NVMainRequest *request )
               std::cout << request->threadId << std::endl;
             }
           
-          if( pretraceOutput.is_open( ) );
+          if( pretraceOutput.is_open( ) )
             {
               /* Output Cycle */
               pretraceOutput << currentCycle << " ";
               
               /* Output operation */
-              if( newOp->GetOperation( ) == READ )
+              if( request->type == READ )
                 pretraceOutput << "R ";
               else
                 pretraceOutput << "W ";
@@ -358,8 +336,8 @@ void NVMain::Cycle( )
   /* Output periodic statistics if this is set in the configuration. */
   int statsPeriod = 0;
 
-  if( config->KeyExists( "PeriodicStatsInterval" ) )
-    statsPeriod = config->GetValue( "PeriodicStatsInterval" );
+  if( p->PeriodicStatsInterval_set )
+    statsPeriod = (int)p->PeriodicStatsInterval;
 
   if( statsPeriod != -1 && statsPeriod != 0 && ( currentCycle % statsPeriod ) == 0 )
     {
@@ -367,4 +345,11 @@ void NVMain::Cycle( )
       for( unsigned int i = 0; i < numChannels; i++ )
         memoryControllers[i]->PrintStats( );
     }
+}
+
+
+void NVMain::PrintStats( )
+{
+  for( unsigned int i = 0; i < numChannels; i++ )
+    memoryControllers[i]->PrintStats( );
 }

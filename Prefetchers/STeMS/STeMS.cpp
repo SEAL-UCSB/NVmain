@@ -80,7 +80,7 @@ void STeMS::FetchNextUnused( PatternSequence *rps, int count, std::vector<NVMAdd
 }
 
 
-bool STeMS::NotifyAccess( MemOp *accessOp, std::vector<NVMAddress>& prefetchList )
+bool STeMS::NotifyAccess( NVMainRequest *accessOp, std::vector<NVMAddress>& prefetchList )
 {
   bool rv = false;
 
@@ -88,10 +88,10 @@ bool STeMS::NotifyAccess( MemOp *accessOp, std::vector<NVMAddress>& prefetchList
    * If this access came from a PC that has an allocated reconstruction buffer, but it is not 
    * the first unused address in the reconstruction buffer, deallocate the buffer.
    */
-  if( ReconBuf.count( accessOp->GetRequest( )->programCounter ) )
+  if( ReconBuf.count( accessOp->programCounter ) )
     {
-      PatternSequence *rps = ReconBuf[accessOp->GetRequest( )->programCounter];
-      uint64_t address = accessOp->GetRequest( )->address.GetPhysicalAddress( );
+      PatternSequence *rps = ReconBuf[accessOp->programCounter];
+      uint64_t address = accessOp->address.GetPhysicalAddress( );
 
       /* Can't evaluate prefetch effectiveness until we've issued some. */
       if( !rps->startedPrefetch )
@@ -143,7 +143,7 @@ bool STeMS::NotifyAccess( MemOp *accessOp, std::vector<NVMAddress>& prefetchList
               PatternSequence *ps = NULL;
               std::map<uint64_t, PatternSequence*>::iterator it;
 
-              it = PST.find( accessOp->GetRequest( )->programCounter );
+              it = PST.find( accessOp->programCounter );
               if( it != PST.end( ) )
                 {
                   ps = it->second;
@@ -158,7 +158,7 @@ bool STeMS::NotifyAccess( MemOp *accessOp, std::vector<NVMAddress>& prefetchList
             }
 
           std::map<uint64_t, PatternSequence*>::iterator it;
-          it = ReconBuf.find( accessOp->GetRequest( )->programCounter );
+          it = ReconBuf.find( accessOp->programCounter );
           ReconBuf.erase( it );
         }
     }
@@ -167,17 +167,17 @@ bool STeMS::NotifyAccess( MemOp *accessOp, std::vector<NVMAddress>& prefetchList
 }
 
 
-bool STeMS::DoPrefetch( MemOp *triggerOp, std::vector<NVMAddress>& prefetchList )
+bool STeMS::DoPrefetch( NVMainRequest *triggerOp, std::vector<NVMAddress>& prefetchList )
 {
   NVMAddress pfAddr;
   bool foundAGT = false;
 
   /* If there is an entry in the PST for this PC, build a recon buffer */
-  if( PST.count( triggerOp->GetRequest( )->programCounter ) )
+  if( PST.count( triggerOp->programCounter ) )
     {
-      PatternSequence *ps = PST[triggerOp->GetRequest( )->programCounter];
-      uint64_t address = triggerOp->GetRequest( )->address.GetPhysicalAddress( );
-      uint64_t pc = triggerOp->GetRequest( )->programCounter;
+      PatternSequence *ps = PST[triggerOp->programCounter];
+      uint64_t address = triggerOp->address.GetPhysicalAddress( );
+      uint64_t pc = triggerOp->programCounter;
 
       /* Check for an RB that is actively being built */
       if( ReconBuf.count( pc ) )
@@ -209,10 +209,10 @@ bool STeMS::DoPrefetch( MemOp *triggerOp, std::vector<NVMAddress>& prefetchList 
       else
         {
           PatternSequence *rps = new PatternSequence;
-          uint64_t pc = triggerOp->GetRequest( )->programCounter;
+          uint64_t pc = triggerOp->programCounter;
 
           rps->size = ps->size;
-          rps->address = triggerOp->GetRequest( )->address.GetPhysicalAddress( );
+          rps->address = triggerOp->address.GetPhysicalAddress( );
 
           for( uint64_t i = 0; i < ps->size; i++ )
             {
@@ -232,10 +232,10 @@ bool STeMS::DoPrefetch( MemOp *triggerOp, std::vector<NVMAddress>& prefetchList 
 
 #ifdef DBGPF
       std::cout << "Found a PST entry for PC 0x" << std::hex
-                << triggerOp->GetRequest( )->programCounter << std::dec << std::endl;
+                << triggerOp->programCounter << std::dec << std::endl;
       
       std::cout << "Triggered by 0x" << std::hex
-                << triggerOp->GetRequest( )->address.GetPhysicalAddress( ) << std::dec
+                << triggerOp->address.GetPhysicalAddress( ) << std::dec
                 << std::endl;
       
       std::cout << "Start address 0x" << std::hex << ps->address << ": " << std::dec;
@@ -252,10 +252,10 @@ bool STeMS::DoPrefetch( MemOp *triggerOp, std::vector<NVMAddress>& prefetchList 
     {
       /* If there is no entry in the PST for this PC, start building an AGT entry. */
       /* Check one of the AGT buffers for misses at this PC */
-      if( AGT.count( triggerOp->GetRequest( )->programCounter ) )
+      if( AGT.count( triggerOp->programCounter ) )
         {
-          uint64_t address = triggerOp->GetRequest( )->address.GetPhysicalAddress( );
-          uint64_t pc = triggerOp->GetRequest( )->programCounter;
+          uint64_t address = triggerOp->address.GetPhysicalAddress( );
+          uint64_t pc = triggerOp->programCounter;
           PatternSequence *ps = AGT[pc];
 
           /* 
@@ -295,9 +295,9 @@ bool STeMS::DoPrefetch( MemOp *triggerOp, std::vector<NVMAddress>& prefetchList 
       else
         {
           PatternSequence *ps = new PatternSequence;
-          uint64_t pc = triggerOp->GetRequest( )->programCounter;
+          uint64_t pc = triggerOp->programCounter;
           
-          ps->address = triggerOp->GetRequest( )->address.GetPhysicalAddress( );
+          ps->address = triggerOp->address.GetPhysicalAddress( );
           ps->size = 1;
           ps->offset[0] = 0;
           ps->delta[0] = 0;

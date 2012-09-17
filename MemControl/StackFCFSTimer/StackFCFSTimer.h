@@ -30,7 +30,7 @@ class StackFCFSTimer : public MemoryController
   ~StackFCFSTimer( ) { }
 
 
-  int StartCommand( MemOp *mop );
+  bool IssueCommand( NVMainRequest *req );
 
   void PrintStats( );
 

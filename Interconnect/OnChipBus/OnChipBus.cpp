@@ -25,7 +25,7 @@ using namespace NVM;
 
 OnChipBus::OnChipBus( )
 {
-  nextOp = NULL;
+  nextReq = NULL;
   conf = NULL;
   ranks = NULL;
   configSet = false;
@@ -53,6 +53,10 @@ void OnChipBus::SetConfig( Config *c )
 {
   std::stringstream formatter;
 
+  Params *params = new Params( );
+  params->SetParams( c );
+  SetParams( params );
+
   conf = c;
   configSet = true;
 
@@ -73,16 +77,14 @@ void OnChipBus::SetConfig( Config *c )
       formatter << i;
       ranks[i]->SetName( formatter.str( ) );
 
-      NVMNetNode *nodeInfo = new NVMNetNode( NVMNETDESTTYPE_RANK, 0, i, 0 );
-      NVMNetNode *parentInfo = new NVMNetNode( NVMNETDESTTYPE_INT, 0, 0, 0 );
-      ranks[i]->AddParent( this, parentInfo );
-      AddChild( ranks[i], nodeInfo );
+      ranks[i]->SetParent( this );
+      AddChild( ranks[i] );
     }
 }
 
 
 
-bool OnChipBus::IssueCommand( MemOp *mop )
+bool OnChipBus::IssueCommand( NVMainRequest *req )
 {
   if( !configSet || numRanks == 0 )
     {
@@ -95,19 +97,19 @@ bool OnChipBus::IssueCommand( MemOp *mop )
    * set by this function. In this wrapper, only one operation is allowed to be issued, as there is
    * presumably only a single bus per channel.
    */
-  if( nextOp != NULL )
+  if( nextReq != NULL )
     {
       std::cerr << "Warning: Only one command can be issued per cycle. Check memory controller code." << std::endl;
       return false;
     }
 
-  nextOp = mop;
+  nextReq = req;
 
   return true;
 }
 
 
-bool OnChipBus::IsIssuable( MemOp *mop, ncycle_t delay )
+bool OnChipBus::IsIssuable( NVMainRequest *req, ncycle_t delay )
 {
   uint64_t opRank;
   uint64_t opBank;
@@ -118,12 +120,12 @@ bool OnChipBus::IsIssuable( MemOp *mop, ncycle_t delay )
    *  Can happen since the memory controller runs at a
    *  higher frequency than the bus.
    */
-  if( nextOp != NULL )
+  if( nextReq != NULL )
     return false;
   
-  mop->GetAddress( ).GetTranslatedAddress( &opCol, &opRow, &opBank, &opRank, NULL );
+  req->address.GetTranslatedAddress( &opCol, &opRow, &opBank, &opRank, NULL );
   
-  return ranks[opRank]->IsIssuable( mop, delay );
+  return ranks[opRank]->IsIssuable( req, delay );
 }
 
 
@@ -193,8 +195,8 @@ void OnChipBus::Cycle( )
   float busFreq;
 
   /* GetEnergy is used since it returns a float. */
-  cpuFreq = conf->GetEnergy( "CPUFreq" );
-  busFreq = conf->GetEnergy( "CLK" );
+  cpuFreq = (float)p->CPUFreq;
+  busFreq = (float)p->CLK;
 
   /* busFreq should be <= cpuFreq. */
   syncValue += (float)( busFreq / cpuFreq );
@@ -211,26 +213,24 @@ void OnChipBus::Cycle( )
 
   currentCycle++;
   
-  if( nextOp != NULL )
+  if( nextReq != NULL )
     {
       uint64_t opRank;
       uint64_t opBank;
       uint64_t opRow;
       uint64_t opCol;
 
-      nextOp->GetAddress( ).GetTranslatedAddress( &opCol, &opRow, &opBank, &opRank, NULL );
+      nextReq->address.GetTranslatedAddress( &opCol, &opRow, &opBank, &opRank, NULL );
 
-      if( ranks[opRank]->IsIssuable( nextOp ) )
+      if( ranks[opRank]->IsIssuable( nextReq ) )
         {
-          if( nextOp->GetOperation( ) == 0 )
+          if( nextReq->type == 0 )
             {
               std::cout << "OnChipBus got unknown op.\n";
             }
-          //std::cout << "Issuing command " << nextOp->GetOperation( ) << std::endl;
+          //std::cout << "Issuing command " << nextReq->type << std::endl;
           
-          nextOp->GetRequest( )->issueInterconnect = this;
-
-          ranks[opRank]->AddCommand( nextOp );
+          ranks[opRank]->IssueCommand( nextReq );
 
           /*
            *  To preserve rank-to-rank switching time, we need to notify the
@@ -238,9 +238,9 @@ void OnChipBus::Cycle( )
            */
           for( ncounter_t i = 0; i < numRanks; i++ )
             if( (uint64_t)(i) != opRank )
-              ranks[i]->Notify( nextOp->GetOperation( ) );
+              ranks[i]->Notify( nextReq->type );
 
-          nextOp = NULL;
+          nextReq = NULL;
         }
     }
   else

@@ -7,7 +7,7 @@ NVM_DIR = .
 TRACE = true
 
 SUBDIRS = src traceReader MemControl Endurance SimInterface Interconnect include FaultModels Utils Decoders Prefetchers
-TRACE_SUBDIRS = src traceReader MemControl Endurance Interconnect include FaultModels Utils Decoders Prefetchers
+TRACE_SUBDIRS = src traceReader NVM MemControl Endurance Interconnect include FaultModels Utils Decoders Prefetchers
 CLEAN_SUBDIRS = src traceReader traceSim NVM MemControl Endurance SimInterface Interconnect include FaultModels Utils Decoders Prefetchers
 
 CONTROLLERS = $(shell find $(NVM_DIR)/MemControl -type f -name "*.cpp" | sed 's/.cpp/.o/g')
@@ -18,6 +18,7 @@ TRACEREADERS = $(shell find $(NVM_DIR)/traceReader -type f -name "*.cpp" | sed '
 UTILS = $(shell find $(NVM_DIR)/Utils -type f -name "*.cpp" | sed 's/.cpp/.o/g')
 DECODERS = $(shell find $(NVM_DIR)/Decoders -type f -name "*.cpp" | sed 's/.cpp/.o/g')
 PREFETCHERS = $(shell find $(NVM_DIR)/Prefetchers -type f -name "*.cpp" | sed 's/.cpp/.o/g')
+NVM = $(shell find $(NVM_DIR)/NVM -type f -name "*.cpp" | sed 's/.cpp/.o/g')
 
 all:	
 ifeq ($(TRACE), true)
@@ -33,7 +34,7 @@ ifeq ($(TRACE), true)
 	@echo ""
 	@echo ""
 	@echo "===== Linking NVMain ====="
-	$(CC) $(LDFLAGS) -o nvmain src/*.o traceSim/*.o include/*.o SimInterface/NullInterface/*.o $(CONTROLLERS) $(MODELS) $(INTERCONNECTS) $(TRACEREADERS) $(UTILS) $(DECODERS) $(PREFETCHERS)
+	$(CC) $(LDFLAGS) -o nvmain src/*.o traceSim/*.o include/*.o SimInterface/NullInterface/*.o $(CONTROLLERS) $(MODELS) $(INTERCONNECTS) $(TRACEREADERS) $(UTILS) $(DECODERS) $(PREFETCHERS) $(NVM)
 	@echo ""
 	@echo ""
 	@echo ""

@@ -1,9 +1,9 @@
 # HG changeset patch
-# Parent a7a72f42919e2bdf3ef196bc628cceaf03611d78
+# Parent 7e9e34d4203be6e437192b7b941ee20e19eb0241
 
-diff -r a7a72f42919e configs/example/nvm_classic.py
+diff -r 7e9e34d4203b configs/example/nvm_classic.py
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/configs/example/nvm_classic.py	Wed Aug 15 11:58:34 2012 -0400
++++ b/configs/example/nvm_classic.py	Wed Sep 12 15:20:17 2012 -0400
 @@ -0,0 +1,192 @@
 +# Copyright (c) 2006-2008 The Regents of The University of Michigan
 +# All rights reserved.
@@ -197,9 +197,9 @@ diff -r a7a72f42919e configs/example/nvm_classic.py
 +
 +root = Root(full_system = False, system = system)
 +Simulation.run(options, root, system, FutureClass)
-diff -r a7a72f42919e configs/example/nvmain_se.py
+diff -r 7e9e34d4203b configs/example/nvmain_se.py
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/configs/example/nvmain_se.py	Wed Aug 15 11:58:34 2012 -0400
++++ b/configs/example/nvmain_se.py	Wed Sep 12 15:20:17 2012 -0400
 @@ -0,0 +1,151 @@
 +# Copyright (c) 2006-2008 The Regents of The University of Michigan
 +# All rights reserved.
@@ -352,27 +352,28 @@ diff -r a7a72f42919e configs/example/nvmain_se.py
 +root = Root(full_system = False, system = system)
 +
 +Simulation.run(options, root, system, FutureClass)
-diff -r a7a72f42919e configs/ruby/MESI_CMP_directory.py
---- a/configs/ruby/MESI_CMP_directory.py	Fri Aug 10 13:50:42 2012 -0500
-+++ b/configs/ruby/MESI_CMP_directory.py	Wed Aug 15 11:58:34 2012 -0400
-@@ -144,7 +144,13 @@
+diff -r 7e9e34d4203b configs/ruby/MESI_CMP_directory.py
+--- a/configs/ruby/MESI_CMP_directory.py	Wed Sep 12 11:35:52 2012 -0400
++++ b/configs/ruby/MESI_CMP_directory.py	Wed Sep 12 15:20:17 2012 -0400
+@@ -144,8 +144,13 @@
          # Create the Ruby objects associated with the directory controller
          #
  
--        mem_cntrl = RubyMemoryControl(version = i)
+-        mem_cntrl = RubyMemoryControl(version = i,
+-                                      ruby_system = ruby_system)
 +        try:
 +            mem_cntrl = NVMMemoryControl(version = i,
-+                                          config = options.nvmain_config,
-+                                          physicalMem = system.physmem)
++                                         config = options.nvmain_config,
++                                         physicalMem = system.physmem)
 +        except:
-+            mem_cntrl = RubyMemoryControl(version = i)
-+
++            mem_cntrl = RubyMemoryControl(version = i,
++                                          ruby_system = ruby_system)
  
          dir_size = MemorySize('0B')
          dir_size.value = mem_module_size
-diff -r a7a72f42919e configs/spec2006/Mybench.py
+diff -r 7e9e34d4203b configs/spec2006/Mybench.py
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/configs/spec2006/Mybench.py	Wed Aug 15 11:58:34 2012 -0400
++++ b/configs/spec2006/Mybench.py	Wed Sep 12 15:20:17 2012 -0400
 @@ -0,0 +1,353 @@
 +#Mybench.py
 +
@@ -411,7 +412,7 @@ diff -r a7a72f42919e configs/spec2006/Mybench.py
 +bzip2 = LiveProcess()
 +bzip2.executable =  binary_dir+'401.bzip2_base.alpha-gcc'
 +data=data_dir+'401.bzip2/data/all/input/input.program'
-+bzip2.cmd = [bzip2.executable] + [data, '1']
++bzip2.cmd = [bzip2.executable] + [data, '280']
 +bzip2.output = output_dir+'bzip2_input.program.out'
 +
 +#403.gcc
@@ -727,9 +728,9 @@ diff -r a7a72f42919e configs/spec2006/Mybench.py
 +        print >> sys.stderr, "zeusmp"
 +        sys.exit(1)
 +
-diff -r a7a72f42919e configs/spec2006/classic.py
+diff -r 7e9e34d4203b configs/spec2006/classic.py
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/configs/spec2006/classic.py	Wed Aug 15 11:58:34 2012 -0400
++++ b/configs/spec2006/classic.py	Wed Sep 12 15:20:17 2012 -0400
 @@ -0,0 +1,152 @@
 +# Copyright (c) 2006-2008 The Regents of The University of Michigan
 +# All rights reserved.
@@ -883,9 +884,9 @@ diff -r a7a72f42919e configs/spec2006/classic.py
 +root = Root(full_system = False, system = system)
 +
 +Simulation.run(options, root, system, FutureClass)
-diff -r a7a72f42919e configs/spec2006/spec2006.py
+diff -r 7e9e34d4203b configs/spec2006/spec2006.py
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/configs/spec2006/spec2006.py	Wed Aug 15 11:58:34 2012 -0400
++++ b/configs/spec2006/spec2006.py	Wed Sep 12 15:20:17 2012 -0400
 @@ -0,0 +1,153 @@
 +# Copyright (c) 2006-2008 The Regents of The University of Michigan
 +# All rights reserved.
@@ -1040,9 +1041,9 @@ diff -r a7a72f42919e configs/spec2006/spec2006.py
 +root = Root(full_system = False, system = system)
 +
 +Simulation.run(options, root, system, FutureClass)
-diff -r a7a72f42919e src/mem/NVMainMemory.py
+diff -r 7e9e34d4203b src/mem/NVMainMemory.py
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/NVMainMemory.py	Wed Aug 15 11:58:34 2012 -0400
++++ b/src/mem/NVMainMemory.py	Wed Sep 12 15:20:17 2012 -0400
 @@ -0,0 +1,42 @@
 +# Copyright (c) 2009 Advanced Micro Devices, Inc.
 +# All rights reserved.
@@ -1086,9 +1087,9 @@ diff -r a7a72f42919e src/mem/NVMainMemory.py
 +    config = Param.String("NULL", "")
 +    configparams = Param.String("", "")
 +    configvalues = Param.String("", "")
-diff -r a7a72f42919e src/mem/SConscript
---- a/src/mem/SConscript	Fri Aug 10 13:50:42 2012 -0500
-+++ b/src/mem/SConscript	Wed Aug 15 11:58:34 2012 -0400
+diff -r 7e9e34d4203b src/mem/SConscript
+--- a/src/mem/SConscript	Wed Sep 12 11:35:52 2012 -0400
++++ b/src/mem/SConscript	Wed Sep 12 15:20:17 2012 -0400
 @@ -53,8 +53,10 @@
  if env['TARGET_ISA'] != 'no':
      SimObject('AbstractMemory.py')
@@ -1100,10 +1101,10 @@ diff -r a7a72f42919e src/mem/SConscript
      Source('page_table.cc')
      Source('physical.cc')
  
-diff -r a7a72f42919e src/mem/nvmain_mem.cc
+diff -r 7e9e34d4203b src/mem/nvmain_mem.cc
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/nvmain_mem.cc	Wed Aug 15 11:58:34 2012 -0400
-@@ -0,0 +1,434 @@
++++ b/src/mem/nvmain_mem.cc	Wed Sep 12 15:20:17 2012 -0400
+@@ -0,0 +1,428 @@
 +/*
 + * Copyright (c) 1999-2008 Mark D. Hill and David A. Wood
 + * All rights reserved.
@@ -1199,6 +1200,10 @@ diff -r a7a72f42919e src/mem/nvmain_mem.cc
 +    }
 +
 +   eventManager = new NVMainMemoryEventManager(&mainEventQueue, *this);
++
++   BusWidth = m_nvmainConfig->GetValue( "BusWidth" );
++   tBURST = m_nvmainConfig->GetValue( "tBURST" );
++   RATE = m_nvmainConfig->GetValue( "RATE" );
 +}
 +
 +
@@ -1217,6 +1222,9 @@ diff -r a7a72f42919e src/mem/nvmain_mem.cc
 +    }
 +
 +    eventManager->scheduleWakeup( );
++
++    AddChild( m_nvmainPtr );
++    m_nvmainPtr->SetParent( this );
 +}
 +
 +
@@ -1274,12 +1282,11 @@ diff -r a7a72f42919e src/mem/nvmain_mem.cc
 +
 +    NVMainRequest *request = new NVMainRequest( );
 +
-+    bool enqueued;
 +    unsigned int transfer_size;
 +    uint8_t *hostAddr;
 +
-+    transfer_size =  memory.m_nvmainConfig->GetValue( "BusWidth" ) / 8;
-+    transfer_size *= memory.m_nvmainConfig->GetValue( "tBURST" ) * memory.m_nvmainConfig->GetValue( "RATE" );
++    transfer_size =  memory.BusWidth / 8;
++    transfer_size *= memory.tBURST * memory.RATE;
 +
 +    if (pkt->isRead())
 +    {
@@ -1305,41 +1312,18 @@ diff -r a7a72f42919e src/mem/nvmain_mem.cc
 +    {
 +        request->data.SetByte(i, *(hostAddr + (transfer_size - 1) - i));
 +    }
++    delete hostAddr;
++
 +    request->access = UNKNOWN_ACCESS;
 +    request->address.SetPhysicalAddress(pkt->req->getPaddr());
 +    request->status = MEM_REQUEST_INCOMPLETE;
 +    request->type = (pkt->isRead()) ? READ : WRITE;
++    request->owner = (NVMObject *)&memory;
 +
 +    request->programCounter = pkt->req->_pc;
 +    request->threadId = pkt->req->_contextId;
 +
-+    enqueued = memory.m_nvmainPtr->NewRequest(request);
-+    if(enqueued)
-+    {
-+        memory.m_slot_available = true;
-+
-+        NVMainMemoryRequest *memRequest = new NVMainMemoryRequest;
-+
-+        memRequest->request = request;
-+        memRequest->packet = pkt;
-+        memRequest->issueTick = curTick();
-+        memRequest->atomic = true;
-+
-+        memory.m_request_list.push_back(memRequest);
-+    }
-+    else
-+    {
-+        memory.m_slot_available = false;
-+
-+        NVMainMemoryRequest *memRequest = new NVMainMemoryRequest;
-+
-+        memRequest->request = request;
-+        memRequest->packet = pkt;
-+        memRequest->issueTick = curTick();
-+        memRequest->atomic = true;
-+
-+        memory.m_backlog.push_back(memRequest);
-+    }
++    //enqueued = memory.m_nvmainPtr->NewRequest(request);
 +
 +    return memory.doAtomicAccess(pkt);
 +}
@@ -1382,8 +1366,8 @@ diff -r a7a72f42919e src/mem/nvmain_mem.cc
 +    unsigned int transfer_size;
 +    uint8_t *hostAddr;
 +
-+    transfer_size =  memory.m_nvmainConfig->GetValue( "BusWidth" ) / 8;
-+    transfer_size *= memory.m_nvmainConfig->GetValue( "tBURST" ) * memory.m_nvmainConfig->GetValue( "RATE" );
++    transfer_size =  memory.BusWidth / 8;
++    transfer_size *= memory.tBURST * memory.RATE;
 +
 +    if (pkt->isRead())
 +    {
@@ -1409,10 +1393,13 @@ diff -r a7a72f42919e src/mem/nvmain_mem.cc
 +    {
 +        request->data.SetByte(i, *(hostAddr + (transfer_size - 1) - i));
 +    }
++    delete hostAddr;
++
 +    request->access = UNKNOWN_ACCESS;
 +    request->address.SetPhysicalAddress(pkt->req->getPaddr());
 +    request->status = MEM_REQUEST_INCOMPLETE;
 +    request->type = (pkt->isRead()) ? READ : WRITE;
++    request->owner = (NVMObject *)&memory;
 +
 +    request->programCounter = pkt->req->_pc;
 +    request->threadId = pkt->req->_contextId;
@@ -1489,10 +1476,12 @@ diff -r a7a72f42919e src/mem/nvmain_mem.cc
 +                {
 +                    memory.port.queue.schedSendTiming((*it)->packet, curTick() + 1);
 +
++                    delete (*it)->request;
 +                    delete (*it);
 +                }
 +                else
 +                {
++                    delete (*it)->request;
 +                    delete (*it)->packet;
 +                    delete (*it);
 +                }
@@ -1519,6 +1508,12 @@ diff -r a7a72f42919e src/mem/nvmain_mem.cc
 +}
 +
 +
++bool NVMainMemory::RequestComplete( NVM::NVMainRequest *req )
++{
++    return true;
++}
++
++
 +NVMainMemory::NVMainMemoryEventManager::NVMainMemoryEventManager(EventQueue* eventq, NVMainMemory &_memory)
 +    : EventManager(eventq), memory(_memory)
 +{
@@ -1538,10 +1533,10 @@ diff -r a7a72f42919e src/mem/nvmain_mem.cc
 +    return new NVMainMemory(this);
 +}
 +
-diff -r a7a72f42919e src/mem/nvmain_mem.hh
+diff -r 7e9e34d4203b src/mem/nvmain_mem.hh
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/nvmain_mem.hh	Wed Aug 15 11:58:34 2012 -0400
-@@ -0,0 +1,165 @@
++++ b/src/mem/nvmain_mem.hh	Wed Sep 12 15:20:17 2012 -0400
+@@ -0,0 +1,175 @@
 +/*
 + * Copyright (c) 1999-2008 Mark D. Hill and David A. Wood
 + * All rights reserved.
@@ -1596,9 +1591,10 @@ diff -r a7a72f42919e src/mem/nvmain_mem.hh
 +#include "params/NVMainMemory.hh"
 +#include "sim/eventq.hh"
 +#include "src/Config.h"
++#include "src/NVMObject.h"
 +#include "src/SimInterface.h"
 +
-+class NVMainMemory : public AbstractMemory
++class NVMainMemory : public AbstractMemory, public NVM::NVMObject
 +{
 +  private:
 +
@@ -1680,6 +1676,10 @@ diff -r a7a72f42919e src/mem/nvmain_mem.hh
 +    Tick lat_var;
 +    bool nvmain_atomic;
 +
++    uint64_t BusWidth;
++    uint64_t tBURST;
++    uint64_t RATE;
++
 +    std::list<NVMainMemoryRequest *> m_request_list;
 +    std::list<NVMainMemoryRequest *> m_backlog;
 +
@@ -1698,6 +1698,11 @@ diff -r a7a72f42919e src/mem/nvmain_mem.hh
 +        return dynamic_cast<const Params *>(_params);
 +    }
 +
++
++    bool RequestComplete( NVM::NVMainRequest *req );
++
++    void Cycle() { }
++
 +  protected:
 +
 +    Tick doAtomicAccess(PacketPtr pkt);
@@ -1707,9 +1712,9 @@ diff -r a7a72f42919e src/mem/nvmain_mem.hh
 +
 +#endif
 +
-diff -r a7a72f42919e src/mem/protocol/MESI_CMP_directory-L1cache.sm
---- a/src/mem/protocol/MESI_CMP_directory-L1cache.sm	Fri Aug 10 13:50:42 2012 -0500
-+++ b/src/mem/protocol/MESI_CMP_directory-L1cache.sm	Wed Aug 15 11:58:34 2012 -0400
+diff -r 7e9e34d4203b src/mem/protocol/MESI_CMP_directory-L1cache.sm
+--- a/src/mem/protocol/MESI_CMP_directory-L1cache.sm	Wed Sep 12 11:35:52 2012 -0400
++++ b/src/mem/protocol/MESI_CMP_directory-L1cache.sm	Wed Sep 12 15:20:17 2012 -0400
 @@ -377,6 +377,8 @@
          out_msg.MessageSize := MessageSizeType:Control;
          out_msg.Prefetch := in_msg.Prefetch;
@@ -1746,10 +1751,10 @@ diff -r a7a72f42919e src/mem/protocol/MESI_CMP_directory-L1cache.sm
        }
      }
    }
-diff -r a7a72f42919e src/mem/protocol/MESI_CMP_directory-L2cache.sm
---- a/src/mem/protocol/MESI_CMP_directory-L2cache.sm	Fri Aug 10 13:50:42 2012 -0500
-+++ b/src/mem/protocol/MESI_CMP_directory-L2cache.sm	Wed Aug 15 11:58:34 2012 -0400
-@@ -401,6 +401,8 @@
+diff -r 7e9e34d4203b src/mem/protocol/MESI_CMP_directory-L2cache.sm
+--- a/src/mem/protocol/MESI_CMP_directory-L2cache.sm	Wed Sep 12 11:35:52 2012 -0400
++++ b/src/mem/protocol/MESI_CMP_directory-L2cache.sm	Wed Sep 12 15:20:17 2012 -0400
+@@ -400,6 +400,8 @@
          out_msg.Requestor := machineID;
          out_msg.Destination.add(map_Address_to_Directory(address));
          out_msg.MessageSize := MessageSizeType:Control;
@@ -1758,7 +1763,7 @@ diff -r a7a72f42919e src/mem/protocol/MESI_CMP_directory-L2cache.sm
        }
      }
    }
-@@ -414,6 +416,8 @@
+@@ -413,6 +415,8 @@
          out_msg.Requestor := in_msg.Requestor;
          out_msg.Destination.add(cache_entry.Exclusive);
          out_msg.MessageSize := MessageSizeType:Request_Control;
@@ -1767,9 +1772,9 @@ diff -r a7a72f42919e src/mem/protocol/MESI_CMP_directory-L2cache.sm
        }
      }
    }
-diff -r a7a72f42919e src/mem/protocol/MESI_CMP_directory-dir.sm
---- a/src/mem/protocol/MESI_CMP_directory-dir.sm	Fri Aug 10 13:50:42 2012 -0500
-+++ b/src/mem/protocol/MESI_CMP_directory-dir.sm	Wed Aug 15 11:58:34 2012 -0400
+diff -r 7e9e34d4203b src/mem/protocol/MESI_CMP_directory-dir.sm
+--- a/src/mem/protocol/MESI_CMP_directory-dir.sm	Wed Sep 12 11:35:52 2012 -0400
++++ b/src/mem/protocol/MESI_CMP_directory-dir.sm	Wed Sep 12 15:20:17 2012 -0400
 @@ -37,7 +37,7 @@
  
  machine(Directory, "MESI_CMP_filter_directory protocol") 
@@ -1797,9 +1802,9 @@ diff -r a7a72f42919e src/mem/protocol/MESI_CMP_directory-dir.sm
          DPRINTF(RubySlicc, "%s\n", out_msg);
        }
      }
-diff -r a7a72f42919e src/mem/protocol/MESI_CMP_directory-msg.sm
---- a/src/mem/protocol/MESI_CMP_directory-msg.sm	Fri Aug 10 13:50:42 2012 -0500
-+++ b/src/mem/protocol/MESI_CMP_directory-msg.sm	Wed Aug 15 11:58:34 2012 -0400
+diff -r 7e9e34d4203b src/mem/protocol/MESI_CMP_directory-msg.sm
+--- a/src/mem/protocol/MESI_CMP_directory-msg.sm	Wed Sep 12 11:35:52 2012 -0400
++++ b/src/mem/protocol/MESI_CMP_directory-msg.sm	Wed Sep 12 15:20:17 2012 -0400
 @@ -70,6 +70,8 @@
    int Len;
    bool Dirty, default="false",  desc="Dirty bit";
@@ -1809,9 +1814,9 @@ diff -r a7a72f42919e src/mem/protocol/MESI_CMP_directory-msg.sm
  }
  
  // ResponseMsg
-diff -r a7a72f42919e src/mem/protocol/RubySlicc_MemControl.sm
---- a/src/mem/protocol/RubySlicc_MemControl.sm	Fri Aug 10 13:50:42 2012 -0500
-+++ b/src/mem/protocol/RubySlicc_MemControl.sm	Wed Aug 15 11:58:34 2012 -0400
+diff -r 7e9e34d4203b src/mem/protocol/RubySlicc_MemControl.sm
+--- a/src/mem/protocol/RubySlicc_MemControl.sm	Wed Sep 12 11:35:52 2012 -0400
++++ b/src/mem/protocol/RubySlicc_MemControl.sm	Wed Sep 12 15:20:17 2012 -0400
 @@ -61,4 +61,6 @@
    PrefetchBit Prefetch,         desc="Is this a prefetch request";
    bool ReadX,                   desc="Exclusive";
@@ -1819,9 +1824,9 @@ diff -r a7a72f42919e src/mem/protocol/RubySlicc_MemControl.sm
 +  Address ProgramCounter,       desc="Program Counter causing miss";
 +  int ThreadId,                 desc="Context ID of issuing request";
  }
-diff -r a7a72f42919e src/mem/protocol/RubySlicc_Types.sm
---- a/src/mem/protocol/RubySlicc_Types.sm	Fri Aug 10 13:50:42 2012 -0500
-+++ b/src/mem/protocol/RubySlicc_Types.sm	Wed Aug 15 11:58:34 2012 -0400
+diff -r 7e9e34d4203b src/mem/protocol/RubySlicc_Types.sm
+--- a/src/mem/protocol/RubySlicc_Types.sm	Wed Sep 12 11:35:52 2012 -0400
++++ b/src/mem/protocol/RubySlicc_Types.sm	Wed Sep 12 15:20:17 2012 -0400
 @@ -166,6 +166,10 @@
    void recordRequestType(CacheRequestType);
  }
@@ -1833,9 +1838,9 @@ diff -r a7a72f42919e src/mem/protocol/RubySlicc_Types.sm
  structure (DMASequencer, external = "yes") {
    void ackCallback();
    void dataCallback(DataBlock);
-diff -r a7a72f42919e src/mem/request.hh
---- a/src/mem/request.hh	Fri Aug 10 13:50:42 2012 -0500
-+++ b/src/mem/request.hh	Wed Aug 15 11:58:34 2012 -0400
+diff -r 7e9e34d4203b src/mem/request.hh
+--- a/src/mem/request.hh	Wed Sep 12 11:35:52 2012 -0400
++++ b/src/mem/request.hh	Wed Sep 12 15:20:17 2012 -0400
 @@ -140,13 +140,14 @@
      static const PrivateFlagsType STICKY_PRIVATE_FLAGS =
          VALID_CONTEXT_ID | VALID_THREAD_ID;
@@ -1863,17 +1868,17 @@ diff -r a7a72f42919e src/mem/request.hh
      /** The thread ID (id within this CPU) */
      int _threadId;
  
-diff -r a7a72f42919e src/mem/ruby/SConscript
---- a/src/mem/ruby/SConscript	Fri Aug 10 13:50:42 2012 -0500
-+++ b/src/mem/ruby/SConscript	Wed Aug 15 11:58:34 2012 -0400
+diff -r 7e9e34d4203b src/mem/ruby/SConscript
+--- a/src/mem/ruby/SConscript	Wed Sep 12 11:35:52 2012 -0400
++++ b/src/mem/ruby/SConscript	Wed Sep 12 15:20:17 2012 -0400
 @@ -114,3 +114,4 @@
  MakeInclude('system/Sequencer.hh')
  MakeInclude('system/TBETable.hh')
  MakeInclude('system/TimerTable.hh')
 +MakeInclude('system/NVMainControl.hh')
-diff -r a7a72f42919e src/mem/ruby/common/Address.hh
---- a/src/mem/ruby/common/Address.hh	Fri Aug 10 13:50:42 2012 -0500
-+++ b/src/mem/ruby/common/Address.hh	Wed Aug 15 11:58:34 2012 -0400
+diff -r 7e9e34d4203b src/mem/ruby/common/Address.hh
+--- a/src/mem/ruby/common/Address.hh	Wed Sep 12 11:35:52 2012 -0400
++++ b/src/mem/ruby/common/Address.hh	Wed Sep 12 15:20:17 2012 -0400
 @@ -88,7 +88,7 @@
          m_address |= (physical_address_t) offset;
      }
@@ -1883,9 +1888,9 @@ diff -r a7a72f42919e src/mem/ruby/common/Address.hh
      physical_address_t m_address;
  };
  
-diff -r a7a72f42919e src/mem/ruby/network/Network.hh
---- a/src/mem/ruby/network/Network.hh	Fri Aug 10 13:50:42 2012 -0500
-+++ b/src/mem/ruby/network/Network.hh	Wed Aug 15 11:58:34 2012 -0400
+diff -r 7e9e34d4203b src/mem/ruby/network/Network.hh
+--- a/src/mem/ruby/network/Network.hh	Wed Sep 12 11:35:52 2012 -0400
++++ b/src/mem/ruby/network/Network.hh	Wed Sep 12 15:20:17 2012 -0400
 @@ -94,6 +94,8 @@
      virtual void clearStats() = 0;
      virtual void print(std::ostream& out) const = 0;
@@ -1895,9 +1900,9 @@ diff -r a7a72f42919e src/mem/ruby/network/Network.hh
    protected:
      // Private copy constructor and assignment operator
      Network(const Network& obj);
-diff -r a7a72f42919e src/mem/ruby/network/Topology.hh
---- a/src/mem/ruby/network/Topology.hh	Fri Aug 10 13:50:42 2012 -0500
-+++ b/src/mem/ruby/network/Topology.hh	Wed Aug 15 11:58:34 2012 -0400
+diff -r 7e9e34d4203b src/mem/ruby/network/Topology.hh
+--- a/src/mem/ruby/network/Topology.hh	Wed Sep 12 11:35:52 2012 -0400
++++ b/src/mem/ruby/network/Topology.hh	Wed Sep 12 15:20:17 2012 -0400
 @@ -81,6 +81,8 @@
      void clearStats();
      void print(std::ostream& out) const { out << "[Topology]"; }
@@ -1907,9 +1912,9 @@ diff -r a7a72f42919e src/mem/ruby/network/Topology.hh
    protected:
      void addLink(SwitchID src, SwitchID dest, BasicLink* link,
                   LinkDirection dir);
-diff -r a7a72f42919e src/mem/ruby/profiler/CacheProfiler.cc
---- a/src/mem/ruby/profiler/CacheProfiler.cc	Fri Aug 10 13:50:42 2012 -0500
-+++ b/src/mem/ruby/profiler/CacheProfiler.cc	Wed Aug 15 11:58:34 2012 -0400
+diff -r 7e9e34d4203b src/mem/ruby/profiler/CacheProfiler.cc
+--- a/src/mem/ruby/profiler/CacheProfiler.cc	Wed Sep 12 11:35:52 2012 -0400
++++ b/src/mem/ruby/profiler/CacheProfiler.cc	Wed Sep 12 15:20:17 2012 -0400
 @@ -37,6 +37,8 @@
  {
      m_description = description;
@@ -1919,9 +1924,9 @@ diff -r a7a72f42919e src/mem/ruby/profiler/CacheProfiler.cc
      clearStats();
  }
  
-diff -r a7a72f42919e src/mem/ruby/profiler/CacheProfiler.hh
---- a/src/mem/ruby/profiler/CacheProfiler.hh	Fri Aug 10 13:50:42 2012 -0500
-+++ b/src/mem/ruby/profiler/CacheProfiler.hh	Wed Aug 15 11:58:34 2012 -0400
+diff -r 7e9e34d4203b src/mem/ruby/profiler/CacheProfiler.hh
+--- a/src/mem/ruby/profiler/CacheProfiler.hh	Wed Sep 12 11:35:52 2012 -0400
++++ b/src/mem/ruby/profiler/CacheProfiler.hh	Wed Sep 12 15:20:17 2012 -0400
 @@ -59,6 +59,8 @@
  
      void print(std::ostream& out) const;
@@ -1931,9 +1936,9 @@ diff -r a7a72f42919e src/mem/ruby/profiler/CacheProfiler.hh
    private:
      // Private copy constructor and assignment operator
      CacheProfiler(const CacheProfiler& obj);
-diff -r a7a72f42919e src/mem/ruby/slicc_interface/AbstractController.hh
---- a/src/mem/ruby/slicc_interface/AbstractController.hh	Fri Aug 10 13:50:42 2012 -0500
-+++ b/src/mem/ruby/slicc_interface/AbstractController.hh	Wed Aug 15 11:58:34 2012 -0400
+diff -r 7e9e34d4203b src/mem/ruby/slicc_interface/AbstractController.hh
+--- a/src/mem/ruby/slicc_interface/AbstractController.hh	Wed Sep 12 11:35:52 2012 -0400
++++ b/src/mem/ruby/slicc_interface/AbstractController.hh	Wed Sep 12 15:20:17 2012 -0400
 @@ -38,6 +38,7 @@
  #include "mem/ruby/common/DataBlock.hh"
  #include "mem/ruby/network/Network.hh"
@@ -1950,10 +1955,10 @@ diff -r a7a72f42919e src/mem/ruby/slicc_interface/AbstractController.hh
  };
  
  #endif // __MEM_RUBY_SLICC_INTERFACE_ABSTRACTCONTROLLER_HH__
-diff -r a7a72f42919e src/mem/ruby/system/CacheMemory.hh
---- a/src/mem/ruby/system/CacheMemory.hh	Fri Aug 10 13:50:42 2012 -0500
-+++ b/src/mem/ruby/system/CacheMemory.hh	Wed Aug 15 11:58:34 2012 -0400
-@@ -129,6 +129,8 @@
+diff -r 7e9e34d4203b src/mem/ruby/system/CacheMemory.hh
+--- a/src/mem/ruby/system/CacheMemory.hh	Wed Sep 12 11:35:52 2012 -0400
++++ b/src/mem/ruby/system/CacheMemory.hh	Wed Sep 12 15:20:17 2012 -0400
+@@ -128,6 +128,8 @@
  
      Stats::Scalar numTagArrayStalls;
      Stats::Scalar numDataArrayStalls;
@@ -1962,9 +1967,9 @@ diff -r a7a72f42919e src/mem/ruby/system/CacheMemory.hh
    private:
      // convert a Address to its location in the cache
      Index addressToCacheSet(const Address& address) const;
-diff -r a7a72f42919e src/mem/ruby/system/MemoryNode.hh
---- a/src/mem/ruby/system/MemoryNode.hh	Fri Aug 10 13:50:42 2012 -0500
-+++ b/src/mem/ruby/system/MemoryNode.hh	Wed Aug 15 11:58:34 2012 -0400
+diff -r 7e9e34d4203b src/mem/ruby/system/MemoryNode.hh
+--- a/src/mem/ruby/system/MemoryNode.hh	Wed Sep 12 11:35:52 2012 -0400
++++ b/src/mem/ruby/system/MemoryNode.hh	Wed Sep 12 15:20:17 2012 -0400
 @@ -57,6 +57,7 @@
          m_addr = addr;
          m_is_mem_read = is_mem_read;
@@ -2004,9 +2009,9 @@ diff -r a7a72f42919e src/mem/ruby/system/MemoryNode.hh
  };
  
  inline std::ostream&
-diff -r a7a72f42919e src/mem/ruby/system/NVMainControl.cc
+diff -r 7e9e34d4203b src/mem/ruby/system/NVMainControl.cc
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/ruby/system/NVMainControl.cc	Wed Aug 15 11:58:34 2012 -0400
++++ b/src/mem/ruby/system/NVMainControl.cc	Wed Sep 12 15:20:17 2012 -0400
 @@ -0,0 +1,375 @@
 +/*
 + * Copyright (c) 1999-2008 Mark D. Hill and David A. Wood
@@ -2116,7 +2121,7 @@ diff -r a7a72f42919e src/mem/ruby/system/NVMainControl.cc
 +    m_nvmainPtr->SetConfig( m_nvmainConfig );
 +
 +    // Schedule a wakeup.
-+    g_eventQueue_ptr->scheduleEvent(this, 1);
++    m_consumer_ptr->scheduleEvent( 1 );
 +}
 +
 +NVMainControl::~NVMainControl()
@@ -2127,7 +2132,7 @@ diff -r a7a72f42919e src/mem/ruby/system/NVMainControl.cc
 +void
 +NVMainControl::enqueue(const MsgPtr& message, int latency)
 +{
-+    Time current_time = g_eventQueue_ptr->getTime();
++    Time current_time = g_system_ptr->getTime();
 +    Time arrival_time = current_time + latency;
 +
 +    const MemoryMsg* memMess = safe_cast<const MemoryMsg*>(message.get());
@@ -2159,9 +2164,9 @@ diff -r a7a72f42919e src/mem/ruby/system/NVMainControl.cc
 +    transfer_size = m_nvmainConfig->GetValue( "BusWidth" ) / 8;
 +    transfer_size *= m_nvmainConfig->GetValue( "tBURST" ) * m_nvmainConfig->GetValue( "RATE" );
 +
-+    DPRINTF(RubyMemory, "New memory request%7d: %#08x %c arrived at %lld\n",
-+            m_msg_counter, (unsigned int)memRef.m_addr, memRef.m_is_mem_read ? 'R':'W',
-+            memRef.m_time * g_eventQueue_ptr->getClock());
++    //DPRINTF(RubyMemory, "New memory request%7d: %#08x %c arrived at %lld\n",
++    //        m_msg_counter, (unsigned int)memRef.m_addr, memRef.m_is_mem_read ? 'R':'W',
++    //        memRef.m_time * g_system_ptr->getClock());
 +
 +
 +    // Build NVMainRequest and send to NVMain code.
@@ -2224,7 +2229,7 @@ diff -r a7a72f42919e src/mem/ruby/system/NVMainControl.cc
 +    }
 +
 +    // Schedule a wakeup.
-+    g_eventQueue_ptr->scheduleEvent(this, 1);
++    m_consumer_ptr->scheduleEvent( 1 );
 +}
 +
 +void
@@ -2260,7 +2265,7 @@ diff -r a7a72f42919e src/mem/ruby/system/NVMainControl.cc
 +    bool rv;
 +
 +    rv = ((!m_response_queue.empty()) &&
-+            (m_response_queue.front().m_time <= g_eventQueue_ptr->getTime()));
++            (m_response_queue.front().m_time <= g_system_ptr->getTime()));
 +
 +    return rv;
 +}
@@ -2298,16 +2303,16 @@ diff -r a7a72f42919e src/mem/ruby/system/NVMainControl.cc
 +void
 +NVMainControl::enqueueToDirectory(MemoryNode req, int latency)
 +{
-+    Time arrival_time = g_eventQueue_ptr->getTime() + latency;
++    Time arrival_time = g_system_ptr->getTime() + latency;
 +    req.m_time = arrival_time;
 +    m_response_queue.push_back(req);
 +
-+    DPRINTF(RubyMemory, "Enqueueing msg %#08x %c back to directory at %lld\n",
-+            req.m_addr, req.m_is_mem_read ? 'R':'W',
-+            arrival_time * g_eventQueue_ptr->getClock());
++    //DPRINTF(RubyMemory, "Enqueueing msg %#08x %c back to directory at %lld\n",
++    //        req.m_addr, req.m_is_mem_read ? 'R':'W',
++    //        arrival_time * g_system_ptr->getClock());
 +
 +    // schedule the wake up
-+    g_eventQueue_ptr->scheduleEventAbsolute(m_consumer_ptr, arrival_time);
++    m_consumer_ptr->scheduleEventAbsolute(arrival_time);
 +}
 +
 +
@@ -2374,7 +2379,7 @@ diff -r a7a72f42919e src/mem/ruby/system/NVMainControl.cc
 +    // execute ALL THE THINGS!
 +    executeCycle();
 +
-+    g_eventQueue_ptr->scheduleEvent(this, 1);
++    m_consumer_ptr->scheduleEvent( 1 );
 +}
 +
 +NVMainControl *
@@ -2383,9 +2388,9 @@ diff -r a7a72f42919e src/mem/ruby/system/NVMainControl.cc
 +    return new NVMainControl(this);
 +}
 +
-diff -r a7a72f42919e src/mem/ruby/system/NVMainControl.hh
+diff -r 7e9e34d4203b src/mem/ruby/system/NVMainControl.hh
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/ruby/system/NVMainControl.hh	Wed Aug 15 11:58:34 2012 -0400
++++ b/src/mem/ruby/system/NVMainControl.hh	Wed Sep 12 15:20:17 2012 -0400
 @@ -0,0 +1,131 @@
 +/*
 + * Copyright (c) 1999-2008 Mark D. Hill and David A. Wood
@@ -2518,9 +2523,9 @@ diff -r a7a72f42919e src/mem/ruby/system/NVMainControl.hh
 +};
 +
 +#endif // __MEM_RUBY_SYSTEM_MEMORY_CONTROL_HH__
-diff -r a7a72f42919e src/mem/ruby/system/NVMainControl.py
+diff -r 7e9e34d4203b src/mem/ruby/system/NVMainControl.py
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/ruby/system/NVMainControl.py	Wed Aug 15 11:58:34 2012 -0400
++++ b/src/mem/ruby/system/NVMainControl.py	Wed Sep 12 15:20:17 2012 -0400
 @@ -0,0 +1,40 @@
 +# Copyright (c) 2009 Advanced Micro Devices, Inc.
 +# All rights reserved.
@@ -2562,9 +2567,9 @@ diff -r a7a72f42919e src/mem/ruby/system/NVMainControl.py
 +    configparams = Param.String("", "")
 +    configvalues = Param.String("", "")
 +
-diff -r a7a72f42919e src/mem/ruby/system/SConscript
---- a/src/mem/ruby/system/SConscript	Fri Aug 10 13:50:42 2012 -0500
-+++ b/src/mem/ruby/system/SConscript	Wed Aug 15 11:58:34 2012 -0400
+diff -r 7e9e34d4203b src/mem/ruby/system/SConscript
+--- a/src/mem/ruby/system/SConscript	Wed Sep 12 11:35:52 2012 -0400
++++ b/src/mem/ruby/system/SConscript	Wed Sep 12 15:20:17 2012 -0400
 @@ -37,6 +37,7 @@
  SimObject('Sequencer.py')
  SimObject('DirectoryMemory.py')
@@ -2581,9 +2586,9 @@ diff -r a7a72f42919e src/mem/ruby/system/SConscript
  Source('WireBuffer.cc')
  Source('RubyMemoryControl.cc')
  Source('MemoryNode.cc')
-diff -r a7a72f42919e src/mem/simple_mem.hh
---- a/src/mem/simple_mem.hh	Fri Aug 10 13:50:42 2012 -0500
-+++ b/src/mem/simple_mem.hh	Wed Aug 15 11:58:34 2012 -0400
+diff -r 7e9e34d4203b src/mem/simple_mem.hh
+--- a/src/mem/simple_mem.hh	Wed Sep 12 11:35:52 2012 -0400
++++ b/src/mem/simple_mem.hh	Wed Sep 12 15:20:17 2012 -0400
 @@ -104,7 +104,7 @@
          return dynamic_cast<const Params *>(_params);
      }
@@ -2593,9 +2598,9 @@ diff -r a7a72f42919e src/mem/simple_mem.hh
  
      Tick doAtomicAccess(PacketPtr pkt);
      void doFunctionalAccess(PacketPtr pkt);
-diff -r a7a72f42919e src/mem/slicc/symbols/StateMachine.py
---- a/src/mem/slicc/symbols/StateMachine.py	Fri Aug 10 13:50:42 2012 -0500
-+++ b/src/mem/slicc/symbols/StateMachine.py	Wed Aug 15 11:58:34 2012 -0400
+diff -r 7e9e34d4203b src/mem/slicc/symbols/StateMachine.py
+--- a/src/mem/slicc/symbols/StateMachine.py	Wed Sep 12 11:35:52 2012 -0400
++++ b/src/mem/slicc/symbols/StateMachine.py	Wed Sep 12 15:20:17 2012 -0400
 @@ -40,6 +40,7 @@
                      "Sequencer": "RubySequencer",
                      "DirectoryMemory": "RubyDirectoryMemory",

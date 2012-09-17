@@ -23,7 +23,7 @@
 #include <stdint.h>
 
 #include "src/Config.h"
-#include "src/Cycler.h"
+#include "src/NVMObject.h"
 #include "src/EnduranceDistribution.h"
 #include "include/NVMDataBlock.h"
 #include "include/NVMAddress.h"
@@ -35,7 +35,7 @@ namespace NVM {
 
 class FaultModel;
 
-class EnduranceModel : public Cycler
+class EnduranceModel : public NVMObject
 {
  public:
   EnduranceModel( );

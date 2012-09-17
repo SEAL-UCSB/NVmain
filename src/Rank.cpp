@@ -72,16 +72,13 @@ void Rank::SetConfig( Config *c )
 {
   conf = c;
 
-  bankCount = conf->GetValue( "BANKS" );
-  deviceWidth = conf->GetValue( "DeviceWidth" );
-  busWidth = conf->GetValue( "BusWidth" );
+  Params *params = new Params( );
+  params->SetParams( c );
+  SetParams( params );
 
-  if( conf->GetValue( "BANKS" ) == -1 || conf->GetValue( "DeviceWidth" ) == -1
-      || conf->GetValue( "BusWidth" ) == -1 )
-    {
-      std::cout << "Rank: `BANKS', `DeviceWidth', or `BusWidth' configuration value "
-    << "does not exist in configuration!" << std::endl;
-    }
+  bankCount = p->BANKS;
+  deviceWidth = p->DeviceWidth;
+  busWidth = p->BusWidth;
 
  
   /* Calculate the number of devices needed. */
@@ -106,9 +103,9 @@ void Rank::SetConfig( Config *c )
 
           newBank->SetConfig( c );
 
-          if( c->KeyExists( "UseRefresh" ) && c->GetString( "UseRefresh" ) == "true" ) 
+          if( p->UseRefresh_set && p->UseRefresh ) 
             {
-              nextRefresh = ((conf->GetValue( "tRFI" )) / (conf->GetValue( "ROWS" ) / conf->GetValue( "RefreshRows" )));
+              nextRefresh = ((p->tRFI) / (p->ROWS / p->RefreshRows));
               nextRefresh = static_cast<ncycle_t>(static_cast<float>(nextRefresh) * (static_cast<float>(j + 1) / static_cast<float>(bankCount)));
               newBank->SetNextRefresh( nextRefresh );
             }
@@ -123,10 +120,8 @@ void Rank::SetConfig( Config *c )
           formatter << statName << ".bank" << j;
           newBank->StatName( formatter.str( ) );
 
-          NVMNetNode *nodeInfo = new NVMNetNode( NVMNETDESTTYPE_BANK, 0, 0, j );
-          NVMNetNode *parentInfo = new NVMNetNode( NVMNETDESTTYPE_RANK, 0, 0, 0 );
-          newBank->AddParent( this, parentInfo );
-          AddChild( newBank, nodeInfo );
+          newBank->SetParent( this );
+          AddChild( newBank );
         }
     }
 
@@ -144,12 +139,12 @@ void Rank::SetConfig( Config *c )
   /*
    *  We'll say you can't do anything until the command has time to issue on the bus.
    */
-  nextRead = conf->GetValue( "tCMD" );
-  nextWrite = conf->GetValue( "tCMD" );
-  nextActivate = conf->GetValue( "tCMD" );
-  nextPrecharge = conf->GetValue( "tCMD" );
+  nextRead = p->tCMD;
+  nextWrite = p->tCMD;
+  nextActivate = p->tCMD;
+  nextPrecharge = p->tCMD;
 
-  nextOp = NULL;
+  nextReq = NULL;
 
 
   fawWaits = 0;
@@ -181,8 +176,8 @@ bool Rank::Activate( NVMainRequest *request )
    *  power consumption.
    */
   if( nextActivate <= currentCycle 
-      && (ncycles_t)lastActivate[FAWindex] + (ncycles_t)conf->GetValue( "tRRDR" ) <= (ncycles_t)currentCycle
-      && (ncycles_t)lastActivate[(FAWindex + 1)%4] + (ncycles_t)conf->GetValue( "tFAW" ) <= (ncycles_t)currentCycle )
+      && (ncycles_t)lastActivate[FAWindex] + (ncycles_t)p->tRRDR <= (ncycles_t)currentCycle
+      && (ncycles_t)lastActivate[(FAWindex + 1)%4] + (ncycles_t)p->tFAW <= (ncycles_t)currentCycle )
     {
       for( ncounter_t i = 0; i < deviceCount; i++ )
         devices[i].GetBank( activateBank )->Activate( request );
@@ -228,10 +223,10 @@ bool Rank::Read( NVMainRequest *request )
       for( ncounter_t i = 0; i < deviceCount; i++ )
         devices[i].GetBank( readBank )->Read( request );
 
-      nextRead = MAX( nextRead, currentCycle + MAX( conf->GetValue( "tBURST" ), conf->GetValue( "tCCD" ) ) );
-      nextWrite = MAX( nextWrite, currentCycle + conf->GetValue( "tCAS" ) + conf->GetValue( "tBURST" ) +
-           conf->GetValue( "tRTRS" ) - conf->GetValue( "tCWD" ) );
-      nextActivate = MAX( nextActivate, currentCycle + conf->GetValue( "tRRDR" ) );
+      nextRead = MAX( nextRead, currentCycle + MAX( p->tBURST, p->tCCD ) );
+      nextWrite = MAX( nextWrite, currentCycle + p->tCAS + p->tBURST +
+           p->tRTRS - p->tCWD );
+      nextActivate = MAX( nextActivate, currentCycle + p->tRRDR );
     }
   else
     {
@@ -267,10 +262,10 @@ bool Rank::Write( NVMainRequest *request )
       for( ncounter_t i = 0; i < deviceCount; i++ )
         devices[i].GetBank( writeBank )->Write( request );
 
-      nextRead = MAX( nextRead, currentCycle + conf->GetValue( "tCWD" ) + conf->GetValue( "tBURST" )
-              + conf->GetValue( "tWTR" ) );
-      nextWrite = MAX( nextWrite, currentCycle + MAX( conf->GetValue( "tBURST" ), conf->GetValue( "tCCD" ) ) );
-      nextActivate = MAX( nextActivate, currentCycle + conf->GetValue( "tRRDW" ) );
+      nextRead = MAX( nextRead, currentCycle + p->tCWD + p->tBURST
+              + p->tWTR );
+      nextWrite = MAX( nextWrite, currentCycle + MAX( p->tBURST, p->tCCD ) );
+      nextActivate = MAX( nextActivate, currentCycle + p->tRRDW );
 
     }
   else
@@ -355,8 +350,8 @@ ncycle_t Rank::GetNextActivate( uint64_t bank )
 {
   return MAX( MAX( nextActivate,
        devices[0].GetBank( bank )->GetNextActivate( ) ),
-        (ncycle_t)MAX( lastActivate[FAWindex] + conf->GetValue( "tRRDR" ),
-       lastActivate[(FAWindex + 1)%4] + conf->GetValue( "tFAW" ) ) 
+        (ncycle_t)MAX( lastActivate[FAWindex] + p->tRRDR,
+       lastActivate[(FAWindex + 1)%4] + p->tFAW ) 
         );
 }
 
@@ -385,7 +380,7 @@ ncycle_t Rank::GetNextRefresh( uint64_t bank )
 }
 
 
-bool Rank::IsIssuable( MemOp *mop, ncycle_t delay )
+bool Rank::IsIssuable( NVMainRequest *req, ncycle_t delay )
 {
   uint64_t opRank;
   uint64_t opBank;
@@ -393,82 +388,81 @@ bool Rank::IsIssuable( MemOp *mop, ncycle_t delay )
   uint64_t opCol;
   bool rv;
   
-  mop->GetAddress( ).GetTranslatedAddress( &opRow, &opCol, &opBank, &opRank, NULL );
+  req->address.GetTranslatedAddress( &opRow, &opCol, &opBank, &opRank, NULL );
 
   rv = true;
 
-  if( mop->GetOperation( ) == ACTIVATE )
+  if( req->type == ACTIVATE )
     {
       if( nextActivate > (currentCycle+delay) 
-          || lastActivate[FAWindex] + static_cast<ncycles_t>(conf->GetValue( "tRRDR" )) > static_cast<ncycles_t>(currentCycle+delay)
-          || lastActivate[(FAWindex + 1)%4] + static_cast<ncycles_t>(conf->GetValue( "tFAW" )) > static_cast<ncycles_t>(currentCycle+delay) )
+          || lastActivate[FAWindex] + static_cast<ncycles_t>(p->tRRDR) > static_cast<ncycles_t>(currentCycle+delay)
+          || lastActivate[(FAWindex + 1)%4] + static_cast<ncycles_t>(p->tFAW) > static_cast<ncycles_t>(currentCycle+delay) )
         rv = false;
       else
-        rv = devices[0].GetBank( opBank )->IsIssuable( mop, delay );
+        rv = devices[0].GetBank( opBank )->IsIssuable( req, delay );
 
       if( rv == false )
         {
           if( nextActivate > (currentCycle+delay) )
             {
-              //std::cout << "Rank: Can't activate " << mop->GetAddress( ).GetPhysicalAddress( )
+              //std::cout << "Rank: Can't activate " << req->address.GetPhysicalAddress( )
               //  << " for " << nextActivate - currentCycle << " more cycles." << std::endl;
             
               actWaits++;
               actWaitTime += nextActivate - (currentCycle+delay);
             }
-          if( lastActivate[FAWindex] + static_cast<ncycles_t>(conf->GetValue( "tRRDR" )) > static_cast<ncycles_t>(currentCycle+delay) )
+          if( lastActivate[FAWindex] + static_cast<ncycles_t>(p->tRRDR) > static_cast<ncycles_t>(currentCycle+delay) )
             {
-              //std::cout << "Rank: Can't activate " << mop->GetAddress( ).GetPhysicalAddress( )
-              //  << " due to tRRDR until " << lastActivate[FAWindex] + conf->GetValue( "tRRDR" )
+              //std::cout << "Rank: Can't activate " << req->address.GetPhysicalAddress( )
+              //  << " due to tRRDR until " << lastActivate[FAWindex] + p->tRRDR
               //- currentCycle << " more cycles." << std::endl;
             
               rrdWaits++;
-              rrdWaitTime += lastActivate[FAWindex] + conf->GetValue( "tRRDR" ) - (currentCycle+delay);
+              rrdWaitTime += lastActivate[FAWindex] + p->tRRDR - (currentCycle+delay);
             }
-          if( lastActivate[(FAWindex + 1)%4] + static_cast<ncycles_t>(conf->GetValue( "tFAW" )) > static_cast<ncycles_t>(currentCycle+delay) )
+          if( lastActivate[(FAWindex + 1)%4] + static_cast<ncycles_t>(p->tFAW) > static_cast<ncycles_t>(currentCycle+delay) )
             {
-              //std::cout << "Rank: Can't activate " << mop->GetAddress( ).GetPhysicalAddress( )
-              //  << " due to tFAW until " << lastActivate[(FAWindex + 1)%4] + conf->GetValue( "tFAW" )
+              //std::cout << "Rank: Can't activate " << req->address.GetPhysicalAddress( )
+              //  << " due to tFAW until " << lastActivate[(FAWindex + 1)%4] + p->tFAW
               //- currentCycle << " more cycles." << std::endl;
 
               fawWaits++;
-              fawWaitTime += lastActivate[(FAWindex +1)%4] + conf->GetValue( "tFAW" ) - (currentCycle+delay);
+              fawWaitTime += lastActivate[(FAWindex +1)%4] + p->tFAW - (currentCycle+delay);
             }
         }
     }
-  else if( mop->GetOperation( ) == READ )
+  else if( req->type == READ )
     {
       if( nextRead > (currentCycle+delay) || devices[0].GetBank( opBank )->WouldConflict( opRow ) )
         rv = false;
       else
-        rv = devices[0].GetBank( opBank )->IsIssuable( mop, delay );
+        rv = devices[0].GetBank( opBank )->IsIssuable( req, delay );
     }
-  else if( mop->GetOperation( ) == WRITE )
+  else if( req->type == WRITE )
     {
       if( nextWrite > (currentCycle+delay) || devices[0].GetBank( opBank )->WouldConflict( opRow ) )
         rv = false;
       else
-        rv = devices[0].GetBank( opBank )->IsIssuable( mop, delay );
+        rv = devices[0].GetBank( opBank )->IsIssuable( req, delay );
     }
-  else if( mop->GetOperation( ) == PRECHARGE )
+  else if( req->type == PRECHARGE )
     {
       if( nextPrecharge > (currentCycle+delay) )
         rv = false;
       else
-        rv = devices[0].GetBank( opBank )->IsIssuable( mop, delay );
+        rv = devices[0].GetBank( opBank )->IsIssuable( req, delay );
     }
-  else if( mop->GetOperation( ) == POWERDOWN_PDA || mop->GetOperation( ) == POWERDOWN_PDPF
-     || mop->GetOperation( ) == POWERDOWN_PDPS )
+  else if( req->type == POWERDOWN_PDA || req->type == POWERDOWN_PDPF || req->type == POWERDOWN_PDPS )
     {
-      rv = devices[0].CanPowerDown( mop->GetOperation( ) );
+      rv = devices[0].CanPowerDown( req->type );
     }
-  else if( mop->GetOperation( ) == POWERUP )
+  else if( req->type == POWERUP )
     {
       rv = devices[0].CanPowerUp( opBank );
     }
-  else if( mop->GetOperation( ) == REFRESH )
+  else if( req->type == REFRESH )
     {
-      rv = devices[0].GetBank( opBank )->IsIssuable( mop, delay );
+      rv = devices[0].GetBank( opBank )->IsIssuable( req, delay );
     }
   /*
    *  Can't issue unknown operations.
@@ -483,16 +477,18 @@ bool Rank::IsIssuable( MemOp *mop, ncycle_t delay )
 
 
 
-void Rank::AddCommand( MemOp *mop )
+bool Rank::IssueCommand( NVMainRequest *req )
 {
-  if( !IsIssuable( mop ) )
+  if( !IsIssuable( req ) )
     {
       std::cout << "NVMain: Rank: Warning: Command can not be issued!\n";
     }
   else
     {
-      nextOp = mop;
+      nextReq = req;
     }
+
+  return true;
 }
 
 
@@ -508,16 +504,16 @@ void Rank::Notify( OpType op )
    */
   if( op == READ )
     {
-      nextRead = MAX( nextRead, currentCycle + conf->GetValue( "tBURST" ) 
-          + conf->GetValue( "tRTRS" ) );
+      nextRead = MAX( nextRead, currentCycle + p->tBURST 
+          + p->tRTRS );
     }
   else if( op == WRITE )
     {
-      nextWrite = MAX( nextWrite, currentCycle + conf->GetValue( "tBURST" )
-           + conf->GetValue( "tOST" ) );
-      nextRead = MAX( nextRead, currentCycle + conf->GetValue("tBURST" )
-          + conf->GetValue( "tCWD" ) + conf->GetValue( "tRTRS" )
-          - conf->GetValue( "tCAS" ) );
+      nextWrite = MAX( nextWrite, currentCycle + p->tBURST
+           + p->tOST );
+      nextRead = MAX( nextRead, currentCycle + p->tBURST
+          + p->tCWD + p->tRTRS
+          - p->tCAS );
     }
 }
 
@@ -527,90 +523,90 @@ void Rank::Cycle( )
   bool success;
 
   /* Wait for the next operation. */
-  if( nextOp != NULL )
+  if( nextReq != NULL )
     {
       success = false;
       
-      switch( nextOp->GetOperation( ) )
+      switch( nextReq->type )
         {
         case ACTIVATE:
-          success = this->Activate( nextOp->GetRequest( ) );
+          success = this->Activate( nextReq );
           break;
         
         case READ:
-          success = this->Read( nextOp->GetRequest( ) );
+          success = this->Read( nextReq );
           break;
         
         case WRITE:
-          success = this->Write( nextOp->GetRequest( ) );
+          success = this->Write( nextReq );
           break;
         
         case PRECHARGE:
-          success = this->Precharge( nextOp->GetRequest( ) );
+          success = this->Precharge( nextReq );
           break;
 
         case POWERUP:
-          success = this->PowerUp( nextOp->GetRequest( ) );
+          success = this->PowerUp( nextReq );
           break;
       
         case REFRESH:
-          success = this->Refresh( nextOp->GetRequest( ) );
+          success = this->Refresh( nextReq );
           break;
 
         default:
-          std::cout << "NVMain: Rank: Unknown operation in command queue! " << nextOp->GetOperation( ) << std::endl;
+          std::cout << "NVMain: Rank: Unknown operation in command queue! " << nextReq->type << std::endl;
           break;  
       }
 
       /* If the command is successfully issues, erase it and draw some pictures. */
       if( success )
         {
-          cmdBus->SetBusy( currentCycle - conf->GetValue( "tCMD" ), currentCycle );
-          if( nextOp->GetOperation( ) == WRITE )
-            dataBus->SetBusy( currentCycle + conf->GetValue( "tCWD" ), currentCycle +
-                  conf->GetValue( "tCWD" ) + conf->GetValue( "tBURST" ) );
-          else if( nextOp->GetOperation( ) == READ )
-            dataBus->SetBusy( currentCycle + conf->GetValue( "tCAS" ), currentCycle +
-                  conf->GetValue( "tCAS" ) + conf->GetValue( "tBURST" ) );
-          else if( nextOp->GetBulkCmd( ) == CMD_ACTREADPRE )
-            dataBus->SetBusy( currentCycle + conf->GetValue( "tRCD" ) + conf->GetValue( "tCAS" ), 
-                  currentCycle + conf->GetValue( "tRCD" ) + conf->GetValue( "tCAS" )
-                  + conf->GetValue( "tBURST" ) );
-          else if( nextOp->GetBulkCmd( ) == CMD_ACTWRITEPRE )
-            dataBus->SetBusy( currentCycle + conf->GetValue( "tRCD" ) + conf->GetValue( "tCWD" ),
-                  currentCycle + conf->GetValue( "tRCD" ) + conf->GetValue( "tCWD" )
-                  + conf->GetValue( "tBURST" ) );
-          else if( nextOp->GetBulkCmd( ) == CMD_ACT_READ_PRE_PDPF )
-            dataBus->SetBusy( currentCycle + conf->GetValue( "tRCD" ) + conf->GetValue( "tCAS" ), 
-                  currentCycle + conf->GetValue( "tRCD" ) + conf->GetValue( "tCAS" )
-                  + conf->GetValue( "tBURST" ) );
-          else if( nextOp->GetBulkCmd( ) == CMD_ACT_WRITE_PRE_PDPF )
-            dataBus->SetBusy( currentCycle + conf->GetValue( "tRCD" ) + conf->GetValue( "tCWD" ),
-                  currentCycle + conf->GetValue( "tRCD" ) + conf->GetValue( "tCWD" )
-                  + conf->GetValue( "tBURST" ) );
-          else if( nextOp->GetBulkCmd( ) == CMD_PU_ACT_READ_PRE_PDPF )
-            dataBus->SetBusy( currentCycle + conf->GetValue( "tXP" ) + conf->GetValue( "tRCD" )
-                  + conf->GetValue( "tCAS" ), currentCycle + conf->GetValue( "tXP" )
-                  + conf->GetValue( "tRCD" ) + conf->GetValue( "tCAS" )
-                  + conf->GetValue( "tBURST" ) );
-          else if( nextOp->GetBulkCmd( ) == CMD_PU_ACT_WRITE_PRE_PDPF )
-            dataBus->SetBusy( currentCycle + conf->GetValue( "tXP" ) + conf->GetValue( "tRCD" )
-                  + conf->GetValue( "tCWD" ), currentCycle + conf->GetValue( "tXP" )
-                  + conf->GetValue( "tRCD" ) + conf->GetValue( "tCWD" )
-                  + conf->GetValue( "tBURST" ) );
-          else if( nextOp->GetBulkCmd( ) == CMD_PU_ACT_READ_PRE )
-            dataBus->SetBusy( currentCycle + conf->GetValue( "tXP" ) + conf->GetValue( "tRCD" )
-                  + conf->GetValue( "tCAS" ), currentCycle + conf->GetValue( "tXP" )
-                  + conf->GetValue( "tRCD" ) + conf->GetValue( "tCAS" )
-                  + conf->GetValue( "tBURST" ) );
-          else if( nextOp->GetBulkCmd( ) == CMD_PU_ACT_WRITE_PRE )
-            dataBus->SetBusy( currentCycle + conf->GetValue( "tXP" ) + conf->GetValue( "tRCD" )
-                  + conf->GetValue( "tCWD" ), currentCycle + conf->GetValue( "tXP" )
-                  + conf->GetValue( "tRCD" ) + conf->GetValue( "tCWD" )
-                  + conf->GetValue( "tBURST" ) );
+          cmdBus->SetBusy( currentCycle - p->tCMD, currentCycle );
+          if( nextReq->type == WRITE )
+            dataBus->SetBusy( currentCycle + p->tCWD, currentCycle +
+                  p->tCWD + p->tBURST );
+          else if( nextReq->type == READ )
+            dataBus->SetBusy( currentCycle + p->tCAS, currentCycle +
+                  p->tCAS + p->tBURST );
+          else if( nextReq->bulkCmd == CMD_ACTREADPRE )
+            dataBus->SetBusy( currentCycle + p->tRCD + p->tCAS, 
+                  currentCycle + p->tRCD + p->tCAS
+                  + p->tBURST );
+          else if( nextReq->bulkCmd == CMD_ACTWRITEPRE )
+            dataBus->SetBusy( currentCycle + p->tRCD + p->tCWD,
+                  currentCycle + p->tRCD + p->tCWD
+                  + p->tBURST );
+          else if( nextReq->bulkCmd == CMD_ACT_READ_PRE_PDPF )
+            dataBus->SetBusy( currentCycle + p->tRCD + p->tCAS, 
+                  currentCycle + p->tRCD + p->tCAS
+                  + p->tBURST );
+          else if( nextReq->bulkCmd == CMD_ACT_WRITE_PRE_PDPF )
+            dataBus->SetBusy( currentCycle + p->tRCD + p->tCWD,
+                  currentCycle + p->tRCD + p->tCWD
+                  + p->tBURST );
+          else if( nextReq->bulkCmd == CMD_PU_ACT_READ_PRE_PDPF )
+            dataBus->SetBusy( currentCycle + p->tXP + p->tRCD
+                  + p->tCAS, currentCycle + p->tXP
+                  + p->tRCD + p->tCAS
+                  + p->tBURST );
+          else if( nextReq->bulkCmd == CMD_PU_ACT_WRITE_PRE_PDPF )
+            dataBus->SetBusy( currentCycle + p->tXP + p->tRCD
+                  + p->tCWD, currentCycle + p->tXP
+                  + p->tRCD + p->tCWD
+                  + p->tBURST );
+          else if( nextReq->bulkCmd == CMD_PU_ACT_READ_PRE )
+            dataBus->SetBusy( currentCycle + p->tXP + p->tRCD
+                  + p->tCAS, currentCycle + p->tXP
+                  + p->tRCD + p->tCAS
+                  + p->tBURST );
+          else if( nextReq->bulkCmd == CMD_PU_ACT_WRITE_PRE )
+            dataBus->SetBusy( currentCycle + p->tXP + p->tRCD
+                  + p->tCWD, currentCycle + p->tXP
+                  + p->tRCD + p->tCWD
+                  + p->tBURST );
 
 
-          nextOp = NULL;
+          nextReq = NULL;
         }
     }
 
@@ -632,24 +628,24 @@ void Rank::Cycle( )
 
   if( allIdle )
     {
-      if( conf->KeyExists( "EnergyModel" ) && conf->GetString( "EnergyModel" ) == "current" )
+      if( p->EnergyModel_set && p->EnergyModel == "current" )
         {
-          backgroundEnergy += (float)conf->GetValue( "EIDD2N" );
+          backgroundEnergy += (float)p->EIDD2N;
         }
       else
         {
-          backgroundEnergy += conf->GetEnergy( "Eclosed" );
+          backgroundEnergy += p->Eclosed;
         }
     }
   else
     {
-      if( conf->KeyExists( "EnergyModel" ) && conf->GetString( "EnergyModel" ) == "current" )
+      if( p->EnergyModel_set && p->EnergyModel == "current" )
         {
-          backgroundEnergy += (float)conf->GetValue( "EIDD3N" );
+          backgroundEnergy += (float)p->EIDD3N;
         }
       else
         {
-          backgroundEnergy += conf->GetEnergy( "Eopen" );
+          backgroundEnergy += p->Eopen;
         }
     }
 
@@ -668,8 +664,7 @@ void Rank::Cycle( )
       devices[i].Cycle( );
     }
 
-  if( currentCycle % 50 == 0 && conf &&
-      conf->GetString( "PrintGraphs" ) == "true" )
+  if( currentCycle % 50 == 0 && conf && p->PrintGraphs )
     std::cout << std::endl;
 }
 
@@ -719,7 +714,7 @@ void Rank::PrintStats( )
   totalPower *= (float)deviceCount;
 
   totalEnergy += backgroundEnergy;
-  totalPower += (((backgroundEnergy / (float)currentCycle) * conf->GetEnergy( "Voltage" )) / 1000.0f) * (float)deviceCount;
+  totalPower += (((backgroundEnergy / (float)currentCycle) * p->Voltage) / 1000.0f) * (float)deviceCount;
 
   std::cout << "i" << psInterval << "." << statName << ".power " << totalPower << std::endl;
   std::cout << "i" << psInterval << "." << statName << ".energy " << totalEnergy << std::endl;

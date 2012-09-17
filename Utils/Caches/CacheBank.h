@@ -24,7 +24,7 @@
 
 #include "include/NVMAddress.h"
 #include "include/NVMDataBlock.h"
-#include "src/Cycler.h"
+#include "src/NVMObject.h"
 #include "src/AddressTranslator.h"
 
 
@@ -60,7 +60,7 @@ struct CacheEntry
 };
 
 
-class CacheBank : public Cycler
+class CacheBank : public NVMObject
 {
  public:
   CacheBank( uint64_t sets, uint64_t assoc, uint64_t lineSize );

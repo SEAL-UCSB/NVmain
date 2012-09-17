@@ -28,7 +28,7 @@ using namespace NVM;
 
 OffChipBus::OffChipBus( )
 {
-  nextOp = NULL;
+  nextReq = NULL;
   conf = NULL;
   ranks = NULL;
   configSet = false;
@@ -56,15 +56,19 @@ void OffChipBus::SetConfig( Config *c )
 {
   std::stringstream formatter;
 
+  Params *params = new Params( );
+  params->SetParams( c );
+  SetParams( params );
+
   conf = c;
   configSet = true;
 
-  if( conf->KeyExists( "OffChipLatency" ) )
-    offChipDelay = conf->GetValue( "OffChipLatency" );
+  if( p->OffChipLatency_set )
+    offChipDelay = p->OffChipLatency;
   else
     offChipDelay = 10;
 
-  numRanks = conf->GetValue( "RANKS" );
+  numRanks = p->RANKS;
 
   ranks = new Rank * [numRanks];
   for( ncounter_t i = 0; i < numRanks; i++ )
@@ -81,30 +85,27 @@ void OffChipBus::SetConfig( Config *c )
       formatter << i;
       ranks[i]->SetName( formatter.str( ) );
 
-      NVMNetNode *nodeInfo = new NVMNetNode( NVMNETDESTTYPE_RANK, 0, i, 0 );
-      NVMNetNode *parentInfo = new NVMNetNode( NVMNETDESTTYPE_INT, 0, 0, 0 );
-      ranks[i]->AddParent( this, parentInfo );
-      AddChild( ranks[i], nodeInfo );
+      ranks[i]->SetParent( this );
+      AddChild( ranks[i] );
     }
 }
 
 
 
-void OffChipBus::RequestComplete( NVMainRequest *request )
+bool OffChipBus::RequestComplete( NVMainRequest *request )
 {
-  if( request->issueController != NULL )
-    {
-      DelayedReq *dreq = new DelayedReq;
+  DelayedReq *dreq = new DelayedReq;
 
-      dreq->req = request;
-      dreq->delay = offChipDelay;
+  dreq->req = request;
+  dreq->delay = offChipDelay;
 
-      delayQueue.push_back( dreq );
-    }
+  delayQueue.push_back( dreq );
+
+  return true;
 }
 
 
-bool OffChipBus::IssueCommand( MemOp *mop )
+bool OffChipBus::IssueCommand( NVMainRequest *req )
 {
   if( !configSet || numRanks == 0 )
     {
@@ -118,19 +119,19 @@ bool OffChipBus::IssueCommand( MemOp *mop )
    *  Only one command can be issued per cycle. Make sure none of the
    *  delayed operations have a delay equal to the latency.
    */
-  if( nextOp != NULL )
+  if( nextReq != NULL )
     {
       std::cerr << "Warning: Only one command can be issued per cycle. Check memory controller code."
                 << std::endl;
     }
 
-  nextOp = mop;
+  nextReq = req;
 
   return true;
 }
 
 
-bool OffChipBus::IsIssuable( MemOp *mop, ncycle_t delay )
+bool OffChipBus::IsIssuable( NVMainRequest *req, ncycle_t delay )
 {
   uint64_t opRank;
   uint64_t opBank;
@@ -141,12 +142,12 @@ bool OffChipBus::IsIssuable( MemOp *mop, ncycle_t delay )
    *  Only one command can be issued per cycle. Make sure none of the
    *  delayed operations have a delay equal to the latency.
    */
-  if( nextOp != NULL )
+  if( nextReq != NULL )
     return false;
 
-  mop->GetAddress( ).GetTranslatedAddress( &opCol, &opRow, &opBank, &opRank, NULL );
+  req->address.GetTranslatedAddress( &opCol, &opRow, &opBank, &opRank, NULL );
 
-  return ranks[opRank]->IsIssuable( mop, delay+offChipDelay );
+  return ranks[opRank]->IsIssuable( req, delay+offChipDelay );
 }
 
 
@@ -216,8 +217,8 @@ void OffChipBus::Cycle( )
   float busFreq;
 
   /* GetEnergy returns a float */
-  cpuFreq = conf->GetEnergy( "CPUFreq" );
-  busFreq = conf->GetEnergy( "CLK" );
+  cpuFreq = (float)p->CPUFreq;
+  busFreq = (float)p->CLK;
 
   
   syncValue += (float)( busFreq / cpuFreq );
@@ -234,31 +235,29 @@ void OffChipBus::Cycle( )
 
   currentCycle++;
 
-  if( nextOp != NULL )
+  if( nextReq != NULL )
     {
       uint64_t opRank;
       uint64_t opBank;
       uint64_t opRow;
       uint64_t opCol;
 
-      nextOp->GetAddress( ).GetTranslatedAddress( &opCol, &opRow, &opBank, &opRank, NULL );
+      nextReq->address.GetTranslatedAddress( &opCol, &opRow, &opBank, &opRank, NULL );
 
-      if( ranks[opRank]->IsIssuable( nextOp ) )
+      if( ranks[opRank]->IsIssuable( nextReq ) )
         {
-          if( nextOp->GetOperation( ) == 0 )
+          if( nextReq->type == 0 )
             {
               std::cout << "OffChipBus got unknown op." << std::endl;
             }
 
-          nextOp->GetRequest( )->issueInterconnect = this;
-
-          ranks[opRank]->AddCommand( nextOp );
+          ranks[opRank]->IssueCommand( nextReq );
 
           for( ncounter_t i = 0; i < numRanks; i++ )
             if( (uint64_t)(i) != opRank )
-              ranks[i]->Notify( nextOp->GetOperation( ) );
+              ranks[i]->Notify( nextReq->type );
             
-          nextOp = NULL;
+          nextReq = NULL;
         }
     }
 
@@ -270,7 +269,7 @@ void OffChipBus::Cycle( )
     {
       if( (*it)->delay == 0 )
         {
-          (*it)->req->issueController->RequestComplete( (*it)->req );
+          GetParent( )->RequestComplete( (*it)->req );
         }
     }
 
@@ -298,15 +297,14 @@ float OffChipBus::CalculateIOPower( bool isRead, unsigned int bitValue )
 
   Pdq = 0.0f;
 
-  if( conf->KeyExists( "Rtt_nom" ) && conf->KeyExists( "Rtt_wr" ) && conf->KeyExists( "Rtt_cont" )
-      && conf->KeyExists( "Vddq" ) && conf->KeyExists( "Vssq" ) )
+  if( p->Rtt_nom_set && p->Rtt_wr_set && p->Rtt_cont_set && p->Vddq_set && p->Vssq_set )
     {
-      Rtt_nom  = conf->GetValue( "Rtt_nom" );
-      Rtt_wr   = conf->GetEnergy( "Rtt_wr" );
-      Rtt_cont = conf->GetEnergy( "Rtt_conf" );
+      Rtt_nom  = p->Rtt_nom;
+      Rtt_wr   = p->Rtt_wr;
+      Rtt_cont = p->Rtt_cont;
 
-      VDDQ = conf->GetEnergy( "Vddq" );
-      VSSQ = conf->GetEnergy( "Vssq" );
+      VDDQ = p->Vddq;
+      VSSQ = p->Vssq;
     }
   else
     {
@@ -318,9 +316,9 @@ float OffChipBus::CalculateIOPower( bool isRead, unsigned int bitValue )
       VSSQ = 0.0; /* Default 0 Volts */
     }
 
-  if( conf->KeyExists( "RanksPerDIMM" ) )
+  if( p->RanksPerDIMM_set )
     {
-      ranksPerDimm = conf->GetValue( "RanksPerDIMM" );
+      ranksPerDimm = p->RanksPerDIMM;
     }
   else
     {
@@ -348,7 +346,7 @@ float OffChipBus::CalculateIOPower( bool isRead, unsigned int bitValue )
           /* Bus voltage equation */
           float Vbus;
 
-          Vbus = ( (VDDQ / Rttpu) + (VSSQ / Rttpd) + (Vread / Rdevice) ) / ( (1.0 / Rttpu) + (1.0 / Rttpd) + (1.0 / Rdevice) );
+          Vbus = ( (VDDQ / Rttpu) + (VSSQ / Rttpd) + (Vread / Rdevice) ) / ( (1.0f / Rttpu) + (1.0f / Rttpd) + (1.0f / Rdevice) );
 
           /* Bus current equation. */
           float Ibus, Ipu, Ipd;
@@ -377,7 +375,7 @@ float OffChipBus::CalculateIOPower( bool isRead, unsigned int bitValue )
           /* Bus voltage equation. */
           float Vbus;
 
-          Vbus = ( (VDDQ / Rttpu) + (VSSQ / Rttpd) + (Vwrite / Rdevice) ) / ( (1.0 / Rttpu) + (1.0 / Rttpd) + (1.0 / Rdevice) );
+          Vbus = ( (VDDQ / Rttpu) + (VSSQ / Rttpd) + (Vwrite / Rdevice) ) / ( (1.0f / Rttpu) + (1.0f / Rttpd) + (1.0f / Rdevice) );
 
           /* Bus current equation. */
           float Ibus, Ipu, Ipd;
@@ -401,27 +399,27 @@ float OffChipBus::CalculateIOPower( bool isRead, unsigned int bitValue )
           float R1, R2, R3, R4, R5;
           float Rttpu, Rttpd, Rothpu, Rothpd, Rdevice, Rs, Ron;
 
-          Rs = 15.0;  /* Series resistance of device. */
-          Ron = 34.0; /* Resistance of device output driver. */
+          Rs = 15.0f;  /* Series resistance of device. */
+          Ron = 34.0f; /* Resistance of device output driver. */
 
           Rdevice = Rs + Ron;
 
           /* Pull-up/Pull-down at controller. */
-          Rttpu = static_cast<float>(Rtt_cont * 2.0);
-          Rttpd = static_cast<float>(Rtt_cont * 2.0);
+          Rttpu = static_cast<float>(Rtt_cont) * 2.0f;
+          Rttpd = static_cast<float>(Rtt_cont) * 2.0f;
 
           /* Pull-up/Pull-down at terminated rank. */
-          Rothpu = static_cast<float>(Rtt_nom * 2.0);
-          Rothpd = static_cast<float>(Rtt_nom * 2.0);
+          Rothpu = static_cast<float>(Rtt_nom) * 2.0f;
+          Rothpd = static_cast<float>(Rtt_nom) * 2.0f;
 
           if( bitValue == 0 )
             {
               R1 = Rttpu;
-              R2 = 1.0 / ( (1.0 / Rttpu) + (1.0 / Rdevice) ); /* Device resistors are in parallel with controller pull-down. */
+              R2 = 1.0f / ( (1.0f / Rttpu) + (1.0f / Rdevice) ); /* Device resistors are in parallel with controller pull-down. */
             }
           else
             {
-              R1 = 1.0 / ( (1.0 / Rttpu) + (1.0 / Rdevice) ); /* Device resistors are in parallel with controller pull-up. */
+              R1 = 1.0f / ( (1.0f / Rttpu) + (1.0f / Rdevice) ); /* Device resistors are in parallel with controller pull-up. */
               R2 = Rttpd;
             }
 
@@ -438,8 +436,8 @@ float OffChipBus::CalculateIOPower( bool isRead, unsigned int bitValue )
 
           /* Combine parallel resistors. */
           float RX, RY;
-          RX = 1.0 / ( (1.0 / R1) + (1.0 / RB) );
-          RY = 1.0 / ( (1.0 / R2) + (1.0 / RC) );
+          RX = 1.0f / ( (1.0f / R1) + (1.0f / RB) );
+          RY = 1.0f / ( (1.0f / R2) + (1.0f / RC) );
 
           /* Bus voltage calculation. */
           float Vbus, Ibus;
@@ -450,7 +448,7 @@ float OffChipBus::CalculateIOPower( bool isRead, unsigned int bitValue )
           /* Voltage at terminated rank. */
           float Vterm;
 
-          Vterm = -1.0 * R3 * ( ((VDDQ - Vbus) / R1) - ((Vbus - VSSQ) / R2) ) + Vbus;
+          Vterm = -1.0f * R3 * ( ((VDDQ - Vbus) / R1) - ((Vbus - VSSQ) / R2) ) + Vbus;
 
           /* Current through each resistor. */
           float I1, I2, I3, I4, I5;
@@ -470,13 +468,13 @@ float OffChipBus::CalculateIOPower( bool isRead, unsigned int bitValue )
           float Rothpu, Rothpd, Rttpu, Rttpd, Rs, Ron;
           float Vwrite;
 
-          Rttpu = static_cast<float>(Rtt_wr * 2.0);
-          Rttpd = static_cast<float>(Rtt_wr * 2.0);
-          Rothpu = static_cast<float>(Rtt_nom * 2.0);
-          Rothpd = static_cast<float>(Rtt_nom * 2.0);
+          Rttpu = static_cast<float>(Rtt_wr) * 2.0f;
+          Rttpd = static_cast<float>(Rtt_wr) * 2.0f;
+          Rothpu = static_cast<float>(Rtt_nom) * 2.0f;
+          Rothpd = static_cast<float>(Rtt_nom) * 2.0f;
 
-          Rs = 15.0;  /* Series resistance of DRAM device. */
-          Ron = 34.0; /* Controller output driver resistance. */
+          Rs = 15.0f;  /* Series resistance of DRAM device. */
+          Ron = 34.0f; /* Controller output driver resistance. */
 
           Vwrite = (bitValue == 0) ? VSSQ : VDDQ;
 

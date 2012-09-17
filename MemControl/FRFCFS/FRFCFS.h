@@ -32,8 +32,8 @@ class FRFCFS : public MemoryController
   ~FRFCFS( );
 
 
-  int StartCommand( MemOp *mop );
-  void RequestComplete( NVMainRequest * request );
+  bool IssueCommand( NVMainRequest *req );
+  bool RequestComplete( NVMainRequest * request );
 
   void SetConfig( Config *conf );
 
@@ -42,17 +42,7 @@ class FRFCFS : public MemoryController
   void PrintStats( );
 
  private:
-  unsigned int **starved;
-  unsigned int starvationThreshold;
-
-  bool **actQueued;
-  uint64_t **actRow;
-
-  uint64_t numBanks, numRanks;
-
-  std::deque<MemOp *> memQueue;
-  std::deque<MemOp *> issuedQueue;
-  std::deque<MemOp *> **bankQueue;
+  NVMTransactionQueue memQueue;
 
   uint64_t measuredLatencies, measuredQueueLatencies;
   float averageLatency, averageQueueLatency;

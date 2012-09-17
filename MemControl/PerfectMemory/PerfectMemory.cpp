@@ -74,9 +74,9 @@ PerfectMemory::PerfectMemory( Interconnect *memory, AddressTranslator *translato
  *  This method is called whenever a new transaction from the processor issued to
  *  this memory controller / channel. All scheduling decisions should be made here.
  */
-int PerfectMemory::StartCommand( MemOp *mop )
+bool PerfectMemory::IssueCommand( NVMainRequest *req )
 {
-  EndCommand( mop, ENDMODE_IMMEDIATE );
+  EndCommand( req, ENDMODE_IMMEDIATE );
 
   /*
    *  Return whether the request could be queued. Return false if the queue is full.

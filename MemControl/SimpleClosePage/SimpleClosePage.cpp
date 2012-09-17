@@ -73,29 +73,31 @@ SimpleClosePage::SimpleClosePage( Interconnect *memory, AddressTranslator *trans
  *  This method is called whenever a new transaction from the processor issued to
  *  this memory controller / channel. All scheduling decisions should be made here.
  */
-int SimpleClosePage::StartCommand( MemOp *mop )
+bool SimpleClosePage::IssueCommand( NVMainRequest *req )
 {
-  MemOp *nextOp;
+  NVMainRequest *nextReq = NULL;
 
   /* Allow up to 16 read/writes outstanding. */
-  if( commandQueue[0].size( ) >= (16*3) )
+  if( transactionQueues[0].size( ) >= 16 )
     return false;
 
 
 
-  nextOp = new MemOp( );
-  *nextOp = *mop;
-  nextOp->SetOperation( ACTIVATE );
+  req = new NVMainRequest( );
+  *nextReq = *req;
+  nextReq->type = ACTIVATE;
+  nextReq->owner = this;
 
 
-  commandQueue[0].push_back( nextOp ); 
-  commandQueue[0].push_back( mop );
+  transactionQueues[0].push_back( nextReq ); 
+  transactionQueues[0].push_back( req );
 
-  nextOp = new MemOp( );
-  *nextOp = *mop;
-  nextOp->SetOperation( PRECHARGE );
+  nextReq = new NVMainRequest( );
+  *nextReq = *req;
+  nextReq->type = PRECHARGE;
+  nextReq->owner = this;
 
-  commandQueue[0].push_back( nextOp );
+  transactionQueues[0].push_back( nextReq );
 
   /*
    *  Return whether the request could be queued. Return false if the queue is full.

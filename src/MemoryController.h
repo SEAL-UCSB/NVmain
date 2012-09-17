@@ -21,16 +21,18 @@
 #include <string>
 #include <vector>
 
-#include "src/Cycler.h"
+#include "src/NVMObject.h"
 #include "src/Config.h"
 #include "src/Interconnect.h"
 #include "src/AddressTranslator.h"
 #include "src/MemoryControllerMessage.h"
 #include "src/MemoryControllerManager.h"
-#include "src/NVMNet.h"
+#include "src/Params.h"
+#include "include/NVMainRequest.h"
 
-#include <vector>
+#include <deque>
 #include <iostream>
+#include <list>
 
 
 namespace NVM {
@@ -46,7 +48,7 @@ enum MCEndMode { ENDMODE_NORMAL,              // End command when all data is re
 };
 
 
-class MemoryController : public Cycler, public NVMNet 
+class MemoryController : public NVMObject 
 {
  public:
   MemoryController( );
@@ -55,10 +57,10 @@ class MemoryController : public Cycler, public NVMNet
 
 
   void InitQueues( unsigned int numQueues );
-  void Access( ProcessorOp op, uint64_t address );
-  virtual int StartCommand( MemOp *mop ) = 0;
-  virtual void RequestComplete( NVMainRequest *request );
-  virtual void EndCommand( MemOp *mop, MCEndMode endMode = ENDMODE_NORMAL, unsigned int customTime = 0 );
+  void InitBankQueues( unsigned int numQueues );
+
+  virtual bool RequestComplete( NVMainRequest *request );
+  virtual void EndCommand( NVMainRequest *req, MCEndMode endMode = ENDMODE_NORMAL, ncycle_t customTime = 0 );
   virtual bool QueueFull( NVMainRequest *request );
 
   void SetMemory( Interconnect *mem );
@@ -75,6 +77,7 @@ class MemoryController : public Cycler, public NVMNet
   virtual void Cycle( ); 
 
   virtual void SetConfig( Config *conf );
+  void SetParams( Params *params ) { p = params; }
   Config *GetConfig( );
 
   void SendMessage( unsigned int dest, void *message, int latency = -1 );
@@ -86,8 +89,6 @@ class MemoryController : public Cycler, public NVMNet
 
   void SetID( unsigned int id );
 
-  void RecvMessage( NVMNetMessage * ) { }
-
   void FlushCompleted( );
 
  protected:
@@ -97,7 +98,23 @@ class MemoryController : public Cycler, public NVMNet
   std::string statName;
   uint64_t psInterval;
 
-  std::vector<MemOp *> *commandQueue;
+  std::list<NVMainRequest *> *transactionQueues;
+  std::deque<NVMainRequest *> **bankQueues;
+
+  bool **activateQueued;
+  uint64_t **effectiveRow;
+  unsigned int **starvationCounter;
+  unsigned int starvationThreshold;
+
+  NVMainRequest *MakeActivateRequest( NVMainRequest *triggerRequest );
+  NVMainRequest *MakePrechargeRequest( NVMainRequest *triggerRequest );
+  bool FindStarvedRequest( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **starvedRequest );
+  bool FindRowBufferHit( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **hitRequest );
+  bool FindOldestReadyRequest( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **oldestRequest );
+  bool FindClosedBankRequest( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **closedRequest );
+  bool IssueMemoryCommands( NVMainRequest *req );
+  void CycleCommandQueues( );
+
   uint64_t currentCycle;
 
   unsigned int id;
@@ -106,11 +123,13 @@ class MemoryController : public Cycler, public NVMNet
   int  (MemoryControllerManager::*RecvCallback)( MemoryControllerMessage * );
 
   bool refreshUsed;
-  std::vector<MemOp *> refreshWaitQueue;
+  std::vector<NVMainRequest *> refreshWaitQueue;
   bool **refreshNeeded;
-  MemOp *BuildRefreshRequest( int rank, int bank );
+  NVMainRequest *BuildRefreshRequest( int rank, int bank );
 
-  std::map<MemOp *, unsigned int> completedCommands;
+  std::map<NVMainRequest *, ncycle_t> completedCommands;
+
+  Params *p;
 
 };
 

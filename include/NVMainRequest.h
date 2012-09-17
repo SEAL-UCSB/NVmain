@@ -22,6 +22,9 @@
 #include "include/NVMDataBlock.h"
 #include "include/NVMTypes.h"
 
+#include <iostream>
+#include <signal.h>
+
 
 namespace NVM {
 
@@ -59,9 +62,8 @@ enum BulkCommand { CMD_NOP = 0,
 		   CMD_PU_ACT_WRITE_PRE,
 };
 
-class MemoryController;
-class MemOp;
-class Interconnect;
+class NVMObject;
+
 
 class NVMainRequest
 {
@@ -71,37 +73,38 @@ class NVMainRequest
       bulkCmd = CMD_NOP; 
       threadId = 0; 
       tag = 0; 
-      issueController = NULL;
-      issueInterconnect = NULL;
       reqInfo = NULL; 
       arrivalCycle = 0; 
       issueCycle = 0; 
+      queueCycle = 0;
       completionCycle = 0; 
       isPrefetch = false; 
       programCounter = 0; 
+      owner = NULL;
   };
 
-  ~NVMainRequest( ) { };
+  ~NVMainRequest( )
+  { 
+  };
 
-  NVMAddress address;
-  OpType type;
-  BulkCommand bulkCmd;
-  int threadId;
-  NVMDataBlock data;
-  MemRequestStatus status;
-  NVMAccessType access;
-  int tag;
-  void *reqInfo;
-  MemoryController *issueController;
-  Interconnect *issueInterconnect;
-  MemOp *memop;
-  bool isPrefetch;
-  NVMAddress pfTrigger;
-  uint64_t programCounter;
+  NVMAddress address;            //< Address of request
+  OpType type;                   //< Operation type of request (read, write, etc)
+  BulkCommand bulkCmd;           //< Bulk Commands (i.e., Read+Precharge, Write+Precharge, etc)
+  int threadId;                  //< Thread ID of issuing application
+  NVMDataBlock data;             //< Data to be written, or data that would be read
+  MemRequestStatus status;       //< Complete, incomplete, etc.
+  NVMAccessType access;          //< User or kernel mode access
+  int tag;                       //< User-defined tag for request
+  void *reqInfo;                 //< User-defined info for request
+  bool isPrefetch;               //< Whether request is a prefetch or not
+  NVMAddress pfTrigger;          //< Address that triggered this prefetch
+  uint64_t programCounter;       //< Program counter of CPU issuing request
+  NVMObject *owner;              //< Pointer to the object that created this request
 
-  ncycle_t arrivalCycle;
-  ncycle_t issueCycle;
-  ncycle_t completionCycle;
+  ncycle_t arrivalCycle;         //< When the request arrived at the memory controller
+  ncycle_t queueCycle;           //< When the memory controller accepted (queued) the request
+  ncycle_t issueCycle;           //< When the memory controller issued the request to the interconnect (dequeued)
+  ncycle_t completionCycle;      //< When the request was sent back to the requestor
 
   NVMainRequest operator=( NVMainRequest m );
 };
@@ -118,10 +121,16 @@ NVMainRequest NVMainRequest::operator=( NVMainRequest m )
   status = m.status;
   access = m.access;
   tag = m.tag;
-  issueController = m.issueController;
-  issueInterconnect = m.issueInterconnect;
+  reqInfo = m.reqInfo;
+  isPrefetch = m.isPrefetch;
   pfTrigger = m.pfTrigger;
   programCounter = m.programCounter;
+  owner = m.owner;
+
+  arrivalCycle = m.arrivalCycle;
+  queueCycle = m.queueCycle;
+  issueCycle = m.issueCycle;
+  completionCycle = m.completionCycle;
 
   return *this; 
 }

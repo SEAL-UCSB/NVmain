@@ -97,23 +97,27 @@ void Bank::SetConfig( Config *c )
 {
   conf = c;
 
+  Params *params = new Params( );
+  params->SetParams( c );
+  SetParams( params );
+
   /*
    *  We need to create an endurance model on a bank-by-bank basis.
    */
-  endrModel = EnduranceModelFactory::CreateEnduranceModel( conf->GetString( "EnduranceModel" ) );
+  endrModel = EnduranceModelFactory::CreateEnduranceModel( p->EnduranceModel );
   if( endrModel )
     endrModel->SetConfig( conf );
 
   bankGraph->SetConfig( conf );
 
-  if( conf->GetString( "InitPD" ) == "true" )
+  if( p->InitPD )
     state = BANK_PDPF;
 
-  if( conf->GetString( "UseRefresh" ) == "true" )
+  if( p->UseRefresh )
     {
       refreshUsed = true;
-      refreshRows = conf->GetValue( "RefreshRows" );
-      nextRefresh = currentCycle + ((conf->GetValue( "tRFI" )) / (conf->GetValue( "ROWS" ) / refreshRows));
+      refreshRows = p->RefreshRows;
+      nextRefresh = currentCycle + (p->tRFI / (p->ROWS / refreshRows));
       nextRefreshDone = 0;
     }
 }
@@ -132,17 +136,17 @@ bool Bank::PowerDown( BankState pdState )
        */
       state = pdState;
 
-      nextPowerUp = MAX( nextPowerUp, currentCycle + conf->GetValue( "tPD" ) );
-      nextActivate = MAX( nextActivate, currentCycle + conf->GetValue( "tPD" ) + conf->GetValue( "tXP" ) );
+      nextPowerUp = MAX( nextPowerUp, currentCycle + p->tPD );
+      nextActivate = MAX( nextActivate, currentCycle + p->tPD + p->tXP );
       if( pdState == BANK_PDPFWAIT || pdState == BANK_PDAWAIT )
-        nextRead = MAX( nextRead, currentCycle + conf->GetValue( "tPD" ) + conf->GetValue( "tXP" ) );
+        nextRead = MAX( nextRead, currentCycle + p->tPD + p->tXP );
       else
-        nextRead = MAX( nextRead, currentCycle + conf->GetValue( "tPD" ) + conf->GetValue( "tXPDLL" ) );
-      nextWrite = MAX( nextWrite, currentCycle + conf->GetValue( "tPD" ) + conf->GetValue( "tXP" ) );
-      nextPrecharge = MAX( nextPrecharge, currentCycle + conf->GetValue( "tPD" ) + conf->GetValue( "tXP" ) );
+        nextRead = MAX( nextRead, currentCycle + p->tPD + p->tXPDLL );
+      nextWrite = MAX( nextWrite, currentCycle + p->tPD + p->tXP );
+      nextPrecharge = MAX( nextPrecharge, currentCycle + p->tPD + p->tXP );
 
 
-      bankGraph->SetLabel( currentCycle, currentCycle + conf->GetValue( "tPD" ), 'D' );
+      bankGraph->SetLabel( currentCycle, currentCycle + p->tPD, 'D' );
 
       
       switch( nextCommand )
@@ -176,14 +180,14 @@ bool Bank::PowerUp( NVMainRequest *request )
 
   if( nextPowerUp <= currentCycle && ( state == BANK_PDPF || state == BANK_PDPS || state == BANK_PDA ) )
     {
-      nextPowerDown = MAX( nextPowerDown, currentCycle + conf->GetValue( "tXP" ) );
-      nextActivate = MAX( nextActivate, currentCycle + conf->GetValue( "tXP" ) );
+      nextPowerDown = MAX( nextPowerDown, currentCycle + p->tXP );
+      nextActivate = MAX( nextActivate, currentCycle + p->tXP );
       if( state == BANK_PDPS )
-        nextRead = MAX( nextRead, currentCycle + conf->GetValue( "tXPDLL" ) );
+        nextRead = MAX( nextRead, currentCycle + p->tXPDLL );
       else
-        nextRead = MAX( nextRead, currentCycle + conf->GetValue( "tXP" ) );
-      nextWrite = MAX( nextWrite, currentCycle + conf->GetValue( "tXP" ) );
-      nextPrecharge = MAX( nextPrecharge, currentCycle + conf->GetValue( "tXP" ) );
+        nextRead = MAX( nextRead, currentCycle + p->tXP );
+      nextWrite = MAX( nextWrite, currentCycle + p->tXP );
+      nextPrecharge = MAX( nextPrecharge, currentCycle + p->tXP );
 
       /*
        *  While technically the bank is being "powered up" we will just reset
@@ -198,9 +202,9 @@ bool Bank::PowerUp( NVMainRequest *request )
 
 
       if( state == BANK_PDPS )
-        bankGraph->SetLabel( currentCycle, currentCycle + conf->GetValue( "tXPDLL" ), 'U' );
+        bankGraph->SetLabel( currentCycle, currentCycle + p->tXPDLL, 'U' );
       else
-        bankGraph->SetLabel( currentCycle, currentCycle + conf->GetValue( "tXP" ), 'U' );
+        bankGraph->SetLabel( currentCycle, currentCycle + p->tXP, 'U' );
 
 
       lastOperation = *request;
@@ -250,21 +254,18 @@ bool Bank::Activate( NVMainRequest *request )
 
   if( nextActivate <= currentCycle && state == BANK_CLOSED )
     {
-      nextActivate = MAX( nextActivate, currentCycle + MAX( conf->GetValue( "tRCD" ), conf->GetValue( "tRAS" ) ) 
-                          + conf->GetValue( "tRP" ) );
-      nextPrecharge = MAX( nextPrecharge, currentCycle + MAX( conf->GetValue( "tRCD" ), conf->GetValue( "tRAS" ) ) );
-      nextRead = MAX( nextRead, currentCycle + conf->GetValue( "tRCD" ) - conf->GetValue( "tAL" ) );
-      nextWrite = MAX( nextWrite, currentCycle + conf->GetValue( "tRCD" ) - conf->GetValue( "tAL" ) );
-      nextPowerDown = MAX( nextPowerDown, currentCycle + conf->GetValue( "tRCD" ) + 1 );
-      nextPowerDownDone = MAX( nextPowerDownDone, currentCycle + conf->GetValue( "tRCD" )
-                   + conf->GetValue( "tPD" ) + 1 );
+      nextActivate = MAX( nextActivate, currentCycle + MAX( p->tRCD, p->tRAS ) 
+                          + p->tRP );
+      nextPrecharge = MAX( nextPrecharge, currentCycle + MAX( p->tRCD, p->tRAS ) );
+      nextRead = MAX( nextRead, currentCycle + p->tRCD - p->tAL );
+      nextWrite = MAX( nextWrite, currentCycle + p->tRCD - p->tAL );
+      nextPowerDown = MAX( nextPowerDown, currentCycle + p->tRCD + 1 );
+      nextPowerDownDone = MAX( nextPowerDownDone, currentCycle + p->tRCD
+                   + p->tPD + 1 );
 
 
-      if( request->issueInterconnect != NULL && bankId == 0 )
-        {
-          notifyComplete.insert(std::pair<NVMainRequest *, int>( request, conf->GetValue( "tRCD" ) ) );
-        }
-
+      if( bankId == 0 )
+        notifyComplete.insert(std::pair<NVMainRequest *, int>( request, (int)p->tRCD ) );
 
       openRow = activateRow;
       state = BANK_OPEN;
@@ -273,25 +274,25 @@ bool Bank::Activate( NVMainRequest *request )
       lastActivate = currentCycle;
 
       /* Add to bank's total energy. */
-      if( conf->KeyExists( "EnergyModel" ) && conf->GetString( "EnergyModel" ) == "current" )
+      if( p->EnergyModel_set && p->EnergyModel == "current" )
         {
-          uint64_t tRC = conf->GetValue( "tRAS" ) + conf->GetValue( "tRCD" );
+          uint64_t tRC = p->tRAS + p->tRCD;
 
 
-          bankEnergy += (float)((conf->GetValue( "EIDD0" ) * tRC) 
-                      - ((conf->GetValue( "EIDD3N" ) * conf->GetValue( "tRAS" ))
-                      +  (conf->GetValue( "EIDD2N" ) * conf->GetValue( "tRP" ))));
+          bankEnergy += (float)((p->EIDD0 * (float)tRC) 
+                      - ((p->EIDD3N * (float)p->tRAS)
+                      +  (p->EIDD2N * (float)p->tRP)));
 
-          activeEnergy +=  (float)((conf->GetValue( "EIDD0" ) * tRC) 
-                        - ((conf->GetValue( "EIDD3N" ) * conf->GetValue( "tRAS" ))
-                        +  (conf->GetValue( "EIDD2N" ) * conf->GetValue( "tRP" )) ));
+          activeEnergy +=  (float)((p->EIDD0 * (float)tRC) 
+                        - ((p->EIDD3N * (float)p->tRAS)
+                        +  (p->EIDD2N * (float)p->tRP) ));
         }
       else
         {
-          bankEnergy += conf->GetEnergy( "Erd" );
+          bankEnergy += p->Erd;
         }
 
-      bankGraph->SetLabel( currentCycle, currentCycle + conf->GetValue( "tRCD" ), 'A' );
+      bankGraph->SetLabel( currentCycle, currentCycle + p->tRCD, 'A' );
 
 
       lastOperation = *request;
@@ -372,39 +373,37 @@ bool Bank::Read( NVMainRequest *request )
 
   if( nextRead <= currentCycle && state == BANK_OPEN && readRow == openRow )
     {
-      nextPrecharge = MAX( nextPrecharge, currentCycle + conf->GetValue( "tAL" ) + conf->GetValue( "tBURST" )
-               + conf->GetValue( "tRTP" ) - conf->GetValue( "tCCD" ) );
-      nextRead = MAX( nextRead, currentCycle + MAX( conf->GetValue( "tBURST" ), conf->GetValue( "tCCD" ) ) );
-      nextWrite = MAX( nextWrite, currentCycle + conf->GetValue( "tCAS" ) + conf->GetValue( "tBURST" ) 
-               + 2 - conf->GetValue( "tCWD" ) );
-      nextActivate = MAX( nextActivate, lastActivate + conf->GetValue( "tRRDR" ) );
-      nextPowerDown = MAX( nextPowerDown, currentCycle + conf->GetValue( "tAL" ) + conf->GetValue( "tBURST" )
-               + conf->GetValue( "tCAS" ) + 1 );
-      nextPowerDownDone = MAX( nextPowerDownDone, currentCycle + conf->GetValue( "tAL" ) + conf->GetValue( "tBURST" )
-                   + conf->GetValue( "tCAS" ) + conf->GetValue( "tPD" ) + 1 );
+      nextPrecharge = MAX( nextPrecharge, currentCycle + p->tAL + p->tBURST
+               + p->tRTP - p->tCCD );
+      nextRead = MAX( nextRead, currentCycle + MAX( p->tBURST, p->tCCD ) );
+      nextWrite = MAX( nextWrite, currentCycle + p->tCAS + p->tBURST 
+               + 2 - p->tCWD );
+      nextActivate = MAX( nextActivate, lastActivate + p->tRRDR );
+      nextPowerDown = MAX( nextPowerDown, currentCycle + p->tAL + p->tBURST
+               + p->tCAS + 1 );
+      nextPowerDownDone = MAX( nextPowerDownDone, currentCycle + p->tAL + p->tBURST
+                   + p->tCAS + p->tPD + 1 );
       
 
-      bankGraph->SetLabel( currentCycle, currentCycle + conf->GetValue( "tBURST" ), 'R' );
-      dataCycles += conf->GetValue( "tBURST" );
+      bankGraph->SetLabel( currentCycle, currentCycle + p->tBURST, 'R' );
+      dataCycles += p->tBURST;
 
 
-      if( request->issueInterconnect != NULL && bankId == 0 )
+      if( bankId == 0 )
+        notifyComplete.insert(std::pair<NVMainRequest *, int>( request, (int)p->tBURST + (int)p->tCAS ) );
+
+
+      if( p->EnergyModel_set && p->EnergyModel == "current" )
         {
-          notifyComplete.insert(std::pair<NVMainRequest *, int>( request, conf->GetValue( "tBURST" ) + conf->GetValue( "tCAS" ) ) );
-        }
+          bankEnergy += (float)((p->EIDD4R - p->EIDD3N) * (float)p->tBURST);
 
-
-      if( conf->KeyExists( "EnergyModel" ) && conf->GetString( "EnergyModel" ) == "current" )
-        {
-          bankEnergy += (float)((conf->GetValue( "EIDD4R" ) - conf->GetValue( "EIDD3N" )) * conf->GetValue( "tBURST" ));
-
-          burstEnergy += (float)((conf->GetValue( "EIDD4R" ) - conf->GetValue( "EIDD3N" )) * conf->GetValue( "tBURST" ));
+          burstEnergy += (float)((p->EIDD4R - p->EIDD3N) * (float)p->tBURST);
         }
       else
         {
-          bankEnergy += conf->GetEnergy( "Eopenrd" );
+          bankEnergy += p->Eopenrd;
 
-          burstEnergy += conf->GetEnergy( "Eopenrd" );
+          burstEnergy += p->Eopenrd;
         }
 
       /*
@@ -486,37 +485,35 @@ bool Bank::Write( NVMainRequest *request )
 
   if( nextWrite <= currentCycle && state == BANK_OPEN && writeRow == openRow )
     {
-      nextPrecharge = MAX( nextPrecharge, currentCycle + conf->GetValue( "tAL" ) + conf->GetValue( "tCWD" )
-               + conf->GetValue( "tBURST" ) + conf->GetValue( "tWR" ) );
-      nextRead = MAX( nextRead, currentCycle + conf->GetValue( "tCWD" ) 
-              + conf->GetValue( "tBURST" ) + conf->GetValue( "tWTR" ) );
-      nextWrite = MAX( nextWrite, currentCycle + MAX( conf->GetValue( "tBURST" ), conf->GetValue( "tCCD" ) ) );
-      nextPowerDown = MAX( nextPowerDown, currentCycle + conf->GetValue( "tAL" ) + conf->GetValue( "tBURST" )
-               + conf->GetValue( "tWR" ) + conf->GetValue( "tCWD" ) + 1 );
-      nextPowerDownDone = MAX( nextPowerDownDone, currentCycle + conf->GetValue( "tAL" ) + conf->GetValue( "tBURST" )
-                   + conf->GetValue( "tWR" ) + conf->GetValue( "tCWD" ) + conf->GetValue( "tPD" ) + 1 );
+      nextPrecharge = MAX( nextPrecharge, currentCycle + p->tAL + p->tCWD
+               + p->tBURST + p->tWR );
+      nextRead = MAX( nextRead, currentCycle + p->tCWD 
+              + p->tBURST + p->tWTR );
+      nextWrite = MAX( nextWrite, currentCycle + MAX( p->tBURST, p->tCCD ) );
+      nextPowerDown = MAX( nextPowerDown, currentCycle + p->tAL + p->tBURST
+               + p->tWR + p->tCWD + 1 );
+      nextPowerDownDone = MAX( nextPowerDownDone, currentCycle + p->tAL + p->tBURST
+                   + p->tWR + p->tCWD + p->tPD + 1 );
 
-      bankGraph->SetLabel( currentCycle, currentCycle + conf->GetValue( "tBURST" ), 'W' );
-      dataCycles += conf->GetValue( "tBURST" );
+      bankGraph->SetLabel( currentCycle, currentCycle + p->tBURST, 'W' );
+      dataCycles += p->tBURST;
 
 
-      if( request->issueInterconnect != NULL && bankId == 0 )
+      if( bankId == 0 )
+        notifyComplete.insert(std::pair<NVMainRequest *, int>( request, (int)p->tBURST + (int)p->tCWD ) );
+
+
+      if( p->EnergyModel_set && p->EnergyModel == "current" )
         {
-          notifyComplete.insert(std::pair<NVMainRequest *, int>( request, conf->GetValue( "tBURST" ) + conf->GetValue( "tCWD" ) ) );
-        }
+          bankEnergy += (float)((p->EIDD4W - p->EIDD3N) * (float)p->tBURST);
 
-
-      if( conf->KeyExists( "EnergyModel" ) && conf->GetString( "EnergyModel" ) == "current" )
-        {
-          bankEnergy += (float)((conf->GetValue( "EIDD4W" ) - conf->GetValue( "EIDD3N" )) * conf->GetValue( "tBURST" ));
-
-          burstEnergy += (float)((conf->GetValue( "EIDD4W" ) - conf->GetValue( "EIDD3N" )) * conf->GetValue( "tBURST" ));
+          burstEnergy += (float)((p->EIDD4W - p->EIDD3N) * (float)p->tBURST);
         }
       else
         {
-          bankEnergy += conf->GetEnergy( "Ewr" ); // - conf->GetEnergy( "Ewrpb" );
+          bankEnergy += p->Ewr; // - p->Ewrpb;
 
-          burstEnergy += conf->GetEnergy( "Ewr" ); // - conf->GetEnergy( "Ewrpb" );
+          burstEnergy += p->Ewr; // - p->Ewrpb;
         }
 
       writeCycle = true;
@@ -537,8 +534,8 @@ bool Bank::Write( NVMainRequest *request )
               uint64_t blockAddr;
               bool hardError;
 
-              wordSize = conf->GetValue( "BusWidth" );
-              wordSize *= conf->GetValue( "tBURST" ) * conf->GetValue( "RATE" );
+              wordSize = p->BusWidth;
+              wordSize *= p->tBURST * p->RATE;
               wordSize /= 8;
 
               blockMask = ~(wordSize - 1);
@@ -552,7 +549,7 @@ bool Bank::Write( NVMainRequest *request )
                   //std::cout << "Zeroing write to not-previously-read data 0x" << std::hex
                   //          << request->address.GetPhysicalAddress( ) << std::dec << std::endl;
 
-                  for( int i = 0; i < (int)(conf->GetValue( "BusWidth" ) / 8); i++ )
+                  for( int i = 0; i < (int)(p->BusWidth / 8); i++ )
                     oldData.SetByte( i, 0 );
                 }
           
@@ -573,7 +570,7 @@ bool Bank::Write( NVMainRequest *request )
                 {
                   std::cout << "WARNING: Write to 0x" << std::hex << request->address.GetPhysicalAddress( )
                             << std::dec << " resulted in a hard error! " << std::endl;
-
+/*
                   NVMNetMessage *netMsg = new NVMNetMessage( );
 
                   netMsg->SetDestination( NVMNETDEST_LOCAL_MC );
@@ -582,6 +579,7 @@ bool Bank::Write( NVMainRequest *request )
                   netMsg->SetDirection( NVMNETDIR_BCAST );
 
                   SendMessage( netMsg ); 
+                  */
                 }
             }
           else
@@ -641,19 +639,17 @@ bool Bank::Precharge( NVMainRequest *request )
 
   if( nextPrecharge <= currentCycle && state == BANK_OPEN  )
     {
-      nextActivate = MAX( nextActivate, currentCycle + conf->GetValue( "tRP" ) );
-      nextPowerDown = MAX( nextPowerDown, currentCycle + conf->GetValue( "tRP" ) );
-      nextPowerDownDone = MAX( nextPowerDownDone, currentCycle + conf->GetValue( "tRP" ) 
-                   + conf->GetValue( "tPD" ) );
+      nextActivate = MAX( nextActivate, currentCycle + p->tRP );
+      nextPowerDown = MAX( nextPowerDown, currentCycle + p->tRP );
+      nextPowerDownDone = MAX( nextPowerDownDone, currentCycle + p->tRP 
+                   + p->tPD );
 
 
-      if( request->issueInterconnect != NULL && bankId == 0 )
-        {
-          notifyComplete.insert(std::pair<NVMainRequest *, int>( request, conf->GetValue( "tRP" ) ) );
-        }
+      if( bankId == 0 )
+        notifyComplete.insert(std::pair<NVMainRequest *, int>( request, (int)p->tRP ) );
 
 
-      bankGraph->SetLabel( currentCycle, currentCycle + conf->GetValue( "tRP" ), 'P' );
+      bankGraph->SetLabel( currentCycle, currentCycle + p->tRP, 'P' );
 
       switch( nextCommand )
         {
@@ -691,30 +687,30 @@ bool Bank::Refresh( )
 
   if( nextRefresh <= currentCycle && state == BANK_CLOSED )
     {
-      nextActivate = MAX( nextActivate, currentCycle + refreshRows * conf->GetValue( "tRCD" ) );
+      nextActivate = MAX( nextActivate, currentCycle + refreshRows * p->tRFC );
 
       state = BANK_REFRESHING;
-      nextRefreshDone = currentCycle + refreshRows * conf->GetValue( "tRCD" );
+      nextRefreshDone = currentCycle + refreshRows * p->tRFC;
        
-      refreshRowIndex = (refreshRowIndex + refreshRows) % conf->GetValue( "ROWS" );
+      refreshRowIndex = (refreshRowIndex + refreshRows) % p->ROWS;
 
       /*
        *  tRFI is the minimum refresh time for all rows. If we don't refresh the entire
        *  bank we need to calculate when the next refresh will occur.. 
        */
-      nextRefresh = currentCycle + ((conf->GetValue( "tRFI" )) / (conf->GetValue( "ROWS" ) / refreshRows));
+      nextRefresh = currentCycle + ((p->tRFI) / (p->ROWS / refreshRows));
       
-      if( conf->KeyExists( "EnergyModel" ) && conf->GetString( "EnergyModel" ) == "current" )
+      if( p->EnergyModel_set && p->EnergyModel == "current" )
         {
-          bankEnergy += (float)((conf->GetValue( "EIDD5B" ) - conf->GetValue( "EIDD3N" )) * conf->GetValue( "tRCD" ) * refreshRows); 
+          bankEnergy += (float)((p->EIDD5B - p->EIDD3N) * (float)p->tRFC * (float)refreshRows); 
 
-          refreshEnergy += (float)((conf->GetValue( "EIDD5B" ) - conf->GetValue( "EIDD3N" )) * conf->GetValue( "tRCD" ) * refreshRows); 
+          refreshEnergy += (float)((p->EIDD5B - p->EIDD3N) * (float)p->tRFC * (float)refreshRows); 
         }
       else
         {
-          bankEnergy += conf->GetEnergy( "Eref" );
+          bankEnergy += p->Eref;
 
-          refreshEnergy += conf->GetEnergy( "Eref" );
+          refreshEnergy += p->Eref;
         }
 
       returnValue = true;
@@ -724,7 +720,7 @@ bool Bank::Refresh( )
 }
 
 
-bool Bank::IsIssuable( MemOp *mop, ncycle_t delay )
+bool Bank::IsIssuable( NVMainRequest *req, ncycle_t delay )
 {
   uint64_t opRank;
   uint64_t opBank;
@@ -732,13 +728,13 @@ bool Bank::IsIssuable( MemOp *mop, ncycle_t delay )
   uint64_t opCol;
   bool rv = true;
 
-  mop->GetAddress( ).GetTranslatedAddress( &opRow, &opCol, &opBank, &opRank, NULL );
+  req->address.GetTranslatedAddress( &opRow, &opCol, &opBank, &opRank, NULL );
 
   if( nextCommand != CMD_NOP )
     return false;
     
 
-  if( mop->GetOperation( ) == ACTIVATE )
+  if( req->type == ACTIVATE )
     {
       if( nextActivate > (currentCycle+delay) || state != BANK_CLOSED )
         rv = false;
@@ -756,40 +752,39 @@ bool Bank::IsIssuable( MemOp *mop, ncycle_t delay )
             }
         }
     }
-  else if( mop->GetOperation( ) == READ )
+  else if( req->type == READ )
     {
       if( nextRead > (currentCycle+delay) || state != BANK_OPEN || opRow != openRow )
         rv = false;
     }
-  else if( mop->GetOperation( ) == WRITE )
+  else if( req->type == WRITE )
     {
       if( nextWrite > (currentCycle+delay) || state != BANK_OPEN || opRow != openRow )
         rv = false;
     }
-  else if( mop->GetOperation( ) == PRECHARGE )
+  else if( req->type == PRECHARGE )
     {
       if( nextPrecharge > (currentCycle+delay) || state != BANK_OPEN )
         rv = false;
     }
-  else if( mop->GetOperation( ) == POWERDOWN_PDA || mop->GetOperation( ) == POWERDOWN_PDPF
-       || mop->GetOperation( ) == POWERDOWN_PDPS )
+  else if( req->type == POWERDOWN_PDA || req->type == POWERDOWN_PDPF || req->type == POWERDOWN_PDPS )
     {
       if( nextPowerDown > (currentCycle+delay) || ( state != BANK_OPEN && state != BANK_CLOSED ) )
         rv = false;
     }
-  else if( mop->GetOperation( ) == POWERUP )
+  else if( req->type == POWERUP )
     {
       if( nextPowerUp > (currentCycle+delay) || ( state != BANK_PDPF && state != BANK_PDPS && state != BANK_PDA ) )
         rv = false;
     }
-  else if( mop->GetOperation( ) == REFRESH )
+  else if( req->type == REFRESH )
     {
       if( nextRefresh > (currentCycle+delay) || state != BANK_CLOSED )
         rv = false;
     }
   else
     {
-      std::cout << "Bank: IsIssuable: Unknown operation: " << mop->GetOperation( ) << std::endl;
+      std::cout << "Bank: IsIssuable: Unknown operation: " << req->type << std::endl;
       rv = false;
     }
 
@@ -820,18 +815,18 @@ float Bank::GetPower( )
   /*
    *
    */
-  float simulationTime = (float)((float)currentCycle / ((float)conf->GetValue( "CLK" ) * 1000000.0f));
+  float simulationTime = (float)((float)currentCycle / ((float)p->CLK * 1000000.0f));
   float power = 0.0f;
 
   if( simulationTime == 0.0f )
     return 0.0f;
 
-  if( conf->KeyExists( "EnergyModel" ) && conf->GetString( "EnergyModel" ) == "current" )
+  if( p->EnergyModel_set && p->EnergyModel == "current" )
     {
-      power = ((backgroundEnergy / (float)currentCycle) * conf->GetEnergy( "Voltage" )) / 1000.0f;
-      power = ((activeEnergy / (float)currentCycle) * conf->GetEnergy( "Voltage" )) / 1000.0f;
-      power = ((refreshEnergy / (float)currentCycle) * conf->GetEnergy( "Voltage" )) / 1000.0f;
-      power = ((bankEnergy / (float)currentCycle) * conf->GetEnergy( "Voltage" )) / 1000.0f;
+      power = ((backgroundEnergy / (float)currentCycle) * p->Voltage) / 1000.0f;
+      power = ((activeEnergy / (float)currentCycle) * p->Voltage) / 1000.0f;
+      power = ((refreshEnergy / (float)currentCycle) * p->Voltage) / 1000.0f;
+      power = ((bankEnergy / (float)currentCycle) * p->Voltage) / 1000.0f;
     }
   else
     power = ((bankEnergy / 1000000.0f) / simulationTime);
@@ -872,8 +867,8 @@ void Bank::PrintStats( )
   float idealBandwidth;
 
 
-  idealBandwidth = (float)(conf->GetValue( "CLK" ) * conf->GetValue( "MULT" ) * 
-                   conf->GetValue( "RATE" ) * conf->GetValue( "BPC" ));
+  idealBandwidth = (float)(p->CLK * p->MULT * 
+                   p->RATE * p->BPC);
 
   if( activeCycles != 0 )
     utilization = (float)((float)dataCycles / (float)activeCycles);
@@ -881,7 +876,7 @@ void Bank::PrintStats( )
     utilization = 0.0f;
 
 
-  if( conf->KeyExists( "EnergyModel" ) && conf->GetString( "EnergyModel" ) == "current" )
+  if( p->EnergyModel_set && p->EnergyModel == "current" )
     {
       std::cout << "i" << psInterval << "." << statName << ".current " << bankEnergy << "\t; mA" << std::endl;
       std::cout << "i" << psInterval << "." << statName << ".current.background " << backgroundEnergy << "\t; mA" << std::endl;
@@ -948,15 +943,15 @@ void Bank::Cycle( )
    */
   if( nextCommand != CMD_NOP )
     {
-      MemOp mop;
+      NVMainRequest req;
       BulkCommand bulkCmd;
 
-      mop.SetAddress( lastOperation.address );
+      req.address = lastOperation.address;
       
       switch( nextCommand )
         {
         case CMD_PDPF:
-          mop.SetOperation( POWERDOWN_PDPF );
+          req.type = POWERDOWN_PDPF;
           lastOperation.type = POWERDOWN_PDPF;
           break;
 
@@ -964,13 +959,13 @@ void Bank::Cycle( )
         case CMD_ACT_WRITE_PRE_PDPF:
         case CMD_ACTREADPRE:
         case CMD_ACTWRITEPRE:
-          mop.SetOperation( ACTIVATE );
+          req.type = ACTIVATE;
           lastOperation.type = ACTIVATE;
           break;
 
         case CMD_PRE:
         case CMD_PRE_PDPF:
-          mop.SetOperation( PRECHARGE );
+          req.type = PRECHARGE;
           lastOperation.type = PRECHARGE;
           break;
 
@@ -979,7 +974,7 @@ void Bank::Cycle( )
         case CMD_READ3PRE:
         case CMD_READ4PRE:
         case CMD_READ_PRE_PDPF:
-          mop.SetOperation( READ );
+          req.type = READ;
           lastOperation.type = READ;
           break;
 
@@ -988,7 +983,7 @@ void Bank::Cycle( )
         case CMD_WRITE3PRE:
         case CMD_WRITE4PRE:
         case CMD_WRITE_PRE_PDPF:
-          mop.SetOperation( WRITE );
+          req.type = WRITE;
           lastOperation.type = WRITE;
           break;
 
@@ -1005,12 +1000,12 @@ void Bank::Cycle( )
        */
       bulkCmd = nextCommand;
       nextCommand = CMD_NOP;
-      if( IsIssuable( &mop ) )
+      if( IsIssuable( &req ) )
         {
           nextCommand = bulkCmd;
           lastOperation.bulkCmd = bulkCmd;
 
-          switch( mop.GetOperation( ) )
+          switch( req.type )
             {
             case PRECHARGE:
               Precharge( &lastOperation );
@@ -1058,10 +1053,10 @@ void Bank::Cycle( )
   /*
   if( idleTimer > 10 && state == BANK_CLOSED )
     {
-      MemOp testOp;
+      NVMainRequest testReq;
 
-      testOp.SetOperation( POWERDOWN_PDPF );
-      if( IsIssuable( &testOp ) )
+      testReq = POWERDOWN_PDPF;
+      if( IsIssuable( &testReq ) )
         PowerDown( BANK_PDPSWAIT );
     }
   */
@@ -1134,7 +1129,7 @@ void Bank::Cycle( )
 
 
   /* Inhibit some graph output by default. */
-  if( conf->KeyExists( "PrintAllDevices" ) && conf->GetString( "PrintAllDevices" ) == "true" )
+  if( p->PrintAllDevices_set && p->PrintAllDevices )
     {
       bankGraph->Cycle( );
     }
@@ -1154,7 +1149,7 @@ void Bank::Cycle( )
     {
       if( it->second == 0 )
         {
-          it->first->issueInterconnect->RequestComplete( it->first );
+          GetParent( )->RequestComplete( it->first );
           notifyComplete.erase( it );
         }
       else

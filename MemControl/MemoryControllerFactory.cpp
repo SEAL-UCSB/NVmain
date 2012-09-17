@@ -32,18 +32,14 @@ MemoryController *MemoryControllerFactory::CreateNewController( std::string cont
 
   if( controller == "SimpleClosePage" )
     memoryController = new SimpleClosePage( memory, translator );
-  else if( controller == "TestController" )
-    memoryController = new TestController( memory, translator );
   else if( controller == "StackFCFSTimer" )
     memoryController = new StackFCFSTimer( memory, translator );
   else if( controller == "FRFCFS" )
     memoryController = new FRFCFS( memory, translator );
-  else if( controller == "StatController" )
-    memoryController = new StatController( memory, translator );
   else if( controller == "PerfectMemory" )
     memoryController = new PerfectMemory( memory, translator );
-  else if( controller == "DRCController" )
-    memoryController = new DRCController( memory, translator );
+  //else if( controller == "DRCController" )
+  //  memoryController = new DRCController( memory, translator );
 
   if( memoryController == NULL )
     std::cout << "NVMain: Unknown memory controller `" << controller << "'." << std::endl;

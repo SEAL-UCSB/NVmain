@@ -24,18 +24,21 @@ using namespace NVM;
 
 MemoryController::MemoryController( )
 {
-  commandQueue = NULL;
+  transactionQueues = NULL;
   memory = NULL;
   translator = NULL;
   currentCycle = 0;
   this->SendCallback = NULL;
   this->RecvCallback = NULL;
 
-  InitQueues( 1 );
-
   refreshUsed = false;
   refreshWaitQueue.clear( );
   refreshNeeded = NULL;
+
+  starvationThreshold = 4;
+  starvationCounter = NULL;
+  activateQueued = NULL;
+  effectiveRow = NULL;
 }
 
 MemoryController::MemoryController( Interconnect *memory, AddressTranslator *translator )
@@ -43,7 +46,7 @@ MemoryController::MemoryController( Interconnect *memory, AddressTranslator *tra
   this->memory = memory;
   this->translator = translator;
 
-  commandQueue = NULL;
+  transactionQueues = NULL;
 }
 
 AddressTranslator *MemoryController::GetAddressTranslator( )
@@ -54,13 +57,13 @@ AddressTranslator *MemoryController::GetAddressTranslator( )
 
 void MemoryController::InitQueues( unsigned int numQueues )
 {
-  if( commandQueue != NULL )
-    delete [] commandQueue;
+  if( transactionQueues != NULL )
+    delete [] transactionQueues;
 
-  commandQueue = new std::vector<MemOp *>[numQueues];
+  transactionQueues = new NVMTransactionQueue[ numQueues ];
 
   for( unsigned int i = 0; i < numQueues; i++ )
-    commandQueue[i].clear( );
+    transactionQueues[i].clear( );
 }
 
 
@@ -72,40 +75,40 @@ void MemoryController::InitQueues( unsigned int numQueues )
  */
 void MemoryController::Cycle( )
 {
-  MemOp *nextOp;
+  NVMainRequest *nextReq;
   
   /*
    *  Check if the queue is empty, if not, we will attempt to issue the command to memory.
    */
-  if( !commandQueue[0].empty() )
+  if( !transactionQueues[0].empty() )
     {
       /*
        *  Get the first transaction from the queue.
        */
-      nextOp = commandQueue[0].front( );
+      nextReq = transactionQueues[0].front( );
 	
       /*
        *  Find out if the command can be issued.
        */
-      if( memory->IsIssuable( nextOp ) )
+      if( memory->IsIssuable( nextReq ) )
         {
-          if( nextOp->GetOperation( ) == READ )
+          if( nextReq->type == READ )
             {
-              EndCommand( nextOp, ENDMODE_CRITICAL_WORD_FIRST );
+              EndCommand( nextReq, ENDMODE_CRITICAL_WORD_FIRST );
             }
-          else if( nextOp->GetOperation( ) == WRITE )
+          else if( nextReq->type == WRITE )
             {
-              EndCommand( nextOp, ENDMODE_NORMAL );
+              EndCommand( nextReq, ENDMODE_NORMAL );
             }
 
-          nextOp->GetRequest( )->issueCycle = currentCycle;
+          nextReq->issueCycle = currentCycle;
 
           /*
            *  If we can issue, send 
            */
-          memory->IssueCommand( nextOp );
+          memory->IssueCommand( nextReq );
 
-          commandQueue[0].erase( commandQueue[0].begin( ) );
+          transactionQueues[0].erase( transactionQueues[0].begin( ) );
         }
     }
 
@@ -117,7 +120,7 @@ void MemoryController::Cycle( )
 
 void MemoryController::FlushCompleted( )
 {
-  std::map<MemOp *, unsigned int>::iterator it;
+  std::map<NVMainRequest *, ncycle_t>::iterator it;
 
 
   for( it = completedCommands.begin( ); it != completedCommands.end( ); it++ )
@@ -126,7 +129,8 @@ void MemoryController::FlushCompleted( )
         {
           //std::cout << "MC: 0x" << std::hex << it->first->GetRequest( )->address.GetPhysicalAddress( )
           //          << std::dec << " completed" << std::endl;
-          it->first->GetRequest( )->status = MEM_REQUEST_COMPLETE;
+          it->first->status = MEM_REQUEST_COMPLETE;
+
           //std::cout << "Marking request 0x" << std::hex << (void*)it->first->GetRequest( ) << std::dec 
           //          << "completed" << std::endl;
           completedCommands.erase( it );
@@ -139,15 +143,23 @@ void MemoryController::FlushCompleted( )
 }
 
 
-void MemoryController::RequestComplete( NVMainRequest * /*request*/ )
+bool MemoryController::RequestComplete( NVMainRequest *request )
 {
+  bool rv = false;
 
+  if( request->owner == this )
+    {
+      delete request;
+      rv = true;
+    }
+
+  return rv;
 }
 
 
-void MemoryController::EndCommand( MemOp* mop, MCEndMode endMode, unsigned int customTime )
+void MemoryController::EndCommand( NVMainRequest* req, MCEndMode endMode, ncycle_t customTime )
 {
-  unsigned int endTime;
+  ncycle_t endTime;
 
   if( endMode == ENDMODE_CRITICAL_WORD_FIRST )
     {
@@ -156,23 +168,23 @@ void MemoryController::EndCommand( MemOp* mop, MCEndMode endMode, unsigned int c
        *  is greater than or equal to half the word size (in DDR), or the 
        *  bus size is greater then or equal to the word size (in SDR).
        */
-      endTime = config->GetValue( "tCAS" ) + 1; 
+      endTime = p->tCAS + 1; 
 
-      completedCommands.insert( std::pair<MemOp *, unsigned int>( mop, endTime ) );
+      completedCommands.insert( std::pair<NVMainRequest *, ncycle_t>( req, endTime ) );
     }
   else if( endMode == ENDMODE_NORMAL )
     {
-      endTime = config->GetValue( "tCAS" ) + config->GetValue( "tBURST" );
+      endTime = p->tCAS + p->tBURST;
 
-      completedCommands.insert( std::pair<MemOp *, unsigned int>( mop, endTime ) );
+      completedCommands.insert( std::pair<NVMainRequest *, ncycle_t>( req, endTime ) );
     }
   else if( endMode == ENDMODE_IMMEDIATE )
     {
-      mop->GetRequest( )->status = MEM_REQUEST_COMPLETE;
+      req->status = MEM_REQUEST_COMPLETE;
     }
   else if( endMode == ENDMODE_CUSTOM )
     {
-      completedCommands.insert( std::pair<MemOp *, unsigned int>( mop, customTime ) );
+      completedCommands.insert( std::pair<NVMainRequest *, ncycle_t>( req, customTime ) );
     }
   else
     {
@@ -192,8 +204,8 @@ void MemoryController::SetMemory( Interconnect *mem )
 {
   this->memory = mem;
 
-  NVMNetNode *parentInfo = new NVMNetNode( NVMNETDESTTYPE_MC, 0, 0, 0 );
-  memory->AddParent( this, parentInfo );
+  AddChild( mem );
+  mem->SetParent( this );
 }
 
 
@@ -221,17 +233,39 @@ AddressTranslator *MemoryController::GetTranslator( )
 void MemoryController::SetConfig( Config *conf )
 {
   this->config = conf;
+
+  Params *params = new Params( );
+  params->SetParams( conf );
+  SetParams( params );
   
-  if( conf->GetString( "UseRefresh" ) == "true" )
+  if( p->UseRefresh_set && p->UseRefresh )
     {
       refreshUsed = true;
-      refreshNeeded = new bool*[ conf->GetValue( "RANKS" ) ];
-      for( int i = 0; i < conf->GetValue( "RANKS" ); i++ )
-        refreshNeeded[i] = new bool[ conf->GetValue( "BANKS" ) ];
+      refreshNeeded = new bool*[ p->RANKS ];
+      for( ncounter_t i = 0; i < p->RANKS; i++ )
+        refreshNeeded[i] = new bool[ p->BANKS ];
 
-      for( int i = 0; i < config->GetValue( "RANKS" ); i++ )
-        for( int j = 0; j < config->GetValue( "BANKS" ); j++ )
+      for( ncounter_t i = 0; i < p->RANKS; i++ )
+        for( ncounter_t j = 0; j < p->BANKS; j++ )
           refreshNeeded[i][j] = false;
+    }
+
+  bankQueues = new std::deque<NVMainRequest *> * [p->RANKS];
+  starvationCounter = new unsigned int * [p->RANKS];
+  activateQueued = new bool * [p->RANKS];
+  effectiveRow = new uint64_t * [p->RANKS];
+  for( ncounter_t i = 0; i < p->RANKS; i++ )
+    {
+      bankQueues[i] = new std::deque<NVMainRequest *> [p->BANKS];
+      starvationCounter[i] = new unsigned int[p->BANKS];
+      activateQueued[i] = new bool[p->BANKS];
+      effectiveRow[i] = new uint64_t[p->BANKS];
+      for( ncounter_t j = 0; j < p->BANKS; j++ )
+        {
+          starvationCounter[i][j] = 0;
+          activateQueued[i][j] = false;
+          effectiveRow[i][j] = 0;
+        }
     }
 }
 
@@ -245,6 +279,229 @@ Config *MemoryController::GetConfig( )
 void MemoryController::SetID( unsigned int id )
 {
   this->id = id;
+}
+
+
+NVMainRequest *MemoryController::MakeActivateRequest( NVMainRequest *triggerRequest )
+{
+  NVMainRequest *activateRequest = new NVMainRequest( );
+
+  activateRequest->type = ACTIVATE;
+  activateRequest->issueCycle = currentCycle;
+  activateRequest->address = triggerRequest->address;
+  activateRequest->owner = this;
+
+  return activateRequest;
+}
+
+
+NVMainRequest *MemoryController::MakePrechargeRequest( NVMainRequest *triggerRequest )
+{
+  NVMainRequest *prechargeRequest = new NVMainRequest( );
+
+  prechargeRequest->type = PRECHARGE;
+  prechargeRequest->issueCycle = currentCycle;
+  prechargeRequest->address = triggerRequest->address;
+  prechargeRequest->owner = this;
+
+  return prechargeRequest;
+}
+
+
+bool MemoryController::FindStarvedRequest( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **starvedRequest )
+{
+  bool rv = false;
+  std::list<NVMainRequest *>::iterator it;
+
+  for( it = transactionQueue.begin(); it != transactionQueue.end(); it++ )
+    {
+      uint64_t rank, bank, row;
+
+      (*it)->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
+
+      if( activateQueued[rank][bank] && effectiveRow[rank][bank] != row    /* The effective row is not the row of this request. */
+          && starvationCounter[rank][bank] >= starvationThreshold          /* This bank has reached it's starvation threshold. */
+          && bankQueues[rank][bank].empty() )                              /* No requests are currently issued to this bank. */
+        {
+          *starvedRequest = (*it);
+          transactionQueue.erase( it );
+
+          rv = true;
+          break;
+        }
+    }
+
+  return rv;
+}
+
+
+
+bool MemoryController::FindRowBufferHit( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **hitRequest )
+{
+  bool rv = false;
+  std::list<NVMainRequest *>::iterator it;
+
+  for( it = transactionQueue.begin(); it != transactionQueue.end(); it++ )
+    {
+      uint64_t rank, bank, row;
+
+      (*it)->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
+
+      if( activateQueued[rank][bank] && effectiveRow[rank][bank] == row    /* The effective row is the row of this request. */
+          && bankQueues[rank][bank].empty() )                              /* No requests are currently issued to this bank. */
+        {
+          *hitRequest = (*it);
+          transactionQueue.erase( it );
+
+          rv = true;
+          break;
+        }
+    }
+
+  return rv;
+}
+
+
+
+bool MemoryController::FindOldestReadyRequest( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **oldestRequest )
+{
+  bool rv = false;
+  std::list<NVMainRequest *>::iterator it;
+
+  for( it = transactionQueue.begin(); it != transactionQueue.end(); it++ )
+    {
+      uint64_t rank, bank, row;
+
+      (*it)->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
+
+      if( activateQueued[rank][bank] && effectiveRow[rank][bank] != row    /* The effective row is not the row of this request. */
+          && bankQueues[rank][bank].empty() )                              /* No requests are currently issued to this bank (Ready). */
+        {
+          *oldestRequest = (*it);
+          transactionQueue.erase( it );
+          
+          rv = true;
+          break;
+        }
+    }
+
+  return rv;
+}
+
+
+
+
+bool MemoryController::FindClosedBankRequest( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **closedRequest )
+{
+  bool rv = false;
+  std::list<NVMainRequest *>::iterator it;
+
+  for( it = transactionQueue.begin(); it != transactionQueue.end(); it++ )
+    {
+      uint64_t rank, bank, row;
+
+      (*it)->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
+
+      if( !activateQueued[rank][bank]                                      /* This bank is closed, anyone can issue. */
+          && bankQueues[rank][bank].empty() )                              /* No requests are currently issued to this bank (Ready). */
+        {
+          *closedRequest = (*it);
+          transactionQueue.erase( it );
+          
+          rv = true;
+          break;
+        }
+    }
+
+  return rv;
+}
+
+
+bool MemoryController::IssueMemoryCommands( NVMainRequest *req )
+{
+  bool rv = false;
+  uint64_t rank, bank, row;
+
+  req->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
+
+  if( !activateQueued[rank][bank] && bankQueues[rank][bank].empty() )
+    {
+      /* Any activate will request the starvation counter */
+      starvationCounter[rank][bank] = 0;
+      activateQueued[rank][bank] = true;
+      effectiveRow[rank][bank] = row;
+
+      req->issueCycle = currentCycle;
+
+      bankQueues[rank][bank].push_back( MakeActivateRequest( req ) );
+      bankQueues[rank][bank].push_back( req );
+
+      rv = true;
+    }
+  else if( activateQueued[rank][bank] && effectiveRow[rank][bank] != row && bankQueues[rank][bank].empty() )
+    {
+      /* Any activate will request the starvation counter */
+      starvationCounter[rank][bank] = 0;
+      activateQueued[rank][bank] = true;
+      effectiveRow[rank][bank] = row;
+
+      req->issueCycle = currentCycle;
+
+      bankQueues[rank][bank].push_back( MakePrechargeRequest( req ) );
+      bankQueues[rank][bank].push_back( MakeActivateRequest( req ) );
+      bankQueues[rank][bank].push_back( req );
+
+      rv = true;
+    }
+  else if( activateQueued[rank][bank] && effectiveRow[rank][bank] == row )
+    {
+      starvationCounter[rank][bank]++;
+
+      req->issueCycle = currentCycle;
+
+      bankQueues[rank][bank].push_back( req );
+
+      rv = true;
+    }
+  else
+    {
+      rv = false;
+    }
+
+  return rv;
+}
+
+
+void MemoryController::CycleCommandQueues( )
+{
+  for( unsigned int i = 0; i < p->RANKS; i++ )
+    {
+      for( unsigned int j = 0; j < p->BANKS; j++ )
+        {
+          if( !bankQueues[i][j].empty( )
+              && memory->IsIssuable( bankQueues[i][j].at( 0 ) ) )
+            {
+              memory->IssueCommand( bankQueues[i][j].at( 0 ) );
+
+              bankQueues[i][j].erase( bankQueues[i][j].begin( ) );
+            }
+          else if( !bankQueues[i][j].empty( ) )
+            {
+              NVMainRequest *queueHead = bankQueues[i][j].at( 0 );
+
+              if( ( currentCycle - queueHead->issueCycle ) > 1000000 )
+                {
+                  std::cout << "WARNING: Operation could not be sent to memory after a very long time: "
+                            << std::endl; 
+                  std::cout << "         Address: 0x" << std::hex 
+                            << queueHead->address.GetPhysicalAddress( )
+                            << std::dec << ". Queued time: " << queueHead->arrivalCycle
+                            << ". Current time: " << currentCycle << ". Type: " 
+                            << queueHead->type << std::endl;
+                }
+            }
+        }
+    }
 }
 
 
@@ -317,20 +574,15 @@ void MemoryController::PrintStats( )
 
 
 
-MemOp *MemoryController::BuildRefreshRequest( int rank, int bank )
+NVMainRequest *MemoryController::BuildRefreshRequest( int rank, int bank )
 {
-  MemOp *refOp = new MemOp( );
   NVMainRequest * refReq = new NVMainRequest( );
 
   refReq->address.SetTranslatedAddress( 0, 0, bank, rank, 0 ); 
   refReq->type = REFRESH;
   refReq->bulkCmd = CMD_NOP;
 
-  refOp->SetAddress( refReq->address );
-  refOp->SetOperation( REFRESH );
-  refOp->SetRequest( refReq );
-
-  return refOp;
+  return refReq;
 }
 
 
