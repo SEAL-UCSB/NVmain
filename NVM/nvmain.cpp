@@ -34,6 +34,11 @@
 using namespace NVM;
 
 
+//namespace NVM {
+//uint64_t g_requests_alloced;
+//};
+
+
 NVMain::NVMain( )
 {
   config = NULL;
@@ -312,6 +317,31 @@ int NVMain::NewRequest( NVMainRequest *request )
         }
     }
 
+  return mc_rv;
+}
+
+
+int NVMain::AtomicRequest( NVMainRequest *request )
+{
+  uint64_t channel, rank, bank, row, col;
+  int mc_rv;
+
+  if( !config )
+    {
+      std::cout << "NVMain: Received request before configuration!\n";
+      return false;
+    }
+
+
+  /*
+   *  Translate the address, then copy to the address struct, and copy to request.
+   */
+  translator->Translate( request->address.GetPhysicalAddress( ), &row, &col, &bank, &rank, &channel );
+  request->address.SetTranslatedAddress( row, col, bank, rank, channel );
+  request->bulkCmd = CMD_NOP;
+
+  mc_rv = memoryControllers[channel]->IssueAtomic( request );
+  
   return mc_rv;
 }
 

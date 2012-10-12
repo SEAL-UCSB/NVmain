@@ -48,6 +48,7 @@ class NVMain : public NVMObject
   void SetParams( Params *params ) { p = params; } 
 
   int  NewRequest( NVMainRequest *request );
+  int  AtomicRequest( NVMainRequest *request );
   bool CanIssue( NVMainRequest *request );
 
   void PrintStats( );

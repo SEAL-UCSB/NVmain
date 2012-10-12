@@ -64,6 +64,8 @@ enum BulkCommand { CMD_NOP = 0,
 
 class NVMObject;
 
+//extern uint64_t g_requests_alloced;
+
 
 class NVMainRequest
 {
@@ -81,10 +83,14 @@ class NVMainRequest
       isPrefetch = false; 
       programCounter = 0; 
       owner = NULL;
+      //g_requests_alloced++;
+      //std::cout << g_requests_alloced << " NVMainRequests allocated. " << std::endl;
   };
 
   ~NVMainRequest( )
   { 
+      //int a;
+      //if( (void*)this < (void*)&a ) g_requests_alloced--;
   };
 
   NVMAddress address;            //< Address of request
@@ -107,6 +113,7 @@ class NVMainRequest
   ncycle_t completionCycle;      //< When the request was sent back to the requestor
 
   NVMainRequest operator=( NVMainRequest m );
+  bool operator<( NVMainRequest m ) const;
 };
 
 
@@ -133,6 +140,13 @@ NVMainRequest NVMainRequest::operator=( NVMainRequest m )
   completionCycle = m.completionCycle;
 
   return *this; 
+}
+
+
+inline
+bool NVMainRequest::operator<( NVMainRequest m ) const
+{
+    return ( this < &m );
 }
 
 

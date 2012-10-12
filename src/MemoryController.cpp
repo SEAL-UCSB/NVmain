@@ -308,7 +308,16 @@ NVMainRequest *MemoryController::MakePrechargeRequest( NVMainRequest *triggerReq
 }
 
 
+
 bool MemoryController::FindStarvedRequest( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **starvedRequest )
+{
+  DummyPredicate pred;
+
+  return FindStarvedRequest( transactionQueue, starvedRequest, pred );
+}
+
+
+bool MemoryController::FindStarvedRequest( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **starvedRequest, SchedulingPredicate& pred )
 {
   bool rv = false;
   std::list<NVMainRequest *>::iterator it;
@@ -321,7 +330,8 @@ bool MemoryController::FindStarvedRequest( std::list<NVMainRequest *>& transacti
 
       if( activateQueued[rank][bank] && effectiveRow[rank][bank] != row    /* The effective row is not the row of this request. */
           && starvationCounter[rank][bank] >= starvationThreshold          /* This bank has reached it's starvation threshold. */
-          && bankQueues[rank][bank].empty() )                              /* No requests are currently issued to this bank. */
+          && bankQueues[rank][bank].empty()                                /* No requests are currently issued to this bank. */
+          && pred( rank, bank ) )                                          /* User-defined predicate is true. */
         {
           *starvedRequest = (*it);
           transactionQueue.erase( it );
@@ -338,6 +348,15 @@ bool MemoryController::FindStarvedRequest( std::list<NVMainRequest *>& transacti
 
 bool MemoryController::FindRowBufferHit( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **hitRequest )
 {
+  DummyPredicate pred;
+
+  return FindRowBufferHit( transactionQueue, hitRequest, pred );
+}
+
+
+
+bool MemoryController::FindRowBufferHit( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **hitRequest, SchedulingPredicate& pred )
+{
   bool rv = false;
   std::list<NVMainRequest *>::iterator it;
 
@@ -348,7 +367,8 @@ bool MemoryController::FindRowBufferHit( std::list<NVMainRequest *>& transaction
       (*it)->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
 
       if( activateQueued[rank][bank] && effectiveRow[rank][bank] == row    /* The effective row is the row of this request. */
-          && bankQueues[rank][bank].empty() )                              /* No requests are currently issued to this bank. */
+          && bankQueues[rank][bank].empty()                                /* No requests are currently issued to this bank. */
+          && pred( rank, bank ) )                                          /* User-defined predicate is true. */
         {
           *hitRequest = (*it);
           transactionQueue.erase( it );
@@ -365,6 +385,14 @@ bool MemoryController::FindRowBufferHit( std::list<NVMainRequest *>& transaction
 
 bool MemoryController::FindOldestReadyRequest( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **oldestRequest )
 {
+  DummyPredicate pred;
+
+  return FindOldestReadyRequest( transactionQueue, oldestRequest, pred );
+}
+
+
+bool MemoryController::FindOldestReadyRequest( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **oldestRequest, SchedulingPredicate& pred )
+{
   bool rv = false;
   std::list<NVMainRequest *>::iterator it;
 
@@ -375,7 +403,8 @@ bool MemoryController::FindOldestReadyRequest( std::list<NVMainRequest *>& trans
       (*it)->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
 
       if( activateQueued[rank][bank] && effectiveRow[rank][bank] != row    /* The effective row is not the row of this request. */
-          && bankQueues[rank][bank].empty() )                              /* No requests are currently issued to this bank (Ready). */
+          && bankQueues[rank][bank].empty()                                /* No requests are currently issued to this bank (Ready). */
+          && pred( rank, bank ) )                                          /* User-defined predicate is true. */
         {
           *oldestRequest = (*it);
           transactionQueue.erase( it );
@@ -389,9 +418,15 @@ bool MemoryController::FindOldestReadyRequest( std::list<NVMainRequest *>& trans
 }
 
 
-
-
 bool MemoryController::FindClosedBankRequest( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **closedRequest )
+{
+  DummyPredicate pred;
+
+  return FindClosedBankRequest( transactionQueue, closedRequest, pred );
+}
+
+
+bool MemoryController::FindClosedBankRequest( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **closedRequest, SchedulingPredicate& pred )
 {
   bool rv = false;
   std::list<NVMainRequest *>::iterator it;
@@ -403,7 +438,8 @@ bool MemoryController::FindClosedBankRequest( std::list<NVMainRequest *>& transa
       (*it)->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
 
       if( !activateQueued[rank][bank]                                      /* This bank is closed, anyone can issue. */
-          && bankQueues[rank][bank].empty() )                              /* No requests are currently issued to this bank (Ready). */
+          && bankQueues[rank][bank].empty()                                /* No requests are currently issued to this bank (Ready). */
+          && pred( rank, bank ) )                                          /* User defined predicate is true. */
         {
           *closedRequest = (*it);
           transactionQueue.erase( it );
@@ -414,6 +450,12 @@ bool MemoryController::FindClosedBankRequest( std::list<NVMainRequest *>& transa
     }
 
   return rv;
+}
+
+
+bool MemoryController::DummyPredicate::operator() (uint64_t, uint64_t)
+{
+  return true;
 }
 
 
@@ -503,6 +545,7 @@ void MemoryController::CycleCommandQueues( )
         }
     }
 }
+
 
 
 void MemoryController::SendMessage( unsigned int dest, void *message, int latency )

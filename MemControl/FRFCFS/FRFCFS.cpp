@@ -148,6 +148,9 @@ bool FRFCFS::IssueCommand( NVMainRequest *req )
   cpu_insts = static_cast<uint64_t>(face->GetInstructionCount( 0 ));
 #endif 
 
+  //std::cout << "Request for 0x" << std::hex << req->address.GetPhysicalAddress( ) << std::dec
+  //          << " arrived at " << req->arrivalCycle << std::endl;
+
   /*
    *  Return whether the request could be queued. Return false if the queue is full.
    */
@@ -176,7 +179,8 @@ bool FRFCFS::RequestComplete( NVMainRequest * request )
                           / static_cast<float>(measuredQueueLatencies+1);
       measuredQueueLatencies += 1;
 
-      //std::cout << "Request arriving at " << request->arrivalCycle << " and issued at "
+      //std::cout << "Request for 0x" << std::hex << request->address.GetPhysicalAddress( ) << std::dec
+      //          << " arriving at " << request->arrivalCycle << " and issued at "
       //          << request->issueCycle << " completed at " << currentCycle << std::endl;
     }
 
@@ -225,6 +229,7 @@ void FRFCFS::Cycle( )
   /* Issue the commands for this transaction. */
   if( nextRequest != NULL )
     {
+      //std::cout << "Issuing request 0x" << std::hex << nextRequest->address.GetPhysicalAddress( ) << std::dec << std::endl;
       IssueMemoryCommands( nextRequest );
     }
 
