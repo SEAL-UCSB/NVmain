@@ -44,6 +44,7 @@ class NVMObject
 
   virtual bool IssueCommand( NVMainRequest *req );
   virtual bool IsIssuable( NVMainRequest *req, ncycle_t delay = 0 );
+  virtual bool IssueAtomic( NVMainRequest *req );
 
   virtual bool RequestComplete( NVMainRequest *req );
 

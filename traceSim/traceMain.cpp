@@ -174,6 +174,7 @@ int main( int argc, char *argv[] )
         }
     }       
 
+  nvmain->PrintStats( );
 
   std::cout << "Exiting at cycle " << currentCycle << " because simCycles " << simulateCycles 
             << " reached." << std::endl; 

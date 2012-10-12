@@ -47,6 +47,16 @@ enum MCEndMode { ENDMODE_NORMAL,              // End command when all data is re
                  ENDMODE_COUNT
 };
 
+class SchedulingPredicate
+{
+ public:
+  SchedulingPredicate( ) { }
+  ~SchedulingPredicate( ) { }
+
+  virtual bool operator() (uint64_t, uint64_t) { return true; }
+};
+
+
 
 class MemoryController : public NVMObject 
 {
@@ -114,6 +124,17 @@ class MemoryController : public NVMObject
   bool FindClosedBankRequest( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **closedRequest );
   bool IssueMemoryCommands( NVMainRequest *req );
   void CycleCommandQueues( );
+
+  bool FindStarvedRequest( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **starvedRequest, NVM::SchedulingPredicate& p );
+  bool FindRowBufferHit( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **hitRequest, NVM::SchedulingPredicate& p );
+  bool FindOldestReadyRequest( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **oldestRequest, NVM::SchedulingPredicate& p );
+  bool FindClosedBankRequest( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **closedRequest, NVM::SchedulingPredicate& p );
+  
+  class DummyPredicate : public SchedulingPredicate
+  {
+   public:
+    bool operator() (uint64_t, uint64_t);
+  };
 
   uint64_t currentCycle;
 

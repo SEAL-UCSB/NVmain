@@ -23,6 +23,12 @@ using namespace NVM;
 
 
 
+bool NVMObject::IssueAtomic( NVMainRequest * )
+{
+  return true;
+}
+
+
 bool NVMObject::IssueCommand( NVMainRequest * )
 {
   return false;

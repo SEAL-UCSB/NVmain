@@ -1,10 +1,23 @@
 # HG changeset patch
-# Parent 7e9e34d4203be6e437192b7b941ee20e19eb0241
+# Parent 1553e79952052b1315e881a5e5c322d07e203dfb
 
-diff -r 7e9e34d4203b configs/example/nvm_classic.py
+diff -r 1553e7995205 configs/common/Benchmarks.py
+--- a/configs/common/Benchmarks.py	Fri Oct 05 14:14:36 2012 -0400
++++ b/configs/common/Benchmarks.py	Fri Oct 12 16:01:36 2012 -0400
+@@ -52,7 +52,8 @@
+         if self.diskname:
+             return disk(self.diskname)
+         elif buildEnv['TARGET_ISA'] == 'alpha':
+-            return env.get('LINUX_IMAGE', disk('linux-latest.img'))
++            #return env.get('LINUX_IMAGE', disk('linux-latest.img'))
++            return env.get('LINUX_IMAGE', disk('linux-parsec-2-1-m5-with-test-inputs.img'))
+         elif buildEnv['TARGET_ISA'] == 'x86':
+             return env.get('LINUX_IMAGE', disk('x86root.img'))
+         elif buildEnv['TARGET_ISA'] == 'arm':
+diff -r 1553e7995205 configs/example/nvm_classic.py
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/configs/example/nvm_classic.py	Wed Sep 12 15:20:17 2012 -0400
-@@ -0,0 +1,192 @@
++++ b/configs/example/nvm_classic.py	Fri Oct 12 16:01:36 2012 -0400
+@@ -0,0 +1,193 @@
 +# Copyright (c) 2006-2008 The Regents of The University of Michigan
 +# All rights reserved.
 +#
@@ -169,6 +182,7 @@ diff -r 7e9e34d4203b configs/example/nvm_classic.py
 +    system.physmem.config = nvmaincfg
 +    system.physmem.configparams = nvmaincfgparams
 +    system.physmem.configvalues = nvmaincfgvalues
++    system.physmem.cpu_frequency = CPUClass.clock
 +
 +
 +
@@ -197,10 +211,10 @@ diff -r 7e9e34d4203b configs/example/nvm_classic.py
 +
 +root = Root(full_system = False, system = system)
 +Simulation.run(options, root, system, FutureClass)
-diff -r 7e9e34d4203b configs/example/nvmain_se.py
+diff -r 1553e7995205 configs/example/nvmain_se.py
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/configs/example/nvmain_se.py	Wed Sep 12 15:20:17 2012 -0400
-@@ -0,0 +1,151 @@
++++ b/configs/example/nvmain_se.py	Fri Oct 12 16:01:36 2012 -0400
+@@ -0,0 +1,250 @@
 +# Copyright (c) 2006-2008 The Regents of The University of Michigan
 +# All rights reserved.
 +#
@@ -255,6 +269,50 @@ diff -r 7e9e34d4203b configs/example/nvmain_se.py
 +from cpu2000 import *
 +
 +
++def get_processes(options):
++    """Interprets provided options and returns a list of processes"""
++
++    multiprocesses = []
++    inputs = []
++    outputs = []
++    errouts = []
++    pargs = []
++
++    workloads = options.cmd.split(';')
++    if options.input != "":
++        inputs = options.input.split(';')
++    if options.output != "":
++        outputs = options.output.split(';')
++    if options.errout != "":
++        errouts = options.errout.split(';')
++    if options.options != "":
++        pargs = options.options.split(';')
++
++    idx = 0
++    for wrkld in workloads:
++        process = LiveProcess()
++        process.executable = wrkld
++
++        if len(pargs) > idx:
++            process.cmd = [wrkld] + pargs[idx].split()
++        else:
++            process.cmd = [wrkld]
++
++        if len(inputs) > idx:
++            process.input = inputs[idx]
++        if len(outputs) > idx:
++            process.output = outputs[idx]
++        if len(errouts) > idx:
++            process.errout = errouts[idx]
++
++        multiprocesses.append(process)
++        idx += 1
++
++    if options.smt:
++        assert(options.cpu_type == "detailed" or options.cpu_type == "inorder")
++        return multiprocesses, idx
++    else:
++        return multiprocesses, 1
 +
 +# Get paths we might need.  It's expected this file is in m5/configs/example.
 +config_path = os.path.dirname(os.path.abspath(__file__))
@@ -263,19 +321,14 @@ diff -r 7e9e34d4203b configs/example/nvmain_se.py
 +
 +parser = optparse.OptionParser()
 +Options.addCommonOptions(parser)
-+#Options.addSEOptions(parser)
++Options.addSEOptions(parser)
 +
 +# Benchmark options
-+parser.add_option("--stdout", action="store_true", help="Print benchmark output to stdout instead of a file.")
-+#parser.add_option("--nvmain_config", type="string", default="NULL", help="Configuration file to use with NVMain")
-+parser.add_option("-c", "--cmd",
-+    default=joinpath(m5_root, "tests/test-progs/hello/bin/%s/linux/hello" % \
-+            buildEnv['TARGET_ISA']),
-+    help="The binary to run in syscall emulation mode.")
-+parser.add_option("-o", "--options", default="",
-+    help='The options to pass to the binary, use " " around the entire string')
 +parser.add_option("--nvmain_PARAM", type="string", default="NULL", help="Set NVMain configuration value for PARAM (e.g., --nvmain_RANKS 4, --nvmain_BANKS 8, etc.)");
 +
++
++if '--ruby' in sys.argv:
++    Ruby.define_options(parser)
 +
 +argnum = 1
 +for arg in sys.argv:
@@ -283,35 +336,55 @@ diff -r 7e9e34d4203b configs/example/nvmain_se.py
 +        parser.add_option(arg, type="string", default="NULL", help="Set NVMain configuration value for PARAM")
 +    argnum = argnum + 1
 +
-+execfile(os.path.join(config_root, "common", "Options.py"))
-+
-+Ruby.define_options(parser)
-+
 +(options, args) = parser.parse_args()
 +
 +
++if args:
++    print "Error: script doesn't take any positional arguments"
++    sys.exit(1)
++
++multiprocesses = []
 +numThreads = 1
 +
++if options.bench:
++    apps = options.bench.split("-")
++    if len(apps) != options.num_cpus:
++        print "number of benchmarks not equal to set num_cpus!"
++        sys.exit(1)
 +
-+class CPUClass(TimingSimpleCPU): pass
-+test_mem_mode = 'timing'
-+FutureClass = None
++    for app in apps:
++        try:
++            if buildEnv['TARGET_ISA'] == 'alpha':
++                exec("workload = %s('alpha', 'tru64', 'ref')" % app)
++            else:
++                exec("workload = %s(buildEnv['TARGET_ISA'], 'linux', 'ref')" % app)
++            multiprocesses.append(workload.makeLiveProcess())
++        except:
++            print >>sys.stderr, "Unable to find workload for %s: %s" % (buildEnv['TARGET_ISA'], app)
++            sys.exit(1)
++elif options.cmd:
++    multiprocesses, numThreads = get_processes(options)
++else:
++    print >> sys.stderr, "No workload specified. Exiting!\n"
++    sys.exit(1)
 +
-+CPUClass.clock = '2GHz'
-+CPUClass.numThreads = numThreads;
++
++(CPUClass, test_mem_mode, FutureClass) = Simulation.setCPUClass(options)
++CPUClass.clock = options.clock
++CPUClass.numThreads = numThreads
++
++# Check -- do not allow SMT with multiple CPUs
++if options.smt and options.num_cpus > 1:
++    fatal("You cannot use SMT with multiple CPUs!")
 +
 +np = options.num_cpus
-+print "Creating %d CPUs" % np
-+
-+
 +system = System(cpu = [CPUClass(cpu_id=i) for i in xrange(np)],
-+                physmem = SimpleMemory(range=AddrRange("2048MB")),
-+                mem_mode = test_mem_mode)
++                physmem = NVMainMemory(range=AddrRange("512MB")),
++                membus = CoherentBus(), mem_mode = test_mem_mode)
 +
-+options.use_map = True
-+Ruby.create_system(options, system)
-+print "Creating ruby system"
-+assert(options.num_cpus == len(system.ruby._cpu_ruby_ports))
++# Sanity check
++if options.fastmem and (options.caches or options.l2cache):
++    fatal("You cannot use fastmem in combination with caches!")
 +
 +
 +nvmaincfgparams = ""
@@ -325,37 +398,77 @@ diff -r 7e9e34d4203b configs/example/nvmain_se.py
 +            nvmaincfgvalues += ","
 +        nvmaincfgparams += arg[9:]
 +        nvmaincfgvalues += sys.argv[argnum]
++
++        if arg == '--nvmain_config':
++            nvmaincfg = sys.argv[argnum]
++
 +    argnum = argnum + 1
 +
-+for i in xrange(options.num_dirs):
-+    exec("system.dir_cntrl%d.memBuffer.configparams = nvmaincfgparams" % i)
-+    exec("system.dir_cntrl%d.memBuffer.configvalues = nvmaincfgvalues" % i)
++
++if options.ruby:
++    for i in xrange(options.num_dirs):
++        exec("system.dir_cntrl%d.memBuffer.configparams = nvmaincfgparams" % i)
++        exec("system.dir_cntrl%d.memBuffer.configvalues = nvmaincfgvalues" % i)
++else:
++    system.physmem.config = nvmaincfg
++    system.physmem.configparams = nvmaincfgparams
++    system.physmem.configvalues = nvmaincfgvalues
++    system.physmem.cpu_frequency = CPUClass.clock
++
 +
 +
 +for i in xrange(np):
-+    process = LiveProcess()
-+    process.executable = options.cmd
-+    process.cmd = [options.cmd] + options.options.split()
++    if options.smt:
++        system.cpu[i].workload = multiprocesses
++    elif len(multiprocesses) == 1:
++        system.cpu[i].workload = multiprocesses[0]
++    else:
++        system.cpu[i].workload = multiprocesses[i]
 +
-+    system.cpu[i].workload = process
-+    print "CPU %d is running process %s" % (i, process.cmd)
-+
-+    system.cpu[i].icache_port = system.ruby._cpu_ruby_ports[i].slave
-+    system.cpu[i].dcache_port = system.ruby._cpu_ruby_ports[i].slave
-+
-+    system.cpu[i].createInterruptController()
-+
-+    # not sure what this is, enable at your own risk.
 +    if options.fastmem:
-+        system.cpu[0].physmem_port = system.physmem.port
++        system.cpu[i].fastmem = True
++
++    if options.checker:
++        system.cpu[i].addCheckerCpu()
++
++if options.ruby:
++    if not (options.cpu_type == "detailed" or options.cpu_type == "timing"):
++        print >> sys.stderr, "Ruby requires TimingSimpleCPU or O3CPU!!"
++        sys.exit(1)
++
++    options.use_map = True
++    Ruby.create_system(options, system)
++    assert(options.num_cpus == len(system.ruby._cpu_ruby_ports))
++
++    for i in xrange(np):
++        ruby_port = system.ruby._cpu_ruby_ports[i]
++
++        # Create the interrupt controller and connect its ports to Ruby
++        # Note that the interrupt controller is always present but only
++        # in x86 does it have message ports that need to be connected
++        system.cpu[i].createInterruptController()
++
++        # Connect the cpu's cache ports to Ruby
++        system.cpu[i].icache_port = ruby_port.slave
++        system.cpu[i].dcache_port = ruby_port.slave
++        if buildEnv['TARGET_ISA'] == 'x86':
++            system.cpu[i].interrupts.pio = ruby_port.master
++            system.cpu[i].interrupts.int_master = ruby_port.slave
++            system.cpu[i].interrupts.int_slave = ruby_port.master
++            system.cpu[i].itb.walker.port = ruby_port.slave
++            system.cpu[i].dtb.walker.port = ruby_port.slave
++else:
++    system.system_port = system.membus.slave
++    system.physmem.port = system.membus.master
++    CacheConfig.config_cache(options, system)
 +
 +root = Root(full_system = False, system = system)
-+
 +Simulation.run(options, root, system, FutureClass)
-diff -r 7e9e34d4203b configs/ruby/MESI_CMP_directory.py
---- a/configs/ruby/MESI_CMP_directory.py	Wed Sep 12 11:35:52 2012 -0400
-+++ b/configs/ruby/MESI_CMP_directory.py	Wed Sep 12 15:20:17 2012 -0400
-@@ -144,8 +144,13 @@
++
+diff -r 1553e7995205 configs/ruby/MESI_CMP_directory.py
+--- a/configs/ruby/MESI_CMP_directory.py	Fri Oct 05 14:14:36 2012 -0400
++++ b/configs/ruby/MESI_CMP_directory.py	Fri Oct 12 16:01:36 2012 -0400
+@@ -143,8 +143,13 @@
          # Create the Ruby objects associated with the directory controller
          #
  
@@ -371,9 +484,9 @@ diff -r 7e9e34d4203b configs/ruby/MESI_CMP_directory.py
  
          dir_size = MemorySize('0B')
          dir_size.value = mem_module_size
-diff -r 7e9e34d4203b configs/spec2006/Mybench.py
+diff -r 1553e7995205 configs/spec2006/Mybench.py
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/configs/spec2006/Mybench.py	Wed Sep 12 15:20:17 2012 -0400
++++ b/configs/spec2006/Mybench.py	Fri Oct 12 16:01:36 2012 -0400
 @@ -0,0 +1,353 @@
 +#Mybench.py
 +
@@ -728,10 +841,10 @@ diff -r 7e9e34d4203b configs/spec2006/Mybench.py
 +        print >> sys.stderr, "zeusmp"
 +        sys.exit(1)
 +
-diff -r 7e9e34d4203b configs/spec2006/classic.py
+diff -r 1553e7995205 configs/spec2006/classic.py
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/configs/spec2006/classic.py	Wed Sep 12 15:20:17 2012 -0400
-@@ -0,0 +1,152 @@
++++ b/configs/spec2006/classic.py	Fri Oct 12 16:01:36 2012 -0400
+@@ -0,0 +1,156 @@
 +# Copyright (c) 2006-2008 The Regents of The University of Michigan
 +# All rights reserved.
 +#
@@ -801,6 +914,7 @@ diff -r 7e9e34d4203b configs/spec2006/classic.py
 +parser.add_option("--nvmain_atomic", action="store_true", help="Use NVMain also when in atomic mode (default is flat latency+variance)")
 +parser.add_option("--atomic_latency", type="int", help="Use NVMain also when in atomic mode (default is flat latency+variance)")
 +parser.add_option("--atomic_variance", type="int", help="Use NVMain also when in atomic mode (default is flat latency+variance)")
++parser.add_option("--no_nvmain", action="store_true", help="Don't use NVMain, use SimpleMemory")
 +
 +argnum = 1
 +for arg in sys.argv:
@@ -853,17 +967,20 @@ diff -r 7e9e34d4203b configs/spec2006/classic.py
 +
 +
 +system = System(cpu = [CPUClass(cpu_id=i) for i in xrange(np)],
-+                physmem = NVMainMemory(range=AddrRange("2048MB")),
 +                membus = CoherentBus(), mem_mode = test_mem_mode)
 +
 +options.use_map = True
 +
 +
-+system.physmem.config = nvmaincfg
-+system.physmem.configparams = nvmaincfgparams
-+system.physmem.configvalues = nvmaincfgvalues
-+system.physmem.atomic_mode = options.nvmain_atomic
-+system.physmem.cpu_frequency = CPUClass.clock
++if options.no_nvmain:
++    system.physmem = SimpleMemory(range=AddrRange("2048MB"))
++else:
++    system.physmem = NVMainMemory(range=AddrRange("2048MB"))
++    system.physmem.config = nvmaincfg
++    system.physmem.configparams = nvmaincfgparams
++    system.physmem.configvalues = nvmaincfgvalues
++    system.physmem.atomic_mode = options.nvmain_atomic
++    system.physmem.cpu_frequency = CPUClass.clock
 +
 +
 +spec_benchmarks = args
@@ -884,9 +1001,9 @@ diff -r 7e9e34d4203b configs/spec2006/classic.py
 +root = Root(full_system = False, system = system)
 +
 +Simulation.run(options, root, system, FutureClass)
-diff -r 7e9e34d4203b configs/spec2006/spec2006.py
+diff -r 1553e7995205 configs/spec2006/spec2006.py
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/configs/spec2006/spec2006.py	Wed Sep 12 15:20:17 2012 -0400
++++ b/configs/spec2006/spec2006.py	Fri Oct 12 16:01:36 2012 -0400
 @@ -0,0 +1,153 @@
 +# Copyright (c) 2006-2008 The Regents of The University of Michigan
 +# All rights reserved.
@@ -1041,9 +1158,9 @@ diff -r 7e9e34d4203b configs/spec2006/spec2006.py
 +root = Root(full_system = False, system = system)
 +
 +Simulation.run(options, root, system, FutureClass)
-diff -r 7e9e34d4203b src/mem/NVMainMemory.py
+diff -r 1553e7995205 src/mem/NVMainMemory.py
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/NVMainMemory.py	Wed Sep 12 15:20:17 2012 -0400
++++ b/src/mem/NVMainMemory.py	Fri Oct 12 16:01:36 2012 -0400
 @@ -0,0 +1,42 @@
 +# Copyright (c) 2009 Advanced Micro Devices, Inc.
 +# All rights reserved.
@@ -1087,24 +1204,32 @@ diff -r 7e9e34d4203b src/mem/NVMainMemory.py
 +    config = Param.String("NULL", "")
 +    configparams = Param.String("", "")
 +    configvalues = Param.String("", "")
-diff -r 7e9e34d4203b src/mem/SConscript
---- a/src/mem/SConscript	Wed Sep 12 11:35:52 2012 -0400
-+++ b/src/mem/SConscript	Wed Sep 12 15:20:17 2012 -0400
-@@ -53,8 +53,10 @@
- if env['TARGET_ISA'] != 'no':
+diff -r 1553e7995205 src/mem/SConscript
+--- a/src/mem/SConscript	Fri Oct 05 14:14:36 2012 -0400
++++ b/src/mem/SConscript	Fri Oct 12 16:01:36 2012 -0400
+@@ -56,8 +56,10 @@
      SimObject('AbstractMemory.py')
      SimObject('SimpleMemory.py')
+     SimObject('SimpleDRAM.py')
 +    SimObject('NVMainMemory.py')
      Source('abstract_mem.cc')
      Source('simple_mem.cc')
 +    Source('nvmain_mem.cc')
      Source('page_table.cc')
      Source('physical.cc')
+     Source('simple_dram.cc')
+@@ -77,6 +79,7 @@
+ DebugFlag('MMU')
+ DebugFlag('MemoryAccess')
+ DebugFlag('PacketQueue')
++DebugFlag('NVMain')
  
-diff -r 7e9e34d4203b src/mem/nvmain_mem.cc
+ DebugFlag('ProtocolTrace')
+ DebugFlag('RubyCache')
+diff -r 1553e7995205 src/mem/nvmain_mem.cc
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/nvmain_mem.cc	Wed Sep 12 15:20:17 2012 -0400
-@@ -0,0 +1,428 @@
++++ b/src/mem/nvmain_mem.cc	Fri Oct 12 16:01:36 2012 -0400
+@@ -0,0 +1,420 @@
 +/*
 + * Copyright (c) 1999-2008 Mark D. Hill and David A. Wood
 + * All rights reserved.
@@ -1151,8 +1276,8 @@ diff -r 7e9e34d4203b src/mem/nvmain_mem.cc
 +
 +#include "SimInterface/Gem5Interface/Gem5Interface.h"
 +#include "base/random.hh"
-+#include "include/NVMainRequest.h"
 +#include "mem/nvmain_mem.hh"
++#include "debug/NVMain.hh"
 +
 +using namespace NVM;
 +
@@ -1204,6 +1329,8 @@ diff -r 7e9e34d4203b src/mem/nvmain_mem.cc
 +   BusWidth = m_nvmainConfig->GetValue( "BusWidth" );
 +   tBURST = m_nvmainConfig->GetValue( "tBURST" );
 +   RATE = m_nvmainConfig->GetValue( "RATE" );
++
++   lastWakeup = curTick();
 +}
 +
 +
@@ -1280,6 +1407,10 @@ diff -r 7e9e34d4203b src/mem/nvmain_mem.cc
 +        return memory.doAtomicAccess(pkt);
 +    }
 +
++    /*
++     *  Send the atomic request to NVMain in case there is a cache that needs warm up
++     */
++    /*
 +    NVMainRequest *request = new NVMainRequest( );
 +
 +    unsigned int transfer_size;
@@ -1312,7 +1443,7 @@ diff -r 7e9e34d4203b src/mem/nvmain_mem.cc
 +    {
 +        request->data.SetByte(i, *(hostAddr + (transfer_size - 1) - i));
 +    }
-+    delete hostAddr;
++    delete [] hostAddr;
 +
 +    request->access = UNKNOWN_ACCESS;
 +    request->address.SetPhysicalAddress(pkt->req->getPaddr());
@@ -1323,8 +1454,8 @@ diff -r 7e9e34d4203b src/mem/nvmain_mem.cc
 +    request->programCounter = pkt->req->_pc;
 +    request->threadId = pkt->req->_contextId;
 +
-+    //enqueued = memory.m_nvmainPtr->NewRequest(request);
-+
++    memory.m_nvmainPtr->AtomicRequest(request);
++    */
 +    return memory.doAtomicAccess(pkt);
 +}
 +
@@ -1393,7 +1524,7 @@ diff -r 7e9e34d4203b src/mem/nvmain_mem.cc
 +    {
 +        request->data.SetByte(i, *(hostAddr + (transfer_size - 1) - i));
 +    }
-+    delete hostAddr;
++    delete [] hostAddr;
 +
 +    request->access = UNKNOWN_ACCESS;
 +    request->address.SetPhysicalAddress(pkt->req->getPaddr());
@@ -1401,8 +1532,8 @@ diff -r 7e9e34d4203b src/mem/nvmain_mem.cc
 +    request->type = (pkt->isRead()) ? READ : WRITE;
 +    request->owner = (NVMObject *)&memory;
 +
-+    request->programCounter = pkt->req->_pc;
-+    request->threadId = pkt->req->_contextId;
++    if(pkt->req->hasPC()) request->programCounter = pkt->req->getPC();
++    if(pkt->req->hasContextId()) request->threadId = pkt->req->contextId();
 +
 +    enqueued = memory.m_nvmainPtr->NewRequest(request);
 +    if(enqueued)
@@ -1416,15 +1547,16 @@ diff -r 7e9e34d4203b src/mem/nvmain_mem.cc
 +        memRequest->issueTick = curTick();
 +        memRequest->atomic = false;
 +
-+        //std::cout << "nvmain_mem.cc: Enqueued Mem request for 0x" << std::hex << request->address.GetPhysicalAddress( ) << std::dec
-+        //          << " of type " << ((pkt->isRead()) ? "READ" : "WRITE") << std::endl;
++        DPRINTF(NVMain, "nvmain_mem.cc: Enqueued Mem request for 0x%x of type %s\n", request->address.GetPhysicalAddress( ), ((pkt->isRead()) ? "READ" : "WRITE") );
 +
-+        memory.m_request_list.push_back(memRequest);
++        memory.m_request_map.insert( std::pair<NVMainRequest *, NVMainMemoryRequest *>( request, memRequest ) );
 +    }
 +    else
 +    {
 +        memory.m_slot_available = false;
 +    }
++
++    //memory.Sync();
 +
 +    return enqueued;
 +}
@@ -1447,60 +1579,6 @@ diff -r 7e9e34d4203b src/mem/nvmain_mem.cc
 +
 +void NVMainMemory::NVMainMemoryEvent::process()
 +{
-+    std::list<NVMainMemory::NVMainMemoryRequest *>::iterator it;
-+
-+    // Check for backlogged requests (atomic interface only!)
-+    for(it = memory.m_backlog.begin(); it != memory.m_backlog.end(); it++)
-+    {
-+        if(memory.m_nvmainPtr->NewRequest((*it)->request))
-+        {
-+            memory.m_request_list.push_back((*it));
-+
-+            it = memory.m_backlog.erase(it);
-+        }
-+    }
-+
-+    // Check for completed requests
-+    for(it = memory.m_request_list.begin(); it != memory.m_request_list.end(); it++)
-+    {
-+        NVMainRequest *creq = (*it)->request;
-+
-+        if(creq->status == MEM_REQUEST_COMPLETE)
-+        {
-+            if(!(*it)->atomic)
-+            {
-+                bool respond = (*it)->packet->needsResponse();
-+                memory.access((*it)->packet);
-+
-+                if(respond)
-+                {
-+                    memory.port.queue.schedSendTiming((*it)->packet, curTick() + 1);
-+
-+                    delete (*it)->request;
-+                    delete (*it);
-+                }
-+                else
-+                {
-+                    delete (*it)->request;
-+                    delete (*it)->packet;
-+                    delete (*it);
-+                }
-+            }
-+            else
-+            {
-+                Tick completionTick = curTick();
-+
-+                memory.m_avgAtomicLatency = ((memory.m_avgAtomicLatency * memory.m_numAtomicAccesses) + (completionTick - (*it)->issueTick)) / (memory.m_numAtomicAccesses + 1);
-+                memory.m_numAtomicAccesses++;
-+
-+                delete (*it);
-+            }
-+
-+            it = memory.m_request_list.erase(it);
-+        }
-+    }
-+
-+
 +    // Cycle memory controller
 +    memory.m_nvmainPtr->Cycle( );
 +
@@ -1508,8 +1586,47 @@ diff -r 7e9e34d4203b src/mem/nvmain_mem.cc
 +}
 +
 +
-+bool NVMainMemory::RequestComplete( NVM::NVMainRequest *req )
++bool NVMainMemory::RequestComplete(NVM::NVMainRequest *req)
 +{
++
++    NVMainMemoryRequest *memRequest;
++    std::map<NVMainRequest *, NVMainMemoryRequest *>::iterator iter;
++
++    // Find the mem request pointer in the map.
++    assert(m_request_map.count(req) != 0);
++    iter = m_request_map.find(req);
++    memRequest = iter->second;
++
++    DPRINTF(NVMain, "Completed Mem request for 0x%x of type %s\n", req->address.GetPhysicalAddress( ), ((memRequest->packet->isRead()) ? "READ" : "WRITE"));
++
++    if(!memRequest->atomic)
++    {
++        bool respond = memRequest->packet->needsResponse();
++        access(memRequest->packet);
++
++        if(respond)
++        {
++            port.queue.schedSendTiming(memRequest->packet, curTick() + 1);
++
++            delete req;
++            delete memRequest;
++        }
++        else
++        {
++            delete memRequest->packet;
++            delete req;
++            delete memRequest;
++        }
++    }
++    else
++    {
++        delete req;
++        delete memRequest;
++    }
++
++
++    m_request_map.erase(iter);
++
 +    return true;
 +}
 +
@@ -1533,10 +1650,10 @@ diff -r 7e9e34d4203b src/mem/nvmain_mem.cc
 +    return new NVMainMemory(this);
 +}
 +
-diff -r 7e9e34d4203b src/mem/nvmain_mem.hh
+diff -r 1553e7995205 src/mem/nvmain_mem.hh
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/nvmain_mem.hh	Wed Sep 12 15:20:17 2012 -0400
-@@ -0,0 +1,175 @@
++++ b/src/mem/nvmain_mem.hh	Fri Oct 12 16:01:36 2012 -0400
+@@ -0,0 +1,180 @@
 +/*
 + * Copyright (c) 1999-2008 Mark D. Hill and David A. Wood
 + * All rights reserved.
@@ -1586,6 +1703,7 @@ diff -r 7e9e34d4203b src/mem/nvmain_mem.hh
 +
 +
 +#include "NVM/nvmain.h"
++#include "include/NVMainRequest.h"
 +#include "mem/abstract_mem.hh"
 +#include "mem/tport.hh"
 +#include "params/NVMainMemory.hh"
@@ -1680,8 +1798,11 @@ diff -r 7e9e34d4203b src/mem/nvmain_mem.hh
 +    uint64_t tBURST;
 +    uint64_t RATE;
 +
++    Tick lastWakeup;
++
 +    std::list<NVMainMemoryRequest *> m_request_list;
-+    std::list<NVMainMemoryRequest *> m_backlog;
++
++    std::map<NVM::NVMainRequest *, NVMainMemoryRequest *> m_request_map;
 +
 +  public:
 +
@@ -1707,14 +1828,15 @@ diff -r 7e9e34d4203b src/mem/nvmain_mem.hh
 +
 +    Tick doAtomicAccess(PacketPtr pkt);
 +    void doFunctionalAccess(PacketPtr pkt);
++    void Sync();
 +
 +};
 +
 +#endif
 +
-diff -r 7e9e34d4203b src/mem/protocol/MESI_CMP_directory-L1cache.sm
---- a/src/mem/protocol/MESI_CMP_directory-L1cache.sm	Wed Sep 12 11:35:52 2012 -0400
-+++ b/src/mem/protocol/MESI_CMP_directory-L1cache.sm	Wed Sep 12 15:20:17 2012 -0400
+diff -r 1553e7995205 src/mem/protocol/MESI_CMP_directory-L1cache.sm
+--- a/src/mem/protocol/MESI_CMP_directory-L1cache.sm	Fri Oct 05 14:14:36 2012 -0400
++++ b/src/mem/protocol/MESI_CMP_directory-L1cache.sm	Fri Oct 12 16:01:36 2012 -0400
 @@ -377,6 +377,8 @@
          out_msg.MessageSize := MessageSizeType:Control;
          out_msg.Prefetch := in_msg.Prefetch;
@@ -1751,9 +1873,9 @@ diff -r 7e9e34d4203b src/mem/protocol/MESI_CMP_directory-L1cache.sm
        }
      }
    }
-diff -r 7e9e34d4203b src/mem/protocol/MESI_CMP_directory-L2cache.sm
---- a/src/mem/protocol/MESI_CMP_directory-L2cache.sm	Wed Sep 12 11:35:52 2012 -0400
-+++ b/src/mem/protocol/MESI_CMP_directory-L2cache.sm	Wed Sep 12 15:20:17 2012 -0400
+diff -r 1553e7995205 src/mem/protocol/MESI_CMP_directory-L2cache.sm
+--- a/src/mem/protocol/MESI_CMP_directory-L2cache.sm	Fri Oct 05 14:14:36 2012 -0400
++++ b/src/mem/protocol/MESI_CMP_directory-L2cache.sm	Fri Oct 12 16:01:36 2012 -0400
 @@ -400,6 +400,8 @@
          out_msg.Requestor := machineID;
          out_msg.Destination.add(map_Address_to_Directory(address));
@@ -1772,9 +1894,9 @@ diff -r 7e9e34d4203b src/mem/protocol/MESI_CMP_directory-L2cache.sm
        }
      }
    }
-diff -r 7e9e34d4203b src/mem/protocol/MESI_CMP_directory-dir.sm
---- a/src/mem/protocol/MESI_CMP_directory-dir.sm	Wed Sep 12 11:35:52 2012 -0400
-+++ b/src/mem/protocol/MESI_CMP_directory-dir.sm	Wed Sep 12 15:20:17 2012 -0400
+diff -r 1553e7995205 src/mem/protocol/MESI_CMP_directory-dir.sm
+--- a/src/mem/protocol/MESI_CMP_directory-dir.sm	Fri Oct 05 14:14:36 2012 -0400
++++ b/src/mem/protocol/MESI_CMP_directory-dir.sm	Fri Oct 12 16:01:36 2012 -0400
 @@ -37,7 +37,7 @@
  
  machine(Directory, "MESI_CMP_filter_directory protocol") 
@@ -1802,9 +1924,9 @@ diff -r 7e9e34d4203b src/mem/protocol/MESI_CMP_directory-dir.sm
          DPRINTF(RubySlicc, "%s\n", out_msg);
        }
      }
-diff -r 7e9e34d4203b src/mem/protocol/MESI_CMP_directory-msg.sm
---- a/src/mem/protocol/MESI_CMP_directory-msg.sm	Wed Sep 12 11:35:52 2012 -0400
-+++ b/src/mem/protocol/MESI_CMP_directory-msg.sm	Wed Sep 12 15:20:17 2012 -0400
+diff -r 1553e7995205 src/mem/protocol/MESI_CMP_directory-msg.sm
+--- a/src/mem/protocol/MESI_CMP_directory-msg.sm	Fri Oct 05 14:14:36 2012 -0400
++++ b/src/mem/protocol/MESI_CMP_directory-msg.sm	Fri Oct 12 16:01:36 2012 -0400
 @@ -70,6 +70,8 @@
    int Len;
    bool Dirty, default="false",  desc="Dirty bit";
@@ -1814,9 +1936,9 @@ diff -r 7e9e34d4203b src/mem/protocol/MESI_CMP_directory-msg.sm
  }
  
  // ResponseMsg
-diff -r 7e9e34d4203b src/mem/protocol/RubySlicc_MemControl.sm
---- a/src/mem/protocol/RubySlicc_MemControl.sm	Wed Sep 12 11:35:52 2012 -0400
-+++ b/src/mem/protocol/RubySlicc_MemControl.sm	Wed Sep 12 15:20:17 2012 -0400
+diff -r 1553e7995205 src/mem/protocol/RubySlicc_MemControl.sm
+--- a/src/mem/protocol/RubySlicc_MemControl.sm	Fri Oct 05 14:14:36 2012 -0400
++++ b/src/mem/protocol/RubySlicc_MemControl.sm	Fri Oct 12 16:01:36 2012 -0400
 @@ -61,4 +61,6 @@
    PrefetchBit Prefetch,         desc="Is this a prefetch request";
    bool ReadX,                   desc="Exclusive";
@@ -1824,9 +1946,9 @@ diff -r 7e9e34d4203b src/mem/protocol/RubySlicc_MemControl.sm
 +  Address ProgramCounter,       desc="Program Counter causing miss";
 +  int ThreadId,                 desc="Context ID of issuing request";
  }
-diff -r 7e9e34d4203b src/mem/protocol/RubySlicc_Types.sm
---- a/src/mem/protocol/RubySlicc_Types.sm	Wed Sep 12 11:35:52 2012 -0400
-+++ b/src/mem/protocol/RubySlicc_Types.sm	Wed Sep 12 15:20:17 2012 -0400
+diff -r 1553e7995205 src/mem/protocol/RubySlicc_Types.sm
+--- a/src/mem/protocol/RubySlicc_Types.sm	Fri Oct 05 14:14:36 2012 -0400
++++ b/src/mem/protocol/RubySlicc_Types.sm	Fri Oct 12 16:01:36 2012 -0400
 @@ -166,6 +166,10 @@
    void recordRequestType(CacheRequestType);
  }
@@ -1838,18 +1960,10 @@ diff -r 7e9e34d4203b src/mem/protocol/RubySlicc_Types.sm
  structure (DMASequencer, external = "yes") {
    void ackCallback();
    void dataCallback(DataBlock);
-diff -r 7e9e34d4203b src/mem/request.hh
---- a/src/mem/request.hh	Wed Sep 12 11:35:52 2012 -0400
-+++ b/src/mem/request.hh	Wed Sep 12 15:20:17 2012 -0400
-@@ -140,13 +140,14 @@
-     static const PrivateFlagsType STICKY_PRIVATE_FLAGS =
-         VALID_CONTEXT_ID | VALID_THREAD_ID;
- 
--  private:
-+  public:
-     /**
-      * The physical address of the request. Valid only if validPaddr
-      * is set.
+diff -r 1553e7995205 src/mem/request.hh
+--- a/src/mem/request.hh	Fri Oct 05 14:14:36 2012 -0400
++++ b/src/mem/request.hh	Fri Oct 12 16:01:36 2012 -0400
+@@ -147,6 +147,7 @@
       */
      Addr _paddr;
  
@@ -1861,24 +1975,24 @@ diff -r 7e9e34d4203b src/mem/request.hh
       * store conditional or the compare value for a CAS. */
      uint64_t _extraData;
  
-+  public:
++  private:
      /** The context ID (for statistics, typically). */
      int _contextId;
 +
      /** The thread ID (id within this CPU) */
      int _threadId;
  
-diff -r 7e9e34d4203b src/mem/ruby/SConscript
---- a/src/mem/ruby/SConscript	Wed Sep 12 11:35:52 2012 -0400
-+++ b/src/mem/ruby/SConscript	Wed Sep 12 15:20:17 2012 -0400
+diff -r 1553e7995205 src/mem/ruby/SConscript
+--- a/src/mem/ruby/SConscript	Fri Oct 05 14:14:36 2012 -0400
++++ b/src/mem/ruby/SConscript	Fri Oct 12 16:01:36 2012 -0400
 @@ -114,3 +114,4 @@
  MakeInclude('system/Sequencer.hh')
  MakeInclude('system/TBETable.hh')
  MakeInclude('system/TimerTable.hh')
 +MakeInclude('system/NVMainControl.hh')
-diff -r 7e9e34d4203b src/mem/ruby/common/Address.hh
---- a/src/mem/ruby/common/Address.hh	Wed Sep 12 11:35:52 2012 -0400
-+++ b/src/mem/ruby/common/Address.hh	Wed Sep 12 15:20:17 2012 -0400
+diff -r 1553e7995205 src/mem/ruby/common/Address.hh
+--- a/src/mem/ruby/common/Address.hh	Fri Oct 05 14:14:36 2012 -0400
++++ b/src/mem/ruby/common/Address.hh	Fri Oct 12 16:01:36 2012 -0400
 @@ -88,7 +88,7 @@
          m_address |= (physical_address_t) offset;
      }
@@ -1888,9 +2002,9 @@ diff -r 7e9e34d4203b src/mem/ruby/common/Address.hh
      physical_address_t m_address;
  };
  
-diff -r 7e9e34d4203b src/mem/ruby/network/Network.hh
---- a/src/mem/ruby/network/Network.hh	Wed Sep 12 11:35:52 2012 -0400
-+++ b/src/mem/ruby/network/Network.hh	Wed Sep 12 15:20:17 2012 -0400
+diff -r 1553e7995205 src/mem/ruby/network/Network.hh
+--- a/src/mem/ruby/network/Network.hh	Fri Oct 05 14:14:36 2012 -0400
++++ b/src/mem/ruby/network/Network.hh	Fri Oct 12 16:01:36 2012 -0400
 @@ -94,6 +94,8 @@
      virtual void clearStats() = 0;
      virtual void print(std::ostream& out) const = 0;
@@ -1900,10 +2014,10 @@ diff -r 7e9e34d4203b src/mem/ruby/network/Network.hh
    protected:
      // Private copy constructor and assignment operator
      Network(const Network& obj);
-diff -r 7e9e34d4203b src/mem/ruby/network/Topology.hh
---- a/src/mem/ruby/network/Topology.hh	Wed Sep 12 11:35:52 2012 -0400
-+++ b/src/mem/ruby/network/Topology.hh	Wed Sep 12 15:20:17 2012 -0400
-@@ -81,6 +81,8 @@
+diff -r 1553e7995205 src/mem/ruby/network/Topology.hh
+--- a/src/mem/ruby/network/Topology.hh	Fri Oct 05 14:14:36 2012 -0400
++++ b/src/mem/ruby/network/Topology.hh	Fri Oct 12 16:01:36 2012 -0400
+@@ -82,6 +82,8 @@
      void clearStats();
      void print(std::ostream& out) const { out << "[Topology]"; }
  
@@ -1912,9 +2026,9 @@ diff -r 7e9e34d4203b src/mem/ruby/network/Topology.hh
    protected:
      void addLink(SwitchID src, SwitchID dest, BasicLink* link,
                   LinkDirection dir);
-diff -r 7e9e34d4203b src/mem/ruby/profiler/CacheProfiler.cc
---- a/src/mem/ruby/profiler/CacheProfiler.cc	Wed Sep 12 11:35:52 2012 -0400
-+++ b/src/mem/ruby/profiler/CacheProfiler.cc	Wed Sep 12 15:20:17 2012 -0400
+diff -r 1553e7995205 src/mem/ruby/profiler/CacheProfiler.cc
+--- a/src/mem/ruby/profiler/CacheProfiler.cc	Fri Oct 05 14:14:36 2012 -0400
++++ b/src/mem/ruby/profiler/CacheProfiler.cc	Fri Oct 12 16:01:36 2012 -0400
 @@ -37,6 +37,8 @@
  {
      m_description = description;
@@ -1924,9 +2038,9 @@ diff -r 7e9e34d4203b src/mem/ruby/profiler/CacheProfiler.cc
      clearStats();
  }
  
-diff -r 7e9e34d4203b src/mem/ruby/profiler/CacheProfiler.hh
---- a/src/mem/ruby/profiler/CacheProfiler.hh	Wed Sep 12 11:35:52 2012 -0400
-+++ b/src/mem/ruby/profiler/CacheProfiler.hh	Wed Sep 12 15:20:17 2012 -0400
+diff -r 1553e7995205 src/mem/ruby/profiler/CacheProfiler.hh
+--- a/src/mem/ruby/profiler/CacheProfiler.hh	Fri Oct 05 14:14:36 2012 -0400
++++ b/src/mem/ruby/profiler/CacheProfiler.hh	Fri Oct 12 16:01:36 2012 -0400
 @@ -59,6 +59,8 @@
  
      void print(std::ostream& out) const;
@@ -1936,9 +2050,9 @@ diff -r 7e9e34d4203b src/mem/ruby/profiler/CacheProfiler.hh
    private:
      // Private copy constructor and assignment operator
      CacheProfiler(const CacheProfiler& obj);
-diff -r 7e9e34d4203b src/mem/ruby/slicc_interface/AbstractController.hh
---- a/src/mem/ruby/slicc_interface/AbstractController.hh	Wed Sep 12 11:35:52 2012 -0400
-+++ b/src/mem/ruby/slicc_interface/AbstractController.hh	Wed Sep 12 15:20:17 2012 -0400
+diff -r 1553e7995205 src/mem/ruby/slicc_interface/AbstractController.hh
+--- a/src/mem/ruby/slicc_interface/AbstractController.hh	Fri Oct 05 14:14:36 2012 -0400
++++ b/src/mem/ruby/slicc_interface/AbstractController.hh	Fri Oct 12 16:01:36 2012 -0400
 @@ -38,6 +38,7 @@
  #include "mem/ruby/common/DataBlock.hh"
  #include "mem/ruby/network/Network.hh"
@@ -1955,9 +2069,9 @@ diff -r 7e9e34d4203b src/mem/ruby/slicc_interface/AbstractController.hh
  };
  
  #endif // __MEM_RUBY_SLICC_INTERFACE_ABSTRACTCONTROLLER_HH__
-diff -r 7e9e34d4203b src/mem/ruby/system/CacheMemory.hh
---- a/src/mem/ruby/system/CacheMemory.hh	Wed Sep 12 11:35:52 2012 -0400
-+++ b/src/mem/ruby/system/CacheMemory.hh	Wed Sep 12 15:20:17 2012 -0400
+diff -r 1553e7995205 src/mem/ruby/system/CacheMemory.hh
+--- a/src/mem/ruby/system/CacheMemory.hh	Fri Oct 05 14:14:36 2012 -0400
++++ b/src/mem/ruby/system/CacheMemory.hh	Fri Oct 12 16:01:36 2012 -0400
 @@ -128,6 +128,8 @@
  
      Stats::Scalar numTagArrayStalls;
@@ -1967,9 +2081,9 @@ diff -r 7e9e34d4203b src/mem/ruby/system/CacheMemory.hh
    private:
      // convert a Address to its location in the cache
      Index addressToCacheSet(const Address& address) const;
-diff -r 7e9e34d4203b src/mem/ruby/system/MemoryNode.hh
---- a/src/mem/ruby/system/MemoryNode.hh	Wed Sep 12 11:35:52 2012 -0400
-+++ b/src/mem/ruby/system/MemoryNode.hh	Wed Sep 12 15:20:17 2012 -0400
+diff -r 1553e7995205 src/mem/ruby/system/MemoryNode.hh
+--- a/src/mem/ruby/system/MemoryNode.hh	Fri Oct 05 14:14:36 2012 -0400
++++ b/src/mem/ruby/system/MemoryNode.hh	Fri Oct 12 16:01:36 2012 -0400
 @@ -57,6 +57,7 @@
          m_addr = addr;
          m_is_mem_read = is_mem_read;
@@ -2009,9 +2123,9 @@ diff -r 7e9e34d4203b src/mem/ruby/system/MemoryNode.hh
  };
  
  inline std::ostream&
-diff -r 7e9e34d4203b src/mem/ruby/system/NVMainControl.cc
+diff -r 1553e7995205 src/mem/ruby/system/NVMainControl.cc
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/ruby/system/NVMainControl.cc	Wed Sep 12 15:20:17 2012 -0400
++++ b/src/mem/ruby/system/NVMainControl.cc	Fri Oct 12 16:01:36 2012 -0400
 @@ -0,0 +1,375 @@
 +/*
 + * Copyright (c) 1999-2008 Mark D. Hill and David A. Wood
@@ -2074,7 +2188,7 @@ diff -r 7e9e34d4203b src/mem/ruby/system/NVMainControl.cc
 +
 +
 +NVMainControl::NVMainControl(const Params *p)
-+    : SimObject(p)
++    : ClockedObject((const ClockedObjectParams *)p), Consumer(this)
 +{
 +    char *cfgparams;
 +    char *cfgvalues;
@@ -2164,9 +2278,9 @@ diff -r 7e9e34d4203b src/mem/ruby/system/NVMainControl.cc
 +    transfer_size = m_nvmainConfig->GetValue( "BusWidth" ) / 8;
 +    transfer_size *= m_nvmainConfig->GetValue( "tBURST" ) * m_nvmainConfig->GetValue( "RATE" );
 +
-+    //DPRINTF(RubyMemory, "New memory request%7d: %#08x %c arrived at %lld\n",
-+    //        m_msg_counter, (unsigned int)memRef.m_addr, memRef.m_is_mem_read ? 'R':'W',
-+    //        memRef.m_time * g_system_ptr->getClock());
++    DPRINTF(RubyMemory, "New memory request%7d: %#08x %c arrived at %lld\n",
++            m_msg_counter, (unsigned int)memRef.m_addr, memRef.m_is_mem_read ? 'R':'W',
++            memRef.m_time * g_system_ptr->clockPeriod());
 +
 +
 +    // Build NVMainRequest and send to NVMain code.
@@ -2307,9 +2421,9 @@ diff -r 7e9e34d4203b src/mem/ruby/system/NVMainControl.cc
 +    req.m_time = arrival_time;
 +    m_response_queue.push_back(req);
 +
-+    //DPRINTF(RubyMemory, "Enqueueing msg %#08x %c back to directory at %lld\n",
-+    //        req.m_addr, req.m_is_mem_read ? 'R':'W',
-+    //        arrival_time * g_system_ptr->getClock());
++    DPRINTF(RubyMemory, "Enqueueing msg %#08x %c back to directory at %lld\n",
++            req.m_addr, req.m_is_mem_read ? 'R':'W',
++            arrival_time * g_system_ptr->clockPeriod());
 +
 +    // schedule the wake up
 +    m_consumer_ptr->scheduleEventAbsolute(arrival_time);
@@ -2388,10 +2502,10 @@ diff -r 7e9e34d4203b src/mem/ruby/system/NVMainControl.cc
 +    return new NVMainControl(this);
 +}
 +
-diff -r 7e9e34d4203b src/mem/ruby/system/NVMainControl.hh
+diff -r 1553e7995205 src/mem/ruby/system/NVMainControl.hh
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/ruby/system/NVMainControl.hh	Wed Sep 12 15:20:17 2012 -0400
-@@ -0,0 +1,131 @@
++++ b/src/mem/ruby/system/NVMainControl.hh	Fri Oct 12 16:01:36 2012 -0400
+@@ -0,0 +1,134 @@
 +/*
 + * Copyright (c) 1999-2008 Mark D. Hill and David A. Wood
 + * All rights reserved.
@@ -2455,17 +2569,20 @@ diff -r 7e9e34d4203b src/mem/ruby/system/NVMainControl.hh
 +#include "mem/ruby/system/System.hh"
 +#include "mem/physical.hh"
 +#include "params/NVMMemoryControl.hh"
-+#include "sim/sim_object.hh"
++#include "sim/clocked_object.hh"
 +#include "src/Config.h"
 +#include "src/SimInterface.h"
 +
 +class Consumer;
 +
 +class NVMainControl :
-+    public SimObject, public Consumer, public AbstractMemOrCache
++    public ClockedObject, public Consumer, public AbstractMemOrCache
 +{
 +  public:
 +    typedef NVMMemoryControlParams Params;
++    const Params *params() const
++    { return dynamic_cast<const Params *>(_params); }
++
 +    NVMainControl(const Params *p);
 +    void init();
 +
@@ -2523,9 +2640,9 @@ diff -r 7e9e34d4203b src/mem/ruby/system/NVMainControl.hh
 +};
 +
 +#endif // __MEM_RUBY_SYSTEM_MEMORY_CONTROL_HH__
-diff -r 7e9e34d4203b src/mem/ruby/system/NVMainControl.py
+diff -r 1553e7995205 src/mem/ruby/system/NVMainControl.py
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/ruby/system/NVMainControl.py	Wed Sep 12 15:20:17 2012 -0400
++++ b/src/mem/ruby/system/NVMainControl.py	Fri Oct 12 16:01:36 2012 -0400
 @@ -0,0 +1,40 @@
 +# Copyright (c) 2009 Advanced Micro Devices, Inc.
 +# All rights reserved.
@@ -2567,9 +2684,9 @@ diff -r 7e9e34d4203b src/mem/ruby/system/NVMainControl.py
 +    configparams = Param.String("", "")
 +    configvalues = Param.String("", "")
 +
-diff -r 7e9e34d4203b src/mem/ruby/system/SConscript
---- a/src/mem/ruby/system/SConscript	Wed Sep 12 11:35:52 2012 -0400
-+++ b/src/mem/ruby/system/SConscript	Wed Sep 12 15:20:17 2012 -0400
+diff -r 1553e7995205 src/mem/ruby/system/SConscript
+--- a/src/mem/ruby/system/SConscript	Fri Oct 05 14:14:36 2012 -0400
++++ b/src/mem/ruby/system/SConscript	Fri Oct 12 16:01:36 2012 -0400
 @@ -37,6 +37,7 @@
  SimObject('Sequencer.py')
  SimObject('DirectoryMemory.py')
@@ -2586,21 +2703,21 @@ diff -r 7e9e34d4203b src/mem/ruby/system/SConscript
  Source('WireBuffer.cc')
  Source('RubyMemoryControl.cc')
  Source('MemoryNode.cc')
-diff -r 7e9e34d4203b src/mem/simple_mem.hh
---- a/src/mem/simple_mem.hh	Wed Sep 12 11:35:52 2012 -0400
-+++ b/src/mem/simple_mem.hh	Wed Sep 12 15:20:17 2012 -0400
-@@ -104,7 +104,7 @@
-         return dynamic_cast<const Params *>(_params);
-     }
+diff -r 1553e7995205 src/mem/simple_mem.hh
+--- a/src/mem/simple_mem.hh	Fri Oct 05 14:14:36 2012 -0400
++++ b/src/mem/simple_mem.hh	Fri Oct 12 16:01:36 2012 -0400
+@@ -128,7 +128,7 @@
+     virtual SlavePort& getSlavePort(const std::string& if_name, int idx = -1);
+     virtual void init();
  
 -  protected:
 +  //protected:
  
      Tick doAtomicAccess(PacketPtr pkt);
      void doFunctionalAccess(PacketPtr pkt);
-diff -r 7e9e34d4203b src/mem/slicc/symbols/StateMachine.py
---- a/src/mem/slicc/symbols/StateMachine.py	Wed Sep 12 11:35:52 2012 -0400
-+++ b/src/mem/slicc/symbols/StateMachine.py	Wed Sep 12 15:20:17 2012 -0400
+diff -r 1553e7995205 src/mem/slicc/symbols/StateMachine.py
+--- a/src/mem/slicc/symbols/StateMachine.py	Fri Oct 05 14:14:36 2012 -0400
++++ b/src/mem/slicc/symbols/StateMachine.py	Fri Oct 12 16:01:36 2012 -0400
 @@ -40,6 +40,7 @@
                      "Sequencer": "RubySequencer",
                      "DirectoryMemory": "RubyDirectoryMemory",
@@ -2609,7 +2726,7 @@ diff -r 7e9e34d4203b src/mem/slicc/symbols/StateMachine.py
                      "DMASequencer": "DMASequencer"
                      }
  
-@@ -271,6 +272,7 @@
+@@ -268,6 +269,7 @@
      void unblock(Address addr);
      void recordCacheTrace(int cntrl, CacheRecorder* tr);
      Sequencer* getSequencer() const;
@@ -2617,7 +2734,7 @@ diff -r 7e9e34d4203b src/mem/slicc/symbols/StateMachine.py
  
  private:
  ''')
-@@ -716,6 +718,26 @@
+@@ -717,6 +719,26 @@
      return $seq_ident;
  }
  
@@ -2644,3 +2761,24 @@ diff -r 7e9e34d4203b src/mem/slicc/symbols/StateMachine.py
  const int &
  $c_ident::getVersion() const
  {
+diff -r 1553e7995205 src/sim/main.cc
+--- a/src/sim/main.cc	Fri Oct 05 14:14:36 2012 -0400
++++ b/src/sim/main.cc	Fri Oct 12 16:01:36 2012 -0400
+@@ -30,6 +30,8 @@
+ 
+ #include <Python.h>
+ 
++#include <mcheck.h>
++
+ #include "sim/init.hh"
+ 
+ // main() is now pretty stripped down and just sets up python and then
+@@ -41,6 +43,8 @@
+ {
+     int ret;
+ 
++    mtrace();
++
+     // Initialize m5 special signal handling.
+     initSignals();
+ 
