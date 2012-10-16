@@ -1,9 +1,9 @@
 # HG changeset patch
-# Parent 919764f6e13ddadf6476fd444398b32c37778829
+# Parent 8bdfb02fcf2887118d6ad5b101a237586941867a
 
-diff -r 919764f6e13d src/mem/NVMainMemory.py
+diff -r 8bdfb02fcf28 src/mem/NVMainMemory.py
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/NVMainMemory.py	Mon Oct 15 08:11:28 2012 -0400
++++ b/src/mem/NVMainMemory.py	Tue Oct 16 12:31:14 2012 -0400
 @@ -0,0 +1,42 @@
 +# Copyright (c) 2009 Advanced Micro Devices, Inc.
 +# All rights reserved.
@@ -47,9 +47,9 @@ diff -r 919764f6e13d src/mem/NVMainMemory.py
 +    config = Param.String("NULL", "")
 +    configparams = Param.String("", "")
 +    configvalues = Param.String("", "")
-diff -r 919764f6e13d src/mem/SConscript
---- a/src/mem/SConscript	Mon Oct 15 08:09:44 2012 -0400
-+++ b/src/mem/SConscript	Mon Oct 15 08:11:28 2012 -0400
+diff -r 8bdfb02fcf28 src/mem/SConscript
+--- a/src/mem/SConscript	Tue Oct 16 10:56:20 2012 -0400
++++ b/src/mem/SConscript	Tue Oct 16 12:31:14 2012 -0400
 @@ -56,8 +56,10 @@
      SimObject('AbstractMemory.py')
      SimObject('SimpleMemory.py')
@@ -69,10 +69,10 @@ diff -r 919764f6e13d src/mem/SConscript
  
  DebugFlag('ProtocolTrace')
  DebugFlag('RubyCache')
-diff -r 919764f6e13d src/mem/nvmain_mem.cc
+diff -r 8bdfb02fcf28 src/mem/nvmain_mem.cc
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/nvmain_mem.cc	Mon Oct 15 08:11:28 2012 -0400
-@@ -0,0 +1,420 @@
++++ b/src/mem/nvmain_mem.cc	Tue Oct 16 12:31:14 2012 -0400
+@@ -0,0 +1,430 @@
 +/*
 + * Copyright (c) 1999-2008 Mark D. Hill and David A. Wood
 + * All rights reserved.
@@ -177,6 +177,12 @@ diff -r 919764f6e13d src/mem/nvmain_mem.cc
 +}
 +
 +
++NVMainMemory::~NVMainMemory()
++{
++    std::cout << "NVMain dtor called" << std::endl;
++}
++
++
 +void
 +NVMainMemory::init()
 +{
@@ -192,6 +198,10 @@ diff -r 919764f6e13d src/mem/nvmain_mem.cc
 +    }
 +
 +    eventManager->scheduleWakeup( );
++
++    statPrinter.nvmainPtr = m_nvmainPtr;
++
++    registerExitCallback( &statPrinter );
 +
 +    AddChild( m_nvmainPtr );
 +    m_nvmainPtr->SetParent( this );
@@ -493,10 +503,10 @@ diff -r 919764f6e13d src/mem/nvmain_mem.cc
 +    return new NVMainMemory(this);
 +}
 +
-diff -r 919764f6e13d src/mem/nvmain_mem.hh
+diff -r 8bdfb02fcf28 src/mem/nvmain_mem.hh
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/nvmain_mem.hh	Mon Oct 15 08:11:28 2012 -0400
-@@ -0,0 +1,180 @@
++++ b/src/mem/nvmain_mem.hh	Tue Oct 16 12:31:14 2012 -0400
+@@ -0,0 +1,190 @@
 +/*
 + * Copyright (c) 1999-2008 Mark D. Hill and David A. Wood
 + * All rights reserved.
@@ -546,6 +556,7 @@ diff -r 919764f6e13d src/mem/nvmain_mem.hh
 +
 +
 +#include "NVM/nvmain.h"
++#include "base/callback.hh"
 +#include "include/NVMainRequest.h"
 +#include "mem/abstract_mem.hh"
 +#include "mem/tport.hh"
@@ -611,6 +622,14 @@ diff -r 919764f6e13d src/mem/nvmain_mem.hh
 +        void scheduleWakeup( );
 +    };
 +
++    class NVMainStatPrinter : public Callback
++    {
++      public:
++        void process() { if( nvmainPtr != NULL ) nvmainPtr->PrintStats( ); }
++
++        NVM::NVMain *nvmainPtr;
++    };
++
 +    struct NVMainMemoryRequest
 +    {
 +        PacketPtr packet;
@@ -641,6 +660,7 @@ diff -r 919764f6e13d src/mem/nvmain_mem.hh
 +    uint64_t tBURST;
 +    uint64_t RATE;
 +
++    NVMainStatPrinter statPrinter;
 +    Tick lastWakeup;
 +
 +    std::list<NVMainMemoryRequest *> m_request_list;
@@ -651,7 +671,7 @@ diff -r 919764f6e13d src/mem/nvmain_mem.hh
 +
 +    typedef NVMainMemoryParams Params;
 +    NVMainMemory(const Params *p);
-+    virtual ~NVMainMemory() { }
++    virtual ~NVMainMemory();
 +
 +    SlavePort& getSlavePort(const std::string& if_name, int idx = -1);
 +    void init();
