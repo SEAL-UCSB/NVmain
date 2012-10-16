@@ -229,10 +229,30 @@ void NVMain::SetConfig( Config *conf )
 bool NVMain::CanIssue( NVMainRequest *request )
 {
   uint64_t channel, rank, bank, row, col;
+  bool rv;
 
-  translator->Translate( request->address.GetPhysicalAddress( ), &row, &col, &rank, &bank, &channel );
+  if( request != NULL )
+    {
+      translator->Translate( request->address.GetPhysicalAddress( ), &row, &col, &rank, &bank, &channel );
 
-  return !memoryControllers[channel]->QueueFull( request );
+      rv = !memoryControllers[channel]->QueueFull( request );
+    }
+  else
+    {
+      /* 
+       *  Since we don't know what queue this will go to, we need to return if
+       *  any of the queues are full..
+       */
+      rv = true;
+
+      for( uint64_t i = 0; i < numChannels; i++ )
+        {
+          if( memoryControllers[i]->QueueFull( request ) )
+            rv = false;
+        }
+    }
+
+  return rv;
 }
 
 

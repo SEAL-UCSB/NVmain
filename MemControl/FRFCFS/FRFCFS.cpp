@@ -112,7 +112,22 @@ void FRFCFS::SetConfig( Config *conf )
       starvationThreshold = 4;
     }
 
+  if( conf->KeyExists( "QueueSize" ) )
+    {
+      queueSize = static_cast<unsigned int>( conf->GetValue( "FRFCFS_StarvationThreshold" ) );
+    }
+  else
+    {
+      queueSize = 25;
+    }
+
   MemoryController::SetConfig( conf );
+}
+
+
+bool FRFCFS::QueueFull( NVMainRequest * /*req*/ )
+{
+  return (memQueue.size() >= queueSize);
 }
 
 
@@ -125,7 +140,7 @@ bool FRFCFS::IssueCommand( NVMainRequest *req )
   /*
    *  Limit the number of commands in the queue. This will stall the caches/CPU.
    */ 
-  if( memQueue.size( ) >= 150 )
+  if( memQueue.size( ) >= queueSize )
     {
       return false;
     }
@@ -144,8 +159,8 @@ bool FRFCFS::IssueCommand( NVMainRequest *req )
     mem_writes++;
 
 #ifndef TRACE
-  Gem5Interface *face = (Gem5Interface*)GetConfig( )->GetSimInterface( );
-  cpu_insts = static_cast<uint64_t>(face->GetInstructionCount( 0 ));
+  //Gem5Interface *face = (Gem5Interface*)GetConfig( )->GetSimInterface( );
+  //cpu_insts = static_cast<uint64_t>(face->GetInstructionCount( 0 ));
 #endif 
 
   //std::cout << "Request for 0x" << std::hex << req->address.GetPhysicalAddress( ) << std::dec
