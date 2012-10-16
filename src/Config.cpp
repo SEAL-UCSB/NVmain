@@ -157,10 +157,6 @@ std::string Config::GetString( std::string key )
     value = i->second;
 
 
-  if( i == values.end( ) )
-    std::cout << "NVMain: Configuration variable `" << key << "' not found.\n";
-
-
   return value;
 }
 
@@ -195,10 +191,6 @@ int Config::GetValue( std::string key )
     value = -1;
   else
     value = atoi( i->second.c_str( ) );
-
-
-  if( i == values.end( ) )
-    std::cout << "NVMain: Configuration variable `" << key << "' not found.\n";
 
 
   return value;
@@ -240,10 +232,6 @@ float Config::GetEnergy( std::string key )
     value = -1;
   else
     value = (float)atof( i->second.c_str( ) );
-
-
-  if( i == values.end( ) )
-    std::cout << "NVMain: Configuration variable `" << key << "' not found.\n";
 
 
   return value;
