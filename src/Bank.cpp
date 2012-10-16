@@ -28,6 +28,7 @@ using namespace NVM;
 
 
 #define MAX(a,b) (( a > b ) ? a : b )
+//#define ASCII_VISUALIZATION
 
 
 Bank::Bank( )
@@ -49,9 +50,10 @@ Bank::Bank( )
 
   currentCycle = 0;
 
+#ifdef ASCII_VISUALIZATION
   bankGraph = new GenericBus( );
-
   bankGraph->SetGraphLabel( "BANK      " );
+#endif
 
   bankEnergy = 0.0f;
   backgroundEnergy = 0.0f;
@@ -82,6 +84,8 @@ Bank::Bank( )
   refreshRows = 1024;
 
   psInterval = 0;
+
+  nextCompletion = std::numeric_limits<ncycle_t>::max();
 }
 
 
@@ -108,7 +112,9 @@ void Bank::SetConfig( Config *c )
   if( endrModel )
     endrModel->SetConfig( conf );
 
+#ifdef ASCII_VISUALIZATION
   bankGraph->SetConfig( conf );
+#endif
 
   if( p->InitPD )
     state = BANK_PDPF;
@@ -145,8 +151,9 @@ bool Bank::PowerDown( BankState pdState )
       nextWrite = MAX( nextWrite, currentCycle + p->tPD + p->tXP );
       nextPrecharge = MAX( nextPrecharge, currentCycle + p->tPD + p->tXP );
 
-
+#ifdef ASCII_VISUALIZATION
       bankGraph->SetLabel( currentCycle, currentCycle + p->tPD, 'D' );
+#endif
 
       
       switch( nextCommand )
@@ -201,10 +208,12 @@ bool Bank::PowerUp( NVMainRequest *request )
         state = BANK_CLOSED;
 
 
+#ifdef ASCII_VISUALIZATION
       if( state == BANK_PDPS )
         bankGraph->SetLabel( currentCycle, currentCycle + p->tXPDLL, 'U' );
       else
         bankGraph->SetLabel( currentCycle, currentCycle + p->tXP, 'U' );
+#endif
 
 
       lastOperation = *request;
@@ -265,7 +274,10 @@ bool Bank::Activate( NVMainRequest *request )
 
 
       if( bankId == 0 )
-        notifyComplete.insert(std::pair<NVMainRequest *, int>( request, (int)p->tRCD ) );
+      {
+        notifyComplete.insert(std::pair<NVMainRequest *, ncycle_t>( request, currentCycle + p->tRCD ) );
+        nextCompletion = std::min( nextCompletion, currentCycle + p->tRCD );
+      }
 
       openRow = activateRow;
       state = BANK_OPEN;
@@ -292,7 +304,9 @@ bool Bank::Activate( NVMainRequest *request )
           bankEnergy += p->Erd;
         }
 
+#ifdef ASCII_VISUALIZATION
       bankGraph->SetLabel( currentCycle, currentCycle + p->tRCD, 'A' );
+#endif
 
 
       lastOperation = *request;
@@ -385,12 +399,17 @@ bool Bank::Read( NVMainRequest *request )
                    + p->tCAS + p->tPD + 1 );
       
 
+#ifdef ASCII_VISUALIZATION
       bankGraph->SetLabel( currentCycle, currentCycle + p->tBURST, 'R' );
+#endif
       dataCycles += p->tBURST;
 
 
       if( bankId == 0 )
-        notifyComplete.insert(std::pair<NVMainRequest *, int>( request, (int)p->tBURST + (int)p->tCAS ) );
+      {
+        notifyComplete.insert(std::pair<NVMainRequest *, ncycle_t>( request, currentCycle + p->tBURST + p->tCAS ) );
+        nextCompletion = std::min( nextCompletion, currentCycle + p->tBURST + p->tCAS );
+      }
 
 
       if( p->EnergyModel_set && p->EnergyModel == "current" )
@@ -495,12 +514,17 @@ bool Bank::Write( NVMainRequest *request )
       nextPowerDownDone = MAX( nextPowerDownDone, currentCycle + p->tAL + p->tBURST
                    + p->tWR + p->tCWD + p->tPD + 1 );
 
+#ifdef ASCII_VISUALIZATION
       bankGraph->SetLabel( currentCycle, currentCycle + p->tBURST, 'W' );
+#endif
       dataCycles += p->tBURST;
 
 
       if( bankId == 0 )
-        notifyComplete.insert(std::pair<NVMainRequest *, int>( request, (int)p->tBURST + (int)p->tCWD ) );
+      {
+        notifyComplete.insert(std::pair<NVMainRequest *, ncycle_t>( request, currentCycle + p->tBURST + p->tCWD ) );
+        nextCompletion = std::min( nextCompletion, currentCycle + p->tBURST + p->tCWD );
+      }
 
 
       if( p->EnergyModel_set && p->EnergyModel == "current" )
@@ -646,10 +670,15 @@ bool Bank::Precharge( NVMainRequest *request )
 
 
       if( bankId == 0 )
-        notifyComplete.insert(std::pair<NVMainRequest *, int>( request, (int)p->tRP ) );
+      {
+        notifyComplete.insert(std::pair<NVMainRequest *, ncycle_t>( request, currentCycle + p->tRP ) );
+        nextCompletion = std::min( nextCompletion, currentCycle + p->tRP );
+      }
 
 
+#ifdef ASCII_VISUALIZATION
       bankGraph->SetLabel( currentCycle, currentCycle + p->tRP, 'P' );
+#endif
 
       switch( nextCommand )
         {
@@ -850,7 +879,9 @@ void Bank::SetName( std::string name )
         graphLabel += name[i];
     }
 
+#ifdef ASCII_VISUALIZATION
   bankGraph->SetGraphLabel( graphLabel );
+#endif
 }
 
 
@@ -1072,17 +1103,10 @@ void Bank::Cycle( )
         state = BANK_PDPS;
       else if( state == BANK_PDAWAIT )
         state = BANK_PDA;
+
+      nextPowerDownDone = std::numeric_limits<ncycle_t>::max();
     }
 
-  /*
-   *  If we are in a powered-down state, count the number of cycles spent in each state.
-   */
-  if( state == BANK_PDPF || state == BANK_PDA )
-    feCycles++;
-  else if( state == BANK_PDPS )
-    seCycles++;
-  else
-    powerCycles++;
 
 
   /*
@@ -1095,12 +1119,12 @@ void Bank::Cycle( )
   /*
    *  Automatically refresh if we need to.
    */
-  if( state == BANK_CLOSED && nextRefresh <= currentCycle && refreshUsed )
+  if( refreshUsed && state == BANK_CLOSED && nextRefresh <= currentCycle )
     {
       Refresh( );
     }
 
-
+#ifdef ASCII_VISUALIZATION
   /*
    *  The output graph labeller only has a buffer of about
    *  100 characters, so we need to do something like this
@@ -1110,22 +1134,6 @@ void Bank::Cycle( )
     {
       bankGraph->SetLabel( currentCycle, currentCycle + 1, 'F' );
     }
-
-
-  currentCycle++;
-
-  /*
-   *  Count non-idle cycles for utilization calculations
-   */
-  if( !Idle( ) )
-    {
-      activeCycles++;
-    }
-  else
-    {
-      idleTimer++;
-    }
-
 
 
   /* Inhibit some graph output by default. */
@@ -1138,24 +1146,56 @@ void Bank::Cycle( )
       if( bankId == 0 )
         bankGraph->Cycle( );
     }
-
+#endif
 
 
 
   /* Notify memory controllers of completed commands. */
-  std::map<NVMainRequest *, int>::iterator it;
+  if( nextCompletion == currentCycle )
+  {
+      //std::cout << "nextCompletion this cycle. " << std::endl;  
 
-  for( it = notifyComplete.begin( ); it != notifyComplete.end( ); it++ )
+      std::map<NVMainRequest *, ncycle_t>::iterator it;
+      nextCompletion = std::numeric_limits<ncycle_t>::max();
+
+      for( it = notifyComplete.begin( ); it != notifyComplete.end( ); it++ )
+        {
+          if( it->second == currentCycle )
+            {
+              //std::cout << "Notifying of completion" << std::endl;
+              GetParent( )->RequestComplete( it->first );
+              notifyComplete.erase( it );
+            }
+          else
+            {
+              nextCompletion = std::min( nextCompletion, it->second );
+            }
+        }
+  }
+
+
+  currentCycle++;
+
+  /*
+   *  Count non-idle cycles for utilization calculations
+   */
+  if( !Idle( ) )
     {
-      if( it->second == 0 )
-        {
-          GetParent( )->RequestComplete( it->first );
-          notifyComplete.erase( it );
-        }
+      activeCycles++;
+      
+      /*
+       *  If we are in a powered-down state, count the number of cycles spent in each state.
+       */
+      if( state == BANK_PDPF || state == BANK_PDA )
+        feCycles++;
+      else if( state == BANK_PDPS )
+        seCycles++;
       else
-        {
-          it->second = it->second - 1;
-        }
+        powerCycles++;
+    }
+  else
+    {
+      idleTimer++;
     }
 }
 

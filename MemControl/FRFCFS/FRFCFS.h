@@ -39,11 +39,17 @@ class FRFCFS : public MemoryController
 
   void Cycle( );
 
+  bool QueueFull( NVMainRequest *req );
+
   void PrintStats( );
 
  private:
   NVMTransactionQueue memQueue;
 
+  /* Cached Configuration Variables*/
+  uint64_t queueSize;
+
+  /* Stats */
   uint64_t measuredLatencies, measuredQueueLatencies;
   float averageLatency, averageQueueLatency;
   uint64_t mem_reads, mem_writes;

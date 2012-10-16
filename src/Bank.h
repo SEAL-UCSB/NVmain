@@ -155,7 +155,8 @@ class Bank : public NVMObject
 
   int bankId;
  
-  std::map<NVMainRequest *, int> notifyComplete;
+  std::map<NVMainRequest *, ncycle_t> notifyComplete;
+  ncycle_t nextCompletion;
 
   Params *p;
 

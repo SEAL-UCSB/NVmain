@@ -91,8 +91,9 @@ unsigned int Gem5Interface::GetInstructionCount( int core )
 
 unsigned int Gem5Interface::GetCacheMisses( int core, int level )
 {
+#ifdef RUBY
     std::vector<AbstractController*> cntrls = g_system_ptr->getNetwork()->getTopologyPtr()->getControllerVector();
-    std::stringstream fmt;
+    std::stringstream fmt, fmt2;
     unsigned int rv = 0;
 
     fmt.str("");
@@ -133,8 +134,9 @@ unsigned int Gem5Interface::GetCacheMisses( int core, int level )
     else if( level == 0 )
       {
         fmt.str("");
-        fmt << "system.cpu" << core << "num_mem_refs";
 
+        fmt << "system.cpu" << core << "num_mem_refs";
+        fmt2 << "system.cpu.num_mem_refs";
 
         std::list<Stats::Info *> &allStats = Stats::statsList();
         std::list<Stats::Info *>::iterator it;
@@ -143,8 +145,7 @@ unsigned int Gem5Interface::GetCacheMisses( int core, int level )
           {
             Stats::Info* curStat = (*it);
 
-            if( curStat->name == fmt.str() 
-                || ( core == 0 && curStat->name == "system.cpu.num_mem_refs" ) )
+            if( curStat->name == fmt.str() || curStat->name == fmt2.str() )
               {
                 Stats::ScalarInfo *scalar = (Stats::ScalarInfo *)curStat;
 
@@ -154,6 +155,64 @@ unsigned int Gem5Interface::GetCacheMisses( int core, int level )
       }
 
     return rv;
+
+#else
+    std::stringstream fmt, fmt2;
+    unsigned int rv = 0;
+
+    fmt.str("");
+    fmt2.str("");
+
+    /* Valid for timing simple CPU... need to check O3 etc. */
+    if( level > 1 )
+    {
+        fmt << "system.l" << core << ".overall_misses";
+    }
+    else if( level == 1 )
+    {
+        fmt << "system.cpu.dcache.overal_misses";
+        fmt2 << "system.cpu" << core << ".dcache.overall_misses";
+    }
+    else if( level == 0 )
+    {
+        fmt.str("");
+
+        fmt << "system.cpu" << core << "num_mem_refs";
+        fmt2 << "system.cpu.num_mem_refs";
+
+        std::list<Stats::Info *> &allStats = Stats::statsList();
+        std::list<Stats::Info *>::iterator it;
+        
+        for( it = allStats.begin(); it != allStats.end(); it++ )
+          {
+            Stats::Info* curStat = (*it);
+
+            if( curStat->name == fmt.str() || curStat->name == fmt2.str() )
+              {
+                Stats::ScalarInfo *scalar = (Stats::ScalarInfo *)curStat;
+
+                rv = (unsigned int)scalar->total();
+              }
+          }
+    }
+
+    std::list<Stats::Info *> &allStats = Stats::statsList();
+    std::list<Stats::Info *>::iterator it;
+    
+    for( it = allStats.begin(); it != allStats.end(); it++ )
+      {
+        Stats::Info* curStat = (*it);
+
+        if( curStat->name == fmt.str() || curStat->name == fmt2.str() )
+          {
+            Stats::ScalarInfo *scalar = (Stats::ScalarInfo *)curStat;
+
+            rv = (unsigned int)scalar->total();
+          }
+      }
+
+    return rv;
+#endif
 }
 
 
@@ -182,13 +241,13 @@ bool Gem5Interface::HasInstructionCount( )
 
 bool Gem5Interface::HasCacheMisses( )
 {
-    return false;
+    return true;
 }
 
 
 bool Gem5Interface::HasCacheHits( )
 {
-    return false;
+    return true;
 }
 
 
