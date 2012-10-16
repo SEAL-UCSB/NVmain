@@ -131,6 +131,8 @@ void MemoryController::FlushCompleted( )
           //          << std::dec << " completed" << std::endl;
           it->first->status = MEM_REQUEST_COMPLETE;
 
+          RequestComplete( it->first );
+
           //std::cout << "Marking request 0x" << std::hex << (void*)it->first->GetRequest( ) << std::dec 
           //          << "completed" << std::endl;
           completedCommands.erase( it );
@@ -151,6 +153,10 @@ bool MemoryController::RequestComplete( NVMainRequest *request )
     {
       delete request;
       rv = true;
+    }
+  else
+    {
+      GetParent( )->RequestComplete( request );
     }
 
   return rv;
@@ -181,6 +187,8 @@ void MemoryController::EndCommand( NVMainRequest* req, MCEndMode endMode, ncycle
   else if( endMode == ENDMODE_IMMEDIATE )
     {
       req->status = MEM_REQUEST_COMPLETE;
+
+      completedCommands.insert( std::pair<NVMainRequest *, ncycle_t>( req, 0 ) );
     }
   else if( endMode == ENDMODE_CUSTOM )
     {
