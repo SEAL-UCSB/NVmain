@@ -34,6 +34,8 @@ class PerfectMemory : public MemoryController
 
   void PrintStats( );
 
+  void Cycle( );
+
 };
 
 

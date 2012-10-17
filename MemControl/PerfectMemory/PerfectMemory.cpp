@@ -85,6 +85,11 @@ bool PerfectMemory::IssueCommand( NVMainRequest *req )
 }
 
 
+void PerfectMemory::Cycle( )
+{
+}
+
+
 void PerfectMemory::PrintStats( )
 {
 #ifndef TRACE
