@@ -88,9 +88,6 @@ FRFCFS::FRFCFS( Interconnect *memory, AddressTranslator *translator )
   starvation_precharges = 0;
 
   psInterval = 0;
-
-  /* We don't have separate read or write queues and use the same queue for all ranks. */
-  InitQueues( 1 );
 }
 
 
@@ -114,11 +111,11 @@ void FRFCFS::SetConfig( Config *conf )
 
   if( conf->KeyExists( "QueueSize" ) )
     {
-      queueSize = static_cast<unsigned int>( conf->GetValue( "FRFCFS_StarvationThreshold" ) );
+      queueSize = static_cast<unsigned int>( conf->GetValue( "QueueSize" ) );
     }
   else
     {
-      queueSize = 25;
+      queueSize = 32;
     }
 
   MemoryController::SetConfig( conf );

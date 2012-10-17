@@ -18,7 +18,7 @@
 #define __MEMORYCONTROLLERFACTORY_H__
 
 
-#include "MemControl/SimpleClosePage/SimpleClosePage.h"
+#include "MemControl/FCFS/FCFS.h"
 #include "MemControl/StackFCFSTimer/StackFCFSTimer.h"
 #include "MemControl/FRFCFS/FRFCFS.h"
 #include "MemControl/PerfectMemory/PerfectMemory.h"
