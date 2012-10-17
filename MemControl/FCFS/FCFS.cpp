@@ -14,7 +14,7 @@
  *
  */
 
-#include "MemControl/SimpleClosePage/SimpleClosePage.h"
+#include "MemControl/FCFS/FCFS.h"
 #include "SimInterface/GemsInterface/GemsInterface.h"
 
 #include <iostream>
@@ -31,7 +31,7 @@ using namespace NVM;
  *    For each request, it simply prepends an activate before the read/write and appends a precharge
  *  - This memory controller leaves all banks and ranks in active mode (it does not do power management)
  */
-SimpleClosePage::SimpleClosePage( Interconnect *memory, AddressTranslator *translator )
+FCFS::FCFS( Interconnect *memory, AddressTranslator *translator )
 {
   /*
    *  First, we need to define how the memory is translated. The main() function already 
@@ -65,6 +65,29 @@ SimpleClosePage::SimpleClosePage( Interconnect *memory, AddressTranslator *trans
   SetTranslator( translator );
 
   std::cout << "Created a Simple Close Page memory controller!" << std::endl;
+
+  queueSize = 32;
+
+  InitQueues( 1 );
+}
+
+
+
+void FCFS::SetConfig( Config *conf )
+{
+  if( conf->KeyExists( "QueueSize" ) )
+    {
+      queueSize = static_cast<unsigned int>( conf->GetValue( "QueueSize" ) );
+    }
+
+  MemoryController::SetConfig( conf );
+}
+
+
+
+bool FCFS::QueueFull( NVMainRequest * /*req*/ )
+{
+  return( transactionQueues[0].size() >= queueSize );
 }
 
 
@@ -73,36 +96,43 @@ SimpleClosePage::SimpleClosePage( Interconnect *memory, AddressTranslator *trans
  *  This method is called whenever a new transaction from the processor issued to
  *  this memory controller / channel. All scheduling decisions should be made here.
  */
-bool SimpleClosePage::IssueCommand( NVMainRequest *req )
+bool FCFS::IssueCommand( NVMainRequest *req )
 {
-  NVMainRequest *nextReq = NULL;
-
   /* Allow up to 16 read/writes outstanding. */
-  if( transactionQueues[0].size( ) >= 16 )
+  if( transactionQueues[0].size( ) >= queueSize )
     return false;
 
-
-
-  req = new NVMainRequest( );
-  *nextReq = *req;
-  nextReq->type = ACTIVATE;
-  nextReq->owner = this;
-
-
-  transactionQueues[0].push_back( nextReq ); 
   transactionQueues[0].push_back( req );
-
-  nextReq = new NVMainRequest( );
-  *nextReq = *req;
-  nextReq->type = PRECHARGE;
-  nextReq->owner = this;
-
-  transactionQueues[0].push_back( nextReq );
 
   /*
    *  Return whether the request could be queued. Return false if the queue is full.
    */
   return true;
+}
+
+
+
+void FCFS::Cycle( )
+{
+  NVMainRequest *nextReq = NULL;
+
+  /* Simply get the oldest request */
+  if( !FindOldestReadyRequest( transactionQueues[0], &nextReq ) )
+    {
+      /* No oldest ready request, check for non-activated banks. */
+      (void)FindClosedBankRequest( transactionQueues[0], &nextReq );
+    }
+
+  if( nextReq != NULL )
+    {
+      IssueMemoryCommands( nextReq );
+    }
+
+  CycleCommandQueues( );
+
+
+  currentCycle++;
+  memory->Cycle( );
 }
 
 

@@ -80,7 +80,7 @@ void MemoryController::Cycle( )
   /*
    *  Check if the queue is empty, if not, we will attempt to issue the command to memory.
    */
-  if( !transactionQueues[0].empty() )
+  if( transactionQueues && !transactionQueues[0].empty() )
     {
       /*
        *  Get the first transaction from the queue.
@@ -410,7 +410,7 @@ bool MemoryController::FindOldestReadyRequest( std::list<NVMainRequest *>& trans
 
       (*it)->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
 
-      if( activateQueued[rank][bank] && effectiveRow[rank][bank] != row    /* The effective row is not the row of this request. */
+      if( activateQueued[rank][bank] 
           && bankQueues[rank][bank].empty()                                /* No requests are currently issued to this bank (Ready). */
           && pred( rank, bank ) )                                          /* User-defined predicate is true. */
         {

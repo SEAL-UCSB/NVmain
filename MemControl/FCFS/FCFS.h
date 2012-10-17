@@ -14,8 +14,8 @@
  *
  */
 
-#ifndef __SIMPLECLOSEPAGE_H__
-#define __SIMPLECLOSEPAGE_H__
+#ifndef __MEMCONTROL_FCFS_H__
+#define __MEMCONTROL_FCFS_H__
 
 #include "src/MemoryController.h"
 
@@ -23,14 +23,21 @@
 namespace NVM {
 
 
-class SimpleClosePage : public MemoryController
+class FCFS : public MemoryController
 {
  public:
-  SimpleClosePage( Interconnect *memory, AddressTranslator *translator );
-  ~SimpleClosePage( ) { }
+  FCFS( Interconnect *memory, AddressTranslator *translator );
+  ~FCFS( ) { }
 
+  void SetConfig( Config *conf );
 
   bool IssueCommand( NVMainRequest *req );
+  bool QueueFull( NVMainRequest *req );
+
+  void Cycle( );
+
+ private:
+  uint64_t queueSize;
 
 };
 

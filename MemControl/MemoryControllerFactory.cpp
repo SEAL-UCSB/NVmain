@@ -30,8 +30,8 @@ MemoryController *MemoryControllerFactory::CreateNewController( std::string cont
   if( controller == "" )
     std::cout << "NVMain: MEM_CTL is not set in configuration file!" << std::endl;
 
-  if( controller == "SimpleClosePage" )
-    memoryController = new SimpleClosePage( memory, translator );
+  if( controller == "FCFS" )
+    memoryController = new FCFS( memory, translator );
   else if( controller == "StackFCFSTimer" )
     memoryController = new StackFCFSTimer( memory, translator );
   else if( controller == "FRFCFS" )
