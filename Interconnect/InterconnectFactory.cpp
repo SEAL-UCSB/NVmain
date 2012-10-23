@@ -34,8 +34,6 @@ Interconnect *InterconnectFactory::CreateInterconnect( std::string type )
     ic = new OnChipBus( );
   else if( type == "OffChipBus" )
     ic = new OffChipBus( );
-  else if( type == "StackInterface" )
-    ic = new StackInterface( );
 
 
   else

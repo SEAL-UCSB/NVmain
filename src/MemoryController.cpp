@@ -27,9 +27,6 @@ MemoryController::MemoryController( )
   transactionQueues = NULL;
   memory = NULL;
   translator = NULL;
-  currentCycle = 0;
-  this->SendCallback = NULL;
-  this->RecvCallback = NULL;
 
   refreshUsed = false;
   refreshWaitQueue.clear( );
@@ -73,7 +70,7 @@ void MemoryController::InitQueues( unsigned int numQueues )
  *  controllers) just overload this function, and call InitQueues() with the nubmer
  *  of queues you need.
  */
-void MemoryController::Cycle( )
+void MemoryController::Cycle( ncycle_t )
 {
   NVMainRequest *nextReq;
   
@@ -101,7 +98,7 @@ void MemoryController::Cycle( )
               EndCommand( nextReq, ENDMODE_NORMAL );
             }
 
-          nextReq->issueCycle = currentCycle;
+          nextReq->issueCycle = GetEventQueue()->GetCurrentCycle();
 
           /*
            *  If we can issue, send 
@@ -111,10 +108,6 @@ void MemoryController::Cycle( )
           transactionQueues[0].erase( transactionQueues[0].begin( ) );
         }
     }
-
-
-  currentCycle++;
-  memory->Cycle( );
 }
 
 
@@ -295,7 +288,7 @@ NVMainRequest *MemoryController::MakeActivateRequest( NVMainRequest *triggerRequ
   NVMainRequest *activateRequest = new NVMainRequest( );
 
   activateRequest->type = ACTIVATE;
-  activateRequest->issueCycle = currentCycle;
+  activateRequest->issueCycle = GetEventQueue()->GetCurrentCycle();
   activateRequest->address = triggerRequest->address;
   activateRequest->owner = this;
 
@@ -308,7 +301,7 @@ NVMainRequest *MemoryController::MakePrechargeRequest( NVMainRequest *triggerReq
   NVMainRequest *prechargeRequest = new NVMainRequest( );
 
   prechargeRequest->type = PRECHARGE;
-  prechargeRequest->issueCycle = currentCycle;
+  prechargeRequest->issueCycle = GetEventQueue()->GetCurrentCycle();
   prechargeRequest->address = triggerRequest->address;
   prechargeRequest->owner = this;
 
@@ -481,7 +474,7 @@ bool MemoryController::IssueMemoryCommands( NVMainRequest *req )
       activateQueued[rank][bank] = true;
       effectiveRow[rank][bank] = row;
 
-      req->issueCycle = currentCycle;
+      req->issueCycle = GetEventQueue()->GetCurrentCycle();
 
       bankQueues[rank][bank].push_back( MakeActivateRequest( req ) );
       bankQueues[rank][bank].push_back( req );
@@ -495,7 +488,7 @@ bool MemoryController::IssueMemoryCommands( NVMainRequest *req )
       activateQueued[rank][bank] = true;
       effectiveRow[rank][bank] = row;
 
-      req->issueCycle = currentCycle;
+      req->issueCycle = GetEventQueue()->GetCurrentCycle();
 
       bankQueues[rank][bank].push_back( MakePrechargeRequest( req ) );
       bankQueues[rank][bank].push_back( MakeActivateRequest( req ) );
@@ -507,7 +500,7 @@ bool MemoryController::IssueMemoryCommands( NVMainRequest *req )
     {
       starvationCounter[rank][bank]++;
 
-      req->issueCycle = currentCycle;
+      req->issueCycle = GetEventQueue()->GetCurrentCycle();
 
       bankQueues[rank][bank].push_back( req );
 
@@ -539,14 +532,14 @@ void MemoryController::CycleCommandQueues( )
             {
               NVMainRequest *queueHead = bankQueues[i][j].at( 0 );
 
-              if( ( currentCycle - queueHead->issueCycle ) > 1000000 )
+              if( ( GetEventQueue()->GetCurrentCycle() - queueHead->issueCycle ) > 1000000 )
                 {
                   std::cout << "WARNING: Operation could not be sent to memory after a very long time: "
                             << std::endl; 
                   std::cout << "         Address: 0x" << std::hex 
                             << queueHead->address.GetPhysicalAddress( )
                             << std::dec << ". Queued time: " << queueHead->arrivalCycle
-                            << ". Current time: " << currentCycle << ". Type: " 
+                            << ". Current time: " << GetEventQueue()->GetCurrentCycle() << ". Type: " 
                             << queueHead->type << std::endl;
                 }
             }
@@ -555,66 +548,6 @@ void MemoryController::CycleCommandQueues( )
 }
 
 
-
-void MemoryController::SendMessage( unsigned int dest, void *message, int latency )
-{
-  MemoryControllerMessage *msg;
-
-  msg = new MemoryControllerMessage( );
-
-  msg->src = this->id;
-  msg->dest = dest;
-  msg->message = message;
-  msg->latency = latency;
-
-  (this->manager->*SendCallback)( msg );
-
-  delete msg;
-}
-
-
-void MemoryController::RecvMessages(  )
-{
-  MemoryControllerMessage *msg;
-  int rv = MSG_FOUND;
-
-  while( rv == MSG_FOUND )
-    {
-      msg = new MemoryControllerMessage( );
-      
-      /* Receive callback will use this to find messages ready. */
-      msg->dest = this->id;
-      
-      rv = (this->manager->*RecvCallback)( msg );
-
-      /* Process Message using overloaded function */
-      ProcessMessage( msg );
-
-      delete msg;
-    }
-}
-
-
-void MemoryController::ProcessMessage( MemoryControllerMessage */*msg*/ )
-{
-  /*
-   *  This function should be overloaded, but it's not required.
-   */
-}
-
-
-void MemoryController::SetSendCallback( MemoryControllerManager *manager, void (MemoryControllerManager::*sendCallback)( MemoryControllerMessage * ) )
-{
-  this->manager = manager;
-  this->SendCallback = sendCallback;
-}
-
-
-void MemoryController::SetRecvCallback( MemoryControllerManager *manager, int  (MemoryControllerManager::*recvCallback)( MemoryControllerMessage * ) )
-{
-  this->manager = manager;
-  this->RecvCallback = recvCallback;
-}
 
 
 void MemoryController::PrintStats( )

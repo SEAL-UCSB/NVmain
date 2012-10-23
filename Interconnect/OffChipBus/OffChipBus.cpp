@@ -28,12 +28,10 @@ using namespace NVM;
 
 OffChipBus::OffChipBus( )
 {
-  nextReq = NULL;
   conf = NULL;
   ranks = NULL;
   configSet = false;
   numRanks = 0;
-  currentCycle = 0;
   syncValue = 0.0f;
 }
 
@@ -79,14 +77,15 @@ void OffChipBus::SetConfig( Config *c )
       formatter << statName << ".rank" << i;
       ranks[i]->StatName( formatter.str( ) );
 
-      ranks[i]->SetConfig( conf );
-
       formatter.str( "" );
       formatter << i;
       ranks[i]->SetName( formatter.str( ) );
 
       ranks[i]->SetParent( this );
       AddChild( ranks[i] );
+
+      /* SetConfig recursively. */
+      ranks[i]->SetConfig( conf );
     }
 }
 
@@ -94,12 +93,7 @@ void OffChipBus::SetConfig( Config *c )
 
 bool OffChipBus::RequestComplete( NVMainRequest *request )
 {
-  DelayedReq *dreq = new DelayedReq;
-
-  dreq->req = request;
-  dreq->delay = offChipDelay;
-
-  delayQueue.push_back( dreq );
+  GetEventQueue( )->InsertEvent( EventResponse, GetParent( ), request, GetEventQueue()->GetCurrentCycle() + offChipDelay ); 
 
   return true;
 }
@@ -107,6 +101,12 @@ bool OffChipBus::RequestComplete( NVMainRequest *request )
 
 bool OffChipBus::IssueCommand( NVMainRequest *req )
 {
+  uint64_t opRank;
+  uint64_t opBank;
+  uint64_t opRow;
+  uint64_t opCol;
+  bool success = false;
+
   if( !configSet || numRanks == 0 )
     {
       std::cerr << "Error: Issued command before memory system was configured!"
@@ -114,20 +114,30 @@ bool OffChipBus::IssueCommand( NVMainRequest *req )
       return false;
     }
 
+  req->address.GetTranslatedAddress( &opCol, &opRow, &opBank, &opRank, NULL );
 
-  /*
-   *  Only one command can be issued per cycle. Make sure none of the
-   *  delayed operations have a delay equal to the latency.
-   */
-  if( nextReq != NULL )
+  if( ranks[opRank]->IsIssuable( req ) )
     {
-      std::cerr << "Warning: Only one command can be issued per cycle. Check memory controller code."
-                << std::endl;
+      if( req->type == 0 )
+        {
+          std::cout << "OffChipBus got unknown op." << std::endl;
+        }
+
+      success = ranks[opRank]->IssueCommand( req );
+
+      /*
+       *  To preserve rank-to-rank switching time, we need to notify the
+       *  other ranks what the command sent to opRank was.
+       */
+      if( success )
+        {
+          for( ncounter_t i = 0; i < numRanks; i++ )
+            if( (uint64_t)(i) != opRank )
+              ranks[i]->Notify( req->type );
+        }
     }
 
-  nextReq = req;
-
-  return true;
+  return success;
 }
 
 
@@ -138,16 +148,9 @@ bool OffChipBus::IsIssuable( NVMainRequest *req, ncycle_t delay )
   uint64_t opRow;
   uint64_t opCol;
 
-  /*
-   *  Only one command can be issued per cycle. Make sure none of the
-   *  delayed operations have a delay equal to the latency.
-   */
-  if( nextReq != NULL )
-    return false;
-
   req->address.GetTranslatedAddress( &opCol, &opRow, &opBank, &opRank, NULL );
 
-  return ranks[opRank]->IsIssuable( req, delay+offChipDelay );
+  return ranks[opRank]->IsIssuable( req, delay );
 }
 
 
@@ -211,80 +214,8 @@ void OffChipBus::PrintStats( )
 }
 
 
-void OffChipBus::Cycle( )
+void OffChipBus::Cycle( ncycle_t )
 {
-  float cpuFreq;
-  float busFreq;
-
-  /* GetEnergy returns a float */
-  cpuFreq = (float)p->CPUFreq;
-  busFreq = (float)p->CLK;
-
-  
-  syncValue += (float)( busFreq / cpuFreq );
-
-  if( syncValue >= 1.0f )
-    {
-      syncValue -= 1.0f;
-    }
-  else
-    {
-      return;
-    }
-
-
-  currentCycle++;
-
-  if( nextReq != NULL )
-    {
-      uint64_t opRank;
-      uint64_t opBank;
-      uint64_t opRow;
-      uint64_t opCol;
-
-      nextReq->address.GetTranslatedAddress( &opCol, &opRow, &opBank, &opRank, NULL );
-
-      if( ranks[opRank]->IsIssuable( nextReq ) )
-        {
-          if( nextReq->type == 0 )
-            {
-              std::cout << "OffChipBus got unknown op." << std::endl;
-            }
-
-          ranks[opRank]->IssueCommand( nextReq );
-
-          for( ncounter_t i = 0; i < numRanks; i++ )
-            if( (uint64_t)(i) != opRank )
-              ranks[i]->Notify( nextReq->type );
-            
-          nextReq = NULL;
-        }
-    }
-
-
-  /* Complete delayed requests at 0, and decrement others. */
-  std::list<DelayedReq *>::iterator it;
-
-  for( it = delayQueue.begin( ); it != delayQueue.end( ); ++it )
-    {
-      if( (*it)->delay == 0 )
-        {
-          GetParent( )->RequestComplete( (*it)->req );
-        }
-    }
-
-  delayQueue.remove_if( zero_delay() );
-
-  for( it = delayQueue.begin( ); it != delayQueue.end( ); ++it )
-    {
-      (*it)->delay--;
-    }
-
-  /* Cycle the ranks. */
-  for( ncounter_t i = 0; i < numRanks; i++ )
-    {
-      ranks[i]->Cycle( );
-    }
 }
 
 

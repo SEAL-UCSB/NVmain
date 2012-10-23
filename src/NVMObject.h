@@ -19,7 +19,7 @@
 
 
 #include "include/NVMTypes.h"
-
+#include "src/EventQueue.h"
 
 #include <vector>
 
@@ -28,6 +28,7 @@ namespace NVM {
 
 
 class NVMainRequest;
+class EventQueue;
 
 
 /*
@@ -38,9 +39,9 @@ class NVMObject
 {
  public:
   NVMObject( ) { }
-  virtual ~NVMObject( ) { }
+  virtual ~NVMObject(  ) { }
 
-  virtual void Cycle( ) = 0;
+  virtual void Cycle( ncycle_t steps ) = 0;
 
   virtual bool IssueCommand( NVMainRequest *req );
   virtual bool IsIssuable( NVMainRequest *req, ncycle_t delay = 0 );
@@ -51,6 +52,9 @@ class NVMObject
   void SetParent( NVMObject *p );
   void AddChild( NVMObject *c ); 
 
+  void SetEventQueue( EventQueue *eq );
+  EventQueue *GetEventQueue( );
+
   NVMObject *GetParent( );
   std::vector<NVMObject *>& GetChildren( );
   
@@ -58,6 +62,7 @@ class NVMObject
  protected:
   NVMObject *parent;
   std::vector<NVMObject *> children;
+  EventQueue *eventQueue;
 
 };
 

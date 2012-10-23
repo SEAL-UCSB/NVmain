@@ -23,7 +23,6 @@
 
 
 #include "src/Bank.h"
-#include "src/GenericBus.h"
 #include "src/Device.h"
 #include "src/Params.h"
 #include "src/NVMObject.h"
@@ -58,14 +57,13 @@ public:
   ncycle_t GetNextPrecharge( uint64_t bank );
   ncycle_t GetNextRefresh( uint64_t bank );
 
-  void Cycle( );
+  void Cycle( ncycle_t steps );
 
   Device *GetDevice( uint64_t device ) { return &(devices[device]); }
 
 private:
   Config *conf;
   ncounter_t stateTimeout;
-  ncycle_t currentCycle;
   std::string statName;
   uint64_t psInterval;
 
@@ -76,7 +74,6 @@ private:
   ncounter_t busWidth;
   ncycles_t lastActivate[4];
   ncounter_t FAWindex;
-  NVMainRequest *nextReq;
 
   ncycle_t nextRead;
   ncycle_t nextWrite;
@@ -91,9 +88,6 @@ private:
   ncounter_t actWaitTime;
 
   float backgroundEnergy;
-
-  GenericBus *cmdBus;
-  GenericBus *dataBus;
 
   bool Activate( NVMainRequest *request );
   bool Read( NVMainRequest *request );
