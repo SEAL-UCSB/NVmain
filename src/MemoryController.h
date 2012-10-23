@@ -25,8 +25,6 @@
 #include "src/Config.h"
 #include "src/Interconnect.h"
 #include "src/AddressTranslator.h"
-#include "src/MemoryControllerMessage.h"
-#include "src/MemoryControllerManager.h"
 #include "src/Params.h"
 #include "include/NVMainRequest.h"
 
@@ -84,18 +82,11 @@ class MemoryController : public NVMObject
   void StatName( std::string name ) { statName = name; }
   virtual void PrintStats( );
 
-  virtual void Cycle( ); 
+  virtual void Cycle( ncycle_t steps ); 
 
   virtual void SetConfig( Config *conf );
   void SetParams( Params *params ) { p = params; }
   Config *GetConfig( );
-
-  void SendMessage( unsigned int dest, void *message, int latency = -1 );
-  void RecvMessages( );
-  void ProcessMessage( MemoryControllerMessage *msg );
-
-  void SetSendCallback( MemoryControllerManager *manager, void (MemoryControllerManager::*sendCallback)( MemoryControllerMessage * ) );
-  void SetRecvCallback( MemoryControllerManager *manager, int  (MemoryControllerManager::*recvCallback)( MemoryControllerMessage * ) );
 
   void SetID( unsigned int id );
 
@@ -136,12 +127,7 @@ class MemoryController : public NVMObject
     bool operator() (uint64_t, uint64_t);
   };
 
-  uint64_t currentCycle;
-
   unsigned int id;
-  MemoryControllerManager *manager;
-  void (MemoryControllerManager::*SendCallback)( MemoryControllerMessage * );
-  int  (MemoryControllerManager::*RecvCallback)( MemoryControllerMessage * );
 
   bool refreshUsed;
   std::vector<NVMainRequest *> refreshWaitQueue;

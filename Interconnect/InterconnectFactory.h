@@ -22,7 +22,6 @@
 
 #include "Interconnect/OnChipBus/OnChipBus.h"
 #include "Interconnect/OffChipBus/OffChipBus.h"
-#include "Interconnect/StackInterface/StackInterface.h"
 
 
 namespace NVM {

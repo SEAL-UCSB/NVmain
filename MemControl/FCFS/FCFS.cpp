@@ -68,6 +68,20 @@ FCFS::FCFS( Interconnect *memory, AddressTranslator *translator )
 
   queueSize = 32;
 
+  averageLatency = 0.0f;
+  averageQueueLatency = 0.0f;
+
+  measuredLatencies = 0;
+  measuredQueueLatencies = 0;
+
+  mem_reads = 0;
+  mem_writes = 0;
+
+  rb_hits = 0;
+  rb_miss = 0;
+
+  psInterval = 0;
+
   InitQueues( 1 );
 }
 
@@ -92,6 +106,44 @@ bool FCFS::QueueFull( NVMainRequest * /*req*/ )
 
 
 
+
+bool FCFS::RequestComplete( NVMainRequest * request )
+{
+  /* Only reads and writes are sent back to NVMain and checked for in the transaction queue. */
+  if( request->type == READ || request->type == WRITE )
+    {
+      request->status = MEM_REQUEST_COMPLETE;
+      request->completionCycle = GetEventQueue()->GetCurrentCycle();
+
+      /* Update the average latencies based on this request for READ/WRITE only. */
+      averageLatency = ((averageLatency * static_cast<float>(measuredLatencies))
+                         + static_cast<float>(request->completionCycle)
+                         - static_cast<float>(request->issueCycle))
+                     / static_cast<float>(measuredLatencies+1);
+      measuredLatencies += 1;
+
+      averageQueueLatency = ((averageQueueLatency * static_cast<float>(measuredQueueLatencies))
+                              + static_cast<float>(request->issueCycle)
+                              - static_cast<float>(request->arrivalCycle))
+                          / static_cast<float>(measuredQueueLatencies+1);
+      measuredQueueLatencies += 1;
+
+      //std::cout << "Request for 0x" << std::hex << request->address.GetPhysicalAddress( ) << std::dec
+      //          << " arriving at " << request->arrivalCycle << " and issued at "
+      //          << request->issueCycle << " completed at " << GetEventQueue()->GetCurrentCycle() 
+      //          << std::endl;
+    }
+
+
+  if( request->owner == this )
+    delete request;
+  else
+    GetParent( )->RequestComplete( request );
+
+  return true;
+}
+
+
 /*
  *  This method is called whenever a new transaction from the processor issued to
  *  this memory controller / channel. All scheduling decisions should be made here.
@@ -101,6 +153,11 @@ bool FCFS::IssueCommand( NVMainRequest *req )
   /* Allow up to 16 read/writes outstanding. */
   if( transactionQueues[0].size( ) >= queueSize )
     return false;
+
+  if( req->type == READ )
+    mem_reads++;
+  else
+    mem_writes++;
 
   transactionQueues[0].push_back( req );
 
@@ -112,7 +169,7 @@ bool FCFS::IssueCommand( NVMainRequest *req )
 
 
 
-void FCFS::Cycle( )
+void FCFS::Cycle( ncycle_t )
 {
   NVMainRequest *nextReq = NULL;
 
@@ -129,10 +186,23 @@ void FCFS::Cycle( )
     }
 
   CycleCommandQueues( );
-
-
-  currentCycle++;
-  memory->Cycle( );
 }
 
+
+
+void FCFS::PrintStats( )
+{
+  std::cout << "i" << psInterval << "." << statName << id << ".mem_reads " << mem_reads << std::endl;
+  std::cout << "i" << psInterval << "." << statName << id << ".mem_writes " << mem_writes << std::endl;
+  std::cout << "i" << psInterval << "." << statName << id << ".rb_hits " << rb_hits << std::endl;
+  std::cout << "i" << psInterval << "." << statName << id << ".rb_miss " << rb_miss << std::endl;
+  std::cout << "i" << psInterval << "." << statName << id << ".averageLatency " << averageLatency << std::endl;
+  std::cout << "i" << psInterval << "." << statName << id << ".averageQueueLatency " << averageQueueLatency << std::endl;
+  std::cout << "i" << psInterval << "." << statName << id << ".measuredLatencies " << measuredLatencies << std::endl;
+  std::cout << "i" << psInterval << "." << statName << id << ".measuredQueueLatencies " << measuredQueueLatencies << std::endl;
+
+  MemoryController::PrintStats( );
+
+  psInterval++;
+}
 

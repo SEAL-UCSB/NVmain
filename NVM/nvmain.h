@@ -53,16 +53,16 @@ class NVMain : public NVMObject
 
   void PrintStats( );
 
-  void Cycle( );
+  void Cycle( ncycle_t steps );
 
  private:
   Config *config;
   Config **channelConfig;
   MemoryController **memoryControllers;
-  MemoryControllerManager *memoryControllerManager;
   Interconnect **memory;
   AddressTranslator *translator;
   SimInterface *simInterface;
+  EventQueue *mainEventQueue;
 
   unsigned int numChannels;
   uint64_t currentCycle;

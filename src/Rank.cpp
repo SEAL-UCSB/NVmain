@@ -41,8 +41,6 @@ Rank::Rank( )
 
   FAWindex = 0;
 
-  currentCycle = 0;
-
   conf = NULL;
 
   backgroundEnergy = 0.0f;
@@ -101,8 +99,6 @@ void Rank::SetConfig( Config *c )
           std::stringstream formatter;
           ncycle_t nextRefresh;
 
-          newBank->SetConfig( c );
-
           if( p->UseRefresh_set && p->UseRefresh ) 
             {
               nextRefresh = ((p->tRFI) / (p->ROWS / p->RefreshRows));
@@ -122,19 +118,11 @@ void Rank::SetConfig( Config *c )
 
           newBank->SetParent( this );
           AddChild( newBank );
+
+          /* SetConfig recursively. */
+          newBank->SetConfig( c );
         }
     }
-
-
-
-  cmdBus = new GenericBus( );
-  dataBus = new GenericBus( );
-
-  cmdBus->SetGraphLabel( "RANK      " );
-  dataBus->SetGraphLabel( "RANK      " );
-
-  cmdBus->SetConfig( conf );
-  dataBus->SetConfig( conf );
 
   /*
    *  We'll say you can't do anything until the command has time to issue on the bus.
@@ -143,8 +131,6 @@ void Rank::SetConfig( Config *c )
   nextWrite = p->tCMD;
   nextActivate = p->tCMD;
   nextPrecharge = p->tCMD;
-
-  nextReq = NULL;
 
 
   fawWaits = 0;
@@ -175,15 +161,15 @@ bool Rank::Activate( NVMainRequest *request )
    *  Ensure that the time since the last bank activation is >= tRRD. This is to limit
    *  power consumption.
    */
-  if( nextActivate <= currentCycle 
-      && (ncycles_t)lastActivate[FAWindex] + (ncycles_t)p->tRRDR <= (ncycles_t)currentCycle
-      && (ncycles_t)lastActivate[(FAWindex + 1)%4] + (ncycles_t)p->tFAW <= (ncycles_t)currentCycle )
+  if( nextActivate <= GetEventQueue()->GetCurrentCycle() 
+      && (ncycles_t)lastActivate[FAWindex] + (ncycles_t)p->tRRDR <= (ncycles_t)GetEventQueue()->GetCurrentCycle()
+      && (ncycles_t)lastActivate[(FAWindex + 1)%4] + (ncycles_t)p->tFAW <= (ncycles_t)GetEventQueue()->GetCurrentCycle() )
     {
       for( ncounter_t i = 0; i < deviceCount; i++ )
         devices[i].GetBank( activateBank )->Activate( request );
 
       FAWindex = (FAWindex + 1) % 4;
-      lastActivate[FAWindex] = (ncycles_t)currentCycle;
+      lastActivate[FAWindex] = (ncycles_t)GetEventQueue()->GetCurrentCycle();
     }
   else
     {
@@ -207,7 +193,7 @@ bool Rank::Read( NVMainRequest *request )
     }
 
 
-  if( nextRead > currentCycle )
+  if( nextRead > GetEventQueue()->GetCurrentCycle() )
     {
       return false;
     }
@@ -223,10 +209,10 @@ bool Rank::Read( NVMainRequest *request )
       for( ncounter_t i = 0; i < deviceCount; i++ )
         devices[i].GetBank( readBank )->Read( request );
 
-      nextRead = MAX( nextRead, currentCycle + MAX( p->tBURST, p->tCCD ) );
-      nextWrite = MAX( nextWrite, currentCycle + p->tCAS + p->tBURST +
+      nextRead = MAX( nextRead, GetEventQueue()->GetCurrentCycle() + MAX( p->tBURST, p->tCCD ) );
+      nextWrite = MAX( nextWrite, GetEventQueue()->GetCurrentCycle() + p->tCAS + p->tBURST +
            p->tRTRS - p->tCWD );
-      nextActivate = MAX( nextActivate, currentCycle + p->tRRDR );
+      nextActivate = MAX( nextActivate, GetEventQueue()->GetCurrentCycle() + p->tRRDR );
     }
   else
     {
@@ -251,7 +237,7 @@ bool Rank::Write( NVMainRequest *request )
     }
 
 
-  if( nextWrite > currentCycle )
+  if( nextWrite > GetEventQueue()->GetCurrentCycle() )
     {
       return false;
     }
@@ -262,10 +248,10 @@ bool Rank::Write( NVMainRequest *request )
       for( ncounter_t i = 0; i < deviceCount; i++ )
         devices[i].GetBank( writeBank )->Write( request );
 
-      nextRead = MAX( nextRead, currentCycle + p->tCWD + p->tBURST
+      nextRead = MAX( nextRead, GetEventQueue()->GetCurrentCycle() + p->tCWD + p->tBURST
               + p->tWTR );
-      nextWrite = MAX( nextWrite, currentCycle + MAX( p->tBURST, p->tCCD ) );
-      nextActivate = MAX( nextActivate, currentCycle + p->tRRDW );
+      nextWrite = MAX( nextWrite, GetEventQueue()->GetCurrentCycle() + MAX( p->tBURST, p->tCCD ) );
+      nextActivate = MAX( nextActivate, GetEventQueue()->GetCurrentCycle() + p->tRRDW );
 
     }
   else
@@ -394,60 +380,60 @@ bool Rank::IsIssuable( NVMainRequest *req, ncycle_t delay )
 
   if( req->type == ACTIVATE )
     {
-      if( nextActivate > (currentCycle+delay) 
-          || lastActivate[FAWindex] + static_cast<ncycles_t>(p->tRRDR) > static_cast<ncycles_t>(currentCycle+delay)
-          || lastActivate[(FAWindex + 1)%4] + static_cast<ncycles_t>(p->tFAW) > static_cast<ncycles_t>(currentCycle+delay) )
+      if( nextActivate > (GetEventQueue()->GetCurrentCycle()+delay) 
+          || lastActivate[FAWindex] + static_cast<ncycles_t>(p->tRRDR) > static_cast<ncycles_t>(GetEventQueue()->GetCurrentCycle()+delay)
+          || lastActivate[(FAWindex + 1)%4] + static_cast<ncycles_t>(p->tFAW) > static_cast<ncycles_t>(GetEventQueue()->GetCurrentCycle()+delay) )
         rv = false;
       else
         rv = devices[0].GetBank( opBank )->IsIssuable( req, delay );
 
       if( rv == false )
         {
-          if( nextActivate > (currentCycle+delay) )
+          if( nextActivate > (GetEventQueue()->GetCurrentCycle()+delay) )
             {
               //std::cout << "Rank: Can't activate " << req->address.GetPhysicalAddress( )
-              //  << " for " << nextActivate - currentCycle << " more cycles." << std::endl;
+              //  << " for " << nextActivate - GetEventQueue()->GetCurrentCycle() << " more cycles." << std::endl;
             
               actWaits++;
-              actWaitTime += nextActivate - (currentCycle+delay);
+              actWaitTime += nextActivate - (GetEventQueue()->GetCurrentCycle()+delay);
             }
-          if( lastActivate[FAWindex] + static_cast<ncycles_t>(p->tRRDR) > static_cast<ncycles_t>(currentCycle+delay) )
+          if( lastActivate[FAWindex] + static_cast<ncycles_t>(p->tRRDR) > static_cast<ncycles_t>(GetEventQueue()->GetCurrentCycle()+delay) )
             {
               //std::cout << "Rank: Can't activate " << req->address.GetPhysicalAddress( )
               //  << " due to tRRDR until " << lastActivate[FAWindex] + p->tRRDR
-              //- currentCycle << " more cycles." << std::endl;
+              //- GetEventQueue()->GetCurrentCycle() << " more cycles." << std::endl;
             
               rrdWaits++;
-              rrdWaitTime += lastActivate[FAWindex] + p->tRRDR - (currentCycle+delay);
+              rrdWaitTime += lastActivate[FAWindex] + p->tRRDR - (GetEventQueue()->GetCurrentCycle()+delay);
             }
-          if( lastActivate[(FAWindex + 1)%4] + static_cast<ncycles_t>(p->tFAW) > static_cast<ncycles_t>(currentCycle+delay) )
+          if( lastActivate[(FAWindex + 1)%4] + static_cast<ncycles_t>(p->tFAW) > static_cast<ncycles_t>(GetEventQueue()->GetCurrentCycle()+delay) )
             {
               //std::cout << "Rank: Can't activate " << req->address.GetPhysicalAddress( )
               //  << " due to tFAW until " << lastActivate[(FAWindex + 1)%4] + p->tFAW
-              //- currentCycle << " more cycles." << std::endl;
+              //- GetEventQueue()->GetCurrentCycle() << " more cycles." << std::endl;
 
               fawWaits++;
-              fawWaitTime += lastActivate[(FAWindex +1)%4] + p->tFAW - (currentCycle+delay);
+              fawWaitTime += lastActivate[(FAWindex +1)%4] + p->tFAW - (GetEventQueue()->GetCurrentCycle()+delay);
             }
         }
     }
   else if( req->type == READ )
     {
-      if( nextRead > (currentCycle+delay) || devices[0].GetBank( opBank )->WouldConflict( opRow ) )
+      if( nextRead > (GetEventQueue()->GetCurrentCycle()+delay) || devices[0].GetBank( opBank )->WouldConflict( opRow ) )
         rv = false;
       else
         rv = devices[0].GetBank( opBank )->IsIssuable( req, delay );
     }
   else if( req->type == WRITE )
     {
-      if( nextWrite > (currentCycle+delay) || devices[0].GetBank( opBank )->WouldConflict( opRow ) )
+      if( nextWrite > (GetEventQueue()->GetCurrentCycle()+delay) || devices[0].GetBank( opBank )->WouldConflict( opRow ) )
         rv = false;
       else
         rv = devices[0].GetBank( opBank )->IsIssuable( req, delay );
     }
   else if( req->type == PRECHARGE )
     {
-      if( nextPrecharge > (currentCycle+delay) )
+      if( nextPrecharge > (GetEventQueue()->GetCurrentCycle()+delay) )
         rv = false;
       else
         rv = devices[0].GetBank( opBank )->IsIssuable( req, delay );
@@ -479,16 +465,49 @@ bool Rank::IsIssuable( NVMainRequest *req, ncycle_t delay )
 
 bool Rank::IssueCommand( NVMainRequest *req )
 {
+  bool success = false;
+
   if( !IsIssuable( req ) )
     {
       std::cout << "NVMain: Rank: Warning: Command can not be issued!\n";
     }
   else
     {
-      nextReq = req;
+      success = false;
+      
+      switch( req->type )
+        {
+        case ACTIVATE:
+          success = this->Activate( req );
+          break;
+        
+        case READ:
+          success = this->Read( req );
+          break;
+        
+        case WRITE:
+          success = this->Write( req );
+          break;
+        
+        case PRECHARGE:
+          success = this->Precharge( req );
+          break;
+
+        case POWERUP:
+          success = this->PowerUp( req );
+          break;
+      
+        case REFRESH:
+          success = this->Refresh( req );
+          break;
+
+        default:
+          std::cout << "NVMain: Rank: Unknown operation in command queue! " << req->type << std::endl;
+          break;  
+        }
     }
 
-  return true;
+  return success;
 }
 
 
@@ -504,118 +523,29 @@ void Rank::Notify( OpType op )
    */
   if( op == READ )
     {
-      nextRead = MAX( nextRead, currentCycle + p->tBURST 
+      nextRead = MAX( nextRead, GetEventQueue()->GetCurrentCycle() + p->tBURST 
           + p->tRTRS );
     }
   else if( op == WRITE )
     {
-      nextWrite = MAX( nextWrite, currentCycle + p->tBURST
+      nextWrite = MAX( nextWrite, GetEventQueue()->GetCurrentCycle() + p->tBURST
            + p->tOST );
-      nextRead = MAX( nextRead, currentCycle + p->tBURST
+      nextRead = MAX( nextRead, GetEventQueue()->GetCurrentCycle() + p->tBURST
           + p->tCWD + p->tRTRS
           - p->tCAS );
     }
 }
 
 
-void Rank::Cycle( )
+void Rank::Cycle( ncycle_t )
 {
-  bool success;
-
-  /* Wait for the next operation. */
-  if( nextReq != NULL )
-    {
-      success = false;
-      
-      switch( nextReq->type )
-        {
-        case ACTIVATE:
-          success = this->Activate( nextReq );
-          break;
-        
-        case READ:
-          success = this->Read( nextReq );
-          break;
-        
-        case WRITE:
-          success = this->Write( nextReq );
-          break;
-        
-        case PRECHARGE:
-          success = this->Precharge( nextReq );
-          break;
-
-        case POWERUP:
-          success = this->PowerUp( nextReq );
-          break;
-      
-        case REFRESH:
-          success = this->Refresh( nextReq );
-          break;
-
-        default:
-          std::cout << "NVMain: Rank: Unknown operation in command queue! " << nextReq->type << std::endl;
-          break;  
-      }
-
-      /* If the command is successfully issues, erase it and draw some pictures. */
-      if( success )
-        {
-          cmdBus->SetBusy( currentCycle - p->tCMD, currentCycle );
-          if( nextReq->type == WRITE )
-            dataBus->SetBusy( currentCycle + p->tCWD, currentCycle +
-                  p->tCWD + p->tBURST );
-          else if( nextReq->type == READ )
-            dataBus->SetBusy( currentCycle + p->tCAS, currentCycle +
-                  p->tCAS + p->tBURST );
-          else if( nextReq->bulkCmd == CMD_ACTREADPRE )
-            dataBus->SetBusy( currentCycle + p->tRCD + p->tCAS, 
-                  currentCycle + p->tRCD + p->tCAS
-                  + p->tBURST );
-          else if( nextReq->bulkCmd == CMD_ACTWRITEPRE )
-            dataBus->SetBusy( currentCycle + p->tRCD + p->tCWD,
-                  currentCycle + p->tRCD + p->tCWD
-                  + p->tBURST );
-          else if( nextReq->bulkCmd == CMD_ACT_READ_PRE_PDPF )
-            dataBus->SetBusy( currentCycle + p->tRCD + p->tCAS, 
-                  currentCycle + p->tRCD + p->tCAS
-                  + p->tBURST );
-          else if( nextReq->bulkCmd == CMD_ACT_WRITE_PRE_PDPF )
-            dataBus->SetBusy( currentCycle + p->tRCD + p->tCWD,
-                  currentCycle + p->tRCD + p->tCWD
-                  + p->tBURST );
-          else if( nextReq->bulkCmd == CMD_PU_ACT_READ_PRE_PDPF )
-            dataBus->SetBusy( currentCycle + p->tXP + p->tRCD
-                  + p->tCAS, currentCycle + p->tXP
-                  + p->tRCD + p->tCAS
-                  + p->tBURST );
-          else if( nextReq->bulkCmd == CMD_PU_ACT_WRITE_PRE_PDPF )
-            dataBus->SetBusy( currentCycle + p->tXP + p->tRCD
-                  + p->tCWD, currentCycle + p->tXP
-                  + p->tRCD + p->tCWD
-                  + p->tBURST );
-          else if( nextReq->bulkCmd == CMD_PU_ACT_READ_PRE )
-            dataBus->SetBusy( currentCycle + p->tXP + p->tRCD
-                  + p->tCAS, currentCycle + p->tXP
-                  + p->tRCD + p->tCAS
-                  + p->tBURST );
-          else if( nextReq->bulkCmd == CMD_PU_ACT_WRITE_PRE )
-            dataBus->SetBusy( currentCycle + p->tXP + p->tRCD
-                  + p->tCWD, currentCycle + p->tXP
-                  + p->tRCD + p->tCWD
-                  + p->tBURST );
-
-
-          nextReq = NULL;
-        }
-    }
-
 
   /*
    *  Do rank level power calculations
    */
   // if all banks are closed, add EIDD2N
   // if any bank is open, add EIDD3N
+  /*
   bool allIdle = true;
   for( ncounter_t i = 0; i < bankCount; i++ )
     {
@@ -630,42 +560,25 @@ void Rank::Cycle( )
     {
       if( p->EnergyModel_set && p->EnergyModel == "current" )
         {
-          backgroundEnergy += (float)p->EIDD2N;
+          backgroundEnergy += (float)p->EIDD2N * steps;
         }
       else
         {
-          backgroundEnergy += p->Eclosed;
+          backgroundEnergy += p->Eclosed * steps;
         }
     }
   else
     {
       if( p->EnergyModel_set && p->EnergyModel == "current" )
         {
-          backgroundEnergy += (float)p->EIDD3N;
+          backgroundEnergy += (float)p->EIDD3N * steps;
         }
       else
         {
-          backgroundEnergy += p->Eopen;
+          backgroundEnergy += p->Eopen * steps;
         }
     }
-
-
-  /*
-   *  Update current cycle for all banks and this rank.
-   */
-  currentCycle++;
-
-  cmdBus->Cycle( );
-  dataBus->Cycle( );
-
-
-  for( ncounter_t i = 0; i < deviceCount; i++ )
-    {
-      devices[i].Cycle( );
-    }
-
-  if( currentCycle % 50 == 0 && conf && p->PrintGraphs )
-    std::cout << std::endl;
+  */
 }
 
 
@@ -673,22 +586,8 @@ void Rank::Cycle( )
 /*
  *  Assign a name to this rank (used in graph outputs)
  */
-void Rank::SetName( std::string name )
+void Rank::SetName( std::string )
 {
-  std::string graphLabel;
-
-  graphLabel = "RANK ";
-
-  for( unsigned int i = 0; i < 6; i++ )
-    {
-      if( i >= name.length( ) )
-        graphLabel += ' ';
-      else
-        graphLabel += name[i];
-    }
-
-  cmdBus->SetGraphLabel( graphLabel );
-  dataBus->SetGraphLabel( graphLabel );
 }
 
 
@@ -714,7 +613,7 @@ void Rank::PrintStats( )
   totalPower *= (float)deviceCount;
 
   totalEnergy += backgroundEnergy;
-  totalPower += (((backgroundEnergy / (float)currentCycle) * p->Voltage) / 1000.0f) * (float)deviceCount;
+  totalPower += (((backgroundEnergy / (float)GetEventQueue()->GetCurrentCycle()) * p->Voltage) / 1000.0f) * (float)deviceCount;
 
   std::cout << "i" << psInterval << "." << statName << ".power " << totalPower << std::endl;
   std::cout << "i" << psInterval << "." << statName << ".energy " << totalEnergy << std::endl;

@@ -51,7 +51,7 @@ class Device : public NVMObject
   bool CanPowerUp( uint64_t whichBank );
   bool CanPowerDown( OpType pdOp );
 
-  void Cycle( );
+  void Cycle( ncycle_t steps );
 
  private:
   uint64_t count;

@@ -1,7 +1,7 @@
-diff -r 4ac40bd4b168 configs/nvmain/nvm_classic.py
+diff -r b4bd51f8b7a0 configs/nvmain/nvm_classic.py
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/configs/nvmain/nvm_classic.py	Tue Oct 16 10:10:59 2012 -0400
-@@ -0,0 +1,193 @@
++++ b/configs/nvmain/nvm_classic.py	Mon Oct 22 13:22:36 2012 -0400
+@@ -0,0 +1,191 @@
 +# Copyright (c) 2006-2008 The Regents of The University of Michigan
 +# All rights reserved.
 +#
@@ -71,13 +71,11 @@ diff -r 4ac40bd4b168 configs/nvmain/nvm_classic.py
 +
 +# Benchmark options
 +parser.add_option("--stdout", action="store_true", help="Print benchmark output to stdout instead of a file.")
-+#parser.add_option("-c", "--cmd",
-+#    default=joinpath(m5_root, "tests/test-progs/hello/bin/%s/linux/hello" % \
-+#            buildEnv['TARGET_ISA']),
-+#    help="The binary to run in syscall emulation mode.")
-+#parser.add_option("-o", "--options", default="",
-+#    help='The options to pass to the binary, use " " around the entire string')
 +parser.add_option("--nvmain_PARAM", type="string", default="NULL", help="Set NVMain configuration value for PARAM (e.g., --nvmain_RANKS 4, --nvmain_BANKS 8, etc.)");
++
++# Memory Size Options
++parser.add_option("--mem-size", action="store", type="string", default="512MB",
++                  help="Specify the physical memory size (single memory)")
 +
 +
 +#
@@ -123,9 +121,9 @@ diff -r 4ac40bd4b168 configs/nvmain/nvm_classic.py
 +#  Use SimpleMemory with ruby (protocol overrides to NVMainControl) and NVMainMemory for classic caches
 +#
 +if '--ruby' in sys.argv:
-+    system.physmem = SimpleMemory(range=AddrRange("2048MB"))
++    system.physmem = SimpleMemory(range=AddrRange(options.mem_size))
 +else:
-+    system.physmem = NVMainMemory(range=AddrRange("2048MB"))
++    system.physmem = NVMainMemory(range=AddrRange(options.mem_size))
 +
 +options.use_map = True
 +

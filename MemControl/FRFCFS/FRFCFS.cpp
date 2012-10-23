@@ -73,6 +73,9 @@ FRFCFS::FRFCFS( Interconnect *memory, AddressTranslator *translator )
 
   std::cout << "Created a First Ready First Come First Serve memory controller!" << std::endl;
 
+  queueSize = 32;
+  starvationThreshold = 4;
+
   averageLatency = 0.0f;
   averageQueueLatency = 0.0f;
 
@@ -104,18 +107,10 @@ void FRFCFS::SetConfig( Config *conf )
     {
       starvationThreshold = static_cast<unsigned int>( conf->GetValue( "FRFCFS_StarvationThreshold" ) );
     }
-  else
-    {
-      starvationThreshold = 4;
-    }
 
   if( conf->KeyExists( "QueueSize" ) )
     {
       queueSize = static_cast<unsigned int>( conf->GetValue( "QueueSize" ) );
-    }
-  else
-    {
-      queueSize = 32;
     }
 
   MemoryController::SetConfig( conf );
@@ -142,7 +137,7 @@ bool FRFCFS::IssueCommand( NVMainRequest *req )
       return false;
     }
 
-  req->arrivalCycle = currentCycle;
+  req->arrivalCycle = GetEventQueue()->GetCurrentCycle();
 
   /* 
    *  Just push back the read/write. It's easier to inject dram commands than break it up
@@ -176,7 +171,7 @@ bool FRFCFS::RequestComplete( NVMainRequest * request )
   if( request->type == READ || request->type == WRITE )
     {
       request->status = MEM_REQUEST_COMPLETE;
-      request->completionCycle = currentCycle;
+      request->completionCycle = GetEventQueue()->GetCurrentCycle();
 
       /* Update the average latencies based on this request for READ/WRITE only. */
       averageLatency = ((averageLatency * static_cast<float>(measuredLatencies))
@@ -193,7 +188,8 @@ bool FRFCFS::RequestComplete( NVMainRequest * request )
 
       //std::cout << "Request for 0x" << std::hex << request->address.GetPhysicalAddress( ) << std::dec
       //          << " arriving at " << request->arrivalCycle << " and issued at "
-      //          << request->issueCycle << " completed at " << currentCycle << std::endl;
+      //          << request->issueCycle << " completed at " << GetEventQueue()->GetCurrentCycle() 
+      //          << std::endl;
     }
 
 
@@ -206,7 +202,7 @@ bool FRFCFS::RequestComplete( NVMainRequest * request )
 }
 
 
-void FRFCFS::Cycle( )
+void FRFCFS::Cycle( ncycle_t )
 {
   NVMainRequest *nextRequest = NULL;
 
@@ -237,21 +233,15 @@ void FRFCFS::Cycle( )
       nextRequest = NULL;
     }
 
-
   /* Issue the commands for this transaction. */
   if( nextRequest != NULL )
     {
-      //std::cout << "Issuing request 0x" << std::hex << nextRequest->address.GetPhysicalAddress( ) << std::dec << std::endl;
       IssueMemoryCommands( nextRequest );
     }
 
 
   /* Issue any commands in the command queues. */
   CycleCommandQueues( );
-
-
-  currentCycle++;
-  memory->Cycle( );
 }
 
 
@@ -267,17 +257,10 @@ void FRFCFS::PrintStats( )
   std::cout << "i" << psInterval << "." << statName << id << ".measuredLatencies " << measuredLatencies << std::endl;
   std::cout << "i" << psInterval << "." << statName << id << ".measuredQueueLatencies " << measuredQueueLatencies << std::endl;
   std::cout << "i" << psInterval << "." << statName << id << ".cpu_insts " << cpu_insts << std::endl;
-  std::cout << "i" << psInterval << "." << statName << id << ".currentCycle " << currentCycle << std::endl;
 
   MemoryController::PrintStats( );
 
   psInterval++;
-
-#ifndef TRACE
-  std::cout << "DUMPING GEM5 TRACE" << std::endl;
-  if( GetConfig( )->KeyExists( "CTL_DUMP" ) && GetConfig( )->GetString( "CTL_DUMP" ) == "true" )
-    Stats::schedStatEvent( true, false );
-#endif
 }
 
 

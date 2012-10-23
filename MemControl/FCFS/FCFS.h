@@ -32,12 +32,21 @@ class FCFS : public MemoryController
   void SetConfig( Config *conf );
 
   bool IssueCommand( NVMainRequest *req );
+  bool RequestComplete( NVMainRequest * request );
   bool QueueFull( NVMainRequest *req );
 
-  void Cycle( );
+  void Cycle( ncycle_t );
+  void PrintStats( );
 
  private:
   uint64_t queueSize;
+
+  /* Stats */
+  uint64_t measuredLatencies, measuredQueueLatencies;
+  float averageLatency, averageQueueLatency;
+  uint64_t mem_reads, mem_writes;
+  uint64_t rb_hits;
+  uint64_t rb_miss;
 
 };
 

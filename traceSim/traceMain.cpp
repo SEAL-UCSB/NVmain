@@ -89,7 +89,7 @@ int main( int argc, char *argv[] )
           /* Just ride it out 'til the end. */
           while( currentCycle < simulateCycles )
             {
-              nvmain->Cycle( );
+              nvmain->Cycle( 1 );
             
               currentCycle++;
             }
@@ -123,7 +123,7 @@ int main( int argc, char *argv[] )
           /* Just ride it out 'til the end. */
           while( currentCycle < simulateCycles )
             {
-              nvmain->Cycle( );
+              nvmain->Cycle( 1 );
             
               currentCycle++;
             }
@@ -145,7 +145,7 @@ int main( int argc, char *argv[] )
                   if( currentCycle >= simulateCycles )
                     break;
 
-                  nvmain->Cycle( );
+                  nvmain->Cycle( 1 );
 
                   currentCycle++;
                 }
@@ -164,7 +164,7 @@ int main( int argc, char *argv[] )
               if( currentCycle >= simulateCycles )
                 break;
 
-              nvmain->Cycle( );
+              nvmain->Cycle( 1 );
 
               currentCycle++;
             }

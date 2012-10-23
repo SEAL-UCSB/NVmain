@@ -38,7 +38,7 @@ class Interconnect : public NVMObject
   void StatName( std::string name ) { statName = name; }
   virtual void PrintStats( ) { }
   
-  virtual void Cycle( ) = 0;
+  virtual void Cycle( ncycle_t steps ) = 0;
 
  protected:
   std::string statName;

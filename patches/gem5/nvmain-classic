@@ -1,9 +1,9 @@
 # HG changeset patch
-# Parent 8f1e524e3917ed84e2e9886142873fa9fa636c3d
+# Parent c4382ac9ed33bb648c0df99764628e346332d2af
 
-diff -r 8f1e524e3917 src/mem/NVMainMemory.py
+diff -r c4382ac9ed33 src/mem/NVMainMemory.py
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/NVMainMemory.py	Tue Oct 16 15:44:26 2012 -0400
++++ b/src/mem/NVMainMemory.py	Mon Oct 22 13:20:40 2012 -0400
 @@ -0,0 +1,42 @@
 +# Copyright (c) 2009 Advanced Micro Devices, Inc.
 +# All rights reserved.
@@ -47,9 +47,9 @@ diff -r 8f1e524e3917 src/mem/NVMainMemory.py
 +    config = Param.String("NULL", "")
 +    configparams = Param.String("", "")
 +    configvalues = Param.String("", "")
-diff -r 8f1e524e3917 src/mem/SConscript
---- a/src/mem/SConscript	Tue Oct 16 15:24:06 2012 -0400
-+++ b/src/mem/SConscript	Tue Oct 16 15:44:26 2012 -0400
+diff -r c4382ac9ed33 src/mem/SConscript
+--- a/src/mem/SConscript	Wed Oct 17 07:42:06 2012 -0400
++++ b/src/mem/SConscript	Mon Oct 22 13:20:40 2012 -0400
 @@ -56,8 +56,10 @@
      SimObject('AbstractMemory.py')
      SimObject('SimpleMemory.py')
@@ -69,9 +69,9 @@ diff -r 8f1e524e3917 src/mem/SConscript
  
  DebugFlag('ProtocolTrace')
  DebugFlag('RubyCache')
-diff -r 8f1e524e3917 src/mem/nvmain_mem.cc
+diff -r c4382ac9ed33 src/mem/nvmain_mem.cc
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/nvmain_mem.cc	Tue Oct 16 15:44:26 2012 -0400
++++ b/src/mem/nvmain_mem.cc	Mon Oct 22 13:20:40 2012 -0400
 @@ -0,0 +1,431 @@
 +/*
 + * Copyright (c) 1999-2008 Mark D. Hill and David A. Wood
@@ -434,7 +434,7 @@ diff -r 8f1e524e3917 src/mem/nvmain_mem.cc
 +void NVMainMemory::NVMainMemoryEvent::process()
 +{
 +    // Cycle memory controller
-+    memory.m_nvmainPtr->Cycle( );
++    memory.m_nvmainPtr->Cycle( 1 );
 +
 +    memory.eventManager->scheduleWakeup( );
 +}
@@ -485,7 +485,7 @@ diff -r 8f1e524e3917 src/mem/nvmain_mem.cc
 +}
 +
 +
-+NVMainMemory::NVMainMemoryEventManager::NVMainMemoryEventManager(EventQueue* eventq, NVMainMemory &_memory)
++NVMainMemory::NVMainMemoryEventManager::NVMainMemoryEventManager(::EventQueue* eventq, NVMainMemory &_memory)
 +    : EventManager(eventq), memory(_memory)
 +{
 +    memEvent = new NVMainMemoryEvent(_memory);
@@ -504,10 +504,10 @@ diff -r 8f1e524e3917 src/mem/nvmain_mem.cc
 +    return new NVMainMemory(this);
 +}
 +
-diff -r 8f1e524e3917 src/mem/nvmain_mem.hh
+diff -r c4382ac9ed33 src/mem/nvmain_mem.hh
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/nvmain_mem.hh	Tue Oct 16 15:44:26 2012 -0400
-@@ -0,0 +1,192 @@
++++ b/src/mem/nvmain_mem.hh	Mon Oct 22 13:20:40 2012 -0400
+@@ -0,0 +1,193 @@
 +/*
 + * Copyright (c) 1999-2008 Mark D. Hill and David A. Wood
 + * All rights reserved.
@@ -558,6 +558,7 @@ diff -r 8f1e524e3917 src/mem/nvmain_mem.hh
 +
 +#include "NVM/nvmain.h"
 +#include "base/callback.hh"
++#include "include/NVMTypes.h"
 +#include "include/NVMainRequest.h"
 +#include "mem/abstract_mem.hh"
 +#include "mem/tport.hh"
@@ -618,7 +619,7 @@ diff -r 8f1e524e3917 src/mem/nvmain_mem.hh
 +
 +      public:
 +
-+        NVMainMemoryEventManager(EventQueue *eventq, NVMainMemory &_memory);
++        NVMainMemoryEventManager(::EventQueue *eventq, NVMainMemory &_memory);
 +        ~NVMainMemoryEventManager( ) { }
 +
 +        void scheduleWakeup( );
@@ -688,7 +689,7 @@ diff -r 8f1e524e3917 src/mem/nvmain_mem.hh
 +
 +    bool RequestComplete( NVM::NVMainRequest *req );
 +
-+    void Cycle() { }
++    void Cycle(NVM::ncycle_t) { }
 +
 +  protected:
 +
