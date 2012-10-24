@@ -25,8 +25,6 @@
 #include "src/Config.h"
 #include "src/Interconnect.h"
 #include "src/AddressTranslator.h"
-#include "src/MemoryControllerMessage.h"
-#include "src/MemoryControllerManager.h"
 #include "src/Params.h"
 #include "include/NVMainRequest.h"
 
@@ -40,12 +38,7 @@ namespace NVM {
 
 
 enum ProcessorOp { LOAD, STORE };
-enum MCEndMode { ENDMODE_NORMAL,              // End command when all data is received.
-                 ENDMODE_CRITICAL_WORD_FIRST, // End command after first data cycle.
-                 ENDMODE_IMMEDIATE,           // End command right now (if you do your own timing)
-                 ENDMODE_CUSTOM,              // End after a specific number of cycles.
-                 ENDMODE_COUNT
-};
+
 
 class SchedulingPredicate
 {
@@ -70,7 +63,6 @@ class MemoryController : public NVMObject
   void InitBankQueues( unsigned int numQueues );
 
   virtual bool RequestComplete( NVMainRequest *request );
-  virtual void EndCommand( NVMainRequest *req, MCEndMode endMode = ENDMODE_NORMAL, ncycle_t customTime = 0 );
   virtual bool QueueFull( NVMainRequest *request );
 
   void SetMemory( Interconnect *mem );
@@ -84,22 +76,13 @@ class MemoryController : public NVMObject
   void StatName( std::string name ) { statName = name; }
   virtual void PrintStats( );
 
-  virtual void Cycle( ); 
+  virtual void Cycle( ncycle_t steps ); 
 
   virtual void SetConfig( Config *conf );
   void SetParams( Params *params ) { p = params; }
   Config *GetConfig( );
 
-  void SendMessage( unsigned int dest, void *message, int latency = -1 );
-  void RecvMessages( );
-  void ProcessMessage( MemoryControllerMessage *msg );
-
-  void SetSendCallback( MemoryControllerManager *manager, void (MemoryControllerManager::*sendCallback)( MemoryControllerMessage * ) );
-  void SetRecvCallback( MemoryControllerManager *manager, int  (MemoryControllerManager::*recvCallback)( MemoryControllerMessage * ) );
-
   void SetID( unsigned int id );
-
-  void FlushCompleted( );
 
  protected:
   Interconnect *memory;
@@ -136,19 +119,12 @@ class MemoryController : public NVMObject
     bool operator() (uint64_t, uint64_t);
   };
 
-  uint64_t currentCycle;
-
   unsigned int id;
-  MemoryControllerManager *manager;
-  void (MemoryControllerManager::*SendCallback)( MemoryControllerMessage * );
-  int  (MemoryControllerManager::*RecvCallback)( MemoryControllerMessage * );
 
   bool refreshUsed;
   std::vector<NVMainRequest *> refreshWaitQueue;
   bool **refreshNeeded;
   NVMainRequest *BuildRefreshRequest( int rank, int bank );
-
-  std::map<NVMainRequest *, ncycle_t> completedCommands;
 
   Params *p;
 

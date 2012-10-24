@@ -114,17 +114,17 @@ bool Device::PowerDown( bool fastExit )
     {
       if( fastExit )
         for( uint64_t i = 0; i < count; i++ )
-          banks[i]->PowerDown( BANK_PDPFWAIT );
+          banks[i]->PowerDown( BANK_PDPF );
       else
         for( uint64_t i = 0; i < count; i++ )
-          banks[i]->PowerDown( BANK_PDPSWAIT );
+          banks[i]->PowerDown( BANK_PDPS );
       
       returnValue = true;
     }
   else if( CanPowerDown( POWERDOWN_PDA ) && !allIdle )
     {
       for( uint64_t i = 0; i < count; i++ )
-       banks[i]->PowerDown( BANK_PDAWAIT );
+       banks[i]->PowerDown( BANK_PDA );
 
       returnValue = true;
     }
@@ -180,9 +180,7 @@ bool Device::CanPowerDown( OpType pdOp )
 
 
 
-void Device::Cycle( )
+void Device::Cycle( ncycle_t )
 {
-  for( uint64_t i = 0; i < count; i++ )
-    banks[i]->Cycle( );
 }
 

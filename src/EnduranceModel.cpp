@@ -146,7 +146,7 @@ uint64_t EnduranceModel::GetGranularity( )
 }
 
 
-void EnduranceModel::Cycle( )
+void EnduranceModel::Cycle( ncycle_t )
 {
   
 }

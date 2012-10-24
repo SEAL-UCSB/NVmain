@@ -42,7 +42,7 @@ class FaultModel : public NVMObject
   virtual void SetConfig( Config *conf );
   Config *GetConfig( );
 
-  void Cycle( );
+  void Cycle( ncycle_t steps );
 
 
  protected:

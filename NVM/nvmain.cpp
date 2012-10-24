@@ -21,7 +21,6 @@
 
 #include "src/Config.h"
 #include "MemControl/MemoryControllerFactory.h"
-#include "src/MemoryControllerManager.h"
 #include "src/AddressTranslator.h"
 #include "Decoders/DecoderFactory.h"
 #include "src/Interconnect.h"
@@ -45,7 +44,6 @@ NVMain::NVMain( )
   memory = NULL;
   translator = NULL;
   memoryControllers = NULL;
-  memoryControllerManager = NULL;
   channelConfig = NULL;
   currentCycle = 0;
 }
@@ -56,9 +54,6 @@ NVMain::~NVMain( )
   if( config ) 
     delete config;
   
-  if( memoryControllerManager )
-    delete memoryControllerManager;
-
   if( memoryControllers )
     {
       for( unsigned int i = 0; i < numChannels; i++ )
@@ -132,13 +127,10 @@ void NVMain::SetConfig( Config *conf )
   method->SetCount( rows, cols, banks, ranks, channels );
   translator->SetTranslationMethod( method );
 
-  
+  mainEventQueue = new EventQueue( );
+  SetEventQueue( mainEventQueue );
+
   memory = new Interconnect* [channels];
-
-  std::cout << "Allocating memory controller.......\n";
-
-  memoryControllerManager = new MemoryControllerManager( );
-  memoryControllerManager->SetConfig( config );
 
   memoryControllers = new MemoryController* [channels];
   channelConfig = new Config* [channels];
@@ -177,7 +169,6 @@ void NVMain::SetConfig( Config *conf )
       confString.str( "" );
       confString << "defaultMemory.channel" << i;
       memory[i]->StatName( confString.str( ) );
-      memory[i]->SetConfig( channelConfig[i] );
 
 
       /*
@@ -189,9 +180,6 @@ void NVMain::SetConfig( Config *conf )
       confString << "defaultMemory.Controller" << i << "." << channelConfig[i]->GetString( "MEM_CTL" ); 
       memoryControllers[i]->StatName( confString.str( ) );
       memoryControllers[i]->SetID( i );
-      memoryControllers[i]->SetConfig( channelConfig[i] );
-
-      memoryControllerManager->AddController( memoryControllers[i] );
 
       AddChild( memoryControllers[i] );
 
@@ -199,6 +187,11 @@ void NVMain::SetConfig( Config *conf )
       memoryControllers[i]->AddChild( memory[i] );
       
       memory[i]->SetParent( memoryControllers[i] );
+      
+
+      /* Set Config recursively. */
+      memory[i]->SetConfig( channelConfig[i] );
+      memoryControllers[i]->SetConfig( channelConfig[i] );
     }
   
   numChannels = (unsigned int)channels;
@@ -366,7 +359,7 @@ int NVMain::AtomicRequest( NVMainRequest *request )
 }
 
 
-void NVMain::Cycle( )
+void NVMain::Cycle( ncycle_t )
 {
   /*
    *  Previous errors can prevent config from being set. Likewise, if the first memoryController is
@@ -377,13 +370,13 @@ void NVMain::Cycle( )
 
   for( unsigned int i = 0; i < numChannels; i++ )
     {
-      memoryControllers[i]->Cycle( );
-      memoryControllers[i]->FlushCompleted( );
+      memoryControllers[i]->Cycle( 1 );
     }
 
-  currentCycle++;
+  mainEventQueue->Loop( );
 
   /* Output periodic statistics if this is set in the configuration. */
+  /*
   int statsPeriod = 0;
 
   if( p->PeriodicStatsInterval_set )
@@ -395,6 +388,7 @@ void NVMain::Cycle( )
       for( unsigned int i = 0; i < numChannels; i++ )
         memoryControllers[i]->PrintStats( );
     }
+  */
 }
 
 

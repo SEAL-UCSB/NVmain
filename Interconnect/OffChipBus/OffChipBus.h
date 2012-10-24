@@ -49,41 +49,18 @@ class OffChipBus : public Interconnect
 
   void PrintStats( );
 
-  void Cycle( );
+  void Cycle( ncycle_t steps );
 
   Rank *GetRank( uint64_t rank ) { return ranks[rank]; }
 
  private:
-  struct DelayedReq
-  {
-    NVMainRequest *req;
-    ncounter_t delay;
-  };
-
-  class zero_delay
-  {
-   public:
-    bool operator() ( DelayedReq *dreq ) 
-      {
-        //hack to prevent memory leaks
-        bool done = (dreq->delay == 0);
-
-        if( done ) delete dreq;
-
-        return done; 
-      }
-  };
-
   bool configSet;
   ncounter_t numRanks;
-  ncycle_t currentCycle;
   ncycle_t offChipDelay;
   float syncValue;
 
   Config *conf;
   Rank **ranks;
-  NVMainRequest *nextReq;
-  std::list<DelayedReq *> delayQueue;
 
   float CalculateIOPower( bool isRead, unsigned int bitValue );
 

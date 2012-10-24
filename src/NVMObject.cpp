@@ -17,6 +17,7 @@
 
 #include "src/NVMObject.h"
 #include "include/NVMainRequest.h"
+#include "src/EventQueue.h"
 
 
 using namespace NVM;
@@ -73,10 +74,22 @@ bool NVMObject::RequestComplete( NVMainRequest *request )
 }
 
 
+void NVMObject::SetEventQueue( EventQueue *eq )
+{
+  eventQueue = eq;
+}
+
+
+EventQueue *NVMObject::GetEventQueue( )
+{
+  return eventQueue;
+}
+
 
 void NVMObject::SetParent( NVMObject *p )
 {
   parent = p;
+  SetEventQueue( p->GetEventQueue( ) );
 }
 
 

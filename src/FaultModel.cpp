@@ -57,7 +57,7 @@ bool FaultModel::Fault( NVMAddress /*faultAddr*/ )
 }
 
 
-void FaultModel::Cycle( )
+void FaultModel::Cycle( ncycle_t )
 {
 
 }

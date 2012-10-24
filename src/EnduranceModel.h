@@ -51,7 +51,7 @@ class EnduranceModel : public NVMObject
 
   virtual void PrintStats( ) { }
 
-  void Cycle( );
+  void Cycle( ncycle_t steps );
 
  protected:
   Config *config;
