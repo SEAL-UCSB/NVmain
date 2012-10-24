@@ -27,9 +27,6 @@ MemoryController::MemoryController( )
   transactionQueues = NULL;
   memory = NULL;
   translator = NULL;
-  currentCycle = 0;
-  this->SendCallback = NULL;
-  this->RecvCallback = NULL;
 
   refreshUsed = false;
   refreshWaitQueue.clear( );
@@ -73,7 +70,7 @@ void MemoryController::InitQueues( unsigned int numQueues )
  *  controllers) just overload this function, and call InitQueues() with the nubmer
  *  of queues you need.
  */
-void MemoryController::Cycle( )
+void MemoryController::Cycle( ncycle_t )
 {
   NVMainRequest *nextReq;
   
@@ -92,16 +89,7 @@ void MemoryController::Cycle( )
        */
       if( memory->IsIssuable( nextReq ) )
         {
-          if( nextReq->type == READ )
-            {
-              EndCommand( nextReq, ENDMODE_CRITICAL_WORD_FIRST );
-            }
-          else if( nextReq->type == WRITE )
-            {
-              EndCommand( nextReq, ENDMODE_NORMAL );
-            }
-
-          nextReq->issueCycle = currentCycle;
+          nextReq->issueCycle = GetEventQueue()->GetCurrentCycle();
 
           /*
            *  If we can issue, send 
@@ -109,37 +97,6 @@ void MemoryController::Cycle( )
           memory->IssueCommand( nextReq );
 
           transactionQueues[0].erase( transactionQueues[0].begin( ) );
-        }
-    }
-
-
-  currentCycle++;
-  memory->Cycle( );
-}
-
-
-void MemoryController::FlushCompleted( )
-{
-  std::map<NVMainRequest *, ncycle_t>::iterator it;
-
-
-  for( it = completedCommands.begin( ); it != completedCommands.end( ); it++ )
-    {
-      if( it->second == 0 )
-        {
-          //std::cout << "MC: 0x" << std::hex << it->first->GetRequest( )->address.GetPhysicalAddress( )
-          //          << std::dec << " completed" << std::endl;
-          it->first->status = MEM_REQUEST_COMPLETE;
-
-          RequestComplete( it->first );
-
-          //std::cout << "Marking request 0x" << std::hex << (void*)it->first->GetRequest( ) << std::dec 
-          //          << "completed" << std::endl;
-          completedCommands.erase( it );
-        }
-      else
-        {
-          it->second--;
         }
     }
 }
@@ -151,6 +108,10 @@ bool MemoryController::RequestComplete( NVMainRequest *request )
 
   if( request->owner == this )
     {
+      /* 
+       *  Any activate/precharge/etc commands belong to the memory controller, and 
+       *  we are in charge of deleting them!
+       */
       delete request;
       rv = true;
     }
@@ -161,45 +122,6 @@ bool MemoryController::RequestComplete( NVMainRequest *request )
 
   return rv;
 }
-
-
-void MemoryController::EndCommand( NVMainRequest* req, MCEndMode endMode, ncycle_t customTime )
-{
-  ncycle_t endTime;
-
-  if( endMode == ENDMODE_CRITICAL_WORD_FIRST )
-    {
-      /*
-       *  End the command after the first data cycle. Assumes the bus size
-       *  is greater than or equal to half the word size (in DDR), or the 
-       *  bus size is greater then or equal to the word size (in SDR).
-       */
-      endTime = p->tCAS + 1; 
-
-      completedCommands.insert( std::pair<NVMainRequest *, ncycle_t>( req, endTime ) );
-    }
-  else if( endMode == ENDMODE_NORMAL )
-    {
-      endTime = p->tCAS + p->tBURST;
-
-      completedCommands.insert( std::pair<NVMainRequest *, ncycle_t>( req, endTime ) );
-    }
-  else if( endMode == ENDMODE_IMMEDIATE )
-    {
-      req->status = MEM_REQUEST_COMPLETE;
-
-      completedCommands.insert( std::pair<NVMainRequest *, ncycle_t>( req, 0 ) );
-    }
-  else if( endMode == ENDMODE_CUSTOM )
-    {
-      completedCommands.insert( std::pair<NVMainRequest *, ncycle_t>( req, customTime ) );
-    }
-  else
-    {
-      std::cout << "Warning: Unknown endMode for EndCommand. This may result in a deadlock."
-                << std::endl;
-    }
-} 
 
 
 bool MemoryController::QueueFull( NVMainRequest * /*request*/ )
@@ -295,7 +217,7 @@ NVMainRequest *MemoryController::MakeActivateRequest( NVMainRequest *triggerRequ
   NVMainRequest *activateRequest = new NVMainRequest( );
 
   activateRequest->type = ACTIVATE;
-  activateRequest->issueCycle = currentCycle;
+  activateRequest->issueCycle = GetEventQueue()->GetCurrentCycle();
   activateRequest->address = triggerRequest->address;
   activateRequest->owner = this;
 
@@ -308,7 +230,7 @@ NVMainRequest *MemoryController::MakePrechargeRequest( NVMainRequest *triggerReq
   NVMainRequest *prechargeRequest = new NVMainRequest( );
 
   prechargeRequest->type = PRECHARGE;
-  prechargeRequest->issueCycle = currentCycle;
+  prechargeRequest->issueCycle = GetEventQueue()->GetCurrentCycle();
   prechargeRequest->address = triggerRequest->address;
   prechargeRequest->owner = this;
 
@@ -481,7 +403,7 @@ bool MemoryController::IssueMemoryCommands( NVMainRequest *req )
       activateQueued[rank][bank] = true;
       effectiveRow[rank][bank] = row;
 
-      req->issueCycle = currentCycle;
+      req->issueCycle = GetEventQueue()->GetCurrentCycle();
 
       bankQueues[rank][bank].push_back( MakeActivateRequest( req ) );
       bankQueues[rank][bank].push_back( req );
@@ -495,7 +417,7 @@ bool MemoryController::IssueMemoryCommands( NVMainRequest *req )
       activateQueued[rank][bank] = true;
       effectiveRow[rank][bank] = row;
 
-      req->issueCycle = currentCycle;
+      req->issueCycle = GetEventQueue()->GetCurrentCycle();
 
       bankQueues[rank][bank].push_back( MakePrechargeRequest( req ) );
       bankQueues[rank][bank].push_back( MakeActivateRequest( req ) );
@@ -507,7 +429,7 @@ bool MemoryController::IssueMemoryCommands( NVMainRequest *req )
     {
       starvationCounter[rank][bank]++;
 
-      req->issueCycle = currentCycle;
+      req->issueCycle = GetEventQueue()->GetCurrentCycle();
 
       bankQueues[rank][bank].push_back( req );
 
@@ -539,14 +461,14 @@ void MemoryController::CycleCommandQueues( )
             {
               NVMainRequest *queueHead = bankQueues[i][j].at( 0 );
 
-              if( ( currentCycle - queueHead->issueCycle ) > 1000000 )
+              if( ( GetEventQueue()->GetCurrentCycle() - queueHead->issueCycle ) > 1000000 )
                 {
                   std::cout << "WARNING: Operation could not be sent to memory after a very long time: "
                             << std::endl; 
                   std::cout << "         Address: 0x" << std::hex 
                             << queueHead->address.GetPhysicalAddress( )
                             << std::dec << ". Queued time: " << queueHead->arrivalCycle
-                            << ". Current time: " << currentCycle << ". Type: " 
+                            << ". Current time: " << GetEventQueue()->GetCurrentCycle() << ". Type: " 
                             << queueHead->type << std::endl;
                 }
             }
@@ -555,66 +477,6 @@ void MemoryController::CycleCommandQueues( )
 }
 
 
-
-void MemoryController::SendMessage( unsigned int dest, void *message, int latency )
-{
-  MemoryControllerMessage *msg;
-
-  msg = new MemoryControllerMessage( );
-
-  msg->src = this->id;
-  msg->dest = dest;
-  msg->message = message;
-  msg->latency = latency;
-
-  (this->manager->*SendCallback)( msg );
-
-  delete msg;
-}
-
-
-void MemoryController::RecvMessages(  )
-{
-  MemoryControllerMessage *msg;
-  int rv = MSG_FOUND;
-
-  while( rv == MSG_FOUND )
-    {
-      msg = new MemoryControllerMessage( );
-      
-      /* Receive callback will use this to find messages ready. */
-      msg->dest = this->id;
-      
-      rv = (this->manager->*RecvCallback)( msg );
-
-      /* Process Message using overloaded function */
-      ProcessMessage( msg );
-
-      delete msg;
-    }
-}
-
-
-void MemoryController::ProcessMessage( MemoryControllerMessage */*msg*/ )
-{
-  /*
-   *  This function should be overloaded, but it's not required.
-   */
-}
-
-
-void MemoryController::SetSendCallback( MemoryControllerManager *manager, void (MemoryControllerManager::*sendCallback)( MemoryControllerMessage * ) )
-{
-  this->manager = manager;
-  this->SendCallback = sendCallback;
-}
-
-
-void MemoryController::SetRecvCallback( MemoryControllerManager *manager, int  (MemoryControllerManager::*recvCallback)( MemoryControllerMessage * ) )
-{
-  this->manager = manager;
-  this->RecvCallback = recvCallback;
-}
 
 
 void MemoryController::PrintStats( )

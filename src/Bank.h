@@ -23,7 +23,6 @@
 
 #include "src/NVMObject.h"
 #include "src/Config.h"
-#include "src/GenericBus.h"
 #include "src/EnduranceModel.h"
 #include "include/NVMAddress.h"
 #include "include/NVMainRequest.h"
@@ -47,11 +46,8 @@ enum BankState { BANK_UNKNOWN,  /***< Unknown state. Uh oh. */
                  BANK_OPEN,     /***< Bank has a row open */
                  BANK_CLOSED,   /***< Bank is idle. */
                  BANK_PDPF,     /***< Bank is in precharge powered down, fast exit mode */
-                 BANK_PDPFWAIT, /***< Bank will enter state BANK_PDPF after current command completes */
                  BANK_PDA,      /***< Bank is in active powered down mode */
-                 BANK_PDAWAIT,  /***< Bank will enter state BANK_PDA after current command completes */
                  BANK_PDPS,     /***< Bank is in precharge powered down, slow exit mode */
-                 BANK_PDPSWAIT, /***< Bank will enter state BANK_PDPS after current command completes */
                  BANK_REFRESHING/***< Bank is refreshing and will return to BANK_CLOSED state */
 };
 enum WriteMode { WRITE_BACK, WRITE_THROUGH, DELAYED_WRITE };
@@ -86,7 +82,7 @@ class Bank : public NVMObject
   ncounter_t GetReads( ) { return reads; }
   ncounter_t GetWrites( ) { return writes; }
 
-  void SetNextRefresh( ncycle_t nextREF ) { nextRefresh = nextREF; } // Should ONLY be used to stagger refreshes initially.
+  void SetNextRefresh( ncycle_t nextREF ); // Should ONLY be used to stagger refreshes initially.
   void SetRefreshRows( ncounter_t numRows ) { refreshRows = numRows; }
 
   ncycle_t GetNextActivate( ) { return nextActivate; }
@@ -94,19 +90,18 @@ class Bank : public NVMObject
   ncycle_t GetNextWrite( ) { return nextWrite; }
   ncycle_t GetNextPrecharge( ) { return nextPrecharge; }
   ncycle_t GetNextRefresh( ) { return nextRefresh; }
+  ncycle_t GetNextPowerDown( ) { return nextPowerDown; }
   uint64_t GetOpenRow( ) { return openRow; }
-  ncycle_t GetCycle( ) { return currentCycle; }
 
   void SetName( std::string );
   void SetId( int );
   void PrintStats( );
   void StatName( std::string name ) { statName = name; }
 
-  void Cycle( );
+  void Cycle( ncycle_t steps );
 
  private:
   Config *conf;
-  GenericBus *bankGraph;
   std::string statName;
   uint64_t psInterval;
 
@@ -117,7 +112,6 @@ class Bank : public NVMObject
   ncounter_t refreshRows;
   ncounter_t refreshRowIndex;
 
-  ncycle_t currentCycle;
   ncycle_t powerCycles;
   ncycle_t feCycles;
   ncycle_t seCycles;
@@ -133,7 +127,10 @@ class Bank : public NVMObject
   ncycle_t nextPowerDownDone;
   ncycle_t nextPowerUp;
   bool writeCycle;
+  bool needsRefresh;
   WriteMode writeMode;
+
+  ncycle_t nextEvent;
 
   ncounter_t actWaits;
   ncounter_t actWaitTime;
@@ -159,6 +156,8 @@ class Bank : public NVMObject
   ncycle_t nextCompletion;
 
   Params *p;
+
+  void IssueImplicit( );
 
 
 };

@@ -49,19 +49,17 @@ class OnChipBus : public Interconnect
 
   void PrintStats( );
 
-  void Cycle( );
+  void Cycle( ncycle_t steps );
 
   Rank *GetRank( uint64_t rank ) { return ranks[rank]; }
   
  private:
   bool configSet;
   ncounter_t numRanks;
-  ncycle_t currentCycle;
   float syncValue;
 
   Config *conf;
   Rank **ranks;
-  NVMainRequest *nextReq;
 
   Params *p;
 

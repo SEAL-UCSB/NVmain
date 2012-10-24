@@ -37,7 +37,7 @@ class FRFCFS : public MemoryController
 
   void SetConfig( Config *conf );
 
-  void Cycle( );
+  void Cycle( ncycle_t steps );
 
   bool QueueFull( NVMainRequest *req );
 
