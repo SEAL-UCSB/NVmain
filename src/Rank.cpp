@@ -101,8 +101,14 @@ void Rank::SetConfig( Config *c )
 
           if( p->UseRefresh_set && p->UseRefresh ) 
             {
-              nextRefresh = ((p->tRFI) / (p->ROWS / p->RefreshRows));
-              nextRefresh = static_cast<ncycle_t>(static_cast<float>(nextRefresh) * (static_cast<float>(j + 1) / static_cast<float>(bankCount)));
+              nextRefresh = (static_cast<float>(p->tRFI) / (static_cast<float>(p->ROWS) / static_cast<float>(p->RefreshRows)));
+
+              /* Equivalent to per-bank refresh in LPDDR3 spec. */
+              if( p->StaggerRefresh_set && p->StaggerRefresh )
+                {
+                  nextRefresh = static_cast<ncycle_t>(static_cast<float>(nextRefresh) * (static_cast<float>(j + 1) / static_cast<float>(bankCount)));
+                }
+
               newBank->SetNextRefresh( nextRefresh );
             }
 

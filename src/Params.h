@@ -84,6 +84,8 @@ public:
   ncounter_t RefreshRows;
   bool UseRefresh;
   bool UseRefresh_set;
+  bool StaggerRefresh;
+  bool StaggerRefresh_set;
 
   ncounter_t OffChipLatency;
   bool OffChipLatency_set;

@@ -27,6 +27,7 @@ Params::Params( )
   PrintAllDevices_set = false;
   EnergyModel_set = false;
   UseRefresh_set = false;
+  StaggerRefresh_set = false;
   OffChipLatency_set = false;
   PeriodicStatsInterval_set = false;
   Rtt_nom_set = false;
@@ -35,8 +36,11 @@ Params::Params( )
   Vddq_set = false;
   Vssq_set = false;
 
+  /* Defaults */
   PrintPreTrace = false;
   EchoPreTrace = false;
+
+  StaggerRefresh = false;
 }
 
 
@@ -100,6 +104,8 @@ void Params::SetParams( Config *c )
     RefreshRows = c->GetValue( "RefreshRows" );
     UseRefresh = ( c->GetString( "UseRefresh" ) == "true" );
     UseRefresh_set = ( c->KeyExists( "UseRefresh" ) );
+    StaggerRefresh = ( c->GetString( "StaggerRefresh" ) == "true" );
+    StaggerRefresh_set = ( c->KeyExists( "StaggerRefresh" ) );
 
     OffChipLatency = c->GetValue( "OffChipLatency" );
     OffChipLatency_set = c->KeyExists( "OffChipLatency" );
