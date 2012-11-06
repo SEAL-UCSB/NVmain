@@ -68,7 +68,8 @@ class Bank : public NVMObject
   bool PowerDown( BankState pdState );
 
   bool WouldConflict( uint64_t checkRow );
-  bool IsIssuable( NVMainRequest *req, ncycle_t delay = 0 );
+  bool IsIssuable( NVMainRequest *req, FailReason *reason = NULL );
+  bool NeedsRefresh( );
 
   void SetConfig( Config *c );
   void SetParams( Params *params ) { p = params; }

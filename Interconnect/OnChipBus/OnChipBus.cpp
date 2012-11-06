@@ -125,7 +125,7 @@ bool OnChipBus::IssueCommand( NVMainRequest *req )
 }
 
 
-bool OnChipBus::IsIssuable( NVMainRequest *req, ncycle_t delay )
+bool OnChipBus::IsIssuable( NVMainRequest *req, FailReason *reason )
 {
   uint64_t opRank;
   uint64_t opBank;
@@ -134,7 +134,7 @@ bool OnChipBus::IsIssuable( NVMainRequest *req, ncycle_t delay )
 
   req->address.GetTranslatedAddress( &opCol, &opRow, &opBank, &opRank, NULL );
   
-  return ranks[opRank]->IsIssuable( req, delay );
+  return ranks[opRank]->IsIssuable( req, reason );
 }
 
 

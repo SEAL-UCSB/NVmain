@@ -131,7 +131,7 @@ void Params::SetParams( Config *c )
     tRAS = c->GetValue( "tRAS" );
     tRCD = c->GetValue( "tRCD" );
     tRFI = c->GetValue( "tRFI" );
-    tRFI = c->GetValue( "tRFC" );
+    tRFC = c->GetValue( "tRFC" );
     tRP = c->GetValue( "tRP" );
     tRRDR = c->GetValue( "tRRDR" );
     tRRDW = c->GetValue( "tRRDW" );

@@ -239,6 +239,20 @@ NVMainRequest *MemoryController::MakePrechargeRequest( NVMainRequest *triggerReq
 
 
 
+NVMainRequest *MemoryController::MakeRefreshRequest( NVMainRequest *triggerRequest )
+{
+  NVMainRequest *refreshRequest = new NVMainRequest( );
+
+  refreshRequest->type = REFRESH;
+  refreshRequest->issueCycle = GetEventQueue()->GetCurrentCycle();
+  refreshRequest->address = triggerRequest->address;
+  refreshRequest->owner = this;
+
+  return refreshRequest;
+}
+
+
+
 bool MemoryController::FindStarvedRequest( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **starvedRequest )
 {
   DummyPredicate pred;
@@ -450,12 +464,28 @@ void MemoryController::CycleCommandQueues( )
     {
       for( unsigned int j = 0; j < p->BANKS; j++ )
         {
+          FailReason fail;
+
           if( !bankQueues[i][j].empty( )
-              && memory->IsIssuable( bankQueues[i][j].at( 0 ) ) )
+              && memory->IsIssuable( bankQueues[i][j].at( 0 ), &fail ) )
             {
               memory->IssueCommand( bankQueues[i][j].at( 0 ) );
 
               bankQueues[i][j].erase( bankQueues[i][j].begin( ) );
+            }
+          else if( fail.reason == OPEN_REFRESH_WAITING || fail.reason == CLOSED_REFRESH_WAITING )
+            {
+              if( fail.reason == OPEN_REFRESH_WAITING )
+                {
+                  bankQueues[i][j].push_front( MakeActivateRequest( bankQueues[i][j].at(0) ) );
+                }
+
+              bankQueues[i][j].push_front( MakeRefreshRequest( bankQueues[i][j].at(0) ) );
+
+              if( fail.reason == OPEN_REFRESH_WAITING )
+                {
+                  bankQueues[i][j].push_front( MakePrechargeRequest( bankQueues[i][j].at(0) ) );
+                }
             }
           else if( !bankQueues[i][j].empty( ) )
             {
@@ -485,17 +515,5 @@ void MemoryController::PrintStats( )
   translator->PrintStats( );
 }
 
-
-
-NVMainRequest *MemoryController::BuildRefreshRequest( int rank, int bank )
-{
-  NVMainRequest * refReq = new NVMainRequest( );
-
-  refReq->address.SetTranslatedAddress( 0, 0, bank, rank, 0 ); 
-  refReq->type = REFRESH;
-  refReq->bulkCmd = CMD_NOP;
-
-  return refReq;
-}
 
 
