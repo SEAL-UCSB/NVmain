@@ -44,7 +44,7 @@ public:
   void SetParams( Params *params ) { p = params; }
 
   bool IssueCommand( NVMainRequest *mop );
-  bool IsIssuable( NVMainRequest *mop, ncycle_t delay = 0 );
+  bool IsIssuable( NVMainRequest *mop, FailReason *reason = NULL );
   void Notify( OpType op );
 
   void SetName( std::string name );

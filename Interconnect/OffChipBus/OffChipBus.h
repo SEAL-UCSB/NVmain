@@ -27,6 +27,7 @@
 namespace NVM {
 
 
+
 class OffChipBus : public Interconnect
 {
  public:
@@ -37,7 +38,7 @@ class OffChipBus : public Interconnect
   void SetParams( Params *params ) { p = params; }
 
   bool IssueCommand( NVMainRequest *req );
-  bool IsIssuable( NVMainRequest *req, ncycle_t delay = 0 );
+  bool IsIssuable( NVMainRequest *req, FailReason *reason = NULL );
 
   bool RequestComplete( NVMainRequest *request );
 

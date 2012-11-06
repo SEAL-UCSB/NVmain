@@ -76,7 +76,7 @@ PerfectMemory::PerfectMemory( Interconnect *memory, AddressTranslator *translato
  */
 bool PerfectMemory::IssueCommand( NVMainRequest *req )
 {
-  EndCommand( req, ENDMODE_IMMEDIATE );
+  GetEventQueue()->InsertEvent( EventResponse, this, req, GetEventQueue()->GetCurrentCycle()+1 );
 
   /*
    *  Return whether the request could be queued. Return false if the queue is full.

@@ -99,13 +99,6 @@ void Rank::SetConfig( Config *c )
           std::stringstream formatter;
           ncycle_t nextRefresh;
 
-          if( p->UseRefresh_set && p->UseRefresh ) 
-            {
-              nextRefresh = ((p->tRFI) / (p->ROWS / p->RefreshRows));
-              nextRefresh = static_cast<ncycle_t>(static_cast<float>(nextRefresh) * (static_cast<float>(j + 1) / static_cast<float>(bankCount)));
-              newBank->SetNextRefresh( nextRefresh );
-            }
-
           formatter << j;
           newBank->SetName( formatter.str( ) );
           newBank->SetId( (int)i );
@@ -121,6 +114,19 @@ void Rank::SetConfig( Config *c )
 
           /* SetConfig recursively. */
           newBank->SetConfig( c );
+
+          if( p->UseRefresh_set && p->UseRefresh ) 
+            {
+              nextRefresh = static_cast<ncycle_t>(static_cast<float>(p->tRFI) / (static_cast<float>(p->ROWS) / static_cast<float>(p->RefreshRows)));
+
+              /* Equivalent to per-bank refresh in LPDDR3 spec. */
+              if( p->StaggerRefresh_set && p->StaggerRefresh )
+                {
+                  nextRefresh = static_cast<ncycle_t>(static_cast<float>(nextRefresh) * (static_cast<float>(j + 1) / static_cast<float>(bankCount)));
+                }
+
+              newBank->SetNextRefresh( nextRefresh );
+            }
         }
     }
 
@@ -366,7 +372,7 @@ ncycle_t Rank::GetNextRefresh( uint64_t bank )
 }
 
 
-bool Rank::IsIssuable( NVMainRequest *req, ncycle_t delay )
+bool Rank::IsIssuable( NVMainRequest *req, FailReason *reason )
 {
   uint64_t opRank;
   uint64_t opBank;
@@ -380,63 +386,76 @@ bool Rank::IsIssuable( NVMainRequest *req, ncycle_t delay )
 
   if( req->type == ACTIVATE )
     {
-      if( nextActivate > (GetEventQueue()->GetCurrentCycle()+delay) 
-          || lastActivate[FAWindex] + static_cast<ncycles_t>(p->tRRDR) > static_cast<ncycles_t>(GetEventQueue()->GetCurrentCycle()+delay)
-          || lastActivate[(FAWindex + 1)%4] + static_cast<ncycles_t>(p->tFAW) > static_cast<ncycles_t>(GetEventQueue()->GetCurrentCycle()+delay) )
-        rv = false;
+      if( nextActivate > (GetEventQueue()->GetCurrentCycle()) 
+          || lastActivate[FAWindex] + static_cast<ncycles_t>(p->tRRDR) > static_cast<ncycles_t>(GetEventQueue()->GetCurrentCycle())
+          || lastActivate[(FAWindex + 1)%4] + static_cast<ncycles_t>(p->tFAW) > static_cast<ncycles_t>(GetEventQueue()->GetCurrentCycle()) )
+        {
+          rv = false;
+
+          if( reason ) reason->reason = RANK_TIMING;
+        }
       else
-        rv = devices[0].GetBank( opBank )->IsIssuable( req, delay );
+        rv = devices[0].GetBank( opBank )->IsIssuable( req, reason );
 
       if( rv == false )
         {
-          if( nextActivate > (GetEventQueue()->GetCurrentCycle()+delay) )
+          if( nextActivate > (GetEventQueue()->GetCurrentCycle()) )
             {
               //std::cout << "Rank: Can't activate " << req->address.GetPhysicalAddress( )
               //  << " for " << nextActivate - GetEventQueue()->GetCurrentCycle() << " more cycles." << std::endl;
             
               actWaits++;
-              actWaitTime += nextActivate - (GetEventQueue()->GetCurrentCycle()+delay);
+              actWaitTime += nextActivate - (GetEventQueue()->GetCurrentCycle());
             }
-          if( lastActivate[FAWindex] + static_cast<ncycles_t>(p->tRRDR) > static_cast<ncycles_t>(GetEventQueue()->GetCurrentCycle()+delay) )
+          if( lastActivate[FAWindex] + static_cast<ncycles_t>(p->tRRDR) > static_cast<ncycles_t>(GetEventQueue()->GetCurrentCycle()) )
             {
               //std::cout << "Rank: Can't activate " << req->address.GetPhysicalAddress( )
               //  << " due to tRRDR until " << lastActivate[FAWindex] + p->tRRDR
               //- GetEventQueue()->GetCurrentCycle() << " more cycles." << std::endl;
             
               rrdWaits++;
-              rrdWaitTime += lastActivate[FAWindex] + p->tRRDR - (GetEventQueue()->GetCurrentCycle()+delay);
+              rrdWaitTime += lastActivate[FAWindex] + p->tRRDR - (GetEventQueue()->GetCurrentCycle());
             }
-          if( lastActivate[(FAWindex + 1)%4] + static_cast<ncycles_t>(p->tFAW) > static_cast<ncycles_t>(GetEventQueue()->GetCurrentCycle()+delay) )
+          if( lastActivate[(FAWindex + 1)%4] + static_cast<ncycles_t>(p->tFAW) > static_cast<ncycles_t>(GetEventQueue()->GetCurrentCycle()) )
             {
               //std::cout << "Rank: Can't activate " << req->address.GetPhysicalAddress( )
               //  << " due to tFAW until " << lastActivate[(FAWindex + 1)%4] + p->tFAW
               //- GetEventQueue()->GetCurrentCycle() << " more cycles." << std::endl;
 
               fawWaits++;
-              fawWaitTime += lastActivate[(FAWindex +1)%4] + p->tFAW - (GetEventQueue()->GetCurrentCycle()+delay);
+              fawWaitTime += lastActivate[(FAWindex +1)%4] + p->tFAW - (GetEventQueue()->GetCurrentCycle());
             }
         }
     }
   else if( req->type == READ )
     {
-      if( nextRead > (GetEventQueue()->GetCurrentCycle()+delay) || devices[0].GetBank( opBank )->WouldConflict( opRow ) )
-        rv = false;
+      if( nextRead > (GetEventQueue()->GetCurrentCycle()) || devices[0].GetBank( opBank )->WouldConflict( opRow ) )
+        {
+          rv = false;
+          if( reason ) reason->reason = RANK_TIMING;
+        }
       else
-        rv = devices[0].GetBank( opBank )->IsIssuable( req, delay );
+        rv = devices[0].GetBank( opBank )->IsIssuable( req, reason );
     }
   else if( req->type == WRITE )
     {
-      if( nextWrite > (GetEventQueue()->GetCurrentCycle()+delay) || devices[0].GetBank( opBank )->WouldConflict( opRow ) )
-        rv = false;
+      if( nextWrite > (GetEventQueue()->GetCurrentCycle()) || devices[0].GetBank( opBank )->WouldConflict( opRow ) )
+        {
+          rv = false;
+          if( reason ) reason->reason = RANK_TIMING;
+        }
       else
-        rv = devices[0].GetBank( opBank )->IsIssuable( req, delay );
+        rv = devices[0].GetBank( opBank )->IsIssuable( req, reason );
     }
   else if( req->type == PRECHARGE )
     {
-      if( nextPrecharge > (GetEventQueue()->GetCurrentCycle()+delay) )
-        rv = false;
+      if( nextPrecharge > (GetEventQueue()->GetCurrentCycle()) )
+        {
+          rv = false;
+          if( reason ) reason->reason = RANK_TIMING;
+        }
       else
-        rv = devices[0].GetBank( opBank )->IsIssuable( req, delay );
+        rv = devices[0].GetBank( opBank )->IsIssuable( req, reason );
     }
   else if( req->type == POWERDOWN_PDA || req->type == POWERDOWN_PDPF || req->type == POWERDOWN_PDPS )
     {
@@ -448,7 +467,7 @@ bool Rank::IsIssuable( NVMainRequest *req, ncycle_t delay )
     }
   else if( req->type == REFRESH )
     {
-      rv = devices[0].GetBank( opBank )->IsIssuable( req, delay );
+      rv = devices[0].GetBank( opBank )->IsIssuable( req, reason );
     }
   /*
    *  Can't issue unknown operations.
@@ -456,6 +475,7 @@ bool Rank::IsIssuable( NVMainRequest *req, ncycle_t delay )
   else
     {
       rv = false;
+      if( reason ) reason->reason = UNKNOWN_FAILURE;
     }
 
   return rv;
