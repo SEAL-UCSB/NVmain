@@ -101,6 +101,7 @@ class MemoryController : public NVMObject
 
   NVMainRequest *MakeActivateRequest( NVMainRequest *triggerRequest );
   NVMainRequest *MakePrechargeRequest( NVMainRequest *triggerRequest );
+  NVMainRequest *MakeRefreshRequest( NVMainRequest *triggerRequest );
   bool FindStarvedRequest( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **starvedRequest );
   bool FindRowBufferHit( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **hitRequest );
   bool FindOldestReadyRequest( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **oldestRequest );
@@ -124,7 +125,6 @@ class MemoryController : public NVMObject
   bool refreshUsed;
   std::vector<NVMainRequest *> refreshWaitQueue;
   bool **refreshNeeded;
-  NVMainRequest *BuildRefreshRequest( int rank, int bank );
 
   Params *p;
 

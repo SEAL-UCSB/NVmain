@@ -19,6 +19,7 @@
 
 
 #include "include/NVMTypes.h"
+#include "include/FailReasons.h"
 #include "src/EventQueue.h"
 
 #include <vector>
@@ -44,7 +45,7 @@ class NVMObject
   virtual void Cycle( ncycle_t steps ) = 0;
 
   virtual bool IssueCommand( NVMainRequest *req );
-  virtual bool IsIssuable( NVMainRequest *req, ncycle_t delay = 0 );
+  virtual bool IsIssuable( NVMainRequest *req, FailReason *reason = NULL );
   virtual bool IssueAtomic( NVMainRequest *req );
 
   virtual bool RequestComplete( NVMainRequest *req );

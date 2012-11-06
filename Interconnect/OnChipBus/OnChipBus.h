@@ -39,7 +39,7 @@ class OnChipBus : public Interconnect
   void SetParams( Params *params ) { p = params; }
 
   bool IssueCommand( NVMainRequest *mop );
-  bool IsIssuable( NVMainRequest *mop, ncycle_t delay );
+  bool IsIssuable( NVMainRequest *mop, FailReason *reason = NULL );
 
   ncycle_t GetNextActivate( uint64_t rank, uint64_t bank );
   ncycle_t GetNextRead( uint64_t rank, uint64_t bank );

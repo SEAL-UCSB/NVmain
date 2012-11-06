@@ -37,7 +37,7 @@ bool NVMObject::IssueCommand( NVMainRequest * )
 
 
 
-bool NVMObject::IsIssuable( NVMainRequest *, ncycle_t )
+bool NVMObject::IsIssuable( NVMainRequest *, FailReason * )
 {
   return true;
 }
