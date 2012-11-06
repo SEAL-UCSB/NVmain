@@ -410,6 +410,11 @@ bool MemoryController::IssueMemoryCommands( NVMainRequest *req )
 
   req->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
 
+  /*
+   *  This function assumes the memory controller uses any predicates when
+   *  scheduling. They will not be re-checked here.
+   */
+
   if( !activateQueued[rank][bank] && bankQueues[rank][bank].empty() )
     {
       /* Any activate will request the starvation counter */
