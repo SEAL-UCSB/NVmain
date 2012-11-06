@@ -33,13 +33,6 @@ using namespace NVM;
 
 
 
-/*
- *  This simple memory controller is an example memory controller for NVMain, and operates as follows:
- *
- *  - After each read or write is issued, the page is closed.
- *    For each request, it simply prepends an activate before the read/write and appends a precharge
- *  - This memory controller leaves all banks and ranks in active mode (it does not do power management)
- */
 FRFCFS::FRFCFS( Interconnect *memory, AddressTranslator *translator )
 {
   /*
@@ -103,9 +96,9 @@ FRFCFS::~FRFCFS( )
 
 void FRFCFS::SetConfig( Config *conf )
 {
-  if( conf->KeyExists( "FRFCFS_StarvationThreshold" ) )
+  if( conf->KeyExists( "StarvationThreshold" ) )
     {
-      starvationThreshold = static_cast<unsigned int>( conf->GetValue( "FRFCFS_StarvationThreshold" ) );
+      starvationThreshold = static_cast<unsigned int>( conf->GetValue( "StarvationThreshold" ) );
     }
 
   if( conf->KeyExists( "QueueSize" ) )

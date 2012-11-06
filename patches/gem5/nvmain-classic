@@ -1,10 +1,10 @@
 # HG changeset patch
-# Parent c4382ac9ed33bb648c0df99764628e346332d2af
+# Parent fa9fa30f24982dd3cc4b5b93e34b3f1dbf380a21
 
-diff -r c4382ac9ed33 src/mem/NVMainMemory.py
+diff -r fa9fa30f2498 src/mem/NVMainMemory.py
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/NVMainMemory.py	Mon Oct 22 13:20:40 2012 -0400
-@@ -0,0 +1,42 @@
++++ b/src/mem/NVMainMemory.py	Tue Nov 06 16:15:39 2012 -0500
+@@ -0,0 +1,43 @@
 +# Copyright (c) 2009 Advanced Micro Devices, Inc.
 +# All rights reserved.
 +#
@@ -38,6 +38,7 @@ diff -r c4382ac9ed33 src/mem/NVMainMemory.py
 +
 +class NVMainMemory(AbstractMemory):
 +    type = 'NVMainMemory'
++    cxx_header = 'mem/nvmain_mem.hh'
 +    port = SlavePort("Slave ports")
 +    atomic_mode = Param.Bool(False, "Enable to use NVMain in atomic mode rather than latency/variance")
 +    atomic_latency = Param.Latency('30ns', "Request latency in atomic mode")
@@ -47,9 +48,9 @@ diff -r c4382ac9ed33 src/mem/NVMainMemory.py
 +    config = Param.String("NULL", "")
 +    configparams = Param.String("", "")
 +    configvalues = Param.String("", "")
-diff -r c4382ac9ed33 src/mem/SConscript
---- a/src/mem/SConscript	Wed Oct 17 07:42:06 2012 -0400
-+++ b/src/mem/SConscript	Mon Oct 22 13:20:40 2012 -0400
+diff -r fa9fa30f2498 src/mem/SConscript
+--- a/src/mem/SConscript	Tue Nov 06 09:33:48 2012 -0500
++++ b/src/mem/SConscript	Tue Nov 06 16:15:39 2012 -0500
 @@ -56,8 +56,10 @@
      SimObject('AbstractMemory.py')
      SimObject('SimpleMemory.py')
@@ -69,10 +70,10 @@ diff -r c4382ac9ed33 src/mem/SConscript
  
  DebugFlag('ProtocolTrace')
  DebugFlag('RubyCache')
-diff -r c4382ac9ed33 src/mem/nvmain_mem.cc
+diff -r fa9fa30f2498 src/mem/nvmain_mem.cc
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/nvmain_mem.cc	Mon Oct 22 13:20:40 2012 -0400
-@@ -0,0 +1,431 @@
++++ b/src/mem/nvmain_mem.cc	Tue Nov 06 16:15:39 2012 -0500
+@@ -0,0 +1,453 @@
 +/*
 + * Copyright (c) 1999-2008 Mark D. Hill and David A. Wood
 + * All rights reserved.
@@ -404,6 +405,27 @@ diff -r c4382ac9ed33 src/mem/nvmain_mem.cc
 +        DPRINTF(NVMain, "nvmain_mem.cc: Enqueued Mem request for 0x%x of type %s\n", request->address.GetPhysicalAddress( ), ((pkt->isRead()) ? "READ" : "WRITE") );
 +
 +        memory.m_request_map.insert( std::pair<NVMainRequest *, NVMainMemoryRequest *>( request, memRequest ) );
++
++        /*
++         *  It seems gem5 will block until the packet gets a response, so create a copy of the request, so
++         *  the memory controller has it, then delete the original copy to respond to the packet.
++         */
++        if( request->type == WRITE )
++          {
++            NVMainMemoryRequest *requestCopy = new NVMainMemoryRequest( );
++
++            requestCopy->request = new NVMainRequest( );
++            *(requestCopy->request) = *request;
++            requestCopy->packet = pkt;
++            requestCopy->issueTick = curTick();
++            requestCopy->atomic = false;
++
++            memRequest->packet = NULL;
++
++            memory.m_request_map.insert( std::pair<NVMainRequest *, NVMainMemoryRequest *>( requestCopy->request, requestCopy ) );
++
++            memory.RequestComplete( requestCopy->request );
++          }
 +    }
 +    else
 +    {
@@ -453,7 +475,8 @@ diff -r c4382ac9ed33 src/mem/nvmain_mem.cc
 +
 +    DPRINTF(NVMain, "Completed Mem request for 0x%x of type %s\n", req->address.GetPhysicalAddress( ), ((memRequest->packet->isRead()) ? "READ" : "WRITE"));
 +
-+    if(!memRequest->atomic)
++    if(memRequest->packet && !memRequest->atomic)
++    //if(!memRequest->atomic)
 +    {
 +        bool respond = memRequest->packet->needsResponse();
 +        access(memRequest->packet);
@@ -504,9 +527,9 @@ diff -r c4382ac9ed33 src/mem/nvmain_mem.cc
 +    return new NVMainMemory(this);
 +}
 +
-diff -r c4382ac9ed33 src/mem/nvmain_mem.hh
+diff -r fa9fa30f2498 src/mem/nvmain_mem.hh
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/nvmain_mem.hh	Mon Oct 22 13:20:40 2012 -0400
++++ b/src/mem/nvmain_mem.hh	Tue Nov 06 16:15:39 2012 -0500
 @@ -0,0 +1,193 @@
 +/*
 + * Copyright (c) 1999-2008 Mark D. Hill and David A. Wood

@@ -34,6 +34,8 @@ MemoryController *MemoryControllerFactory::CreateNewController( std::string cont
     memoryController = new FCFS( memory, translator );
   else if( controller == "FRFCFS" )
     memoryController = new FRFCFS( memory, translator );
+  else if( controller == "FRFCFS-WQF" || controller == "FRFCFS_WQF" )
+    memoryController = new FRFCFS_WQF( memory, translator );
   else if( controller == "PerfectMemory" )
     memoryController = new PerfectMemory( memory, translator );
 

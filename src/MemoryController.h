@@ -50,6 +50,25 @@ class SchedulingPredicate
 };
 
 
+/* Takes a scheduling predicate and returns the opposite of it's evaluation. */
+class ComplementPredicate : public SchedulingPredicate
+{
+ private:
+  ComplementPredicate() {}
+
+  SchedulingPredicate *pred;
+
+ public:
+  explicit ComplementPredicate( SchedulingPredicate *_pred ) : pred(_pred) { }
+  ~ComplementPredicate( ) { }
+
+  bool operator() (uint64_t bank, uint64_t rank)
+    {
+      return !( (*pred)( bank, rank ) );
+    }
+};
+
+
 
 class MemoryController : public NVMObject 
 {
