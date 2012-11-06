@@ -89,15 +89,6 @@ void MemoryController::Cycle( ncycle_t )
        */
       if( memory->IsIssuable( nextReq ) )
         {
-          if( nextReq->type == READ )
-            {
-              EndCommand( nextReq, ENDMODE_CRITICAL_WORD_FIRST );
-            }
-          else if( nextReq->type == WRITE )
-            {
-              EndCommand( nextReq, ENDMODE_NORMAL );
-            }
-
           nextReq->issueCycle = GetEventQueue()->GetCurrentCycle();
 
           /*
@@ -111,39 +102,16 @@ void MemoryController::Cycle( ncycle_t )
 }
 
 
-void MemoryController::FlushCompleted( )
-{
-  std::map<NVMainRequest *, ncycle_t>::iterator it;
-
-
-  for( it = completedCommands.begin( ); it != completedCommands.end( ); it++ )
-    {
-      if( it->second == 0 )
-        {
-          //std::cout << "MC: 0x" << std::hex << it->first->GetRequest( )->address.GetPhysicalAddress( )
-          //          << std::dec << " completed" << std::endl;
-          it->first->status = MEM_REQUEST_COMPLETE;
-
-          RequestComplete( it->first );
-
-          //std::cout << "Marking request 0x" << std::hex << (void*)it->first->GetRequest( ) << std::dec 
-          //          << "completed" << std::endl;
-          completedCommands.erase( it );
-        }
-      else
-        {
-          it->second--;
-        }
-    }
-}
-
-
 bool MemoryController::RequestComplete( NVMainRequest *request )
 {
   bool rv = false;
 
   if( request->owner == this )
     {
+      /* 
+       *  Any activate/precharge/etc commands belong to the memory controller, and 
+       *  we are in charge of deleting them!
+       */
       delete request;
       rv = true;
     }
@@ -154,45 +122,6 @@ bool MemoryController::RequestComplete( NVMainRequest *request )
 
   return rv;
 }
-
-
-void MemoryController::EndCommand( NVMainRequest* req, MCEndMode endMode, ncycle_t customTime )
-{
-  ncycle_t endTime;
-
-  if( endMode == ENDMODE_CRITICAL_WORD_FIRST )
-    {
-      /*
-       *  End the command after the first data cycle. Assumes the bus size
-       *  is greater than or equal to half the word size (in DDR), or the 
-       *  bus size is greater then or equal to the word size (in SDR).
-       */
-      endTime = p->tCAS + 1; 
-
-      completedCommands.insert( std::pair<NVMainRequest *, ncycle_t>( req, endTime ) );
-    }
-  else if( endMode == ENDMODE_NORMAL )
-    {
-      endTime = p->tCAS + p->tBURST;
-
-      completedCommands.insert( std::pair<NVMainRequest *, ncycle_t>( req, endTime ) );
-    }
-  else if( endMode == ENDMODE_IMMEDIATE )
-    {
-      req->status = MEM_REQUEST_COMPLETE;
-
-      completedCommands.insert( std::pair<NVMainRequest *, ncycle_t>( req, 0 ) );
-    }
-  else if( endMode == ENDMODE_CUSTOM )
-    {
-      completedCommands.insert( std::pair<NVMainRequest *, ncycle_t>( req, customTime ) );
-    }
-  else
-    {
-      std::cout << "Warning: Unknown endMode for EndCommand. This may result in a deadlock."
-                << std::endl;
-    }
-} 
 
 
 bool MemoryController::QueueFull( NVMainRequest * /*request*/ )
@@ -306,6 +235,20 @@ NVMainRequest *MemoryController::MakePrechargeRequest( NVMainRequest *triggerReq
   prechargeRequest->owner = this;
 
   return prechargeRequest;
+}
+
+
+
+NVMainRequest *MemoryController::MakeRefreshRequest( NVMainRequest *triggerRequest )
+{
+  NVMainRequest *refreshRequest = new NVMainRequest( );
+
+  refreshRequest->type = REFRESH;
+  refreshRequest->issueCycle = GetEventQueue()->GetCurrentCycle();
+  refreshRequest->address = triggerRequest->address;
+  refreshRequest->owner = this;
+
+  return refreshRequest;
 }
 
 
@@ -521,12 +464,28 @@ void MemoryController::CycleCommandQueues( )
     {
       for( unsigned int j = 0; j < p->BANKS; j++ )
         {
+          FailReason fail;
+
           if( !bankQueues[i][j].empty( )
-              && memory->IsIssuable( bankQueues[i][j].at( 0 ) ) )
+              && memory->IsIssuable( bankQueues[i][j].at( 0 ), &fail ) )
             {
               memory->IssueCommand( bankQueues[i][j].at( 0 ) );
 
               bankQueues[i][j].erase( bankQueues[i][j].begin( ) );
+            }
+          else if( fail.reason == OPEN_REFRESH_WAITING || fail.reason == CLOSED_REFRESH_WAITING )
+            {
+              if( fail.reason == OPEN_REFRESH_WAITING )
+                {
+                  bankQueues[i][j].push_front( MakeActivateRequest( bankQueues[i][j].at(0) ) );
+                }
+
+              bankQueues[i][j].push_front( MakeRefreshRequest( bankQueues[i][j].at(0) ) );
+
+              if( fail.reason == OPEN_REFRESH_WAITING )
+                {
+                  bankQueues[i][j].push_front( MakePrechargeRequest( bankQueues[i][j].at(0) ) );
+                }
             }
           else if( !bankQueues[i][j].empty( ) )
             {
@@ -556,17 +515,5 @@ void MemoryController::PrintStats( )
   translator->PrintStats( );
 }
 
-
-
-NVMainRequest *MemoryController::BuildRefreshRequest( int rank, int bank )
-{
-  NVMainRequest * refReq = new NVMainRequest( );
-
-  refReq->address.SetTranslatedAddress( 0, 0, bank, rank, 0 ); 
-  refReq->type = REFRESH;
-  refReq->bulkCmd = CMD_NOP;
-
-  return refReq;
-}
 
 

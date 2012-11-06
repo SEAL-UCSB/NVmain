@@ -73,7 +73,6 @@ Bank::Bank( )
 
   refreshUsed = false;
   refreshRows = 1024;
-  needsRefresh = false;
 
   psInterval = 0;
 
@@ -388,8 +387,10 @@ bool Bank::Read( NVMainRequest *request )
 
 
       /*
-       * Data is placed on the bus starting from tCAS and is complete after tBURST.
-       * Wakeup owner at the end of this to notify that the whole request is complete.
+       *  Data is placed on the bus starting from tCAS and is complete after tBURST.
+       *  Wakeup owner at the end of this to notify that the whole request is complete.
+       *
+       *  Note: In critical word first, tBURST can be replaced with 1.
        */
       if( bankId == 0 )
         GetEventQueue( )->InsertEvent( EventResponse, this, request, GetEventQueue()->GetCurrentCycle() + p->tCAS + MAX(p->tBURST, p->tCCD) );
@@ -707,7 +708,6 @@ bool Bank::Refresh( )
        *  bank we need to calculate when the next refresh will occur.. 
        */
       nextRefresh = GetEventQueue()->GetCurrentCycle() + ((p->tRFI) / (p->ROWS / refreshRows));
-      needsRefresh = false;
 
       GetEventQueue()->InsertEvent( EventCycle, this, nextRefresh );
       
@@ -731,7 +731,7 @@ bool Bank::Refresh( )
 }
 
 
-bool Bank::IsIssuable( NVMainRequest *req, ncycle_t delay )
+bool Bank::IsIssuable( NVMainRequest *req, FailReason *reason )
 {
   uint64_t opRank;
   uint64_t opBank;
@@ -747,56 +747,111 @@ bool Bank::IsIssuable( NVMainRequest *req, ncycle_t delay )
 
   if( req->type == ACTIVATE )
     {
-      if( nextActivate > (GetEventQueue()->GetCurrentCycle()+delay) || state != BANK_CLOSED )
+      if( nextActivate > (GetEventQueue()->GetCurrentCycle()) || state != BANK_CLOSED )
+      {
         rv = false;
+        if( reason ) reason->reason = BANK_TIMING;
+      }
 
-      if( refreshUsed && ((GetEventQueue()->GetCurrentCycle()+delay) >= nextRefresh || needsRefresh) )
+      if( NeedsRefresh( ) && state == BANK_CLOSED )
+      {
         rv = false;
+        if( reason ) reason->reason = CLOSED_REFRESH_WAITING;
+      }
+
+      if( NeedsRefresh( ) && state != BANK_CLOSED )
+      {
+        rv = false;
+        if( reason ) reason->reason = OPEN_REFRESH_WAITING;
+      }
 
       if( rv == false )
         {
-          if( nextActivate > (GetEventQueue()->GetCurrentCycle()+delay) )
+          if( nextActivate > (GetEventQueue()->GetCurrentCycle()) )
             {
               //std::cout << "Bank: Can't activate for " << nextActivate - GetEventQueue()->GetCurrentCycle() << " cycles." << std::endl;
               actWaits++;
-              actWaitTime += nextActivate - (GetEventQueue()->GetCurrentCycle()+delay);
+              actWaitTime += nextActivate - (GetEventQueue()->GetCurrentCycle());
             }
         }
     }
   else if( req->type == READ )
     {
-      if( nextRead > (GetEventQueue()->GetCurrentCycle()+delay) || state != BANK_OPEN || opRow != openRow || ( refreshUsed && needsRefresh ) )
+      if( nextRead > (GetEventQueue()->GetCurrentCycle()) || state != BANK_OPEN || opRow != openRow )
+        {
+          rv = false;
+          if( reason ) reason->reason = BANK_TIMING;
+        }
+
+      if( NeedsRefresh( ) )
+      {
         rv = false;
+        if( reason ) reason->reason = OPEN_REFRESH_WAITING;
+      }
     }
   else if( req->type == WRITE )
     {
-      if( nextWrite > (GetEventQueue()->GetCurrentCycle()+delay) || state != BANK_OPEN || opRow != openRow || ( refreshUsed && needsRefresh ) )
+      if( nextWrite > (GetEventQueue()->GetCurrentCycle()) || state != BANK_OPEN || opRow != openRow )
+        {
+          rv = false;
+          if( reason ) reason->reason = BANK_TIMING;
+        }
+
+      if( NeedsRefresh( ) )
+      {
         rv = false;
+        if( reason ) reason->reason = OPEN_REFRESH_WAITING;
+      }
     }
   else if( req->type == PRECHARGE )
     {
-      if( nextPrecharge > (GetEventQueue()->GetCurrentCycle()+delay) || state != BANK_OPEN )
-        rv = false;
+      if( nextPrecharge > (GetEventQueue()->GetCurrentCycle()) || state != BANK_OPEN )
+        {
+          rv = false;
+          if( reason ) reason->reason = BANK_TIMING;
+        }
     }
   else if( req->type == POWERDOWN_PDA || req->type == POWERDOWN_PDPF || req->type == POWERDOWN_PDPS )
     {
-      if( nextPowerDown > (GetEventQueue()->GetCurrentCycle()+delay) || ( state != BANK_OPEN && state != BANK_CLOSED ) || ( refreshUsed && needsRefresh ) )
+      if( nextPowerDown > (GetEventQueue()->GetCurrentCycle()) || ( state != BANK_OPEN && state != BANK_CLOSED ) )
+        {
+          rv = false;
+          if( reason ) reason->reason = BANK_TIMING;
+        }
+
+      if( NeedsRefresh( ) )
+      {
         rv = false;
+        if( reason ) reason->reason = CLOSED_REFRESH_WAITING;
+      }
     }
   else if( req->type == POWERUP )
     {
-      if( nextPowerUp > (GetEventQueue()->GetCurrentCycle()+delay) || ( state != BANK_PDPF && state != BANK_PDPS && state != BANK_PDA ) || ( refreshUsed && needsRefresh ) )
+      if( nextPowerUp > (GetEventQueue()->GetCurrentCycle()) || ( state != BANK_PDPF && state != BANK_PDPS && state != BANK_PDA ) )
+        {
+          rv = false;
+          if( reason ) reason->reason = BANK_TIMING;
+        }
+
+      if( NeedsRefresh( ) )
+      {
         rv = false;
+        if( reason ) reason->reason = CLOSED_REFRESH_WAITING;
+      }
     }
   else if( req->type == REFRESH )
     {
-      if( nextRefresh > (GetEventQueue()->GetCurrentCycle()+delay) || state != BANK_CLOSED || needsRefresh )
-        rv = false;
+      if( state != BANK_CLOSED )
+        {
+          rv = false;
+          if( reason ) reason->reason = BANK_TIMING;
+        }
     }
   else
     {
       std::cout << "Bank: IsIssuable: Unknown operation: " << req->type << std::endl;
       rv = false;
+      if( reason ) reason->reason = UNKNOWN_FAILURE;
     }
 
   return rv;
@@ -936,6 +991,16 @@ bool Bank::Idle( )
   return false;
 }
 
+
+bool Bank::NeedsRefresh( )
+{
+  bool rv = false;
+
+  if( refreshUsed && nextRefresh <= GetEventQueue()->GetCurrentCycle() )
+    rv = true;
+
+  return rv;
+}
 
 
 void Bank::IssueImplicit( )
@@ -1113,31 +1178,11 @@ void Bank::Cycle( ncycle_t steps )
   IssueImplicit( );
 
   
-  /* Check for state updates. */
-
-
-  /*
-   *  Automatically refresh if we need to.
-   */
-  if( refreshUsed && nextRefresh <= GetEventQueue()->GetCurrentCycle() )
-    {
-      if( state == BANK_CLOSED )
-        {
-          Refresh( );
-        }
-      else
-        {
-          needsRefresh = true;
-        }
-    }
-
-
-
   /*
    *  Count non-idle cycles for utilization calculations
    */
   if( !Idle( ) )
-    {
+                  {
       activeCycles += steps;
       
       /*

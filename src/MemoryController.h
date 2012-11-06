@@ -38,12 +38,7 @@ namespace NVM {
 
 
 enum ProcessorOp { LOAD, STORE };
-enum MCEndMode { ENDMODE_NORMAL,              // End command when all data is received.
-                 ENDMODE_CRITICAL_WORD_FIRST, // End command after first data cycle.
-                 ENDMODE_IMMEDIATE,           // End command right now (if you do your own timing)
-                 ENDMODE_CUSTOM,              // End after a specific number of cycles.
-                 ENDMODE_COUNT
-};
+
 
 class SchedulingPredicate
 {
@@ -68,7 +63,6 @@ class MemoryController : public NVMObject
   void InitBankQueues( unsigned int numQueues );
 
   virtual bool RequestComplete( NVMainRequest *request );
-  virtual void EndCommand( NVMainRequest *req, MCEndMode endMode = ENDMODE_NORMAL, ncycle_t customTime = 0 );
   virtual bool QueueFull( NVMainRequest *request );
 
   void SetMemory( Interconnect *mem );
@@ -90,8 +84,6 @@ class MemoryController : public NVMObject
 
   void SetID( unsigned int id );
 
-  void FlushCompleted( );
-
  protected:
   Interconnect *memory;
   AddressTranslator *translator;
@@ -109,6 +101,7 @@ class MemoryController : public NVMObject
 
   NVMainRequest *MakeActivateRequest( NVMainRequest *triggerRequest );
   NVMainRequest *MakePrechargeRequest( NVMainRequest *triggerRequest );
+  NVMainRequest *MakeRefreshRequest( NVMainRequest *triggerRequest );
   bool FindStarvedRequest( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **starvedRequest );
   bool FindRowBufferHit( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **hitRequest );
   bool FindOldestReadyRequest( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **oldestRequest );
@@ -132,9 +125,6 @@ class MemoryController : public NVMObject
   bool refreshUsed;
   std::vector<NVMainRequest *> refreshWaitQueue;
   bool **refreshNeeded;
-  NVMainRequest *BuildRefreshRequest( int rank, int bank );
-
-  std::map<NVMainRequest *, ncycle_t> completedCommands;
 
   Params *p;
 
