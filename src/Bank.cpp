@@ -65,6 +65,8 @@ Bank::Bank( )
   reads = 0;
   writes = 0;
   activates = 0;
+  precharges = 0;
+  refreshes = 0;
 
   actWaits = 0;
   actWaitTime = 0;
@@ -75,8 +77,6 @@ Bank::Bank( )
   refreshRows = 1024;
 
   psInterval = 0;
-
-  nextCompletion = std::numeric_limits<ncycle_t>::max();
 }
 
 
@@ -256,7 +256,10 @@ bool Bank::Activate( NVMainRequest *request )
       nextRead = MAX( nextRead, GetEventQueue()->GetCurrentCycle() + p->tRCD - p->tAL );
       nextWrite = MAX( nextWrite, GetEventQueue()->GetCurrentCycle() + p->tRCD - p->tAL );
       nextPowerDown = MAX( nextPowerDown, GetEventQueue()->GetCurrentCycle() + p->tRCD + 1 );
+      nextPowerUp = MAX( nextPowerUp, nextPowerDown + p->tPD );
 
+      if( bankId == 0 )
+        GetEventQueue( )->InsertEvent( EventResponse, this, request, GetEventQueue()->GetCurrentCycle() + p->tRCD );
 
       openRow = activateRow;
       state = BANK_OPEN;
@@ -378,9 +381,10 @@ bool Bank::Read( NVMainRequest *request )
       nextRead = MAX( nextRead, GetEventQueue()->GetCurrentCycle() + MAX( p->tBURST, p->tCCD ) );
       nextWrite = MAX( nextWrite, GetEventQueue()->GetCurrentCycle() + p->tCAS + p->tBURST 
                + 2 - p->tCWD );
-      nextActivate = MAX( nextActivate, lastActivate + p->tRRDR );
+      nextActivate = MAX( nextActivate, nextPrecharge + p->tRP );
       nextPowerDown = MAX( nextPowerDown, GetEventQueue()->GetCurrentCycle() + p->tAL + p->tBURST
                + p->tCAS + 1 );
+      nextPowerUp = MAX( nextPowerUp, nextPowerDown + p->tPD );
       
 
       dataCycles += p->tBURST;
@@ -503,6 +507,7 @@ bool Bank::Write( NVMainRequest *request )
       nextWrite = MAX( nextWrite, GetEventQueue()->GetCurrentCycle() + MAX( p->tBURST, p->tCCD ) );
       nextPowerDown = MAX( nextPowerDown, GetEventQueue()->GetCurrentCycle() + p->tAL + p->tBURST
                + p->tWR + p->tCWD + 1 );
+      nextPowerUp = MAX( nextPowerUp, nextPowerDown + p->tPD );
 
       dataCycles += p->tBURST;
 
@@ -650,15 +655,15 @@ bool Bank::Precharge( NVMainRequest *request )
   if( nextPrecharge <= GetEventQueue()->GetCurrentCycle() && state == BANK_OPEN  )
     {
       nextActivate = MAX( nextActivate, GetEventQueue()->GetCurrentCycle() + p->tRP );
+      nextPrecharge = MAX( nextPrecharge, nextActivate + p->tRCD );
+      nextRead = MAX( nextRead, nextActivate + p->tRCD );
+      nextWrite = MAX( nextWrite, nextActivate + p->tRCD );
       nextPowerDown = MAX( nextPowerDown, GetEventQueue()->GetCurrentCycle() + p->tRP );
+      nextPowerUp = MAX( nextPowerUp, nextPowerDown + p->tPD );
 
 
       if( bankId == 0 )
-      {
-        notifyComplete.insert(std::pair<NVMainRequest *, ncycle_t>( request, GetEventQueue()->GetCurrentCycle() + p->tRP ) );
-        nextCompletion = std::min( nextCompletion, GetEventQueue()->GetCurrentCycle() + p->tRP );
-      }
-
+        GetEventQueue( )->InsertEvent( EventResponse, this, request, GetEventQueue()->GetCurrentCycle() + p->tRP );
 
 
       switch( nextCommand )
@@ -684,6 +689,8 @@ bool Bank::Precharge( NVMainRequest *request )
 
       state = BANK_CLOSED;
 
+      precharges++;
+
       returnValue = true;
     }
 
@@ -699,7 +706,11 @@ bool Bank::Refresh( )
   if( nextRefresh <= GetEventQueue()->GetCurrentCycle() && state == BANK_CLOSED )
     {
       nextActivate = MAX( nextActivate, GetEventQueue()->GetCurrentCycle() + refreshRows * p->tRFC );
+      nextPrecharge = MAX( nextPrecharge, nextActivate + p->tRCD );
+      nextRead = MAX( nextRead, nextActivate + p->tRCD );
+      nextWrite = MAX( nextWrite, nextActivate + p->tRCD );
       nextPowerDown = MAX( nextPowerDown, GetEventQueue()->GetCurrentCycle() + refreshRows * p->tRFC );
+      nextPowerUp = MAX( nextPowerUp, nextPowerDown + p->tPD );
 
       refreshRowIndex = (refreshRowIndex + refreshRows) % p->ROWS;
 
@@ -723,6 +734,8 @@ bool Bank::Refresh( )
 
           refreshEnergy += p->Eref;
         }
+
+      refreshes++;
 
       returnValue = true;
     }
@@ -952,7 +965,9 @@ void Bank::PrintStats( )
             << "i" << psInterval << "." << statName << ".utilization " << utilization << std::endl;
   std::cout << "i" << psInterval << "." << statName << ".reads " << reads << std::endl
             << "i" << psInterval << "." << statName << ".writes " << writes << std::endl
-            << "i" << psInterval << "." << statName << ".activates " << activates << std::endl;
+            << "i" << psInterval << "." << statName << ".activates " << activates << std::endl
+            << "i" << psInterval << "." << statName << ".precharges " << precharges << std::endl
+            << "i" << psInterval << "." << statName << ".refreshes " << refreshes << std::endl;
   std::cout << "i" << psInterval << "." << statName << ".activeCycles " << powerCycles << std::endl
             << "i" << psInterval << "." << statName << ".fastExitCycles " << feCycles << std::endl
             << "i" << psInterval << "." << statName << ".slowExitCycles " << seCycles << std::endl;
