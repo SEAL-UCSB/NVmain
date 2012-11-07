@@ -131,8 +131,6 @@ class Bank : public NVMObject
   bool needsRefresh;
   WriteMode writeMode;
 
-  ncycle_t nextEvent;
-
   ncounter_t actWaits;
   ncounter_t actWaitTime;
 
@@ -144,7 +142,7 @@ class Bank : public NVMObject
   float utilization;
   ncycle_t activeCycles;
   ncycle_t dataCycles;
-  ncounter_t reads, writes, activates;
+  ncounter_t reads, writes, activates, precharges, refreshes;
   ncounter_t idleTimer;
 
   uint64_t openRow;
@@ -153,9 +151,6 @@ class Bank : public NVMObject
 
   int bankId;
  
-  std::map<NVMainRequest *, ncycle_t> notifyComplete;
-  ncycle_t nextCompletion;
-
   Params *p;
 
   void IssueImplicit( );

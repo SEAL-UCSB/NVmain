@@ -187,7 +187,10 @@ bool FRFCFS::RequestComplete( NVMainRequest * request )
 
 
   if( request->owner == this )
-    delete request;
+    {   
+      std::cout << "Deleted a request to type " << request->type << std::endl;
+      delete request;
+    }
   else
     GetParent( )->RequestComplete( request );
 
