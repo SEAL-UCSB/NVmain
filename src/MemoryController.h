@@ -142,8 +142,7 @@ class MemoryController : public NVMObject
   unsigned int id;
 
   bool refreshUsed;
-  std::vector<NVMainRequest *> refreshWaitQueue;
-  bool **refreshNeeded;
+  ncycle_t **refreshTimes;
 
   Params *p;
 
