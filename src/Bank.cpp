@@ -75,6 +75,7 @@ Bank::Bank( )
 
   refreshUsed = false;
   refreshRows = 1024;
+  needsRefresh = false;
 
   psInterval = 0;
 }
@@ -703,7 +704,7 @@ bool Bank::Refresh( )
 {
   bool returnValue = false;
 
-  if( nextRefresh <= GetEventQueue()->GetCurrentCycle() && state == BANK_CLOSED )
+  if( state == BANK_CLOSED )
     {
       nextActivate = MAX( nextActivate, GetEventQueue()->GetCurrentCycle() + refreshRows * p->tRFC );
       nextPrecharge = MAX( nextPrecharge, nextActivate + p->tRCD );
@@ -857,7 +858,7 @@ bool Bank::IsIssuable( NVMainRequest *req, FailReason *reason )
       if( state != BANK_CLOSED )
         {
           rv = false;
-          if( reason ) reason->reason = BANK_TIMING;
+          if( reason ) reason->reason = REFRESH_OPEN_FAILURE;
         }
     }
   else
@@ -1192,7 +1193,7 @@ void Bank::Cycle( ncycle_t steps )
   /* Check for implicit commands to issue. */
   IssueImplicit( );
 
-  
+
   /*
    *  Count non-idle cycles for utilization calculations
    */

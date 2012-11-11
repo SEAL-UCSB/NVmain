@@ -29,8 +29,7 @@ MemoryController::MemoryController( )
   translator = NULL;
 
   refreshUsed = false;
-  refreshWaitQueue.clear( );
-  refreshNeeded = NULL;
+  refreshTimes = NULL;
 
   starvationThreshold = 4;
   starvationCounter = NULL;
@@ -168,16 +167,34 @@ void MemoryController::SetConfig( Config *conf )
   params->SetParams( conf );
   SetParams( params );
   
+  /*
+   *  This is essentially a copy of the timings inside the bank,
+   *  but seems easier than adding interfaces to access the banks.
+   */
   if( p->UseRefresh_set && p->UseRefresh )
     {
       refreshUsed = true;
-      refreshNeeded = new bool*[ p->RANKS ];
+      refreshTimes = new ncycle_t*[ p->RANKS ];
       for( ncounter_t i = 0; i < p->RANKS; i++ )
-        refreshNeeded[i] = new bool[ p->BANKS ];
+        refreshTimes [i] = new ncycle_t[ p->BANKS ];
 
-      for( ncounter_t i = 0; i < p->RANKS; i++ )
-        for( ncounter_t j = 0; j < p->BANKS; j++ )
-          refreshNeeded[i][j] = false;
+      for( ncounter_t i = 0; i < p->BANKS; i++ )
+        {
+          ncycle_t nextRefresh;
+
+          nextRefresh = static_cast<ncycle_t>(static_cast<float>(p->tRFI) / (static_cast<float>(p->ROWS) / static_cast<float>(p->RefreshRows)));
+
+          /* Equivalent to per-bank refresh in LPDDR3 spec. */
+          if( p->StaggerRefresh_set && p->StaggerRefresh )
+            {
+              nextRefresh = static_cast<ncycle_t>(static_cast<float>(nextRefresh) * (static_cast<float>(i + 1) / static_cast<float>(p->BANKS)));
+            }
+
+          for( ncounter_t j = 0; j < p->RANKS; j++ )
+            {
+              refreshTimes[j][i] = nextRefresh;
+            }
+        }
     }
 
   bankQueues = new std::deque<NVMainRequest *> * [p->RANKS];
@@ -471,6 +488,22 @@ void MemoryController::CycleCommandQueues( )
         {
           FailReason fail;
 
+          /* 
+           *  Check for refresh. Wait for the command queue to be empty to
+           *  make 
+           */
+          if( refreshTimes[i][j] <= GetEventQueue()->GetCurrentCycle() 
+              && bankQueues[i][j].empty() )
+            {
+              NVMainRequest tmpReq;
+
+              tmpReq.address.SetTranslatedAddress( 0, 0, j, i, 0 ); 
+
+              bankQueues[i][j].push_front( MakeRefreshRequest( &tmpReq ) );
+
+              refreshTimes[i][j] += static_cast<ncycle_t>(static_cast<float>(p->tRFI) / (static_cast<float>(p->ROWS) / static_cast<float>(p->RefreshRows)));
+            }
+
           if( !bankQueues[i][j].empty( )
               && memory->IsIssuable( bankQueues[i][j].at( 0 ), &fail ) )
             {
@@ -480,17 +513,30 @@ void MemoryController::CycleCommandQueues( )
             }
           else if( fail.reason == OPEN_REFRESH_WAITING || fail.reason == CLOSED_REFRESH_WAITING )
             {
+              // Note: This may interrupt some read/write request, we can probably just wait
+              // for that to complete before doing this, since there is a rather large (tREFI - 8*tREFI)
+              // window to issue refresh requests.
               if( fail.reason == OPEN_REFRESH_WAITING )
                 {
+                  /* Reactivate this row after precharge. */
                   bankQueues[i][j].push_front( MakeActivateRequest( bankQueues[i][j].at(0) ) );
                 }
 
               bankQueues[i][j].push_front( MakeRefreshRequest( bankQueues[i][j].at(0) ) );
 
+              refreshTimes[i][j] += static_cast<ncycle_t>(static_cast<float>(p->tRFI) / (static_cast<float>(p->ROWS) / static_cast<float>(p->RefreshRows)));
+
               if( fail.reason == OPEN_REFRESH_WAITING )
                 {
                   bankQueues[i][j].push_front( MakePrechargeRequest( bankQueues[i][j].at(0) ) );
                 }
+            }
+          else if( fail.reason == REFRESH_OPEN_FAILURE )
+            {
+              bankQueues[i][j].push_front( MakePrechargeRequest( bankQueues[i][j].at(0) ) );
+
+              /* We precharged, so we need to mark the row as closed. */
+              activateQueued[i][j] = false;
             }
           else if( !bankQueues[i][j].empty( ) )
             {
