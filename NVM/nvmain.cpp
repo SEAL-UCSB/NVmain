@@ -90,7 +90,7 @@ NVMain::~NVMain( )
 }
 
 
-void NVMain::SetConfig( Config *conf )
+void NVMain::SetConfig( Config *conf, std::string memoryName )
 {
   TranslationMethod *method;
   int channels, ranks, banks, rows, cols;
@@ -167,7 +167,7 @@ void NVMain::SetConfig( Config *conf )
       memory[i] = InterconnectFactory::CreateInterconnect( config->GetString( "INTERCONNECT" ) );
 
       confString.str( "" );
-      confString << "defaultMemory.channel" << i;
+      confString << memoryName << ".channel" << i;
       memory[i]->StatName( confString.str( ) );
 
 
@@ -177,7 +177,7 @@ void NVMain::SetConfig( Config *conf )
       memoryControllers[i] = MemoryControllerFactory::CreateNewController( channelConfig[i]->GetString( "MEM_CTL" ), memory[i], translator );
 
       confString.str( "" );
-      confString << "defaultMemory.Controller" << i << "." << channelConfig[i]->GetString( "MEM_CTL" ); 
+      confString << memoryName << ".Controller" << i << "." << channelConfig[i]->GetString( "MEM_CTL" ); 
       memoryControllers[i]->StatName( confString.str( ) );
       memoryControllers[i]->SetID( i );
 
@@ -249,9 +249,62 @@ bool NVMain::CanIssue( NVMainRequest *request )
 }
 
 
+void NVMain::PrintPreTrace( NVMainRequest *request )
+{
+  /*
+   *  Here we can generate a data trace to use with trace-based testing later.
+   *
+   *  CYCLE OP ADDRESS DATA THREADID
+   */
+  if( p->PrintPreTrace )
+    {
+      if( p->EchoPreTrace )
+        {
+          /* Output Cycle */
+          std::cout << currentCycle << " ";
+          
+          /* Output operation */
+          if( request->type == READ )
+            std::cout << "R ";
+          else
+            std::cout << "W ";
+
+          /* Output Address */
+          std::cout << std::hex << "0x" << (request->address.GetPhysicalAddress( )) << std::dec << " ";
+          
+          /* Output Data */
+          std::cout << request->data << " ";
+          
+          /* Output thread id */
+          std::cout << request->threadId << std::endl;
+        }
+      
+      if( pretraceOutput.is_open( ) )
+        {
+          /* Output Cycle */
+          pretraceOutput << currentCycle << " ";
+          
+          /* Output operation */
+          if( request->type == READ )
+            pretraceOutput << "R ";
+          else
+            pretraceOutput << "W ";
+          
+          /* Output Address */
+          pretraceOutput << std::hex << "0x" << (request->address.GetPhysicalAddress( )) << std::dec << " ";
+          
+          /* Output Data */
+          pretraceOutput << request->data << " ";
+          
+          /* Output thread id */
+          pretraceOutput << request->threadId << std::endl;
+        }
+    }
+}
+
+
 int NVMain::NewRequest( NVMainRequest *request )
 {
-  NVMAddress address;
   uint64_t channel, rank, bank, row, col;
   int mc_rv;
 
@@ -261,74 +314,16 @@ int NVMain::NewRequest( NVMainRequest *request )
       return false;
     }
 
-
   /*
    *  Translate the address, then copy to the address struct, and copy to request.
    */
   translator->Translate( request->address.GetPhysicalAddress( ), &row, &col, &bank, &rank, &channel );
-  address.SetTranslatedAddress( row, col, bank, rank, channel );
-  address.SetPhysicalAddress( request->address.GetPhysicalAddress( ) );
-  request->address = address;
+  request->address.SetTranslatedAddress( row, col, bank, rank, channel );
   request->bulkCmd = CMD_NOP;
-
-  //std::cout << "Address 0x" << std::hex << request->address.GetPhysicalAddress( ) << std::dec
-  //          << " decodes to channel " << channel << " rank " << rank << " bank " << bank
-  //          << " row " << row << " col " << col << std::endl;
-
 
   mc_rv = memoryControllers[channel]->IssueCommand( request );
   if( mc_rv == true )
-    {
-      /*
-       *  Here we can generate a data trace to use with trace-based testing later.
-       *
-       *  CYCLE OP ADDRESS DATA THREADID
-       */
-      if( p->PrintPreTrace )
-        {
-          if( p->EchoPreTrace )
-            {
-              /* Output Cycle */
-              std::cout << currentCycle << " ";
-              
-              /* Output operation */
-              if( request->type == READ )
-                std::cout << "R ";
-              else
-                std::cout << "W ";
-
-              /* Output Address */
-              std::cout << std::hex << "0x" << (request->address.GetPhysicalAddress( )) << std::dec << " ";
-              
-              /* Output Data */
-              std::cout << request->data << " ";
-              
-              /* Output thread id */
-              std::cout << request->threadId << std::endl;
-            }
-          
-          if( pretraceOutput.is_open( ) )
-            {
-              /* Output Cycle */
-              pretraceOutput << currentCycle << " ";
-              
-              /* Output operation */
-              if( request->type == READ )
-                pretraceOutput << "R ";
-              else
-                pretraceOutput << "W ";
-              
-              /* Output Address */
-              pretraceOutput << std::hex << "0x" << (request->address.GetPhysicalAddress( )) << std::dec << " ";
-              
-              /* Output Data */
-              pretraceOutput << request->data << " ";
-              
-              /* Output thread id */
-              pretraceOutput << request->threadId << std::endl;
-            }
-        }
-    }
+    PrintPreTrace( request );
 
   return mc_rv;
 }
@@ -354,6 +349,8 @@ int NVMain::AtomicRequest( NVMainRequest *request )
   request->bulkCmd = CMD_NOP;
 
   mc_rv = memoryControllers[channel]->IssueAtomic( request );
+  if( mc_rv == true )
+    PrintPreTrace( request );
   
   return mc_rv;
 }

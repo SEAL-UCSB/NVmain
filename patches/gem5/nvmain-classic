@@ -3,7 +3,7 @@
 
 diff -r fa9fa30f2498 src/mem/NVMainMemory.py
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/NVMainMemory.py	Tue Nov 06 16:15:39 2012 -0500
++++ b/src/mem/NVMainMemory.py	Mon Nov 12 15:09:59 2012 -0500
 @@ -0,0 +1,43 @@
 +# Copyright (c) 2009 Advanced Micro Devices, Inc.
 +# All rights reserved.
@@ -50,7 +50,7 @@ diff -r fa9fa30f2498 src/mem/NVMainMemory.py
 +    configvalues = Param.String("", "")
 diff -r fa9fa30f2498 src/mem/SConscript
 --- a/src/mem/SConscript	Tue Nov 06 09:33:48 2012 -0500
-+++ b/src/mem/SConscript	Tue Nov 06 16:15:39 2012 -0500
++++ b/src/mem/SConscript	Mon Nov 12 15:09:59 2012 -0500
 @@ -56,8 +56,10 @@
      SimObject('AbstractMemory.py')
      SimObject('SimpleMemory.py')
@@ -72,8 +72,8 @@ diff -r fa9fa30f2498 src/mem/SConscript
  DebugFlag('RubyCache')
 diff -r fa9fa30f2498 src/mem/nvmain_mem.cc
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/nvmain_mem.cc	Tue Nov 06 16:15:39 2012 -0500
-@@ -0,0 +1,453 @@
++++ b/src/mem/nvmain_mem.cc	Mon Nov 12 15:09:59 2012 -0500
+@@ -0,0 +1,449 @@
 +/*
 + * Copyright (c) 1999-2008 Mark D. Hill and David A. Wood
 + * All rights reserved.
@@ -242,19 +242,6 @@ diff -r fa9fa30f2498 src/mem/nvmain_mem.cc
 +    if (pkt->memInhibitAsserted())
 +        return 0;
 +
-+    /*
-+     *  Don't use NVMain in atomic mode (faster). Use simple memory method
-+     */
-+    if (!memory.nvmain_atomic) {
-+        Tick latency = memory.lat;
-+
-+        if (memory.lat_var != 0)
-+            latency += random_mt.random<Tick>(0, memory.lat_var);
-+
-+        memory.access(pkt);
-+
-+        return latency;
-+    }
 +
 +    if (!pkt->isRead() && !pkt->isWrite()) {
 +        std::cout << "NVMainMemory: Received a packet that is neither read nor write" << std::endl;
@@ -265,7 +252,6 @@ diff -r fa9fa30f2498 src/mem/nvmain_mem.cc
 +    /*
 +     *  Send the atomic request to NVMain in case there is a cache that needs warm up
 +     */
-+    /*
 +    NVMainRequest *request = new NVMainRequest( );
 +
 +    unsigned int transfer_size;
@@ -306,12 +292,22 @@ diff -r fa9fa30f2498 src/mem/nvmain_mem.cc
 +    request->type = (pkt->isRead()) ? READ : WRITE;
 +    request->owner = (NVMObject *)&memory;
 +
-+    request->programCounter = pkt->req->_pc;
-+    request->threadId = pkt->req->_contextId;
++    if(pkt->req->hasPC()) request->programCounter = pkt->req->getPC();
++    if(pkt->req->hasContextId()) request->threadId = pkt->req->contextId();
 +
 +    memory.m_nvmainPtr->AtomicRequest(request);
-+    */
-+    return memory.doAtomicAccess(pkt);
++
++    /*
++     *  Return some time
++     */
++    Tick latency = memory.lat;
++
++    if (memory.lat_var != 0)
++        latency += random_mt.random<Tick>(0, memory.lat_var);
++
++    memory.access(pkt);
++
++    return latency;
 +}
 +
 +
@@ -529,7 +525,7 @@ diff -r fa9fa30f2498 src/mem/nvmain_mem.cc
 +
 diff -r fa9fa30f2498 src/mem/nvmain_mem.hh
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/nvmain_mem.hh	Tue Nov 06 16:15:39 2012 -0500
++++ b/src/mem/nvmain_mem.hh	Mon Nov 12 15:09:59 2012 -0500
 @@ -0,0 +1,193 @@
 +/*
 + * Copyright (c) 1999-2008 Mark D. Hill and David A. Wood
