@@ -44,7 +44,7 @@ class NVMain : public NVMObject
   NVMain( );
   ~NVMain( );
 
-  void SetConfig( Config *conf );
+  void SetConfig( Config *conf, std::string memoryName = "defaultMemory" );
   void SetParams( Params *params ) { p = params; } 
 
   int  NewRequest( NVMainRequest *request );
@@ -67,6 +67,8 @@ class NVMain : public NVMObject
   unsigned int numChannels;
   uint64_t currentCycle;
   std::ofstream pretraceOutput;
+
+  void PrintPreTrace( NVMainRequest *request );
 
   Params *p;
 

@@ -93,7 +93,7 @@ class CacheBank : public NVMObject
   bool IsIssuable( CacheRequest *req );
   void IssueCommand( CacheRequest *req );
   
-  void Cycle( );
+  void Cycle( ncycle_t steps );
 
   bool ChooseVictim( NVMAddress& addr, NVMAddress *victim );
 

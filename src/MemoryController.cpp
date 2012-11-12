@@ -63,41 +63,8 @@ void MemoryController::InitQueues( unsigned int numQueues )
 }
 
 
-/*
- *  This function is called at every "clock cycle" simulated. If you need to write
- *  your own Cycle( ) function (for example to handle 1 queue per bank memory
- *  controllers) just overload this function, and call InitQueues() with the nubmer
- *  of queues you need.
- */
 void MemoryController::Cycle( ncycle_t )
 {
-  NVMainRequest *nextReq;
-  
-  /*
-   *  Check if the queue is empty, if not, we will attempt to issue the command to memory.
-   */
-  if( transactionQueues && !transactionQueues[0].empty() )
-    {
-      /*
-       *  Get the first transaction from the queue.
-       */
-      nextReq = transactionQueues[0].front( );
-	
-      /*
-       *  Find out if the command can be issued.
-       */
-      if( memory->IsIssuable( nextReq ) )
-        {
-          nextReq->issueCycle = GetEventQueue()->GetCurrentCycle();
-
-          /*
-           *  If we can issue, send 
-           */
-          memory->IssueCommand( nextReq );
-
-          transactionQueues[0].erase( transactionQueues[0].begin( ) );
-        }
-    }
 }
 
 
@@ -492,7 +459,8 @@ void MemoryController::CycleCommandQueues( )
            *  Check for refresh. Wait for the command queue to be empty to
            *  make 
            */
-          if( refreshTimes[i][j] <= GetEventQueue()->GetCurrentCycle() 
+          if( p->UseRefresh
+              && refreshTimes[i][j] <= GetEventQueue()->GetCurrentCycle() 
               && bankQueues[i][j].empty() )
             {
               NVMainRequest tmpReq;
@@ -511,7 +479,7 @@ void MemoryController::CycleCommandQueues( )
 
               bankQueues[i][j].erase( bankQueues[i][j].begin( ) );
             }
-          else if( fail.reason == OPEN_REFRESH_WAITING || fail.reason == CLOSED_REFRESH_WAITING )
+          else if( p->UseRefresh && (fail.reason == OPEN_REFRESH_WAITING || fail.reason == CLOSED_REFRESH_WAITING) )
             {
               // Note: This may interrupt some read/write request, we can probably just wait
               // for that to complete before doing this, since there is a rather large (tREFI - 8*tREFI)
@@ -531,7 +499,7 @@ void MemoryController::CycleCommandQueues( )
                   bankQueues[i][j].push_front( MakePrechargeRequest( bankQueues[i][j].at(0) ) );
                 }
             }
-          else if( fail.reason == REFRESH_OPEN_FAILURE )
+          else if( p->UseRefresh && fail.reason == REFRESH_OPEN_FAILURE )
             {
               bankQueues[i][j].push_front( MakePrechargeRequest( bankQueues[i][j].at(0) ) );
 

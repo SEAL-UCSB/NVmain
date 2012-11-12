@@ -451,16 +451,19 @@ void CacheBank::IssueCommand( CacheRequest *req )
 
 
 
-void CacheBank::Cycle( )
+void CacheBank::Cycle( ncycle_t steps )
 {
   if( stateTimer > 0 )
     {
-      stateTimer--;
-
-      if( stateTimer == 0 )
+      if( steps >= stateTimer )
         {
           state = CACHE_IDLE;
           currentReq->complete = true;
+          stateTimer = 0;
+        }
+      else
+        {
+          stateTimer -= steps;
         }
     }
 }
