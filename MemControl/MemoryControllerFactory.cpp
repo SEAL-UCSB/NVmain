@@ -16,6 +16,8 @@
 
 #include "MemControl/MemoryControllerFactory.h"
 
+#include "MemControl/DRAMCache/DRAMCache.h"
+
 #include <iostream>
 
 
@@ -38,6 +40,8 @@ MemoryController *MemoryControllerFactory::CreateNewController( std::string cont
     memoryController = new FRFCFS_WQF( memory, translator );
   else if( controller == "PerfectMemory" )
     memoryController = new PerfectMemory( memory, translator );
+  else if( controller == "DRC" )
+    memoryController = new DRAMCache( memory, translator );
 
   if( memoryController == NULL )
     std::cout << "NVMain: Unknown memory controller `" << controller << "'." << std::endl;
