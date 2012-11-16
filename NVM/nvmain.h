@@ -65,7 +65,8 @@ class NVMain : public NVMObject
   EventQueue *mainEventQueue;
 
   unsigned int numChannels;
-  uint64_t currentCycle;
+  float syncValue;
+
   std::ofstream pretraceOutput;
 
   void PrintPreTrace( NVMainRequest *request );
