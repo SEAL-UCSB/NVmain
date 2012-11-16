@@ -45,7 +45,7 @@ NVMain::NVMain( )
   translator = NULL;
   memoryControllers = NULL;
   channelConfig = NULL;
-  currentCycle = 0;
+  syncValue = 0.0f;
 }
 
 
@@ -261,7 +261,7 @@ void NVMain::PrintPreTrace( NVMainRequest *request )
       if( p->EchoPreTrace )
         {
           /* Output Cycle */
-          std::cout << currentCycle << " ";
+          std::cout << GetEventQueue()->GetCurrentCycle() << " ";
           
           /* Output operation */
           if( request->type == READ )
@@ -282,7 +282,7 @@ void NVMain::PrintPreTrace( NVMainRequest *request )
       if( pretraceOutput.is_open( ) )
         {
           /* Output Cycle */
-          pretraceOutput << currentCycle << " ";
+          pretraceOutput << GetEventQueue()->GetCurrentCycle() << " ";
           
           /* Output operation */
           if( request->type == READ )
@@ -364,6 +364,25 @@ void NVMain::Cycle( ncycle_t )
    */
   if( !config || !memoryControllers )
     return;
+
+
+  /*
+   *  Sync the memory clock with the cpu clock.
+   */
+  float cpuFreq = static_cast<float>(p->CPUFreq);
+  float busFreq = static_cast<float>(p->CLK);
+
+  syncValue += static_cast<float>( busFreq / cpuFreq );
+
+  if( syncValue >= 1.0f )
+    {
+      syncValue -= 1.0f;
+    }
+  else
+    {
+      return;
+    }
+
 
   for( unsigned int i = 0; i < numChannels; i++ )
     {
