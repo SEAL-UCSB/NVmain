@@ -236,7 +236,6 @@ NVMainRequest *MemoryController::MakeRefreshRequest( NVMainRequest *triggerReque
 }
 
 
-
 bool MemoryController::FindStarvedRequest( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **starvedRequest )
 {
   DummyPredicate pred;
@@ -374,6 +373,152 @@ bool MemoryController::FindClosedBankRequest( std::list<NVMainRequest *>& transa
           
           rv = true;
           break;
+        }
+    }
+
+  return rv;
+}
+
+
+/*
+ *  Slightly modify the scheduling functions form MemoryController.cpp to return a list instead
+ *  of just a single request
+ */
+bool MemoryController::FindStarvedRequests( std::list<NVMainRequest *>& transactionQueue, std::vector<NVMainRequest *>& starvedRequests )
+{
+  DummyPredicate pred;
+
+  return FindStarvedRequests( transactionQueue, starvedRequests );
+}
+
+
+
+bool MemoryController::FindStarvedRequests( std::list<NVMainRequest *>& transactionQueue, std::vector<NVMainRequest *>& starvedRequests, SchedulingPredicate& pred )
+{
+  bool rv = false;
+  std::list<NVMainRequest *>::iterator it;
+
+  for( it = transactionQueue.begin(); it != transactionQueue.end(); it++ )
+    {
+      uint64_t rank, bank, row;
+
+      (*it)->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
+
+      if( activateQueued[rank][bank] && effectiveRow[rank][bank] != row    /* The effective row is not the row of this request. */
+          && starvationCounter[rank][bank] >= starvationThreshold          /* This bank has reached it's starvation threshold. */
+          && bankQueues[rank][bank].empty()                                /* No requests are currently issued to this bank. */
+          && pred( rank, bank ) )
+        {
+          starvedRequests.push_back( (*it) );
+          transactionQueue.erase( it );
+
+          rv = true;
+        }
+    }
+
+  return rv;
+}
+
+
+
+bool MemoryController::FindRowBufferHits( std::list<NVMainRequest *>& transactionQueue, std::vector<NVMainRequest *>& hitRequests )
+{
+  DummyPredicate pred;
+
+  return FindRowBufferHits( transactionQueue, hitRequests, pred );
+}
+
+
+
+bool MemoryController::FindRowBufferHits( std::list<NVMainRequest *>& transactionQueue, std::vector<NVMainRequest* >& hitRequests, SchedulingPredicate& pred )
+{
+  bool rv = false;
+  std::list<NVMainRequest *>::iterator it;
+
+  for( it = transactionQueue.begin(); it != transactionQueue.end(); it++ )
+    {
+      uint64_t rank, bank, row;
+
+      (*it)->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
+
+      if( activateQueued[rank][bank] && effectiveRow[rank][bank] == row    /* The effective row is the row of this request. */
+          && bankQueues[rank][bank].empty()                                /* No requests are currently issued to this bank. */
+          && pred( rank, bank ) )                                          /* User-defined predicate is true. */
+        {
+          hitRequests.push_back( (*it) );
+          transactionQueue.erase( it );
+
+          rv = true;
+        }
+    }
+
+  return rv;
+}
+
+
+
+
+bool MemoryController::FindOldestReadyRequests( std::list<NVMainRequest *>& transactionQueue, std::vector<NVMainRequest *> &oldestRequests )
+{
+  DummyPredicate pred;
+
+  return FindOldestReadyRequests( transactionQueue, oldestRequests, pred );
+}
+
+
+bool MemoryController::FindOldestReadyRequests( std::list<NVMainRequest *>& transactionQueue, std::vector<NVMainRequest *>& oldestRequests, SchedulingPredicate& pred )
+{
+  bool rv = false;
+  std::list<NVMainRequest *>::iterator it;
+
+  for( it = transactionQueue.begin(); it != transactionQueue.end(); it++ )
+    {
+      uint64_t rank, bank, row;
+
+      (*it)->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
+
+      if( activateQueued[rank][bank] 
+          && bankQueues[rank][bank].empty()                                /* No requests are currently issued to this bank (Ready). */
+          && pred( rank, bank ) )                                          /* User-defined predicate is true. */
+        {
+          oldestRequests.push_back( (*it) );
+          transactionQueue.erase( it );
+          
+          rv = true;
+        }
+    }
+
+  return rv;
+}
+
+
+bool MemoryController::FindClosedBankRequests( std::list<NVMainRequest *>& transactionQueue, std::vector<NVMainRequest *> &closedRequests )
+{
+  DummyPredicate pred;
+
+  return FindClosedBankRequests( transactionQueue, closedRequests, pred );
+}
+
+
+bool MemoryController::FindClosedBankRequests( std::list<NVMainRequest *>& transactionQueue, std::vector<NVMainRequest *> &closedRequests, SchedulingPredicate& pred )
+{
+  bool rv = false;
+  std::list<NVMainRequest *>::iterator it;
+
+  for( it = transactionQueue.begin(); it != transactionQueue.end(); it++ )
+    {
+      uint64_t rank, bank, row;
+
+      (*it)->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
+
+      if( !activateQueued[rank][bank]                                      /* This bank is closed, anyone can issue. */
+          && bankQueues[rank][bank].empty()                                /* No requests are currently issued to this bank (Ready). */
+          && pred( rank, bank ) )                                          /* User defined predicate is true. */
+        {
+          closedRequests.push_back( (*it ) );
+          transactionQueue.erase( it );
+          
+          rv = true;
         }
     }
 
