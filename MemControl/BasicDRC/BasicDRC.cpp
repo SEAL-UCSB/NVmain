@@ -26,14 +26,6 @@
 using namespace NVM;
 
 
-#define DRC_TAGREAD1 10
-#define DRC_TAGREAD2 11
-#define DRC_TAGREAD3 12
-#define DRC_MEMREAD  20
-#define DRC_FILL     30
-#define DRC_ACCESS   40
-
-
 BasicDRC::BasicDRC( Interconnect *memory, AddressTranslator *translator )
     : locks(*this), FQF(*this), NWB(*this)
 {
@@ -318,7 +310,10 @@ bool BasicDRC::RequestComplete( NVMainRequest *req )
       fillReq->arrivalCycle = GetEventQueue()->GetCurrentCycle();
 
       /* TODO: Figure out what to do if this is full. */
-      fillQueue->push_back( fillReq );
+      if( useWriteBuffer )
+        fillQueue->push_back( fillReq );
+      else
+        drcQueue->push_back( fillReq );
 
       mm_reads++;
 
@@ -587,9 +582,6 @@ bool BasicDRC::IssueDRCCommands( NVMainRequest *req )
 
       req->issueCycle = GetEventQueue()->GetCurrentCycle();
 
-      bankQueues[rank][bank].push_back( MakeTagRequest( req, DRC_TAGREAD1 ) );
-      bankQueues[rank][bank].push_back( MakeTagRequest( req, DRC_TAGREAD2 ) );
-      bankQueues[rank][bank].push_back( MakeTagRequest( req, DRC_TAGREAD3 ) );
       bankLocked[rank][bank] = true;
 
       rv = true;

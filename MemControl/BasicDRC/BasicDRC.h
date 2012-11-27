@@ -27,6 +27,15 @@
 namespace NVM {
 
 
+#define DRC_TAGREAD1 10
+#define DRC_TAGREAD2 11
+#define DRC_TAGREAD3 12
+#define DRC_MEMREAD  20
+#define DRC_FILL     30
+#define DRC_ACCESS   40
+
+
+
 class NVMain;
 
 
@@ -34,7 +43,7 @@ class BasicDRC : public MemoryController
 {
  public:
   BasicDRC( Interconnect *memory, AddressTranslator *translator );
-  ~BasicDRC( );
+  virtual ~BasicDRC( );
 
 
   void SetConfig( Config *conf );
@@ -48,7 +57,7 @@ class BasicDRC : public MemoryController
 
   void PrintStats( );
 
- private:
+ protected:
   NVMainRequest *MakeTagRequest( NVMainRequest *triggerRequest, int tag );
   NVMainRequest *MakeTagWriteRequest( NVMainRequest *triggerRequest );
   NVMainRequest *MakeDRCRequest( NVMainRequest *triggerReqest );
