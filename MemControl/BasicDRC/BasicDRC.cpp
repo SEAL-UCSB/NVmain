@@ -405,7 +405,7 @@ bool BasicDRC::NoWriteBuffering::operator() (uint64_t, uint64_t)
 }
 
 
-void BasicDRC::Cycle( ncycle_t steps )
+void BasicDRC::Cycle( ncycle_t /*steps*/ )
 {
   NVMainRequest *nextRequest = NULL;
 
@@ -582,6 +582,9 @@ bool BasicDRC::IssueDRCCommands( NVMainRequest *req )
 
       req->issueCycle = GetEventQueue()->GetCurrentCycle();
 
+      bankQueues[rank][bank].push_back( MakeTagRequest( req, DRC_TAGREAD1 ) );
+      bankQueues[rank][bank].push_back( MakeTagRequest( req, DRC_TAGREAD2 ) );
+      bankQueues[rank][bank].push_back( MakeTagRequest( req, DRC_TAGREAD3 ) );
       bankLocked[rank][bank] = true;
 
       rv = true;
