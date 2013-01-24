@@ -256,7 +256,7 @@ bool Bank::Activate( NVMainRequest *request )
       nextPrecharge = MAX( nextPrecharge, GetEventQueue()->GetCurrentCycle() + MAX( p->tRCD, p->tRAS ) );
       nextRead = MAX( nextRead, GetEventQueue()->GetCurrentCycle() + p->tRCD - p->tAL );
       nextWrite = MAX( nextWrite, GetEventQueue()->GetCurrentCycle() + p->tRCD - p->tAL );
-      nextPowerDown = MAX( nextPowerDown, GetEventQueue()->GetCurrentCycle() + p->tRCD + 1 );
+      nextPowerDown = MAX( nextPowerDown, GetEventQueue()->GetCurrentCycle() + 1 );
       nextPowerUp = MAX( nextPowerUp, nextPowerDown + p->tPD );
 
       if( bankId == 0 )
@@ -381,7 +381,7 @@ bool Bank::Read( NVMainRequest *request )
                + p->tRTP - p->tCCD );
       nextRead = MAX( nextRead, GetEventQueue()->GetCurrentCycle() + MAX( p->tBURST, p->tCCD ) );
       nextWrite = MAX( nextWrite, GetEventQueue()->GetCurrentCycle() + p->tCAS + p->tBURST 
-               + 2 - p->tCWD );
+               + p->tRTRS - p->tCWD );
       nextActivate = MAX( nextActivate, nextPrecharge + p->tRP );
       nextPowerDown = MAX( nextPowerDown, GetEventQueue()->GetCurrentCycle() + p->tAL + p->tBURST
                + p->tCAS + 1 );

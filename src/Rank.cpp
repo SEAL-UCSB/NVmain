@@ -545,6 +545,8 @@ void Rank::Notify( OpType op )
     {
       nextRead = MAX( nextRead, GetEventQueue()->GetCurrentCycle() + p->tBURST 
           + p->tRTRS );
+      nextWrite = MAX( nextWrite, GetEventQueue()->GetCurrentCycle() + p->tCAS + p->tBURST 
+               + p->tRTRS - p->tCWD );
     }
   else if( op == WRITE )
     {
