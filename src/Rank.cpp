@@ -176,6 +176,8 @@ bool Rank::Activate( NVMainRequest *request )
 
       FAWindex = (FAWindex + 1) % 4;
       lastActivate[FAWindex] = (ncycles_t)GetEventQueue()->GetCurrentCycle();
+      // added by Tao, @ 01/22/2013
+      nextActivate = MAX( nextActivate, GetEventQueue()->GetCurrentCycle() + p->tRRDR );
     }
   else
     {
@@ -217,8 +219,9 @@ bool Rank::Read( NVMainRequest *request )
 
       nextRead = MAX( nextRead, GetEventQueue()->GetCurrentCycle() + MAX( p->tBURST, p->tCCD ) );
       nextWrite = MAX( nextWrite, GetEventQueue()->GetCurrentCycle() + p->tCAS + p->tBURST +
-           p->tRTRS - p->tCWD );
-      nextActivate = MAX( nextActivate, GetEventQueue()->GetCurrentCycle() + p->tRRDR );
+           p->tRTRS - p->tCWD ); 
+      // annotated by Tao, @ 01/22/2013
+      //nextActivate = MAX( nextActivate, GetEventQueue()->GetCurrentCycle() + p->tRRDR );
     }
   else
     {
@@ -257,8 +260,8 @@ bool Rank::Write( NVMainRequest *request )
       nextRead = MAX( nextRead, GetEventQueue()->GetCurrentCycle() + p->tCWD + p->tBURST
               + p->tWTR );
       nextWrite = MAX( nextWrite, GetEventQueue()->GetCurrentCycle() + MAX( p->tBURST, p->tCCD ) );
-      nextActivate = MAX( nextActivate, GetEventQueue()->GetCurrentCycle() + p->tRRDW );
-
+      // annotated by Tao, @ 01/22/2013
+      //nextActivate = MAX( nextActivate, GetEventQueue()->GetCurrentCycle() + p->tRRDW );
     }
   else
     {
@@ -545,8 +548,9 @@ void Rank::Notify( OpType op )
     {
       nextRead = MAX( nextRead, GetEventQueue()->GetCurrentCycle() + p->tBURST 
           + p->tRTRS );
-      nextWrite = MAX( nextWrite, GetEventQueue()->GetCurrentCycle() + p->tCAS + p->tBURST 
-               + p->tRTRS - p->tCWD );
+      // added by Tao, @ 01/22/2013
+      nextWrite = MAX( nextWrite, GetEventQueue()->GetCurrentCycle() + p->tCAS 
+              + p->tBURST + p->tRTRS - p->tCWD);
     }
   else if( op == WRITE )
     {

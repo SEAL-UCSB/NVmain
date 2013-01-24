@@ -21,6 +21,7 @@
 #include "src/MemoryController.h"
 #include "Endurance/EnduranceModelFactory.h"
 #include <signal.h>
+#include <assert.h>
 
 
 using namespace NVM;
@@ -135,16 +136,42 @@ bool Bank::PowerDown( BankState pdState )
        *  The power down state (pdState) will be determined by the device class, which
        *  will check to see if all the banks are idle or not, and if fast exit is used.
        */
-      state = pdState;
 
       nextPowerUp = MAX( nextPowerUp, GetEventQueue()->GetCurrentCycle() + p->tPD );
-      nextActivate = MAX( nextActivate, GetEventQueue()->GetCurrentCycle() + p->tPD + p->tXP );
-      if( pdState == BANK_PDPF || pdState == BANK_PDA )
-        nextRead = MAX( nextRead, GetEventQueue()->GetCurrentCycle() + p->tPD + p->tXP );
+      
+      // annotated by Tao @ 01/22/2013, nextActivate is only set in PowerUp()
+      //nextActivate = MAX( nextActivate, GetEventQueue()->GetCurrentCycle() + p->tPD + p->tXP );
+      //if( pdState == BANK_PDPF )
+      //  nextRead = MAX( nextRead, GetEventQueue()->GetCurrentCycle() + p->tPD + p->tXP );
+      //else
+      //  nextRead = MAX( nextRead, GetEventQueue()->GetCurrentCycle() + p->tPD + p->tXPDLL );
+      //nextWrite = MAX( nextWrite, GetEventQueue()->GetCurrentCycle() + p->tPD + p->tXP );
+      //nextPrecharge = MAX( nextPrecharge, GetEventQueue()->GetCurrentCycle() + p->tPD + p->tXP );
+
+      // modified by Tao @ 01/22/2013, active powerdown is detected if there
+      // is a powerdown command and the bank is open
+      if( state == BANK_OPEN )
+      {
+          assert( pdState == BANK_PDA );
+          state = BANK_PDA;
+      }
       else
-        nextRead = MAX( nextRead, GetEventQueue()->GetCurrentCycle() + p->tPD + p->tXPDLL );
-      nextWrite = MAX( nextWrite, GetEventQueue()->GetCurrentCycle() + p->tPD + p->tXP );
-      nextPrecharge = MAX( nextPrecharge, GetEventQueue()->GetCurrentCycle() + p->tPD + p->tXP );
+          if( state == BANK_CLOSED )
+          {
+              switch( pdState )
+              {
+                  case BANK_PDA:
+                  case BANK_PDPF:
+                      state = BANK_PDPF;
+                      break;
+                  case BANK_PDPS:
+                      state = BANK_PDPS;
+                      break;
+                  default:
+                      state = BANK_PDPF;
+                      break;
+              }
+          }
 
       
       switch( nextCommand )
@@ -251,14 +278,24 @@ bool Bank::Activate( NVMainRequest *request )
 
   if( nextActivate <= GetEventQueue()->GetCurrentCycle() && state == BANK_CLOSED )
     {
-      nextActivate = MAX( nextActivate, GetEventQueue()->GetCurrentCycle() + MAX( p->tRCD, p->tRAS ) 
-                          + p->tRP );
+
+      // annotated by Tao @ 01/22/2013
+      //nextActivate = MAX( nextActivate, GetEventQueue()->GetCurrentCycle() + MAX( p->tRCD, p->tRAS ) 
+      //                    + p->tRP );
+
       nextPrecharge = MAX( nextPrecharge, GetEventQueue()->GetCurrentCycle() + MAX( p->tRCD, p->tRAS ) );
       nextRead = MAX( nextRead, GetEventQueue()->GetCurrentCycle() + p->tRCD - p->tAL );
       nextWrite = MAX( nextWrite, GetEventQueue()->GetCurrentCycle() + p->tRCD - p->tAL );
-      nextPowerDown = MAX( nextPowerDown, GetEventQueue()->GetCurrentCycle() + 1 );
-      nextPowerUp = MAX( nextPowerUp, nextPowerDown + p->tPD );
 
+      // modified by Tao @ 01/22/2013, even though tACTPDEN = 1tCK, the IDD
+      // spec in powerdown mode is only applied after the completion of activate
+      nextPowerDown = MAX( nextPowerDown, GetEventQueue()->GetCurrentCycle() + p->tRCD );
+      //nextPowerDown = MAX( nextPowerDown, GetEventQueue()->GetCurrentCycle() + p->tRCD + 1 );
+
+      // annotated by Tao @ 01/22/2013
+      //nextPowerUp = MAX( nextPowerUp, nextPowerDown + p->tPD );
+
+      // annotated by Tao @ 01/22/2013
       if( bankId == 0 )
         GetEventQueue( )->InsertEvent( EventResponse, this, request, GetEventQueue()->GetCurrentCycle() + p->tRCD );
 
@@ -380,12 +417,23 @@ bool Bank::Read( NVMainRequest *request )
       nextPrecharge = MAX( nextPrecharge, GetEventQueue()->GetCurrentCycle() + p->tAL + p->tBURST
                + p->tRTP - p->tCCD );
       nextRead = MAX( nextRead, GetEventQueue()->GetCurrentCycle() + MAX( p->tBURST, p->tCCD ) );
+
+      // modified by Tao @ 01/22/2013, nextWrite = CurrentCycle + tCAS + tBURST + tRTRS - tCWD
       nextWrite = MAX( nextWrite, GetEventQueue()->GetCurrentCycle() + p->tCAS + p->tBURST 
                + p->tRTRS - p->tCWD );
-      nextActivate = MAX( nextActivate, nextPrecharge + p->tRP );
-      nextPowerDown = MAX( nextPowerDown, GetEventQueue()->GetCurrentCycle() + p->tAL + p->tBURST
-               + p->tCAS + 1 );
-      nextPowerUp = MAX( nextPowerUp, nextPowerDown + p->tPD );
+      //nextWrite = MAX( nextWrite, GetEventQueue()->GetCurrentCycle() + p->tCAS + p->tBURST 
+      //         + 2 - p->tCWD );
+      
+      // annotated by Tao @ 01/22/2013
+      //nextActivate = MAX( nextActivate, nextPrecharge + p->tRP );
+
+      // modified by Tao @ 01/22/2013, tRDPDEN = RL + 4 + 1
+      nextPowerDown = MAX( nextPowerDown, GetEventQueue()->GetCurrentCycle() + p->tRDPDEN );
+      //nextPowerDown = MAX( nextPowerDown, GetEventQueue()->GetCurrentCycle() + p->tAL + p->tBURST
+      //         + p->tCAS + 1 );
+
+      // annotated by Tao @ 01/22/2013
+      //nextPowerUp = MAX( nextPowerUp, nextPowerDown + p->tPD );
       
 
       dataCycles += p->tBURST;
@@ -397,8 +445,10 @@ bool Bank::Read( NVMainRequest *request )
        *
        *  Note: In critical word first, tBURST can be replaced with 1.
        */
+      // modified by Tao @ 01/22/2013, the Read data will be available after tCAS + tBURST
       if( bankId == 0 )
-        GetEventQueue( )->InsertEvent( EventResponse, this, request, GetEventQueue()->GetCurrentCycle() + p->tCAS + MAX(p->tBURST, p->tCCD) );
+        GetEventQueue( )->InsertEvent( EventResponse, this, request, GetEventQueue()->GetCurrentCycle() + p->tCAS + p->tBURST );
+        //GetEventQueue( )->InsertEvent( EventResponse, this, request, GetEventQueue()->GetCurrentCycle() + p->tCAS + MAX(p->tBURST, p->tCCD) );
 
 
       /* Calculate energy */
@@ -506,9 +556,14 @@ bool Bank::Write( NVMainRequest *request )
       nextRead = MAX( nextRead, GetEventQueue()->GetCurrentCycle() + p->tCWD 
               + p->tBURST + p->tWTR );
       nextWrite = MAX( nextWrite, GetEventQueue()->GetCurrentCycle() + MAX( p->tBURST, p->tCCD ) );
-      nextPowerDown = MAX( nextPowerDown, GetEventQueue()->GetCurrentCycle() + p->tAL + p->tBURST
-               + p->tWR + p->tCWD + 1 );
-      nextPowerUp = MAX( nextPowerUp, nextPowerDown + p->tPD );
+
+      // modified by Tao @ 01/22/2013, tWRPDEN = WL + 4 + tWR
+      nextPowerDown = MAX( nextPowerDown, GetEventQueue()->GetCurrentCycle() + p->tWRPDEN );
+      //nextPowerDown = MAX( nextPowerDown, GetEventQueue()->GetCurrentCycle() + p->tAL + p->tBURST
+      //         + p->tWR + p->tCWD + 1 );
+
+      // annotated by Tao @ 01/22/2013
+      //nextPowerUp = MAX( nextPowerUp, nextPowerDown + p->tPD );
 
       dataCycles += p->tBURST;
 
@@ -516,8 +571,10 @@ bool Bank::Write( NVMainRequest *request )
       /*
        *  Notify owner of write completion as well.
        */
+      // modified by Tao @ 01/22/2013, the Write completes after tCWD + tBURST
       if( bankId == 0 )
-        GetEventQueue( )->InsertEvent( EventResponse, this, request, GetEventQueue()->GetCurrentCycle() + p->tCWD + MAX(p->tBURST, p->tCCD) );
+        GetEventQueue( )->InsertEvent( EventResponse, this, request, GetEventQueue()->GetCurrentCycle() + p->tCWD + p->tBURST );
+        //GetEventQueue( )->InsertEvent( EventResponse, this, request, GetEventQueue()->GetCurrentCycle() + p->tCWD + MAX(p->tBURST, p->tCCD) );
 
 
       /* Calculate energy. */
@@ -656,13 +713,20 @@ bool Bank::Precharge( NVMainRequest *request )
   if( nextPrecharge <= GetEventQueue()->GetCurrentCycle() && state == BANK_OPEN  )
     {
       nextActivate = MAX( nextActivate, GetEventQueue()->GetCurrentCycle() + p->tRP );
-      nextPrecharge = MAX( nextPrecharge, nextActivate + p->tRCD );
-      nextRead = MAX( nextRead, nextActivate + p->tRCD );
-      nextWrite = MAX( nextWrite, nextActivate + p->tRCD );
+
+      // annotated by Tao @ 01/22/2013
+      //nextPrecharge = MAX( nextPrecharge, nextActivate + p->tRCD );
+      //nextRead = MAX( nextRead, nextActivate + p->tRCD );
+      //nextWrite = MAX( nextWrite, nextActivate + p->tRCD );
+
+      // even though tPRPDEN = 1, the IDD spec in powerdown mode is only applied after the completion of precharge
       nextPowerDown = MAX( nextPowerDown, GetEventQueue()->GetCurrentCycle() + p->tRP );
-      nextPowerUp = MAX( nextPowerUp, nextPowerDown + p->tPD );
+
+      // annotated by Tao @ 01/22/2013
+      //nextPowerUp = MAX( nextPowerUp, nextPowerDown + p->tPD );
 
 
+      // annotated by Tao @ 01/22/2013
       if( bankId == 0 )
         GetEventQueue( )->InsertEvent( EventResponse, this, request, GetEventQueue()->GetCurrentCycle() + p->tRP );
 
@@ -706,12 +770,21 @@ bool Bank::Refresh( )
 
   if( state == BANK_CLOSED )
     {
-      nextActivate = MAX( nextActivate, GetEventQueue()->GetCurrentCycle() + refreshRows * p->tRFC );
-      nextPrecharge = MAX( nextPrecharge, nextActivate + p->tRCD );
-      nextRead = MAX( nextRead, nextActivate + p->tRCD );
-      nextWrite = MAX( nextWrite, nextActivate + p->tRCD );
-      nextPowerDown = MAX( nextPowerDown, GetEventQueue()->GetCurrentCycle() + refreshRows * p->tRFC );
-      nextPowerUp = MAX( nextPowerUp, nextPowerDown + p->tPD );
+      // modified by Tao @ 01/22/2013, nextActivate = currentCycle + tRFC
+      nextActivate = MAX( nextActivate, GetEventQueue()->GetCurrentCycle() + p->tRFC );
+      //nextActivate = MAX( nextActivate, GetEventQueue()->GetCurrentCycle() + refreshRows * p->tRFC );
+
+      // annotated by Tao @ 01/22/2013
+      //nextPrecharge = MAX( nextPrecharge, nextActivate + p->tRCD );
+      //nextRead = MAX( nextRead, nextActivate + p->tRCD );
+      //nextWrite = MAX( nextWrite, nextActivate + p->tRCD );
+
+      // modified by Tao @ 01/22/2013, nextPowerDown = currentCycle + tRFC
+      nextPowerDown = MAX( nextPowerDown, GetEventQueue()->GetCurrentCycle() + p->tRFC );
+      //nextPowerDown = MAX( nextPowerDown, GetEventQueue()->GetCurrentCycle() + refreshRows * p->tRFC );
+
+      // annotated by Tao @ 01/22/2013
+      //nextPowerUp = MAX( nextPowerUp, nextPowerDown + p->tPD );
 
       refreshRowIndex = (refreshRowIndex + refreshRows) % p->ROWS;
 
@@ -797,11 +870,14 @@ bool Bank::IsIssuable( NVMainRequest *req, FailReason *reason )
           if( reason ) reason->reason = BANK_TIMING;
         }
 
-      if( NeedsRefresh( ) )
-      {
-        rv = false;
-        if( reason ) reason->reason = OPEN_REFRESH_WAITING;
-      }
+      /* annotated by Tao @ 01/22/2013, when the bank is open and the data
+       * transfer is not finished yet, let it go. we block the next activate instead
+       */
+      //if( NeedsRefresh( ) )
+      //{
+      //  rv = false;
+      //  if( reason ) reason->reason = OPEN_REFRESH_WAITING;
+      //}
     }
   else if( req->type == WRITE )
     {
@@ -811,11 +887,14 @@ bool Bank::IsIssuable( NVMainRequest *req, FailReason *reason )
           if( reason ) reason->reason = BANK_TIMING;
         }
 
-      if( NeedsRefresh( ) )
-      {
-        rv = false;
-        if( reason ) reason->reason = OPEN_REFRESH_WAITING;
-      }
+      /* annotated by Tao @ 01/22/2013, when the bank is open and the data
+       * transfer is not finished yet, let it go. we block the next activate instead
+       */
+      //if( NeedsRefresh( ) )
+      //{
+      //  rv = false;
+      //  if( reason ) reason->reason = OPEN_REFRESH_WAITING;
+      //}
     }
   else if( req->type == PRECHARGE )
     {
@@ -855,7 +934,10 @@ bool Bank::IsIssuable( NVMainRequest *req, FailReason *reason )
     }
   else if( req->type == REFRESH )
     {
-      if( state != BANK_CLOSED )
+    // modified by Tao @ 01/22/2013, the refresh has the same timing
+    // constraint as activate
+      //if( state != BANK_CLOSED )
+      if( nextActivate > (GetEventQueue()->GetCurrentCycle()) || state != BANK_CLOSED )
         {
           rv = false;
           if( reason ) reason->reason = REFRESH_OPEN_FAILURE;

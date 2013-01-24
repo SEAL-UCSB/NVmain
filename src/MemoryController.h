@@ -142,6 +142,11 @@ class MemoryController : public NVMObject
   bool FindRowBufferHits( std::list<NVMainRequest *>& transactionQueue, std::vector<NVMainRequest *>& hitRequests, NVM::SchedulingPredicate& p  );
   bool FindOldestReadyRequests( std::list<NVMainRequest *>& transactionQueue, std::vector<NVMainRequest *>& oldestRequests, NVM::SchedulingPredicate& p  );
   bool FindClosedBankRequests( std::list<NVMainRequest *>& transactionQueue, std::vector<NVMainRequest *>& closedRequests, NVM::SchedulingPredicate& p  );
+  /* added by Tao @ 01/22/2013 */ 
+  bool FindPrechargableBank (uint64_t*, uint64_t*); // FindPrechargableBank() find the bank that can be precharged 
+  unsigned curRank, curBank; // curRank and curBank record the starting rank (bank) index for the rank-(bank-) level scheduling
+  void MoveRankBank(); // MoveRankBank() increment the curRank and/or curBank according to the scheduling scheme
+  
   
   class DummyPredicate : public SchedulingPredicate
   {
