@@ -142,5 +142,11 @@ void Params::SetParams( Config *c )
     tXP = c->GetValue( "tXP" );
     tXPDLL = c->GetValue( "tXPDLL" );
 
+    // added by Tao @ 01/22/2013
+    tRDPDEN = c->GetValue( "tRDPDEN" );
+    tWRPDEN = c->GetValue( "tWRPDEN" );
+    tWRAPDEN = c->GetValue( "tWRAPDEN" );
+    ClosePage = ( c->GetString( "ClosePage" ) == "true" );
+    ScheduleScheme = c->GetValue ( "ScheduleScheme" );
 }
 

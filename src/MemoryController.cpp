@@ -35,6 +35,10 @@ MemoryController::MemoryController( )
   starvationCounter = NULL;
   activateQueued = NULL;
   effectiveRow = NULL;
+  
+  /* added by Tao @ 01/22/2013 */
+  curRank = 0;
+  curBank = 0;
 }
 
 MemoryController::MemoryController( Interconnect *memory, AddressTranslator *translator )
@@ -525,6 +529,32 @@ bool MemoryController::FindClosedBankRequests( std::list<NVMainRequest *>& trans
   return rv;
 }
 
+// added by Tao @ 01/22/2013, return the bank that can be precharged
+bool MemoryController::FindPrechargableBank( uint64_t *preRank, uint64_t *preBank )
+{
+    std::list<NVMainRequest *>::iterator it;
+
+    for( unsigned rankIdx = 0; rankIdx < p->RANKS; rankIdx++ )
+        for( unsigned bankIdx = 0; bankIdx < p->BANKS; bankIdx++ )
+        {
+            /* if the bank is open and no command in the queue, then the bank
+             * can be closed since there is no command relative to this bank
+             * Note: this function has lowest priority and should be used at
+             * the end of the controller scheduling
+             */
+            unsigned i = (curRank + rankIdx)%p->RANKS;
+            unsigned j = (curBank + bankIdx)%p->BANKS;
+            if( activateQueued[i][j] && bankQueues[i][j].empty() )
+            {
+                *preRank = i;
+                *preBank = j;
+                return true;
+            }    
+        }
+
+    return false;
+}
+
 
 bool MemoryController::DummyPredicate::operator() (uint64_t, uint64_t)
 {
@@ -594,10 +624,13 @@ bool MemoryController::IssueMemoryCommands( NVMainRequest *req )
 
 void MemoryController::CycleCommandQueues( )
 {
-  for( unsigned int i = 0; i < p->RANKS; i++ )
+  /* modified by Tao @ 01/24/2013, avoid the fixed rank/bank priority */
+  for( unsigned rankIdx = 0; rankIdx < p->RANKS; rankIdx++ )
     {
-      for( unsigned int j = 0; j < p->BANKS; j++ )
+      for( unsigned bankIdx = 0; bankIdx < p->BANKS; bankIdx++ )
         {
+          unsigned i = (curRank + rankIdx)%p->RANKS;
+          unsigned j = (curBank + bankIdx)%p->BANKS;
           FailReason fail;
 
           /* 
@@ -615,6 +648,12 @@ void MemoryController::CycleCommandQueues( )
               bankQueues[i][j].push_front( MakeRefreshRequest( &tmpReq ) );
 
               refreshTimes[i][j] += static_cast<ncycle_t>(static_cast<float>(p->tRFI) / (static_cast<float>(p->ROWS) / static_cast<float>(p->RefreshRows)));
+
+              // added by Tao @ 01/23/2013
+              /* 
+               * if this bank needs refresh then other banks in this rank need
+               * refresh too. so we do not need to move rank or bank 
+               */
             }
 
           if( !bankQueues[i][j].empty( )
@@ -623,6 +662,10 @@ void MemoryController::CycleCommandQueues( )
               memory->IssueCommand( bankQueues[i][j].at( 0 ) );
 
               bankQueues[i][j].erase( bankQueues[i][j].begin( ) );
+
+              // added by Tao @ 01/23/2013
+              MoveRankBank();
+              return ; // we should return since one time only one command can be issued
             }
           else if( p->UseRefresh && (fail.reason == OPEN_REFRESH_WAITING || fail.reason == CLOSED_REFRESH_WAITING) )
             {
@@ -670,6 +713,39 @@ void MemoryController::CycleCommandQueues( )
     }
 }
 
+/* 
+ * added by Tao @ 01/23/2013 
+ * MoveRankBank() increment curRank and/or curBank according to the scheduling
+ * scheme
+ * 0 -- Fixed Scheduling from Rank0 and Bank0
+ * 1 -- Rank-first round-robin
+ * 2 -- Bank-first round-robin
+ */
+void MemoryController::MoveRankBank( )
+{
+    if( p->ScheduleScheme == 1 )
+    {
+        /* increment Rank. if all ranks are looked, increment Bank then */
+        curRank++;
+        if( curRank == p->RANKS )
+        {
+            curRank = 0;
+            curBank = (curBank + 1)%p->BANKS;
+        }
+    }
+    else if( p->ScheduleScheme == 2 )
+    {
+        /* increment Bank. if all banks are looked, increment Rank then */
+        curBank++;
+        if( curBank == p->BANKS )
+        {
+            curBank = 0;
+            curRank = (curRank + 1)%p->RANKS;
+        }
+    }
+
+    /* if fixed scheduling is used, we do nothing */
+}
 
 
 
