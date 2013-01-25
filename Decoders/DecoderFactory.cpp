@@ -19,17 +19,30 @@
 
 #include <iostream>
 
+/* Add your decoder's include file below. */
+#include "Decoders/DRCDecoder/DRCDecoder.h"
 
 using namespace NVM;
+
+
+
+
+AddressTranslator *DecoderFactory::CreateDecoder( std::string decoder )
+{
+  AddressTranslator *trans = NULL;
+
+  if( decoder == "DRCDecoder" ) trans = new DRCDecoder( );
+
+  return trans;
+}
+
 
 
 AddressTranslator *DecoderFactory::CreateNewDecoder( std::string decoder )
 {
   AddressTranslator *trans = NULL;
 
-
-  if( decoder == "DRCDecoder" ) trans = new DRCDecoder( );
-
+  trans = CreateDecoder( decoder );
 
   /*
    *  If decoder isn't found, default to the regular address translator.
@@ -44,4 +57,18 @@ AddressTranslator *DecoderFactory::CreateNewDecoder( std::string decoder )
 
   return trans;
 }
+
+
+AddressTranslator *DecoderFactory::CreateDecoderNoWarn( std::string decoder )
+{
+  AddressTranslator *trans = NULL;
+
+  trans = CreateDecoder( decoder );
+
+  if( trans == NULL ) trans = new AddressTranslator( );
+
+  return trans;
+}
+
+
 

@@ -16,6 +16,10 @@
 
 #include "MemControl/MemoryControllerFactory.h"
 
+#include "MemControl/FCFS/FCFS.h"
+#include "MemControl/FRFCFS/FRFCFS.h"
+#include "MemControl/FRFCFS-WQF/FRFCFS-WQF.h"
+#include "MemControl/PerfectMemory/PerfectMemory.h"
 #include "MemControl/DRAMCache/DRAMCache.h"
 
 #include <iostream>

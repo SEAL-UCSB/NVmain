@@ -1,11 +1,11 @@
 # HG changeset patch
-# Parent fa9fa30f24982dd3cc4b5b93e34b3f1dbf380a21
+# Parent 94cd3ffe9a8b7c82102d8a63feb1157e3e7d72fe
 
-diff -r fa9fa30f2498 src/mem/NVMainMemory.py
+diff -r 94cd3ffe9a8b src/mem/NVMainMemory.py
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/NVMainMemory.py	Mon Nov 12 15:09:59 2012 -0500
-@@ -0,0 +1,43 @@
-+# Copyright (c) 2009 Advanced Micro Devices, Inc.
++++ b/src/mem/NVMainMemory.py	Fri Jan 25 13:17:17 2013 -0500
+@@ -0,0 +1,45 @@
++# Copyright (c) 2012-2013 Pennsylvania State University
 +# All rights reserved.
 +#
 +# Redistribution and use in source and binary forms, with or without
@@ -31,10 +31,11 @@ diff -r fa9fa30f2498 src/mem/NVMainMemory.py
 +# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 +# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 +#
++# Authors: Matt Poremba
++#          Tao Zhang
 +
 +from m5.params import *
 +from AbstractMemory import *
-+
 +
 +class NVMainMemory(AbstractMemory):
 +    type = 'NVMainMemory'
@@ -45,13 +46,14 @@ diff -r fa9fa30f2498 src/mem/NVMainMemory.py
 +    atomic_variance = Param.Latency('30ns', "Request latency in atomic mode")
 +    cpu_frequency = Param.Clock('1t', "Frequency of CPU")
 +
-+    config = Param.String("NULL", "")
++    config = Param.String("", "")
 +    configparams = Param.String("", "")
 +    configvalues = Param.String("", "")
-diff -r fa9fa30f2498 src/mem/SConscript
---- a/src/mem/SConscript	Tue Nov 06 09:33:48 2012 -0500
-+++ b/src/mem/SConscript	Mon Nov 12 15:09:59 2012 -0500
-@@ -56,8 +56,10 @@
++    NVMainWarmUp = Param.Bool(False, "Enable to warm up the internal cache in NVMain")
+diff -r 94cd3ffe9a8b src/mem/SConscript
+--- a/src/mem/SConscript	Fri Jan 25 11:33:48 2013 -0500
++++ b/src/mem/SConscript	Fri Jan 25 13:17:17 2013 -0500
+@@ -60,8 +60,10 @@
      SimObject('AbstractMemory.py')
      SimObject('SimpleMemory.py')
      SimObject('SimpleDRAM.py')
@@ -62,7 +64,7 @@ diff -r fa9fa30f2498 src/mem/SConscript
      Source('page_table.cc')
      Source('physical.cc')
      Source('simple_dram.cc')
-@@ -77,6 +79,7 @@
+@@ -81,6 +83,7 @@
  DebugFlag('MMU')
  DebugFlag('MemoryAccess')
  DebugFlag('PacketQueue')
@@ -70,12 +72,12 @@ diff -r fa9fa30f2498 src/mem/SConscript
  
  DebugFlag('ProtocolTrace')
  DebugFlag('RubyCache')
-diff -r fa9fa30f2498 src/mem/nvmain_mem.cc
+diff -r 94cd3ffe9a8b src/mem/nvmain_mem.cc
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/nvmain_mem.cc	Mon Nov 12 15:09:59 2012 -0500
-@@ -0,0 +1,449 @@
++++ b/src/mem/nvmain_mem.cc	Fri Jan 25 13:17:17 2013 -0500
+@@ -0,0 +1,472 @@
 +/*
-+ * Copyright (c) 1999-2008 Mark D. Hill and David A. Wood
++ * Copyright (c) 2012-2013 Pennsylvania State University
 + * All rights reserved.
 + *
 + * Redistribution and use in source and binary forms, with or without
@@ -132,7 +134,7 @@ diff -r fa9fa30f2498 src/mem/nvmain_mem.cc
 +NVMainMemory::NVMainMemory(const Params *p)
 +    : AbstractMemory(p), port(name() + ".port", *this), clock(p->cpu_frequency),
 +      lat(p->atomic_latency), lat_var(p->atomic_variance),
-+      nvmain_atomic(p->atomic_mode)
++      nvmain_atomic(p->atomic_mode), NVMainWarmUp(p->NVMainWarmUp)
 +{
 +    char *cfgparams;
 +    char *cfgvalues;
@@ -154,17 +156,21 @@ diff -r fa9fa30f2498 src/mem/nvmain_mem.cc
 +    m_avgAtomicLatency = 100.0f;
 +    m_numAtomicAccesses = 0;
 +
-+    for( cfgparams = (char *)p->configparams.c_str(), cfgvalues = (char *)p->configvalues.c_str()
-+         ; ; cfgparams = NULL, cfgvalues = NULL )
++    /*
++     * Modified by Tao @ 01/22/2013
++     * multiple parameters can be manually specified
++     * please separate the parameters by comma ","
++     * For example,
++     *    configparams = tRCD,tCAS,tRP
++     *    configvalues = 8,8,8
++     */
++    cfgparams = (char *)p->configparams.c_str();
++    cfgvalues = (char *)p->configvalues.c_str();
++
++    for( cparam = strtok_r( cfgparams, ",", &saveptr1 ), cvalue = strtok_r( cfgvalues, ",", &saveptr2 )
++           ; (cparam && cvalue) ; cparam = strtok_r( NULL, ",", &saveptr1 ), cvalue = strtok_r( NULL, ",", &saveptr2) )
 +    {
-+        cparam = strtok_r( cfgparams, ",", &saveptr1 );
-+        cvalue = strtok_r( cfgvalues, ",", &saveptr2 );
-+
-+        if( cparam == NULL || cvalue == NULL )
-+            break;
-+
 +        std::cout << "NVMain: Overriding parameter `" << cparam << "' with `" << cvalue << "'" << std::endl;
-+
 +        m_nvmainConfig->SetValue( cparam, cvalue );
 +    }
 +
@@ -242,70 +248,72 @@ diff -r fa9fa30f2498 src/mem/nvmain_mem.cc
 +    if (pkt->memInhibitAsserted())
 +        return 0;
 +
-+
-+    if (!pkt->isRead() && !pkt->isWrite()) {
-+        std::cout << "NVMainMemory: Received a packet that is neither read nor write" << std::endl;
-+
-+        return memory.doAtomicAccess(pkt);
-+    }
-+
 +    /*
-+     *  Send the atomic request to NVMain in case there is a cache that needs warm up
++     * do the memory access to get the read data and change the response tag
 +     */
-+    NVMainRequest *request = new NVMainRequest( );
-+
-+    unsigned int transfer_size;
-+    uint8_t *hostAddr;
-+
-+    transfer_size =  memory.BusWidth / 8;
-+    transfer_size *= memory.tBURST * memory.RATE;
-+
-+    if (pkt->isRead())
-+    {
-+        Request *dataReq = new Request(pkt->req->getPaddr(), transfer_size, 0, Request::funcMasterId);
-+        Packet *dataPkt = new Packet(dataReq, MemCmd::ReadReq);
-+        dataPkt->allocate();
-+        memory.doFunctionalAccess(dataPkt);
-+
-+        hostAddr = new uint8_t[ dataPkt->getSize() ];
-+        memcpy( hostAddr, dataPkt->getPtr<uint8_t>(), dataPkt->getSize() );
-+
-+        delete dataPkt;
-+        delete dataReq;
-+    }
-+    else
-+    {
-+        hostAddr = new uint8_t[ pkt->getSize() ];
-+
-+        memcpy( hostAddr, pkt->getPtr<uint8_t>(), pkt->getSize() );
-+    }
-+
-+    for(int i = 0; i < transfer_size; i++ )
-+    {
-+        request->data.SetByte(i, *(hostAddr + (transfer_size - 1) - i));
-+    }
-+    delete [] hostAddr;
-+
-+    request->access = UNKNOWN_ACCESS;
-+    request->address.SetPhysicalAddress(pkt->req->getPaddr());
-+    request->status = MEM_REQUEST_INCOMPLETE;
-+    request->type = (pkt->isRead()) ? READ : WRITE;
-+    request->owner = (NVMObject *)&memory;
-+
-+    if(pkt->req->hasPC()) request->programCounter = pkt->req->getPC();
-+    if(pkt->req->hasContextId()) request->threadId = pkt->req->contextId();
-+
-+    memory.m_nvmainPtr->AtomicRequest(request);
++    memory.access(pkt);
 +
 +    /*
-+     *  Return some time
++     * calculate the latency. Now it is only random number
 +     */
 +    Tick latency = memory.lat;
 +
 +    if (memory.lat_var != 0)
 +        latency += random_mt.random<Tick>(0, memory.lat_var);
 +
-+    memory.access(pkt);
++    /*
++     *  if NVMain also needs the packet to warm up the inline cache, create the request
++     */
++    if( memory.NVMainWarmUp )
++    {
++        NVMainRequest *request = new NVMainRequest( );
++        unsigned int transfer_size;
++        uint8_t *hostAddr;
++
++        transfer_size =  memory.BusWidth / 8;
++        transfer_size *= memory.tBURST * memory.RATE;
++
++        /* extract the data in the packet */
++        if( pkt->isRead() )
++        {   // read
++            hostAddr = new uint8_t[ pkt->getSize() ];
++            memcpy( hostAddr, pkt->getPtr<uint8_t>(), pkt->getSize() );
++        }
++        else if( pkt->isWrite() )
++        {   // write
++            hostAddr = new uint8_t[ pkt->getSize() ];
++            memcpy( hostAddr, pkt->getPtr<uint8_t>(), pkt->getSize() );
++        }
++        else
++        {
++            // if it is neither read nor write, just return
++            // well, speed may suffer a little bit...
++            return latency;
++        }
++
++        /* store the data into the request */
++        for(int i = 0; i < transfer_size; i++ )
++        {
++            request->data.SetByte(i, *(hostAddr + (transfer_size - 1) - i));
++        }
++        delete [] hostAddr;
++
++        /* initialize the request so that NVMain can correctly serve it */
++        request->access = UNKNOWN_ACCESS;
++        request->address.SetPhysicalAddress(pkt->req->getPaddr());
++        request->status = MEM_REQUEST_INCOMPLETE;
++        request->type = (pkt->isRead()) ? READ : WRITE;
++        request->owner = (NVMObject *)&memory;
++        if(pkt->req->hasPC()) request->programCounter = pkt->req->getPC();
++        if(pkt->req->hasContextId()) request->threadId = pkt->req->contextId();
++
++        /*
++         * Issue the request to NVMain as an atomic request
++         */
++        memory.m_nvmainPtr->AtomicRequest(request);
++
++        delete request;
++    }
 +
 +    return latency;
 +}
@@ -327,8 +335,15 @@ diff -r fa9fa30f2498 src/mem/nvmain_mem.cc
 +bool
 +NVMainMemory::MemoryPort::recvTimingReq(PacketPtr pkt)
 +{
++    /* added by Tao @ 01/24/2013, just copy the code from SimpleMemory */
++    /// @todo temporary hack to deal with memory corruption issues until
++    /// 4-phase transactions are complete
++    for (int x = 0; x < memory.pendingDelete.size(); x++)
++        delete memory.pendingDelete[x];
++    memory.pendingDelete.clear();
++
 +    if (pkt->memInhibitAsserted()) {
-+        delete pkt;
++        memory.pendingDelete.push_back(pkt);
 +        return true;
 +    }
 +
@@ -426,6 +441,8 @@ diff -r fa9fa30f2498 src/mem/nvmain_mem.cc
 +    else
 +    {
 +        memory.m_slot_available = false;
++
++        delete request;
 +    }
 +
 +    //memory.Sync();
@@ -460,6 +477,12 @@ diff -r fa9fa30f2498 src/mem/nvmain_mem.cc
 +
 +bool NVMainMemory::RequestComplete(NVM::NVMainRequest *req)
 +{
++    /* Ignore bus read/write requests generated by the banks. */
++    if( req->type == BUS_WRITE || req->type == BUS_READ )
++    {
++        delete req;
++        return true;
++    }
 +
 +    NVMainMemoryRequest *memRequest;
 +    std::map<NVMainRequest *, NVMainMemoryRequest *>::iterator iter;
@@ -486,7 +509,9 @@ diff -r fa9fa30f2498 src/mem/nvmain_mem.cc
 +        }
 +        else
 +        {
-+            delete memRequest->packet;
++            /* modified by Tao @ 01/24/2013 */
++            pendingDelete.push_back(memRequest->packet);
++            //delete memRequest->packet;
 +            delete req;
 +            delete memRequest;
 +        }
@@ -523,12 +548,12 @@ diff -r fa9fa30f2498 src/mem/nvmain_mem.cc
 +    return new NVMainMemory(this);
 +}
 +
-diff -r fa9fa30f2498 src/mem/nvmain_mem.hh
+diff -r 94cd3ffe9a8b src/mem/nvmain_mem.hh
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/nvmain_mem.hh	Mon Nov 12 15:09:59 2012 -0500
-@@ -0,0 +1,193 @@
++++ b/src/mem/nvmain_mem.hh	Fri Jan 25 13:17:17 2013 -0500
+@@ -0,0 +1,197 @@
 +/*
-+ * Copyright (c) 1999-2008 Mark D. Hill and David A. Wood
++ * Copyright (c) 2012-2013 Pennsylvania State University
 + * All rights reserved.
 + *
 + * Redistribution and use in source and binary forms, with or without
@@ -681,6 +706,10 @@ diff -r fa9fa30f2498 src/mem/nvmain_mem.hh
 +    uint64_t BusWidth;
 +    uint64_t tBURST;
 +    uint64_t RATE;
++
++    /* added by Tao @ 01/24/2013 */
++    bool NVMainWarmUp;
++    std::vector<PacketPtr> pendingDelete;
 +
 +    NVMainStatPrinter statPrinter;
 +    Tick lastWakeup;

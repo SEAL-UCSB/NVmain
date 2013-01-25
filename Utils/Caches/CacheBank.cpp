@@ -48,9 +48,10 @@ CacheBank::CacheBank( uint64_t sets, uint64_t assoc, uint64_t lineSize )
 
   state = CACHE_IDLE;
   stateTimer = 0;
-  currentReq = NULL;
 
-  addrTrans = NULL;
+  decodeClass = NULL;
+  decodeFunc = NULL;
+  SetDecodeFunction( this, static_cast<CacheSetDecoder>(&NVM::CacheBank::DefaultDecoder) );
 
   readTime = 1; // 1 cycle
   writeTime = 1;  // 1 cycle
@@ -73,12 +74,17 @@ CacheBank::~CacheBank( )
 }
 
 
-
-void CacheBank::SetAddressTranslator( AddressTranslator *at )
+void CacheBank::SetDecodeFunction( NVMObject *dcClass, CacheSetDecoder dcFunc )
 {
-  addrTrans = at;
+  decodeClass = dcClass;
+  decodeFunc = dcFunc;
 }
 
+
+uint64_t CacheBank::DefaultDecoder( NVMAddress &addr )
+{
+  return (addr.GetPhysicalAddress( ) >> (uint64_t)mlog2( (int)cachelineSize )) % numSets;
+}
 
 
 uint64_t CacheBank::SetID( NVMAddress& addr )
@@ -88,28 +94,13 @@ uint64_t CacheBank::SetID( NVMAddress& addr )
    *  least significant bits as the set address, and the remaining bits are 
    *  the tag bits.
    */
-
   uint64_t setID;
 
-  if( addrTrans == NULL )
-    {
-      if( isMissMap )
-        {
-          setID = (addr.GetPhysicalAddress( )) % numSets;
-        }
-      else
-        {
-          setID = (addr.GetPhysicalAddress( ) >> (uint64_t)mlog2( (int)cachelineSize )) % numSets;
-        }
-    }
-  else
-    {
-      uint64_t crow, ccol, cbank, crank, cchannel;
+      //if( isMissMap )
+          //setID = (addr.GetPhysicalAddress( )) % numSets;
 
-      addrTrans->Translate( addr.GetPhysicalAddress( ), &crow, &ccol, &cbank, &crank, &cchannel );
+  setID = (decodeClass->*decodeFunc)( addr );
 
-      setID = crow;
-    }
 
   return setID;
 }
@@ -123,28 +114,7 @@ CacheEntry *CacheBank::FindSet( NVMAddress& addr )
    *  least significant bits as the set address, and the remaining bits are 
    *  the tag bits.
    */
-
-  uint64_t setID;
-
-  if( addrTrans == NULL )
-    {
-      if( isMissMap )
-        {
-          setID = (addr.GetPhysicalAddress( )) % numSets;
-        }
-      else
-        {
-          setID = (addr.GetPhysicalAddress( ) >> (uint64_t)mlog2( (int)cachelineSize )) % numSets;
-        }
-    }
-  else
-    {
-      uint64_t crow, ccol, cbank, crank, cchannel;
-
-      addrTrans->Translate( addr.GetPhysicalAddress( ), &crow, &ccol, &cbank, &crank, &cchannel );
-
-      setID = crow;
-    }
+  uint64_t setID = SetID( addr );
 
   return cacheEntry[setID];
 }
@@ -401,7 +371,50 @@ uint64_t CacheBank::GetWriteTime( )
 }
 
 
-bool CacheBank::IsIssuable( CacheRequest * /*req*/ )
+uint64_t CacheBank::GetAssociativity( )
+{
+  return numAssoc;
+}
+
+
+uint64_t CacheBank::GetCachelineSize( )
+{
+  return cachelineSize;
+}
+
+
+uint64_t CacheBank::GetSetCount( )
+{
+  return numSets;
+}
+
+
+float CacheBank::GetCacheOccupancy( )
+{
+  float occupancy;
+  uint64_t valid, total;
+
+  valid = 0;
+  total = numSets*numAssoc;
+
+  for( uint64_t i = 0; i < numSets; i++ )
+    {
+      CacheEntry *set = cacheEntry[i];
+
+      for( uint64_t j = 0; j < numAssoc; j++ )
+        {
+          if( set[i].flags & CACHE_ENTRY_VALID )
+            valid++;
+        }
+    }
+
+  occupancy = static_cast<float>(valid) / static_cast<float>(total);
+
+  return occupancy;
+}
+
+
+bool CacheBank::IsIssuable( NVMainRequest * /*req*/ )
 {
   bool rv = false;
 
@@ -421,50 +434,77 @@ bool CacheBank::IsIssuable( CacheRequest * /*req*/ )
 }
 
 
-void CacheBank::IssueCommand( CacheRequest *req )
+bool CacheBank::IssueCommand( NVMainRequest *nreq )
 {
   NVMDataBlock dummy;
+  CacheRequest *req = static_cast<CacheRequest *>( nreq->reqInfo );
 
-  assert( IsIssuable( req ) );
+  assert( IsIssuable( nreq ) );
 
-  currentReq = req;
-  currentReq->complete = false;
+  if( !IsIssuable( nreq ) )
+    return false;
 
   switch( req->optype )
     {
     case CACHE_READ:
       state = CACHE_BUSY;
-      stateTimer = readTime;
-      Read( req->address, &dummy ); 
+      stateTimer = GetEventQueue( )->GetCurrentCycle( ) + readTime;
+      req->hit = Present( req->address );
+      if( req->hit ) Read( req->address, &(req->data) ); 
+      GetEventQueue( )->InsertEvent( EventResponse, this, nreq, stateTimer );
       break;
     case CACHE_WRITE:
       state = CACHE_BUSY;
-      stateTimer = writeTime;
-      Write( req->address, req->data );
+      stateTimer = GetEventQueue( )->GetCurrentCycle( ) + writeTime;
+
+      if( SetFull( req->address ) )
+        {
+          NVMainRequest *mmEvict = new NVMainRequest( );
+          CacheRequest *evreq = new CacheRequest;
+          
+          ChooseVictim( req->address, &(evreq->address) );
+          Evict( evreq->address, &(evreq->data) );
+
+          evreq->optype = CACHE_EVICT;
+
+          *mmEvict = *nreq;
+          mmEvict->owner = nreq->owner;
+          mmEvict->reqInfo = static_cast<void *>( evreq );
+          mmEvict->tag = nreq->tag;
+
+          GetEventQueue( )->InsertEvent( EventResponse, this, mmEvict, stateTimer );
+        }
+
+      req->hit = Present( req->address );
+      if( req->hit ) 
+        Write( req->address, req->data );
+      else
+        Install( req->address, req->data );
+
+      GetEventQueue( )->InsertEvent( EventResponse, this, nreq, stateTimer );
+
       break;
     default:
       std::cout << "CacheBank: Unknown operation `" << req->optype << "'!" << std::endl;
       break;
     }
 
+  return true;
+}
+
+
+bool CacheBank::RequestComplete( NVMainRequest *req )
+{
+  GetParent( )->RequestComplete( req );
+
+  state = CACHE_IDLE;
+
+  return true;
 }
 
 
 
-void CacheBank::Cycle( ncycle_t steps )
+void CacheBank::Cycle( ncycle_t /*steps*/ )
 {
-  if( stateTimer > 0 )
-    {
-      if( steps >= stateTimer )
-        {
-          state = CACHE_IDLE;
-          currentReq->complete = true;
-          stateTimer = 0;
-        }
-      else
-        {
-          stateTimer -= steps;
-        }
-    }
 }
 

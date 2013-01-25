@@ -25,7 +25,7 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
-# Authors: Nathan Binkert
+# Authors: Matt Poremba
 
 import os
 
@@ -60,7 +60,9 @@ Source('src/Params.cpp')
 Source('src/NVMObject.cpp')
 Source('src/EventQueue.cpp')
 
+Source('Utils/HookFactory.cpp')
 Source('Utils/Caches/CacheBank.cpp')
+Source('Utils/Visualizer/Visualizer.cpp')
 
 Source('SimInterface/Gem5Interface/Gem5Interface.cpp')
 
