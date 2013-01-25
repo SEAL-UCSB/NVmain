@@ -19,16 +19,6 @@
 
 
 #include "Endurance/RowModel/RowModel.h"
-/*
- *  #include your custom endurance model here, for example:
- *
- *  #include "MyModel/MyModel.h"
- */
-#include "Endurance/WordModel/WordModel.h"
-#include "Endurance/ByteModel/ByteModel.h"
-#include "Endurance/BitModel/BitModel.h"
-#include "Endurance/FlipNWrite/FlipNWrite.h"
-#include "Endurance/NullModel/NullModel.h"
 
 
 namespace NVM {

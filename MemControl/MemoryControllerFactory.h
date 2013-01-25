@@ -18,10 +18,7 @@
 #define __MEMORYCONTROLLERFACTORY_H__
 
 
-#include "MemControl/FCFS/FCFS.h"
-#include "MemControl/FRFCFS/FRFCFS.h"
-#include "MemControl/FRFCFS-WQF/FRFCFS-WQF.h"
-#include "MemControl/PerfectMemory/PerfectMemory.h"
+#include "src/MemoryController.h"
 
 
 namespace NVM {

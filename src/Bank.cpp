@@ -447,8 +447,15 @@ bool Bank::Read( NVMainRequest *request )
        */
       // modified by Tao @ 01/22/2013, the Read data will be available after tCAS + tBURST
       if( bankId == 0 )
-        GetEventQueue( )->InsertEvent( EventResponse, this, request, GetEventQueue()->GetCurrentCycle() + p->tCAS + p->tBURST );
-        //GetEventQueue( )->InsertEvent( EventResponse, this, request, GetEventQueue()->GetCurrentCycle() + p->tCAS + MAX(p->tBURST, p->tCCD) );
+        {
+          /* Issue a bus burst request when the burst starts. */
+          NVMainRequest *busReq = new NVMainRequest( );
+          *busReq = *request;
+          busReq->type = BUS_WRITE;
+
+          GetEventQueue( )->InsertEvent( EventResponse, this, busReq, GetEventQueue()->GetCurrentCycle() + p->tCAS );
+          GetEventQueue( )->InsertEvent( EventResponse, this, request, GetEventQueue()->GetCurrentCycle() + p->tCAS + p->tBURST );
+        }
 
 
       /* Calculate energy */
@@ -573,8 +580,15 @@ bool Bank::Write( NVMainRequest *request )
        */
       // modified by Tao @ 01/22/2013, the Write completes after tCWD + tBURST
       if( bankId == 0 )
-        GetEventQueue( )->InsertEvent( EventResponse, this, request, GetEventQueue()->GetCurrentCycle() + p->tCWD + p->tBURST );
-        //GetEventQueue( )->InsertEvent( EventResponse, this, request, GetEventQueue()->GetCurrentCycle() + p->tCWD + MAX(p->tBURST, p->tCCD) );
+        {
+          /* Issue a bus burst request when the burst starts. */
+          NVMainRequest *busReq = new NVMainRequest( );
+          *busReq = *request;
+          busReq->type = BUS_READ;
+
+          GetEventQueue( )->InsertEvent( EventResponse, this, busReq, GetEventQueue()->GetCurrentCycle() + p->tCAS );
+          GetEventQueue( )->InsertEvent( EventResponse, this, request, GetEventQueue()->GetCurrentCycle() + p->tCWD + p->tBURST );
+        }
 
 
       /* Calculate energy. */
@@ -954,6 +968,55 @@ bool Bank::IsIssuable( NVMainRequest *req, FailReason *reason )
 }
 
 
+bool Bank::IssueCommand( NVMainRequest *req )
+{
+  bool rv = false;
+
+  if( !IsIssuable( req ) )
+    {
+      std::cout << "NVMain: Bank: Warning: Command can not be issued!\n";
+    }
+  else
+    {
+      rv = true;
+      
+      switch( req->type )
+        {
+        case ACTIVATE:
+          rv = this->Activate( req );
+          break;
+        
+        case READ:
+          rv = this->Read( req );
+          break;
+        
+        case WRITE:
+          rv = this->Write( req );
+          break;
+        
+        case PRECHARGE:
+          rv = this->Precharge( req );
+          break;
+
+        case POWERUP:
+          rv = this->PowerUp( req );
+          break;
+      
+        case REFRESH:
+          rv = this->Refresh( );
+          break;
+
+        default:
+          std::cout << "NVMain: Rank: Unknown operation in command queue! " << req->type << std::endl;
+          break;  
+        }
+    }
+
+  return rv;
+}
+
+
+
 bool Bank::WouldConflict( uint64_t checkRow )
 {
   bool returnValue = true;
@@ -1007,6 +1070,18 @@ void Bank::SetName( std::string )
 void Bank::SetId( int id )
 {
   bankId = id;
+}
+
+
+std::string Bank::GetName( )
+{
+  return "";
+}
+
+
+int Bank::GetId( )
+{
+  return bankId;
 }
 
 

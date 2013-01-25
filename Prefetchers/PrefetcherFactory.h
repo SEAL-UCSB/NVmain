@@ -18,8 +18,6 @@
 #define __PREFETCHERFACTORY_H__
 
 #include "src/Prefetcher.h"
-#include "Prefetchers/NaivePrefetcher/NaivePrefetcher.h"
-#include "Prefetchers/STeMS/STeMS.h"
 
 
 #include <string>

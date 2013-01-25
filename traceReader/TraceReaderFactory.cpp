@@ -19,6 +19,10 @@
 
 #include <iostream>
 
+/* Add your trace reader's include below. */
+#include "traceReader/NVMainTrace/NVMainTrace.h"
+#include "traceReader/RubyTrace/RubyTrace.h"
+
 
 using namespace NVM;
 

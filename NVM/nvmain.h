@@ -47,6 +47,8 @@ class NVMain : public NVMObject
   void SetConfig( Config *conf, std::string memoryName = "defaultMemory" );
   void SetParams( Params *params ) { p = params; } 
 
+  Config *GetConfig( );
+
   int  NewRequest( NVMainRequest *request );
   int  AtomicRequest( NVMainRequest *request );
   bool CanIssue( NVMainRequest *request );

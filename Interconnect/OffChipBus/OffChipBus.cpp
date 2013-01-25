@@ -93,7 +93,7 @@ void OffChipBus::SetConfig( Config *c )
 
 bool OffChipBus::RequestComplete( NVMainRequest *request )
 {
-  GetEventQueue( )->InsertEvent( EventResponse, GetParent( ), request, GetEventQueue()->GetCurrentCycle() + offChipDelay ); 
+  GetEventQueue( )->InsertEvent( EventResponse, GetParent( )->GetTrampoline( ), request, GetEventQueue()->GetCurrentCycle() + offChipDelay ); 
 
   return true;
 }
@@ -123,7 +123,7 @@ bool OffChipBus::IssueCommand( NVMainRequest *req )
           std::cout << "OffChipBus got unknown op." << std::endl;
         }
 
-      success = ranks[opRank]->IssueCommand( req );
+      success = GetChild( req )->IssueCommand( req );
 
       /*
        *  To preserve rank-to-rank switching time, we need to notify the

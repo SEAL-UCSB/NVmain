@@ -17,14 +17,16 @@
 #include <sstream>
 
 #include "nvmain.h"
-#include "Interconnect/InterconnectFactory.h"
 
 #include "src/Config.h"
-#include "MemControl/MemoryControllerFactory.h"
 #include "src/AddressTranslator.h"
-#include "Decoders/DecoderFactory.h"
 #include "src/Interconnect.h"
 #include "src/SimInterface.h"
+
+#include "Interconnect/InterconnectFactory.h"
+#include "MemControl/MemoryControllerFactory.h"
+#include "Decoders/DecoderFactory.h"
+#include "Utils/HookFactory.h"
 
 #include "include/NVMainRequest.h"
 #include "include/NVMHelpers.h"
@@ -90,6 +92,12 @@ NVMain::~NVMain( )
 }
 
 
+Config *NVMain::GetConfig( )
+{
+  return config;
+}
+
+
 void NVMain::SetConfig( Config *conf, std::string memoryName )
 {
   TranslationMethod *method;
@@ -127,8 +135,36 @@ void NVMain::SetConfig( Config *conf, std::string memoryName )
   method->SetCount( rows, cols, banks, ranks, channels );
   translator->SetTranslationMethod( method );
 
+  SetDecoder( translator );
+
   mainEventQueue = new EventQueue( );
   SetEventQueue( mainEventQueue );
+
+  std::cout << "mainEventQueue pointer is " << (void*)(mainEventQueue) << std::endl;
+
+  /*
+   *  Add any specified hooks
+   */
+  std::vector<std::string>& hookList = config->GetHooks( );
+
+  for( int i = 0; i < hookList.size( ); i++ )
+    {
+      std::cout << "Creating hook " << hookList[i] << std::endl;
+
+      NVMObject *hook = HookFactory::CreateHook( hookList[i] );
+      
+      if( hook != NULL )
+        {
+          AddHook( hook );
+          hook->SetParent( this );
+          hook->Init( );
+        }
+      else
+        {
+          std::cout << "Warning: Could not create a hook named `" << hookList[i] << "'." << std::endl;
+        }
+    }
+
 
   memory = new Interconnect* [channels];
 
@@ -169,6 +205,11 @@ void NVMain::SetConfig( Config *conf, std::string memoryName )
       confString.str( "" );
       confString << memoryName << ".channel" << i;
       memory[i]->StatName( confString.str( ) );
+
+      AddressTranslator *incAT = DecoderFactory::CreateDecoderNoWarn( conf->GetString( "Decoder" ) );
+      incAT->SetTranslationMethod( method );
+      incAT->SetDefaultField( RANK_FIELD );
+      memory[i]->SetDecoder( incAT );
 
 
       /*

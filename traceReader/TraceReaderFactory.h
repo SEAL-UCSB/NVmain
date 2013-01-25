@@ -20,9 +20,6 @@
 
 
 
-#include "traceReader/NVMainTrace/NVMainTrace.h"
-#include "traceReader/RubyTrace/RubyTrace.h"
-
 #include "traceReader/GenericTrace.h"
 
 #include <string>
