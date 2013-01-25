@@ -147,5 +147,7 @@ void Params::SetParams( Config *c )
     tWRAPDEN = c->GetValue( "tWRAPDEN" );
     ClosePage = ( c->GetString( "ClosePage" ) == "true" );
     ScheduleScheme = c->GetValue ( "ScheduleScheme" );
+    HighWaterMark = c->GetValue ( "HighWaterMark" );
+    LowWaterMark = c->GetValue ( "LowWaterMark" );
 }
 

@@ -125,8 +125,10 @@ public:
   ncycle_t tRDPDEN; // interval between Read/ReadA and PowerDown
   ncycle_t tWRPDEN; // interval between Write and PowerDown
   ncycle_t tWRAPDEN; // interval between WriteA and PowerDown
-  bool ClosePage;
-  int ScheduleScheme;
+  bool ClosePage; // enable close-page management policy
+  int ScheduleScheme; // command scheduling policy (0: fixed priority, 1: rank first round-robin, 2: bank first round-robin)
+  int HighWaterMark; // write drain high watermark
+  int LowWaterMark; // write drain low watermark
 
 };
 
