@@ -33,7 +33,7 @@ std::string GetFilePath( std::string file );
 
 Rank::Rank( )
 {
-  // NOTE: make sure this doesn't cause unnecessary tRRD delays at start, k?
+  // Make sure this doesn't cause unnecessary tRRD delays at start -- TODO have Activate check currentCycle < tRRD/tFAW maybe?
   lastActivate[0] = -10000;
   lastActivate[1] = -10000;
   lastActivate[2] = -10000;
