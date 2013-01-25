@@ -112,13 +112,13 @@ class NVMainRequest
   ncycle_t issueCycle;           //< When the memory controller issued the request to the interconnect (dequeued)
   ncycle_t completionCycle;      //< When the request was sent back to the requestor
 
-  NVMainRequest& operator=( const NVMainRequest& );
+  const NVMainRequest& operator=( const NVMainRequest& );
   bool operator<( NVMainRequest m ) const;
 };
 
 
 inline
-NVMainRequest& NVMainRequest::operator=( const NVMainRequest& m )
+const NVMainRequest& NVMainRequest::operator=( const NVMainRequest& m )
 {
   address = m.address;
   type = m.type;
