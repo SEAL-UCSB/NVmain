@@ -28,6 +28,7 @@ using namespace NVM;
 AddressTranslator::AddressTranslator( )
 {
   method = NULL;
+  defaultField = NO_FIELD;
 }
 
 
@@ -109,6 +110,51 @@ void AddressTranslator::Translate( uint64_t address, uint64_t *row, uint64_t *co
   refAddress = Divide( refAddress, part );
 } 
 
+
+
+uint64_t AddressTranslator::Translate( uint64_t address )
+{
+  uint64_t row, col, bank, rank, channel;
+  uint64_t rv;
+
+  Translate( address, &row, &col, &bank, &rank, &channel );
+
+  switch( defaultField )
+    {
+      case ROW_FIELD:
+        rv = row;
+        break;
+
+      case COL_FIELD:
+        rv = col;
+        break;
+
+      case BANK_FIELD:
+        rv = bank;
+        break;
+
+      case RANK_FIELD:
+        rv = rank;
+        break;
+
+      case CHANNEL_FIELD:
+        rv = channel;
+        break;
+
+      case NO_FIELD:
+      default:
+        rv = 0;
+        break;
+    }
+
+  return rv;
+}
+
+
+void AddressTranslator::SetDefaultField( TranslationField f )
+{
+  defaultField = f;
+}
 
 
 

@@ -19,14 +19,7 @@
 
 
 
-#include "Endurance/Distributions/Normal.h"
-/*
- *  #include your custom endurance distribution above, for example:
- *
- *  #include "Endurance/Distributions/MyDist.h"
- */
-#include "Endurance/Distributions/Uniform.h"
-
+#include "src/EnduranceDistribution.h"
 #include "src/Config.h"
 
 

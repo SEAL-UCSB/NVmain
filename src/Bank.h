@@ -71,6 +71,8 @@ class Bank : public NVMObject
   bool IsIssuable( NVMainRequest *req, FailReason *reason = NULL );
   bool NeedsRefresh( );
 
+  bool IssueCommand( NVMainRequest *req );
+
   void SetConfig( Config *c );
   void SetParams( Params *params ) { p = params; }
 
@@ -98,6 +100,9 @@ class Bank : public NVMObject
   void SetId( int );
   void PrintStats( );
   void StatName( std::string name ) { statName = name; }
+
+  int GetId( );
+  std::string GetName( );
 
   void Cycle( ncycle_t steps );
 

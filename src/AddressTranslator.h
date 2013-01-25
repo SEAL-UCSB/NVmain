@@ -25,6 +25,9 @@
 namespace NVM {
 
 
+typedef enum { NO_FIELD, ROW_FIELD, COL_FIELD, BANK_FIELD, RANK_FIELD, CHANNEL_FIELD } TranslationField;
+
+
 class AddressTranslator
 {
  public:
@@ -35,12 +38,15 @@ class AddressTranslator
   TranslationMethod *GetTranslationMethod( );
   
   virtual void Translate( uint64_t address, uint64_t *row, uint64_t *col, uint64_t *bank, uint64_t *rank, uint64_t *channel );
-  void ReverseTranslate( uint64_t *address, uint64_t row, uint64_t col, uint64_t bank, uint64_t rank, uint64_t channel );
+
+  uint64_t Translate( uint64_t address );
+  void SetDefaultField( TranslationField f ); 
 
   virtual void PrintStats( ) { }
 
  private:
   TranslationMethod *method;
+  TranslationField defaultField;
 
  protected:
   uint64_t Divide( uint64_t partSize, MemoryPartition partition );

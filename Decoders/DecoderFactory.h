@@ -18,7 +18,6 @@
 #define __DECODERFACTORY_H__
 
 #include "src/AddressTranslator.h"
-#include "Decoders/DRCDecoder/DRCDecoder.h"
 
 
 #include <string>
@@ -34,6 +33,10 @@ class DecoderFactory
   ~DecoderFactory( ) { }
 
   static AddressTranslator *CreateNewDecoder( std::string decoder );
+  static AddressTranslator *CreateDecoderNoWarn( std::string decoder );
+
+ private:
+  static AddressTranslator *CreateDecoder( std::string decoder );
 
 };
 

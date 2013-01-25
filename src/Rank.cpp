@@ -131,6 +131,14 @@ void Rank::SetConfig( Config *c )
     }
 
   /*
+   *  When selecting a child, use the rank field from the decoder.
+   */
+  AddressTranslator *rankAT = DecoderFactory::CreateDecoderNoWarn( conf->GetString( "Decoder" ) );
+  rankAT->SetTranslationMethod( GetParent( )->GetTrampoline( )->GetDecoder( )->GetTranslationMethod( ) );
+  rankAT->SetDefaultField( BANK_FIELD );
+  SetDecoder( rankAT );
+
+  /*
    *  We'll say you can't do anything until the command has time to issue on the bus.
    */
   nextRead = p->tCMD;
@@ -171,7 +179,10 @@ bool Rank::Activate( NVMainRequest *request )
       && (ncycles_t)lastActivate[FAWindex] + (ncycles_t)p->tRRDR <= (ncycles_t)GetEventQueue()->GetCurrentCycle()
       && (ncycles_t)lastActivate[(FAWindex + 1)%4] + (ncycles_t)p->tFAW <= (ncycles_t)GetEventQueue()->GetCurrentCycle() )
     {
-      for( ncounter_t i = 0; i < deviceCount; i++ )
+      GetChild( request )->IssueCommand( request );
+
+      /* Broadcast request to remaining banks... this won't call hooks. */
+      for( ncounter_t i = 1; i < deviceCount; i++ )
         devices[i].GetBank( activateBank )->Activate( request );
 
       FAWindex = (FAWindex + 1) % 4;
@@ -214,7 +225,10 @@ bool Rank::Read( NVMainRequest *request )
    */
   if( !devices[0].GetBank( readBank )->WouldConflict( readRow ) )
     {
-      for( ncounter_t i = 0; i < deviceCount; i++ )
+      GetChild( request )->IssueCommand( request );
+
+      /* Broadcast request to remaining banks... this won't call hooks. */
+      for( ncounter_t i = 1; i < deviceCount; i++ )
         devices[i].GetBank( readBank )->Read( request );
 
       nextRead = MAX( nextRead, GetEventQueue()->GetCurrentCycle() + MAX( p->tBURST, p->tCCD ) );
@@ -254,7 +268,10 @@ bool Rank::Write( NVMainRequest *request )
 
   if( !devices[0].GetBank( writeBank )->WouldConflict( writeRow ) )
     {
-      for( ncounter_t i = 0; i < deviceCount; i++ )
+      GetChild( request )->IssueCommand( request );
+
+      /* Broadcast request to remaining banks... this won't call hooks. */
+      for( ncounter_t i = 1; i < deviceCount; i++ )
         devices[i].GetBank( writeBank )->Write( request );
 
       nextRead = MAX( nextRead, GetEventQueue()->GetCurrentCycle() + p->tCWD + p->tBURST
@@ -289,7 +306,10 @@ bool Rank::Precharge( NVMainRequest *request )
    *  There are no rank-level constraints on precharges. If the bank says timing
    *  was met we can send the command to the bank.
    */
-  for( ncounter_t i = 0; i < deviceCount; i++ )
+  GetChild( request )->IssueCommand( request );
+
+  /* Broadcast request to remaining banks... this won't call hooks. */
+  for( ncounter_t i = 1; i < deviceCount; i++ )
     devices[i].GetBank( prechargeBank )->Precharge( request );
 
   return true;
@@ -309,14 +329,19 @@ bool Rank::PowerUp( NVMainRequest *request )
       return false;
     }
 
-  returnValue = true;
-  for( ncounter_t i = 0; i < deviceCount; i++ )
-    if( !devices[i].GetBank( puBank )->PowerUp( request ) )
-      {
-        if( i != 0 )
-          std::cerr << "Rank: Error partial power up failure!" << std::endl;
-        returnValue = false;
-      }
+  returnValue = GetChild( request )->IssueCommand( request );
+
+  if( returnValue )
+    {
+      /* Broadcast request to remaining banks... this won't call hooks. */
+      for( ncounter_t i = 1; i < deviceCount; i++ )
+        if( !devices[i].GetBank( puBank )->PowerUp( request ) )
+          {
+            if( i != 0 )
+              std::cerr << "Rank: Error partial power up failure!" << std::endl;
+            returnValue = false;
+          }
+    }
 
   return returnValue;
 }
@@ -334,7 +359,10 @@ bool Rank::Refresh( NVMainRequest *request )
       return false;
     }
 
-  for( ncounter_t i = 0; i < deviceCount; i++ )
+  GetChild( request )->IssueCommand( request );
+
+  /* Broadcast request to remaining banks... this won't call hooks. */
+  for( ncounter_t i = 1; i < deviceCount; i++ )
     devices[i].GetBank( reBank )->Refresh( );
 
   return true;
@@ -488,7 +516,7 @@ bool Rank::IsIssuable( NVMainRequest *req, FailReason *reason )
 
 bool Rank::IssueCommand( NVMainRequest *req )
 {
-  bool success = false;
+  bool rv = false;
 
   if( !IsIssuable( req ) )
     {
@@ -496,32 +524,32 @@ bool Rank::IssueCommand( NVMainRequest *req )
     }
   else
     {
-      success = false;
+      rv = true;
       
       switch( req->type )
         {
         case ACTIVATE:
-          success = this->Activate( req );
+          rv = this->Activate( req );
           break;
         
         case READ:
-          success = this->Read( req );
+          rv = this->Read( req );
           break;
         
         case WRITE:
-          success = this->Write( req );
+          rv = this->Write( req );
           break;
         
         case PRECHARGE:
-          success = this->Precharge( req );
+          rv = this->Precharge( req );
           break;
 
         case POWERUP:
-          success = this->PowerUp( req );
+          rv = this->PowerUp( req );
           break;
       
         case REFRESH:
-          success = this->Refresh( req );
+          rv = this->Refresh( req );
           break;
 
         default:
@@ -530,7 +558,7 @@ bool Rank::IssueCommand( NVMainRequest *req )
         }
     }
 
-  return success;
+  return rv;
 }
 
 

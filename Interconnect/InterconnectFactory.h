@@ -20,8 +20,6 @@
 
 #include "src/Interconnect.h"
 
-#include "Interconnect/OnChipBus/OnChipBus.h"
-#include "Interconnect/OffChipBus/OffChipBus.h"
 
 
 namespace NVM {
