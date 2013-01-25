@@ -67,6 +67,10 @@ class FRFCFS_WQF : public MemoryController
   WriteQueueFull WQF;
   ComplementPredicate WQFc;
 
+  /* added by Tao @ 01/25/2013, the write drain high and low watermark */
+  uint64_t HighWaterMark;
+  uint64_t LowWaterMark;
+
   /* Stats */
   uint64_t measuredLatencies, measuredQueueLatencies;
   float averageLatency, averageQueueLatency;

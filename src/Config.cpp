@@ -61,9 +61,11 @@ void Config::Read( std::string filename )
   std::string line;
   std::ifstream configFile( filename.c_str( ) );
   std::map<std::string, std::string>::iterator i;
+  /* added by Tao @ 01/25/2013 */
+  std::string subline;
 
   this->fileName = filename;
-  
+
   if( configFile.is_open( ) ) 
     {
       while( !configFile.eof( ) ) 
@@ -71,19 +73,30 @@ void Config::Read( std::string filename )
           getline( configFile, line );
 
           /* Ignore blank lines and comments beginning with ';'. */
-          if( line.length( ) == 0 || line[0] == ';' )
-            {
-              continue;
-            }
+          /* modified by Tao @ 01/25/2013 to improve the reliability */
 
+          // find the first character that is not space, tab
+          int pos = line.find_first_not_of( " \t\r\n" );
+
+          // if not found, the line is empty. just skip it
+          if( pos == std::string::npos )
+              continue;
+          // else, check whether the first character is the comment flag. 
+          // if so, skip it 
+          else if( line[pos] == ';' )
+              continue;
+          // else, remove the redundant white space at the beginning
+          else
+              subline = line.substr( pos );
+
+          /* parse the parameters and values */
           char *cline;
-          cline = new char[line.size( ) + 1];
-          strcpy( cline, line.c_str( ) );
+          cline = new char[subline.size( ) + 1];
+          strcpy( cline, subline.c_str( ) );
           
           char *tokens = strtok( cline, " " );
           
           std::string ty = std::string( tokens );
-          
           
           tokens = strtok( NULL, " " );
           
@@ -112,8 +125,6 @@ void Config::Read( std::string filename )
               std::cout << "Config: Missing value for key " << ty << std::endl;
               values.insert( std::pair<std::string, std::string>( ty, "" ) );
             }
-
-
         }
     }
   else

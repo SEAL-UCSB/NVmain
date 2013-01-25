@@ -16,6 +16,7 @@
 
 
 #include "MemControl/FRFCFS-WQF/FRFCFS-WQF.h"
+#include <assert.h>
 
 
 using namespace NVM;
@@ -41,6 +42,13 @@ FRFCFS_WQF::FRFCFS_WQF( Interconnect *memory, AddressTranslator *translator )
   readQueueSize = 32;
   writeQueueSize = 8;
   starvationThreshold = 4;
+  /*
+   * added by Tao @ 01/25/2013
+   * initialize the high and low watermark. the high watermark is set the same
+   * as size of write queue. the low watermark is set 0 by default.
+   */
+  HighWaterMark = writeQueueSize;
+  LowWaterMark = 0;
 
   /* Memory controller statistics. */
   averageLatency = 0.0f;
@@ -77,6 +85,30 @@ void FRFCFS_WQF::SetConfig( Config *conf )
 
   if( conf->KeyExists( "WriteQueueSize" ) )
     writeQueueSize = static_cast<unsigned int>( conf->GetValue( "WriteQueueSize" ) );
+
+  /*
+   * added by Tao @ 01/25/2013
+   * set low and high watermark for the write drain. the write drain will
+   * start once the number of bufferred write reaches the high watermark
+   * "HighWaterMark". the write drain will stop as the number of write is
+   * lower than the low watermark "LowWaterMark"
+   */
+  if( conf->KeyExists( "HighWaterMark" ) )
+    HighWaterMark = static_cast<unsigned int>( conf->GetValue( "HighWaterMark" ) );
+
+  if( conf->KeyExists( "LowWaterMark" ) )
+    LowWaterMark = static_cast<unsigned int>( conf->GetValue( "LowWaterMark" ) );
+  // do sanity check
+  if( HighWaterMark > writeQueueSize )
+  {
+      HighWaterMark = writeQueueSize;
+      std::cout << "NVMain Warning: high watermark can NOT be larger than write queue size. Has reset it to equal." << std::endl;
+  }
+  else if( LowWaterMark > HighWaterMark )
+  {
+      LowWaterMark = 0;
+      std::cout << "NVMain Warning: low watermark can NOT be smaller than high watermark. Has reset it to 0." << std::endl;
+  }
 
   MemoryController::SetConfig( conf );
 }
@@ -168,11 +200,12 @@ bool FRFCFS_WQF::WriteQueueFull::operator() (uint64_t, uint64_t)
    *  Otherwise, if the write queue becomes empty/below a threshold, stop.
    */
   /* Notes: Can easily replace memoryController.writeQueueSize and 0 with a threshold. */
-  if( draining == false && memoryController.writeQueue.size() >= memoryController.writeQueueSize )
+  /* modified by Tao @ 01/25/2013. just do what the above comment said */
+  if( draining == false && memoryController.writeQueue.size() >= memoryController.HighWaterMark )
     {
       draining = true;
     }
-  else if( draining == true && memoryController.writeQueue.size() == 0 )
+  else if( draining == true && memoryController.writeQueue.size() <= memoryController.LowWaterMark )
     {
       draining = false;
     }
@@ -257,7 +290,6 @@ void FRFCFS_WQF::Cycle( ncycle_t )
           delete dummyPrechargeReq;
       }
   } 
-
 
   /* Issue memory commands from the command queue. */
   CycleCommandQueues( );
