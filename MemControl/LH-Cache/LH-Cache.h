@@ -39,11 +39,11 @@ namespace NVM {
 class NVMain;
 
 
-class BasicDRC : public MemoryController
+class LH_Cache : public MemoryController
 {
  public:
-  BasicDRC( Interconnect *memory, AddressTranslator *translator );
-  virtual ~BasicDRC( );
+  LH_Cache( Interconnect *memory, AddressTranslator *translator );
+  virtual ~LH_Cache( );
 
 
   void SetConfig( Config *conf );
@@ -65,13 +65,13 @@ class BasicDRC : public MemoryController
   /* Predicate to determine if a bank is locked. */
   class BankLocked : public SchedulingPredicate
   {
-    friend class BasicDRC;
+    friend class LH_Cache;
 
     private:
-      BasicDRC &memoryController;
+      LH_Cache &memoryController;
 
     public:
-      BankLocked( BasicDRC &_memoryController ) : memoryController(_memoryController) { }
+      BankLocked( LH_Cache &_memoryController ) : memoryController(_memoryController) { }
 
       bool operator() (uint64_t, uint64_t);
   };
@@ -79,14 +79,14 @@ class BasicDRC : public MemoryController
   /* Predicate to determine if fill queue is full. */
   class FillQueueFull : public SchedulingPredicate
   {
-    friend class BasicDRC;
+    friend class LH_Cache;
 
     private:
-      BasicDRC &memoryController;
+      LH_Cache &memoryController;
       bool draining;
 
     public:
-      FillQueueFull( BasicDRC &_memoryController ) : memoryController(_memoryController), draining(false) { }
+      FillQueueFull( LH_Cache &_memoryController ) : memoryController(_memoryController), draining(false) { }
 
       bool operator() (uint64_t, uint64_t);
   };
@@ -94,13 +94,13 @@ class BasicDRC : public MemoryController
   /* Predicate to determine if fill queue is full. */
   class NoWriteBuffering : public SchedulingPredicate
   {
-    friend class BasicDRC;
+    friend class LH_Cache;
 
     private:
-      BasicDRC &memoryController;
+      LH_Cache &memoryController;
 
     public:
-      NoWriteBuffering( BasicDRC &_memoryController ) : memoryController(_memoryController) { }
+      NoWriteBuffering( LH_Cache &_memoryController ) : memoryController(_memoryController) { }
 
       bool operator() (uint64_t, uint64_t);
   };
