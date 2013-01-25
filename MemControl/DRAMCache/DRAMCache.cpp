@@ -76,10 +76,10 @@ void DRAMCache::SetConfig( Config *conf )
     numChannels = 1;
 
 
-  drcChannels = new BasicDRC*[numChannels];
+  drcChannels = new LH_Cache*[numChannels];
   for( ncounter_t i = 0; i < numChannels; i++ )
     {
-      drcChannels[i] = new BasicDRC( GetMemory(), GetTranslator() );
+      drcChannels[i] = new LH_Cache( GetMemory(), GetTranslator() ); // TODO: Create a factory for other types of DRAM caches and change this type to a generic memory controller
       drcChannels[i]->SetMainMemory( mainMemory );
 
       drcChannels[i]->SetID( static_cast<int>(i) );
@@ -133,7 +133,7 @@ bool DRAMCache::RequestComplete( NVMainRequest *req )
     {
       /* 
        *  We handle DRC and NVMain source requests. If the request is 
-       *  somewhere in the DRC hierarchy, send to the BasicDRC, otherwise
+       *  somewhere in the DRC hierarchy, send to the LH_Cache, otherwise
        *  back to NVMain.
        */
       bool drcRequest = false;

@@ -14,7 +14,7 @@
  *
  */
 
-#include "MemControl/BasicDRC/BasicDRC.h"
+#include "MemControl/LH-Cache/LH-Cache.h"
 #include "include/NVMHelpers.h"
 #include "NVM/nvmain.h"
 
@@ -26,7 +26,7 @@
 using namespace NVM;
 
 
-BasicDRC::BasicDRC( Interconnect *memory, AddressTranslator *translator )
+LH_Cache::LH_Cache( Interconnect *memory, AddressTranslator *translator )
     : locks(*this), FQF(*this), NWB(*this)
 {
   translator->GetTranslationMethod( )->SetOrder( 5, 1, 4, 3, 2 );
@@ -86,13 +86,13 @@ BasicDRC::BasicDRC( Interconnect *memory, AddressTranslator *translator )
 }
 
 
-BasicDRC::~BasicDRC( )
+LH_Cache::~LH_Cache( )
 {
 
 }
 
 
-void BasicDRC::SetConfig( Config *conf )
+void LH_Cache::SetConfig( Config *conf )
 {
   /* Defaults */
   starvationThreshold = 4;
@@ -154,13 +154,13 @@ void BasicDRC::SetConfig( Config *conf )
 }
 
 
-void BasicDRC::SetMainMemory( NVMain *mm )
+void LH_Cache::SetMainMemory( NVMain *mm )
 {
   mainMemory = mm;
 }
 
 
-void BasicDRC::CalculateLatency( NVMainRequest *req, float *average, uint64_t *measured )
+void LH_Cache::CalculateLatency( NVMainRequest *req, float *average, uint64_t *measured )
 {
       (*average) = (( (*average) * static_cast<float>(*measured))
                       + static_cast<float>(req->completionCycle)
@@ -170,7 +170,7 @@ void BasicDRC::CalculateLatency( NVMainRequest *req, float *average, uint64_t *m
 }
 
 
-void BasicDRC::CalculateQueueLatency( NVMainRequest *req, float *average, uint64_t *measured )
+void LH_Cache::CalculateQueueLatency( NVMainRequest *req, float *average, uint64_t *measured )
 {
       (*average) = (( (*average) * static_cast<float>(*measured))
                       + static_cast<float>(req->issueCycle)
@@ -180,7 +180,7 @@ void BasicDRC::CalculateQueueLatency( NVMainRequest *req, float *average, uint64
 }
 
 
-bool BasicDRC::IssueAtomic( NVMainRequest *req )
+bool LH_Cache::IssueAtomic( NVMainRequest *req )
 {
   uint64_t rank, bank, row;
   NVMDataBlock dummy;
@@ -204,7 +204,7 @@ bool BasicDRC::IssueAtomic( NVMainRequest *req )
 }
 
 
-bool BasicDRC::IssueCommand( NVMainRequest *req )
+bool LH_Cache::IssueCommand( NVMainRequest *req )
 {
   if( drcQueue->size( ) >= drcQueueSize )
     {
@@ -236,7 +236,7 @@ bool BasicDRC::IssueCommand( NVMainRequest *req )
 
 
 
-bool BasicDRC::RequestComplete( NVMainRequest *req )
+bool LH_Cache::RequestComplete( NVMainRequest *req )
 {
   bool rv = false;
 
@@ -370,7 +370,7 @@ bool BasicDRC::RequestComplete( NVMainRequest *req )
 }
 
 
-bool BasicDRC::FillQueueFull::operator() (uint64_t, uint64_t)
+bool LH_Cache::FillQueueFull::operator() (uint64_t, uint64_t)
 {
   if( memoryController.useWriteBuffer && draining == false
       && memoryController.fillQueue->size() >= memoryController.fillQueueSize )
@@ -387,7 +387,7 @@ bool BasicDRC::FillQueueFull::operator() (uint64_t, uint64_t)
 }
 
 
-bool BasicDRC::BankLocked::operator() (uint64_t rank, uint64_t bank)
+bool LH_Cache::BankLocked::operator() (uint64_t rank, uint64_t bank)
 {
   bool rv = false;
 
@@ -399,13 +399,13 @@ bool BasicDRC::BankLocked::operator() (uint64_t rank, uint64_t bank)
 }
 
 
-bool BasicDRC::NoWriteBuffering::operator() (uint64_t, uint64_t)
+bool LH_Cache::NoWriteBuffering::operator() (uint64_t, uint64_t)
 {
   return !memoryController.useWriteBuffer;
 }
 
 
-void BasicDRC::Cycle( ncycle_t /*steps*/ )
+void LH_Cache::Cycle( ncycle_t /*steps*/ )
 {
   NVMainRequest *nextRequest = NULL;
 
@@ -484,7 +484,7 @@ void BasicDRC::Cycle( ncycle_t /*steps*/ )
 
 
 
-NVMainRequest *BasicDRC::MakeTagRequest( NVMainRequest *triggerRequest, int tag )
+NVMainRequest *LH_Cache::MakeTagRequest( NVMainRequest *triggerRequest, int tag )
 {
   NVMainRequest *tagRequest = new NVMainRequest( );
 
@@ -502,7 +502,7 @@ NVMainRequest *BasicDRC::MakeTagRequest( NVMainRequest *triggerRequest, int tag 
 
 
 
-NVMainRequest *BasicDRC::MakeDRCRequest( NVMainRequest *triggerRequest)
+NVMainRequest *LH_Cache::MakeDRCRequest( NVMainRequest *triggerRequest)
 {
   /* Retreive the original request. */
   NVMainRequest *drcRequest = static_cast<NVMainRequest *>(triggerRequest->reqInfo);
@@ -517,7 +517,7 @@ NVMainRequest *BasicDRC::MakeDRCRequest( NVMainRequest *triggerRequest)
 
 
 
-NVMainRequest *BasicDRC::MakeTagWriteRequest( NVMainRequest *triggerRequest )
+NVMainRequest *LH_Cache::MakeTagWriteRequest( NVMainRequest *triggerRequest )
 {
   NVMainRequest *tagRequest = new NVMainRequest( );
 
@@ -534,7 +534,7 @@ NVMainRequest *BasicDRC::MakeTagWriteRequest( NVMainRequest *triggerRequest )
 
 
 
-bool BasicDRC::IssueDRCCommands( NVMainRequest *req )
+bool LH_Cache::IssueDRCCommands( NVMainRequest *req )
 {
   bool rv = false;
   uint64_t rank, bank, row;
@@ -599,7 +599,7 @@ bool BasicDRC::IssueDRCCommands( NVMainRequest *req )
 
 
 
-bool BasicDRC::IssueFillCommands( NVMainRequest *req )
+bool LH_Cache::IssueFillCommands( NVMainRequest *req )
 {
   bool rv = false;
   uint64_t rank, bank, row;
@@ -657,7 +657,7 @@ bool BasicDRC::IssueFillCommands( NVMainRequest *req )
 }
 
 
-void BasicDRC::PrintStats( )
+void LH_Cache::PrintStats( )
 {
   std::cout << "i" << psInterval << "." << statName << id << ".mem_reads " << mem_reads << std::endl;
   std::cout << "i" << psInterval << "." << statName << id << ".mem_writes " << mem_writes << std::endl;

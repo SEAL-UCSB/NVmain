@@ -22,7 +22,7 @@
 
 #include "src/MemoryController.h"
 #include "Utils/Caches/CacheBank.h"
-#include "MemControl/BasicDRC/BasicDRC.h"
+#include "MemControl/LH-Cache/LH-Cache.h"
 
 
 namespace NVM {
@@ -50,7 +50,7 @@ class DRAMCache : public MemoryController
 
  private:
   NVMain *mainMemory;
-  BasicDRC **drcChannels;
+  LH_Cache **drcChannels;
   ncounter_t numChannels;
 
 };
