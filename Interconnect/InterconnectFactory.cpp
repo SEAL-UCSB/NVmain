@@ -19,6 +19,11 @@
 #include <iostream>
 
 
+/* Add your interconnect's include file below. */
+#include "Interconnect/OnChipBus/OnChipBus.h"
+#include "Interconnect/OffChipBus/OffChipBus.h"
+
+
 using namespace NVM;
 
 

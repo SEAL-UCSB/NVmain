@@ -18,6 +18,7 @@
 #define __CONFIG_H__
 
 
+#include <vector>
 #include <string>
 #include <map>
 
@@ -50,6 +51,8 @@ class Config
 
   bool KeyExists( std::string key );
 
+  std::vector<std::string>& GetHooks( );
+
   void Print( );
 
   /*
@@ -62,6 +65,7 @@ class Config
  private:
   std::string fileName;
   std::map<std::string, std::string> values;
+  std::vector<std::string> hookList;
   SimInterface *simPtr;
 
 };

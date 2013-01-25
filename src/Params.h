@@ -122,7 +122,6 @@ public:
   ncycle_t tXP;
   ncycle_t tXPDLL;
 
-  // added by Tao @ 01/22/2013
   ncycle_t tRDPDEN; // interval between Read/ReadA and PowerDown
   ncycle_t tWRPDEN; // interval between Write and PowerDown
   ncycle_t tWRAPDEN; // interval between WriteA and PowerDown

@@ -20,6 +20,11 @@
 #include <iostream>
 
 
+/* Add your prefetcher's include file below. */
+#include "Prefetchers/NaivePrefetcher/NaivePrefetcher.h"
+#include "Prefetchers/STeMS/STeMS.h"
+
+
 using namespace NVM;
 
 

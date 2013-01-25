@@ -96,8 +96,16 @@ void Config::Read( std::string filename )
 
           if( tokens != NULL )
             {
-              dl = (float)atof( tokens );
-              values.insert( std::pair<std::string, std::string>( ty, tokens ) );
+              /* Treat hooks specially. */
+              if( ty == "AddHook" )
+                {
+                  hookList.push_back( tokens );
+                }
+              else
+                {
+                  dl = (float)atof( tokens );
+                  values.insert( std::pair<std::string, std::string>( ty, tokens ) );
+                }
             }
           else
             {
@@ -240,6 +248,12 @@ float Config::GetEnergy( std::string key )
 void Config::SetEnergy( std::string key, std::string energy )
 {
   values.insert( std::pair<std::string, std::string>( key, energy ) );
+}
+
+
+std::vector<std::string>& Config::GetHooks( )
+{
+  return hookList;
 }
 
 

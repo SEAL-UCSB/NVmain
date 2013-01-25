@@ -36,7 +36,6 @@ MemoryController::MemoryController( )
   activateQueued = NULL;
   effectiveRow = NULL;
   
-  /* added by Tao @ 01/22/2013 */
   curRank = 0;
   curBank = 0;
 }
@@ -529,21 +528,20 @@ bool MemoryController::FindClosedBankRequests( std::list<NVMainRequest *>& trans
   return rv;
 }
 
-// added by Tao @ 01/22/2013, return the bank that can be precharged
 bool MemoryController::FindPrechargableBank( uint64_t *preRank, uint64_t *preBank )
 {
     std::list<NVMainRequest *>::iterator it;
 
-    for( unsigned rankIdx = 0; rankIdx < p->RANKS; rankIdx++ )
-        for( unsigned bankIdx = 0; bankIdx < p->BANKS; bankIdx++ )
+    for( ncounter_t rankIdx = 0; rankIdx < p->RANKS; rankIdx++ )
+        for( ncounter_t bankIdx = 0; bankIdx < p->BANKS; bankIdx++ )
         {
             /* if the bank is open and no command in the queue, then the bank
              * can be closed since there is no command relative to this bank
              * Note: this function has lowest priority and should be used at
              * the end of the controller scheduling
              */
-            unsigned i = (curRank + rankIdx)%p->RANKS;
-            unsigned j = (curBank + bankIdx)%p->BANKS;
+            ncounter_t i = (curRank + rankIdx)%p->RANKS;
+            ncounter_t j = (curBank + bankIdx)%p->BANKS;
             if( activateQueued[i][j] && bankQueues[i][j].empty() )
             {
                 *preRank = i;
@@ -624,13 +622,12 @@ bool MemoryController::IssueMemoryCommands( NVMainRequest *req )
 
 void MemoryController::CycleCommandQueues( )
 {
-  /* modified by Tao @ 01/24/2013, avoid the fixed rank/bank priority */
-  for( unsigned rankIdx = 0; rankIdx < p->RANKS; rankIdx++ )
+  for( ncounter_t rankIdx = 0; rankIdx < p->RANKS; rankIdx++ )
     {
-      for( unsigned bankIdx = 0; bankIdx < p->BANKS; bankIdx++ )
+      for( ncounter_t bankIdx = 0; bankIdx < p->BANKS; bankIdx++ )
         {
-          unsigned i = (curRank + rankIdx)%p->RANKS;
-          unsigned j = (curBank + bankIdx)%p->BANKS;
+          ncounter_t i = (curRank + rankIdx)%p->RANKS;
+          ncounter_t j = (curBank + bankIdx)%p->BANKS;
           FailReason fail;
 
           /* 
@@ -663,7 +660,6 @@ void MemoryController::CycleCommandQueues( )
 
               bankQueues[i][j].erase( bankQueues[i][j].begin( ) );
 
-              // added by Tao @ 01/23/2013
               MoveRankBank();
               return ; // we should return since one time only one command can be issued
             }
@@ -714,7 +710,6 @@ void MemoryController::CycleCommandQueues( )
 }
 
 /* 
- * added by Tao @ 01/23/2013 
  * MoveRankBank() increment curRank and/or curBank according to the scheduling
  * scheme
  * 0 -- Fixed Scheduling from Rank0 and Bank0

@@ -32,8 +32,11 @@
 namespace NVM {
 
 
+typedef uint64_t (NVMObject::*CacheSetDecoder)(NVMAddress&);
+
+
 enum CacheState { CACHE_IDLE, CACHE_BUSY };
-enum CacheOperation { CACHE_NONE, CACHE_READ, CACHE_WRITE, CACHE_SCRUB };
+enum CacheOperation { CACHE_NONE, CACHE_READ, CACHE_WRITE, CACHE_SCRUB, CACHE_EVICT };
 
 struct CacheRequest
 {
@@ -41,7 +44,9 @@ struct CacheRequest
   NVMAddress address;
   NVMAddress endAddr;
   NVMDataBlock data;
-  bool complete;
+  bool hit;
+  NVMObject *owner;
+  NVMainRequest *originalRequest;
 };
 
 
@@ -90,14 +95,20 @@ class CacheBank : public NVMObject
   uint64_t GetReadTime( );
   uint64_t GetWriteTime( );
 
-  bool IsIssuable( CacheRequest *req );
-  void IssueCommand( CacheRequest *req );
+  uint64_t GetAssociativity( );
+  uint64_t GetCachelineSize( );
+  uint64_t GetSetCount( );
+  float GetCacheOccupancy( );
+
+  bool IsIssuable( NVMainRequest *req );
+  bool IssueCommand( NVMainRequest *req );
+  bool RequestComplete( NVMainRequest *req );
   
   void Cycle( ncycle_t steps );
 
   bool ChooseVictim( NVMAddress& addr, NVMAddress *victim );
 
-  void SetAddressTranslator( AddressTranslator *at );
+  void SetDecodeFunction( NVMObject *dcClass, CacheSetDecoder dcFunc );
 
 // protected:
   uint64_t numSets, numAssoc, cachelineSize;
@@ -105,12 +116,14 @@ class CacheBank : public NVMObject
   uint64_t accessTime, stateTimer;
   uint64_t readTime, writeTime;
   CacheState state;
-  CacheRequest *currentReq; // Cache bank can only handle one request at a time.
 
-  AddressTranslator *addrTrans;
   CacheEntry *FindSet( NVMAddress& addr );
   uint64_t SetID( NVMAddress& addr );
   bool isMissMap;
+
+  CacheSetDecoder decodeFunc;
+  NVMObject *decodeClass;
+  uint64_t DefaultDecoder( NVMAddress& addr );
 
 };
 

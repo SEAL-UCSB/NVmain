@@ -82,7 +82,7 @@ void DRAMCache::SetConfig( Config *conf )
       drcChannels[i] = new BasicDRC( GetMemory(), GetTranslator() );
       drcChannels[i]->SetMainMemory( mainMemory );
 
-      drcChannels[i]->SetID( i );
+      drcChannels[i]->SetID( static_cast<int>(i) );
       drcChannels[i]->StatName( this->statName ); 
 
       drcChannels[i]->SetParent( this );
