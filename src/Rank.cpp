@@ -347,25 +347,18 @@ bool Rank::PowerUp( NVMainRequest *request )
 }
 
 
+/*
+ * modified by Tao @ 01/25/2013
+ * refresh is issued to all banks in this rank 
+ */
 bool Rank::Refresh( NVMainRequest *request )
 {
-  uint64_t reBank;
-
-  request->address.GetTranslatedAddress( NULL, NULL, &reBank, NULL, NULL );
-
-  if( reBank >= bankCount )
-    {
-      std::cerr << "Rank: Attempted to refresh non-existant bank: " << reBank << std::endl;
-      return false;
-    }
-
-  GetChild( request )->IssueCommand( request );
-
-  /* Broadcast request to remaining banks... this won't call hooks. */
-  for( ncounter_t i = 1; i < deviceCount; i++ )
-    devices[i].GetBank( reBank )->Refresh( );
-
-  return true;
+    /* Broadcast request to all banks... this won't call hooks. */
+    for( ncounter_t i = 0; i < deviceCount; i++ )
+        for( ncounter_t j = 0; i < bankCount; j++ )
+            devices[i].GetBank( j )->Refresh( );
+    
+    return true;
 }
 
 

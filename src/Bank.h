@@ -106,6 +106,9 @@ class Bank : public NVMObject
 
   void Cycle( ncycle_t steps );
 
+  /* added by Tao @ 01/25/2013 */
+  bool RequestComplete( NVMainRequest* );
+
  private:
   Config *conf;
   std::string statName;
