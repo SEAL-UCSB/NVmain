@@ -207,7 +207,7 @@ bool Visualizer::RequestComplete( NVMainRequest *req )
        */
       if( req->type == BUS_READ || req->type == BUS_WRITE )
         {
-          char fillSymbol;
+          char fillSymbol = '?';
 
           if( req->type == BUS_WRITE ) fillSymbol = 'R'; 
           else if( req->type == BUS_READ ) fillSymbol = 'W'; 
