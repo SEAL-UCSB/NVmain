@@ -18,6 +18,7 @@
 #include <fstream>
 #include <cstring>
 #include <cstdlib>
+#include <assert.h>
 
 #include "src/Config.h"
 
@@ -76,18 +77,35 @@ void Config::Read( std::string filename )
           /* modified by Tao @ 01/25/2013 to improve the reliability */
 
           // find the first character that is not space, tab
-          int pos = line.find_first_not_of( " \t\r\n" );
+          int cPos = line.find_first_not_of( " \t\r\n" );
 
           // if not found, the line is empty. just skip it
-          if( pos == std::string::npos )
+          if( cPos == std::string::npos )
               continue;
           // else, check whether the first character is the comment flag. 
           // if so, skip it 
-          else if( line[pos] == ';' )
+          else if( line[cPos] == ';' )
               continue;
-          // else, remove the redundant white space at the beginning
+          // else, remove the redundant white space and the possible comments
           else
-              subline = line.substr( pos );
+          {
+              // find the position of the first ';'
+              int colonPos = line.find_first_of( ";" );
+
+              // if there is no ';', extract all
+              if( colonPos == std::string::npos )
+              {
+                    subline = line.substr( cPos );
+              }
+              else
+              {
+                    // colonPos must be larger than cPos
+                    assert( colonPos > cPos );
+
+                    // extract the useful message from the line
+                    subline = line.substr( cPos, (colonPos - cPos) );
+              }
+          }
 
           /* parse the parameters and values */
           char *cline;

@@ -665,14 +665,15 @@ void MemoryController::CycleCommandQueues( )
             }
           else if( p->UseRefresh && (fail.reason == OPEN_REFRESH_WAITING || fail.reason == CLOSED_REFRESH_WAITING) )
             {
-              // Note: This may interrupt some read/write request, we can probably just wait
-              // for that to complete before doing this, since there is a rather large (tREFI - 8*tREFI)
-              // window to issue refresh requests.
-              if( fail.reason == OPEN_REFRESH_WAITING )
-                {
-                  /* Reactivate this row after precharge. */
-                  bankQueues[i][j].push_front( MakeActivateRequest( bankQueues[i][j].at(0) ) );
-                }
+              //// annotated by Tao @ 01/25/2013 
+              //// // Note: This may interrupt some read/write request, we can probably just wait
+              //// // for that to complete before doing this, since there is a rather large (tREFI - 8*tREFI)
+              //// // window to issue refresh requests.
+              //// if( fail.reason == OPEN_REFRESH_WAITING )
+              ////   {
+              ////     /* Reactivate this row after precharge. */
+              ////     bankQueues[i][j].push_front( MakeActivateRequest( bankQueues[i][j].at(0) ) );
+              ////   }
 
               bankQueues[i][j].push_front( MakeRefreshRequest( bankQueues[i][j].at(0) ) );
 
@@ -703,6 +704,12 @@ void MemoryController::CycleCommandQueues( )
                             << std::dec << ". Queued time: " << queueHead->arrivalCycle
                             << ". Current time: " << GetEventQueue()->GetCurrentCycle() << ". Type: " 
                             << queueHead->type << std::endl;
+
+                  /* 
+                   * added by Tao @ 01/25/2012, avoid print too much warning
+                   * that eat the disk space 
+                   */
+                  exit(1);
                 }
             }
         }

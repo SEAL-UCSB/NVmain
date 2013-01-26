@@ -231,7 +231,21 @@ void FRFCFS::Cycle( ncycle_t )
     {
       IssueMemoryCommands( nextRequest );
     }
+  /* added by Tao @ 01/25/2013, if close-page is applied, find a prechargable bank */
+  else if( p->ClosePage )
+  {
+      uint64_t rank, bank;
+      if( FindPrechargableBank( &rank, &bank ) )
+      {
+          NVMainRequest* dummyPrechargeReq = new NVMainRequest();
+          dummyPrechargeReq->owner = this;
+          dummyPrechargeReq->address.SetTranslatedAddress( 0, 0, bank, rank, 0 );
+          bankQueues[rank][bank].push_back( MakePrechargeRequest( dummyPrechargeReq ) );
+          activateQueued[rank][bank] = false;
 
+          delete dummyPrechargeReq;
+      }
+  } 
 
   /* Issue any commands in the command queues. */
   CycleCommandQueues( );
