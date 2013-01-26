@@ -77,7 +77,7 @@ void Config::Read( std::string filename )
           /* modified by Tao @ 01/25/2013 to improve the reliability */
 
           // find the first character that is not space, tab
-          int cPos = line.find_first_not_of( " \t\r\n" );
+          size_t cPos = line.find_first_not_of( " \t\r\n" );
 
           // if not found, the line is empty. just skip it
           if( cPos == std::string::npos )
@@ -90,7 +90,7 @@ void Config::Read( std::string filename )
           else
           {
               // find the position of the first ';'
-              int colonPos = line.find_first_of( ";" );
+              size_t colonPos = line.find_first_of( ";" );
 
               // if there is no ';', extract all
               if( colonPos == std::string::npos )

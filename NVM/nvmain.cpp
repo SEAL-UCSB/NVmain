@@ -26,7 +26,7 @@
 #include "Interconnect/InterconnectFactory.h"
 #include "MemControl/MemoryControllerFactory.h"
 #include "Decoders/DecoderFactory.h"
-//#include "Utils/HookFactory.h"
+#include "Utils/HookFactory.h"
 
 #include "include/NVMainRequest.h"
 #include "include/NVMHelpers.h"
@@ -145,25 +145,25 @@ void NVMain::SetConfig( Config *conf, std::string memoryName )
   /*
    *  Add any specified hooks
    */
-  //std::vector<std::string>& hookList = config->GetHooks( );
+  std::vector<std::string>& hookList = config->GetHooks( );
 
-  //for( int i = 0; i < hookList.size( ); i++ )
-  //  {
-  //    std::cout << "Creating hook " << hookList[i] << std::endl;
+  for( size_t i = 0; i < hookList.size( ); i++ )
+    {
+      std::cout << "Creating hook " << hookList[i] << std::endl;
 
-  //    NVMObject *hook = HookFactory::CreateHook( hookList[i] );
-  //    
-  //    if( hook != NULL )
-  //      {
-  //        AddHook( hook );
-  //        hook->SetParent( this );
-  //        hook->Init( );
-  //      }
-  //    else
-  //      {
-  //        std::cout << "Warning: Could not create a hook named `" << hookList[i] << "'." << std::endl;
-  //      }
-  //  }
+      NVMObject *hook = HookFactory::CreateHook( hookList[i] );
+      
+      if( hook != NULL )
+        {
+          AddHook( hook );
+          hook->SetParent( this );
+          hook->Init( );
+        }
+      else
+        {
+          std::cout << "Warning: Could not create a hook named `" << hookList[i] << "'." << std::endl;
+        }
+    }
 
 
   memory = new Interconnect* [channels];
