@@ -1,6 +1,6 @@
 # -*- mode:python -*-
 
-# Copyright (c) 2006 The Regents of The University of Michigan
+# Copyright (c) 2011 Matt Poremba 
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are
@@ -27,59 +27,10 @@
 #
 # Authors: Matt Poremba
 
-import os
-
-from os.path import basename
-
-
 Import('*')
 
 if env['TARGET_ISA'] == 'no':
     Return()
 
-env.Append(CPPPATH=Dir('.'))
 
-
-Source('NVM/nvmain.cpp')
-Source('include/NVMDataBlock.cpp')
-Source('include/NVMAddress.cpp')
-Source('src/TranslationMethod.cpp')
-Source('src/AddressTranslator.cpp')
-Source('src/Config.cpp')
-Source('src/MemoryController.cpp')
-Source('src/Device.cpp')
-Source('src/SimInterface.cpp')
-Source('src/Bank.cpp')
-Source('src/EnduranceModel.cpp')
-Source('src/Rank.cpp')
-Source('SimInterface/NullInterface/NullInterface.cpp')
-Source('src/Prefetcher.cpp')
-Source('src/Interconnect.cpp')
-Source('include/NVMHelpers.cpp')
-Source('src/Params.cpp')
-Source('src/NVMObject.cpp')
-Source('src/EventQueue.cpp')
-
-Source('Utils/HookFactory.cpp')
-Source('Utils/Caches/CacheBank.cpp')
-Source('Utils/Visualizer/Visualizer.cpp')
-
-Source('SimInterface/Gem5Interface/Gem5Interface.cpp')
-
-
-
-generated_dir = Dir('../protocol')
-
-def MakeIncludeAction(target, source, env):
-    f = file(str(target[0]), 'w')
-    for s in source:
-        print >>f, '#include "%s"' % str(s.abspath)
-    f.close()
-
-def MakeInclude(source):
-    target = generated_dir.File(basename(source))
-    include_action = MakeAction(MakeIncludeAction, Transform("MAKE INC", 1))
-    env.Command(target, source, include_action)
-
-
-MakeInclude('SimInterface/Gem5Interface/Gem5Interface.h')
+Source('MissMap.cpp')

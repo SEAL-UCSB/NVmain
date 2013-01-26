@@ -14,6 +14,9 @@
  *
  */
 
+#include <stdlib.h>
+
+
 #include "src/MemoryController.h"
 #include "include/NVMainRequest.h"
 

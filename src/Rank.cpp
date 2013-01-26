@@ -351,7 +351,7 @@ bool Rank::PowerUp( NVMainRequest *request )
  * modified by Tao @ 01/25/2013
  * refresh is issued to all banks in this rank 
  */
-bool Rank::Refresh( NVMainRequest *request )
+bool Rank::Refresh( NVMainRequest * /*request*/ )
 {
     /* Broadcast request to all banks... this won't call hooks. */
     for( ncounter_t i = 0; i < deviceCount; i++ )
