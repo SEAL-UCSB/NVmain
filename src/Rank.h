@@ -74,6 +74,12 @@ private:
   ncounter_t busWidth;
   ncycles_t lastActivate[4];
   ncounter_t FAWindex;
+  /* 
+   * added by Tao @ 01/26/2013
+   * banksPerRefresh specify how many banks will be refreshed in a single
+   * REFRESH command
+   */
+  unsigned banksPerRefresh;
 
   ncycle_t nextRead;
   ncycle_t nextWrite;

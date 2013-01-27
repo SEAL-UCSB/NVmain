@@ -19,6 +19,7 @@
 
 #include "src/MemoryController.h"
 #include "include/NVMainRequest.h"
+#include <assert.h>
 
 
 using namespace NVM;
@@ -31,16 +32,51 @@ MemoryController::MemoryController( )
   memory = NULL;
   translator = NULL;
 
-  refreshUsed = false;
-  refreshTimes = NULL;
-
   starvationThreshold = 4;
   starvationCounter = NULL;
   activateQueued = NULL;
   effectiveRow = NULL;
+
+  /* added by Tao  @ 01/26/2013 */
+  delayedRefreshCounter = NULL;
   
   curRank = 0;
   curBank = 0;
+}
+
+/* 
+ * added by Tao @ 01/26/2013
+ * release the memory space in the destructor
+ */
+MemoryController::~MemoryController( )
+{
+
+    for( ncounter_t i = 0; i < p->RANKS; i++ )
+    {
+        delete [] bankQueues[i];
+        delete [] starvationCounter[i];
+        delete [] activateQueued[i];
+        delete [] effectiveRow[i];
+    }
+
+    delete [] bankQueues;
+    delete [] starvationCounter;
+    delete [] activateQueued;
+    delete [] effectiveRow;
+    
+    /* transactionQueues may still be used in the derived classes */
+    //delete [] transactionQueues;
+
+    if( p->UseRefresh )
+    {
+        for( ncounter_t i = 0; i < p->RANKS; i++ )
+        {
+            /* Note: delete a NULL point is permitted in C++ */
+            delete [] delayedRefreshCounter[i];
+        }
+
+        delete [] delayedRefreshCounter;
+    }
 }
 
 MemoryController::MemoryController( Interconnect *memory, AddressTranslator *translator )
@@ -134,61 +170,130 @@ AddressTranslator *MemoryController::GetTranslator( )
 
 void MemoryController::SetConfig( Config *conf )
 {
-  this->config = conf;
+    this->config = conf;
 
-  Params *params = new Params( );
-  params->SetParams( conf );
-  SetParams( params );
-  
-  /*
-   *  This is essentially a copy of the timings inside the bank,
-   *  but seems easier than adding interfaces to access the banks.
-   */
-  if( p->UseRefresh_set && p->UseRefresh )
+    Params *params = new Params( );
+    params->SetParams( conf );
+    SetParams( params );
+    
+    bankQueues = new std::deque<NVMainRequest *> * [p->RANKS];
+    starvationCounter = new unsigned int * [p->RANKS];
+    activateQueued = new bool * [p->RANKS];
+    effectiveRow = new uint64_t * [p->RANKS];
+
+    for( ncounter_t i = 0; i < p->RANKS; i++ )
     {
-      refreshUsed = true;
-      refreshTimes = new ncycle_t*[ p->RANKS ];
-      for( ncounter_t i = 0; i < p->RANKS; i++ )
-        refreshTimes [i] = new ncycle_t[ p->BANKS ];
+        bankQueues[i] = new std::deque<NVMainRequest *> [p->BANKS];
+        starvationCounter[i] = new unsigned int[p->BANKS];
+        activateQueued[i] = new bool[p->BANKS];
+        effectiveRow[i] = new uint64_t[p->BANKS];
 
-      for( ncounter_t i = 0; i < p->BANKS; i++ )
+
+        for( ncounter_t j = 0; j < p->BANKS; j++ )
         {
-          ncycle_t nextRefresh;
-
-          nextRefresh = static_cast<ncycle_t>(static_cast<float>(p->tRFI) / (static_cast<float>(p->ROWS) / static_cast<float>(p->RefreshRows)));
-
-          /* Equivalent to per-bank refresh in LPDDR3 spec. */
-          if( p->StaggerRefresh_set && p->StaggerRefresh )
-            {
-              nextRefresh = static_cast<ncycle_t>(static_cast<float>(nextRefresh) * (static_cast<float>(i + 1) / static_cast<float>(p->BANKS)));
-            }
-
-          for( ncounter_t j = 0; j < p->RANKS; j++ )
-            {
-              refreshTimes[j][i] = nextRefresh;
-            }
+            starvationCounter[i][j] = 0;
+            activateQueued[i][j] = false;
+            effectiveRow[i][j] = 0;
         }
     }
 
-  bankQueues = new std::deque<NVMainRequest *> * [p->RANKS];
-  starvationCounter = new unsigned int * [p->RANKS];
-  activateQueued = new bool * [p->RANKS];
-  effectiveRow = new uint64_t * [p->RANKS];
-  for( ncounter_t i = 0; i < p->RANKS; i++ )
+    /* 
+     * added by Tao @ 01/26/2013 
+     */
+    if( p->UseRefresh )
     {
-      bankQueues[i] = new std::deque<NVMainRequest *> [p->BANKS];
-      starvationCounter[i] = new unsigned int[p->BANKS];
-      activateQueued[i] = new bool[p->BANKS];
-      effectiveRow[i] = new uint64_t[p->BANKS];
-      for( ncounter_t j = 0; j < p->BANKS; j++ )
+        delayedRefreshCounter = new unsigned * [p->RANKS];
+
+        // sanity check
+        assert( p->BanksPerRefresh <= p->BANKS );
+
+        // it does not make sense when refresh is needed by no bank can be
+        // refreshed
+        assert( p->BanksPerRefresh != 0 );
+
+        ncounter_t m_refreshBankNum = p->BANKS / p->BanksPerRefresh;
+
+        
+        // first, calculate the tREFI
+        m_tREFI = p->tRFI / (p->ROWS / p->RefreshRows );
+        ncycle_t m_refreshSlice = m_tREFI / ( p->RANKS * p->BanksPerRefresh );
+
+        for( ncounter_t i = 0; i < p->RANKS; i++ )
         {
-          starvationCounter[i][j] = 0;
-          activateQueued[i][j] = false;
-          effectiveRow[i][j] = 0;
+            delayedRefreshCounter[i] = new unsigned[m_refreshBankNum];
+            
+            // initialize the counter to 0
+            for( ncounter_t j = 0; j < m_refreshBankNum; j++ )
+            {
+                delayedRefreshCounter[i][j] = 0;
+
+                // create first refresh pulse to start the refresh countdown
+                NVMainRequest* refreshPulse = MakeRefreshRequest();
+                refreshPulse->address.SetTranslatedAddress( NULL, NULL, ( j * p->BanksPerRefresh ), i, NULL );
+
+                // stagger the refresh 
+                ncycle_t offset = (i * m_refreshBankNum + j ) * m_refreshSlice; 
+
+                // insert refresh pulse, the event queue behaves like a refresh countdown timer
+                GetEventQueue()->InsertEvent( EventResponse, this, refreshPulse, 
+                        ( GetEventQueue()->GetCurrentCycle() + m_tREFI + offset ) );
+            }
         }
     }
 }
 
+/* 
+ * added by Tao @ 01/26/2013
+ * NeedRefresh has three functions:
+ *  1) it returns false when no refresh is used (p->UseRefresh = false) 
+ *  2) it returns false if the delayed refresh counter does not
+ *  reach the threshold, which provides the flexibility for
+ *  fine-granularity refresh 
+ *  3) it automatically find the bank group the argument "bank"
+ *  specifies and return the result
+ */
+bool MemoryController::NeedRefresh( uint64_t bank, uint64_t rank )
+{
+    bool rv = false;
+
+    if( p->UseRefresh )
+        if( delayedRefreshCounter[rank][bank/p->BanksPerRefresh] >= p->DelayedRefreshThreshold )
+            rv = true;
+        
+    return rv;
+}
+
+/* 
+ * added by Tao @ 01/26/2013
+ * it simply increment the corresponding delayed refresh counter 
+ * and re-insert the refresh pulse into event queue
+ */
+void MemoryController::ProcessRefreshPulse( NVMainRequest* refresh )
+{
+    assert( refresh->type == REFRESH );
+
+    uint64_t rank, bank;
+    refresh->address.GetTranslatedAddress( NULL, NULL, &bank, &rank, NULL );
+
+    delayedRefreshCounter[rank][bank]++;
+
+    GetEventQueue()->InsertEvent( EventResponse, this, refresh, 
+            ( GetEventQueue()->GetCurrentCycle() + m_tREFI ) );
+}
+
+/* 
+ * added by Tao @ 01/26/2013
+ * it simply check all the banks in the refresh bank group whether their
+ * command queues are empty. the result is the union of each check
+ */
+bool MemoryController::IsRefreshBankQueueEmpty( uint64_t bank, uint64_t rank )
+{
+    for( ncounter_t i = 0; i < p->BanksPerRefresh; i++ )
+        if( !bankQueues[rank][bank + i].empty() )
+            return false;
+
+    return true;
+}
 
 Config *MemoryController::GetConfig( )
 {
@@ -229,13 +334,12 @@ NVMainRequest *MemoryController::MakePrechargeRequest( NVMainRequest *triggerReq
 
 
 
-NVMainRequest *MemoryController::MakeRefreshRequest( NVMainRequest *triggerRequest )
+NVMainRequest *MemoryController::MakeRefreshRequest( )
 {
   NVMainRequest *refreshRequest = new NVMainRequest( );
 
   refreshRequest->type = REFRESH;
   refreshRequest->issueCycle = GetEventQueue()->GetCurrentCycle();
-  refreshRequest->address = triggerRequest->address;
   refreshRequest->owner = this;
 
   return refreshRequest;
@@ -260,6 +364,15 @@ bool MemoryController::FindStarvedRequest( std::list<NVMainRequest *>& transacti
       uint64_t rank, bank, row;
 
       (*it)->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
+
+      /* 
+       * added by Tao @ 01/26/2013
+       * if the refresh is enabled and the bank is waiting refresh, do NOT let the
+       * following memory requests to be served
+       * Note: every FindXXXX should have this guard, hurt the simulation speed?
+       */
+      if( NeedRefresh( bank, rank ) )
+          continue ;
 
       if( activateQueued[rank][bank] && effectiveRow[rank][bank] != row    /* The effective row is not the row of this request. */
           && starvationCounter[rank][bank] >= starvationThreshold          /* This bank has reached it's starvation threshold. */
@@ -299,6 +412,15 @@ bool MemoryController::FindRowBufferHit( std::list<NVMainRequest *>& transaction
 
       (*it)->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
 
+      /* 
+       * added by Tao @ 01/26/2013
+       * if the refresh is enabled and the bank is waiting refresh, do NOT let the
+       * following memory requests to be served
+       * Note: every FindXXXX should have this guard, hurt the simulation speed?
+       */
+      if( NeedRefresh( bank, rank ) )
+          continue ;
+
       if( activateQueued[rank][bank] && effectiveRow[rank][bank] == row    /* The effective row is the row of this request. */
           && bankQueues[rank][bank].empty()                                /* No requests are currently issued to this bank. */
           && pred( rank, bank ) )                                          /* User-defined predicate is true. */
@@ -335,6 +457,15 @@ bool MemoryController::FindOldestReadyRequest( std::list<NVMainRequest *>& trans
 
       (*it)->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
 
+      /* 
+       * added by Tao @ 01/26/2013
+       * if the refresh is enabled and the bank is waiting refresh, do NOT let the
+       * following memory requests to be served
+       * Note: every FindXXXX should have this guard, hurt the simulation speed?
+       */
+      if( NeedRefresh( bank, rank ) )
+          continue ;
+
       if( activateQueued[rank][bank] 
           && bankQueues[rank][bank].empty()                                /* No requests are currently issued to this bank (Ready). */
           && pred( rank, bank ) )                                          /* User-defined predicate is true. */
@@ -369,6 +500,16 @@ bool MemoryController::FindClosedBankRequest( std::list<NVMainRequest *>& transa
       uint64_t rank, bank, row;
 
       (*it)->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
+
+      /* 
+       * added by Tao @ 01/26/2013
+       * if the refresh is enabled and the bank is waiting refresh, do NOT let the
+       * following memory requests to be served
+       * Note: every FindXXXX should have this guard, hurt the simulation speed?
+       */
+      if( NeedRefresh( bank, rank ) )
+          continue ;
+
 
       if( !activateQueued[rank][bank]                                      /* This bank is closed, anyone can issue. */
           && bankQueues[rank][bank].empty()                                /* No requests are currently issued to this bank (Ready). */
@@ -410,6 +551,15 @@ bool MemoryController::FindStarvedRequests( std::list<NVMainRequest *>& transact
 
       (*it)->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
 
+      /* 
+       * added by Tao @ 01/26/2013
+       * if the refresh is enabled and the bank is waiting refresh, do NOT let the
+       * following memory requests to be served
+       * Note: every FindXXXX should have this guard, hurt the simulation speed?
+       */
+      if( NeedRefresh( bank, rank ) )
+          continue ;
+
       if( activateQueued[rank][bank] && effectiveRow[rank][bank] != row    /* The effective row is not the row of this request. */
           && starvationCounter[rank][bank] >= starvationThreshold          /* This bank has reached it's starvation threshold. */
           && bankQueues[rank][bank].empty()                                /* No requests are currently issued to this bank. */
@@ -447,6 +597,15 @@ bool MemoryController::FindRowBufferHits( std::list<NVMainRequest *>& transactio
 
       (*it)->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
 
+      /* 
+       * added by Tao @ 01/26/2013
+       * if the refresh is enabled and the bank is waiting refresh, do NOT let the
+       * following memory requests to be served
+       * Note: every FindXXXX should have this guard, hurt the simulation speed?
+       */
+      if( NeedRefresh( bank, rank ) )
+          continue ;
+
       if( activateQueued[rank][bank] && effectiveRow[rank][bank] == row    /* The effective row is the row of this request. */
           && bankQueues[rank][bank].empty()                                /* No requests are currently issued to this bank. */
           && pred( rank, bank ) )                                          /* User-defined predicate is true. */
@@ -483,6 +642,15 @@ bool MemoryController::FindOldestReadyRequests( std::list<NVMainRequest *>& tran
 
       (*it)->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
 
+      /* 
+       * added by Tao @ 01/26/2013
+       * if the refresh is enabled and the bank is waiting refresh, do NOT let the
+       * following memory requests to be served
+       * Note: every FindXXXX should have this guard, hurt the simulation speed?
+       */
+      if( NeedRefresh( bank, rank ) )
+          continue ;
+
       if( activateQueued[rank][bank] 
           && bankQueues[rank][bank].empty()                                /* No requests are currently issued to this bank (Ready). */
           && pred( rank, bank ) )                                          /* User-defined predicate is true. */
@@ -517,6 +685,15 @@ bool MemoryController::FindClosedBankRequests( std::list<NVMainRequest *>& trans
 
       (*it)->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
 
+      /* 
+       * added by Tao @ 01/26/2013
+       * if the refresh is enabled and the bank is waiting refresh, do NOT let the
+       * following memory requests to be served
+       * Note: every FindXXXX should have this guard, hurt the simulation speed?
+       */
+      if( NeedRefresh( bank, rank ) )
+          continue ;
+
       if( !activateQueued[rank][bank]                                      /* This bank is closed, anyone can issue. */
           && bankQueues[rank][bank].empty()                                /* No requests are currently issued to this bank (Ready). */
           && pred( rank, bank ) )                                          /* User defined predicate is true. */
@@ -538,7 +715,8 @@ bool MemoryController::FindPrechargableBank( uint64_t *preRank, uint64_t *preBan
     for( ncounter_t rankIdx = 0; rankIdx < p->RANKS; rankIdx++ )
         for( ncounter_t bankIdx = 0; bankIdx < p->BANKS; bankIdx++ )
         {
-            /* if the bank is open and no command in the queue, then the bank
+            /* 
+             * if the bank is open and no command in the queue, then the bank
              * can be closed since there is no command relative to this bank
              * Note: this function has lowest priority and should be used at
              * the end of the controller scheduling
@@ -625,94 +803,93 @@ bool MemoryController::IssueMemoryCommands( NVMainRequest *req )
 
 void MemoryController::CycleCommandQueues( )
 {
-  for( ncounter_t rankIdx = 0; rankIdx < p->RANKS; rankIdx++ )
+    for( ncounter_t rankIdx = 0; rankIdx < p->RANKS; rankIdx++ )
     {
-      for( ncounter_t bankIdx = 0; bankIdx < p->BANKS; bankIdx++ )
+        for( ncounter_t bankIdx = 0; bankIdx < p->BANKS; bankIdx++ )
         {
-          ncounter_t i = (curRank + rankIdx)%p->RANKS;
-          ncounter_t j = (curBank + bankIdx)%p->BANKS;
-          FailReason fail;
+            ncounter_t i = (curRank + rankIdx)%p->RANKS;
+            ncounter_t j = (curBank + bankIdx)%p->BANKS;
+            FailReason fail;
 
-          /* 
-           *  Check for refresh. Wait for the command queue to be empty to
-           *  make 
-           */
-          if( p->UseRefresh
-              && refreshTimes[i][j] <= GetEventQueue()->GetCurrentCycle() 
-              && bankQueues[i][j].empty() )
+            /* 
+             * added by Tao @ 01/26/2013
+             * NeedRefresh(bank, rank) has three functions:
+             *  1) it returns false when no refresh is used (p->UseRefresh = false) 
+             *  2) it returns false if the delayed refresh counter does not
+             *  reach the threshold, which provides the flexibility for
+             *  fine-granularity refresh 
+             *  3) it automatically find the bank group the argument "bank"
+             *  specifies and return the result
+             */
+            if( NeedRefresh( j, i ) )
             {
-              NVMainRequest tmpReq;
+                ncounter_t refreshBank = ( j / p->BanksPerRefresh );
 
-              tmpReq.address.SetTranslatedAddress( 0, 0, j, i, 0 ); 
 
-              bankQueues[i][j].push_front( MakeRefreshRequest( &tmpReq ) );
-
-              refreshTimes[i][j] += static_cast<ncycle_t>(static_cast<float>(p->tRFI) / (static_cast<float>(p->ROWS) / static_cast<float>(p->RefreshRows)));
-
-              // added by Tao @ 01/23/2013
-              /* 
-               * if this bank needs refresh then other banks in this rank need
-               * refresh too. so we do not need to move rank or bank 
-               */
-            }
-
-          if( !bankQueues[i][j].empty( )
-              && memory->IsIssuable( bankQueues[i][j].at( 0 ), &fail ) )
-            {
-              memory->IssueCommand( bankQueues[i][j].at( 0 ) );
-
-              bankQueues[i][j].erase( bankQueues[i][j].begin( ) );
-
-              MoveRankBank();
-              return ; // we should return since one time only one command can be issued
-            }
-          else if( p->UseRefresh && (fail.reason == OPEN_REFRESH_WAITING || fail.reason == CLOSED_REFRESH_WAITING) )
-            {
-              //// annotated by Tao @ 01/25/2013 
-              //// // Note: This may interrupt some read/write request, we can probably just wait
-              //// // for that to complete before doing this, since there is a rather large (tREFI - 8*tREFI)
-              //// // window to issue refresh requests.
-              //// if( fail.reason == OPEN_REFRESH_WAITING )
-              ////   {
-              ////     /* Reactivate this row after precharge. */
-              ////     bankQueues[i][j].push_front( MakeActivateRequest( bankQueues[i][j].at(0) ) );
-              ////   }
-
-              bankQueues[i][j].push_front( MakeRefreshRequest( bankQueues[i][j].at(0) ) );
-
-              refreshTimes[i][j] += static_cast<ncycle_t>(static_cast<float>(p->tRFI) / (static_cast<float>(p->ROWS) / static_cast<float>(p->RefreshRows)));
-
-              if( fail.reason == OPEN_REFRESH_WAITING )
+                if( IsRefreshBankQueueEmpty( refreshBank, i ) )
                 {
-                  bankQueues[i][j].push_front( MakePrechargeRequest( bankQueues[i][j].at(0) ) );
+                    if( !memory->IsIssuable( cmdRefresh, &fail ) )
+                    {
+
+                        /* if bank is controlled by other commands, we just wait.. */
+                        if( fail.reason == BANK_TIMING )
+                            continue;
+                    }
+
+                    /* create a refresh command that will be sent to ranks */
+                    NVMainRequest* cmdRefresh = MakeRefreshRequest( );
+                    cmdRefresh->address.SetTranslatedAddress( NULL, NULL, refreshBank, i, NULL );
+                    /* 
+                     * send the refresh command to the rank
+                     * Note: some banks may be still open or powerdown. but we
+                     * can send the REFRESH command since the extra POWERUP
+                     * or PRECHARGE latency or even both have beed accounted
+                     * in Bank.cc. See this file for the details.  
+                     */
+                    memory->IssueCommand( cmdRefresh );
+
+                    /* decrement the corresponding counter by 1 */
+                    delayedRefreshCounter[i][refreshBank]--;
+
+                    /* we should return since one time only one command can be issued */
+                    return ;  
                 }
-            }
-          else if( p->UseRefresh && fail.reason == REFRESH_OPEN_FAILURE )
-            {
-              bankQueues[i][j].push_front( MakePrechargeRequest( bankQueues[i][j].at(0) ) );
 
-              /* We precharged, so we need to mark the row as closed. */
-              activateQueued[i][j] = false;
+                /* do not check the following conditions, just waiting... */
+                continue;
             }
-          else if( !bankQueues[i][j].empty( ) )
-            {
-              NVMainRequest *queueHead = bankQueues[i][j].at( 0 );
 
-              if( ( GetEventQueue()->GetCurrentCycle() - queueHead->issueCycle ) > 1000000 )
+            if( !bankQueues[i][j].empty( )
+                && memory->IsIssuable( bankQueues[i][j].at( 0 ), &fail ) )
+            {
+                memory->IssueCommand( bankQueues[i][j].at( 0 ) );
+
+                bankQueues[i][j].erase( bankQueues[i][j].begin( ) );
+
+                MoveRankBank();
+
+                /* we should return since one time only one command can be issued */
+                return ;
+            }
+            else if( !bankQueues[i][j].empty( ) )
+            {
+                NVMainRequest *queueHead = bankQueues[i][j].at( 0 );
+
+                if( ( GetEventQueue()->GetCurrentCycle() - queueHead->issueCycle ) > 1000000 )
                 {
-                  std::cout << "WARNING: Operation could not be sent to memory after a very long time: "
-                            << std::endl; 
-                  std::cout << "         Address: 0x" << std::hex 
-                            << queueHead->address.GetPhysicalAddress( )
-                            << std::dec << ". Queued time: " << queueHead->arrivalCycle
-                            << ". Current time: " << GetEventQueue()->GetCurrentCycle() << ". Type: " 
-                            << queueHead->type << std::endl;
+                    std::cout << "WARNING: Operation could not be sent to memory after a very long time: "
+                              << std::endl; 
+                    std::cout << "         Address: 0x" << std::hex 
+                              << queueHead->address.GetPhysicalAddress( )
+                              << std::dec << ". Queued time: " << queueHead->arrivalCycle
+                              << ". Current time: " << GetEventQueue()->GetCurrentCycle() << ". Type: " 
+                              << queueHead->type << std::endl;
 
-                  /* 
-                   * added by Tao @ 01/25/2012, avoid print too much warning
-                   * that eat the disk space 
-                   */
-                  exit(1);
+                    /* 
+                     * added by Tao @ 01/25/2012, avoid print too much warning
+                     * that eats the disk space 
+                     */
+                    exit(1);
                 }
             }
         }

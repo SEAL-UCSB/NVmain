@@ -185,11 +185,16 @@ bool FRFCFS::RequestComplete( NVMainRequest * request )
       //          << std::endl;
     }
 
-
-  if( request->owner == this )
-    delete request;
+  if( request->type == REFRESH )
+      ProcessRefreshPulse( request );
   else
-    GetParent( )->RequestComplete( request );
+  {
+    if( request->owner == this )
+      delete request;
+    else
+      GetParent( )->RequestComplete( request );
+  }
+
 
   return true;
 }
