@@ -126,10 +126,11 @@ public:
   ncycle_t tWRPDEN; // interval between Write and PowerDown
   ncycle_t tWRAPDEN; // interval between WriteA and PowerDown
   bool ClosePage; // enable close-page management policy
-  int ScheduleScheme; // command scheduling policy (0: fixed priority, 1: rank first round-robin, 2: bank first round-robin)
-  int HighWaterMark; // write drain high watermark
-  int LowWaterMark; // write drain low watermark
-
+  unsigned ScheduleScheme; // command scheduling policy (0: fixed priority, 1: rank first round-robin, 2: bank first round-robin)
+  unsigned HighWaterMark; // write drain high watermark
+  unsigned LowWaterMark; // write drain low watermark
+  unsigned BanksPerRefresh; // the number of banks in a refresh (in lockstep)
+  unsigned DelayedRefreshThreshold; // the threshold that indicates how many refresh can be delayed
 };
 
 

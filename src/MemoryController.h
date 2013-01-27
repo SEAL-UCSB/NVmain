@@ -75,7 +75,7 @@ class MemoryController : public NVMObject
  public:
   MemoryController( );
   MemoryController( Interconnect *memory, AddressTranslator *translator );
-  ~MemoryController( ) { }
+  ~MemoryController( );
 
 
   void InitQueues( unsigned int numQueues );
@@ -120,7 +120,7 @@ class MemoryController : public NVMObject
 
   NVMainRequest *MakeActivateRequest( NVMainRequest *triggerRequest );
   NVMainRequest *MakePrechargeRequest( NVMainRequest *triggerRequest );
-  NVMainRequest *MakeRefreshRequest( NVMainRequest *triggerRequest );
+  NVMainRequest *MakeRefreshRequest( );
 
   bool FindStarvedRequest( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **starvedRequest );
   bool FindRowBufferHit( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **hitRequest );
@@ -145,7 +145,11 @@ class MemoryController : public NVMObject
   bool FindPrechargableBank (uint64_t*, uint64_t*); // FindPrechargableBank() find the bank that can be precharged 
   ncounter_t curRank, curBank; // curRank and curBank record the starting rank (bank) index for the rank-(bank-) level scheduling
   void MoveRankBank(); // MoveRankBank() increment the curRank and/or curBank according to the scheduling scheme
-  
+  unsigned **delayedRefreshCounter; // record how many refresh should be handled
+  ncycle_t m_tREFI; // indicate how long a bank should be refreshed
+  bool NeedRefresh(uint64_t, uint64_t); // return true if the delayed refresh in the corresponding bank reach the threshold 
+  void ProcessRefreshPulse( NVMainRequest* ); // basically, it increment the delayedRefreshCounter and generate the next refresh pulse
+  bool IsRefreshBankQueueEmpty(uint64_t, uint64_t); // return true if ALL command queues in the bank group are empty
   
   class DummyPredicate : public SchedulingPredicate
   {
@@ -154,9 +158,6 @@ class MemoryController : public NVMObject
   };
 
   unsigned int id;
-
-  bool refreshUsed;
-  ncycle_t **refreshTimes;
 
   Params *p;
 

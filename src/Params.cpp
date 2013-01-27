@@ -149,5 +149,7 @@ void Params::SetParams( Config *c )
     ScheduleScheme = c->GetValue ( "ScheduleScheme" );
     HighWaterMark = c->GetValue ( "HighWaterMark" );
     LowWaterMark = c->GetValue ( "LowWaterMark" );
+    BanksPerRefresh = c->GetValue ( "BanksPerRefresh" );
+    DelayedRefreshThreshold = c->GetValue ( "DelayedRefreshThreshold" );
 }
 

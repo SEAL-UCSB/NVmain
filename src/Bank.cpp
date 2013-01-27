@@ -88,8 +88,6 @@ Bank::~Bank( )
   
 }
 
-
-
 void Bank::SetConfig( Config *c )
 {
   conf = c;
@@ -116,38 +114,6 @@ void Bank::SetConfig( Config *c )
 
       nextRefresh = GetEventQueue()->GetCurrentCycle() + (p->tRFI / (p->ROWS / refreshRows));
     }
-}
-
-
-
-/* 
- * modified by Tao @ 01/25/2013
- * update the nextRefresh by rank
- */
-void Bank::SetNextRefresh( ncycle_t nextREF )
-{
-    ncycle_t nextRefresh = nextREF + GetEventQueue()->GetCurrentCycle() 
-                                  + (p->tRFI / (p->ROWS / refreshRows));
-    
-    // create the next refresh event
-    GetEventQueue( )->InsertEvent( EventResponse, this, nextRefresh );
-}
-
-/* 
- * added by Tao @ 01/25/2013
- * handle the refresh request
- */
-bool Bank::RequestComplete( NVMainRequest* request )
-{
-    if( refreshUsed )
-    {
-        nextRefresh = GetEventQueue()->GetCurrentCycle() + (p->tRFI / (p->ROWS / refreshRows));
-
-        // create the next refresh event
-        GetEventQueue( )->InsertEvent( EventResponse, this, nextRefresh );
-    }
-    
-    return NVMObject::RequestComplete( request );
 }
 
 bool Bank::PowerDown( BankState pdState )
@@ -181,23 +147,22 @@ bool Bank::PowerDown( BankState pdState )
           assert( pdState == BANK_PDA );
           state = BANK_PDA;
       }
-      else
-          if( state == BANK_CLOSED )
+      else if( state == BANK_CLOSED )
+      {
+          switch( pdState )
           {
-              switch( pdState )
-              {
-                  case BANK_PDA:
-                  case BANK_PDPF:
-                      state = BANK_PDPF;
-                      break;
-                  case BANK_PDPS:
-                      state = BANK_PDPS;
-                      break;
-                  default:
-                      state = BANK_PDPF;
-                      break;
-              }
+              case BANK_PDA:
+              case BANK_PDPF:
+                  state = BANK_PDPF;
+                  break;
+              case BANK_PDPS:
+                  state = BANK_PDPS;
+                  break;
+              default:
+                  state = BANK_PDPF;
+                  break;
           }
+      }
 
       
       switch( nextCommand )
@@ -321,7 +286,6 @@ bool Bank::Activate( NVMainRequest *request )
       // annotated by Tao @ 01/22/2013
       //nextPowerUp = MAX( nextPowerUp, nextPowerDown + p->tPD );
 
-      // annotated by Tao @ 01/22/2013
       if( bankId == 0 )
         GetEventQueue( )->InsertEvent( EventResponse, this, request, GetEventQueue()->GetCurrentCycle() + p->tRCD );
 
@@ -745,11 +709,8 @@ bool Bank::Write( NVMainRequest *request )
         }
 
 
-
       returnValue = true;
     }
-
-
 
   return returnValue;
 }
@@ -760,8 +721,7 @@ bool Bank::Precharge( NVMainRequest *request )
 {
   bool returnValue = false;
 
-
-  if( nextPrecharge <= GetEventQueue()->GetCurrentCycle() && state == BANK_OPEN  )
+  if( nextPrecharge <= GetEventQueue()->GetCurrentCycle() && state == BANK_OPEN )
     {
       nextActivate = MAX( nextActivate, GetEventQueue()->GetCurrentCycle() + p->tRP );
 
@@ -813,57 +773,53 @@ bool Bank::Precharge( NVMainRequest *request )
 }
 
 
+/* 
+ * modified by Tao @ 01/26/2013 
+ * Refresh() can still be issued even the bank is open (BANK_OPEN) or bank is
+ * powerdown (!=BANK_CLOSED). We add extra latency so that we don't have
+ * protocol violation in terms of timing
+ */
 bool Bank::Refresh( )
 {
-  bool returnValue = false;
+    ncycle_t dummyCycle = 0;
+    if( state == BANK_OPEN )
+        dummyCycle = p->tRP;
+    else if (state == BANK_PDA )
+        dummyCycle = p->tXP + p->tRP;
+    else if (state != BANK_CLOSED )
+        dummyCycle = p->tXP;
 
-  if( state == BANK_CLOSED )
+    state = BANK_CLOSED;
+
+    nextActivate = MAX( nextActivate, GetEventQueue()->GetCurrentCycle() + p->tRFC + dummyCycle );
+
+    nextPowerDown = MAX( nextPowerDown, GetEventQueue()->GetCurrentCycle() + p->tRFC + dummyCycle );
+
+    refreshRowIndex = (refreshRowIndex + refreshRows) % p->ROWS;
+
+    if( p->EnergyModel_set && p->EnergyModel == "current" )
     {
-      // modified by Tao @ 01/22/2013, nextActivate = currentCycle + tRFC
-      nextActivate = MAX( nextActivate, GetEventQueue()->GetCurrentCycle() + p->tRFC );
-      //nextActivate = MAX( nextActivate, GetEventQueue()->GetCurrentCycle() + refreshRows * p->tRFC );
+        bankEnergy += (float)((p->EIDD5B - p->EIDD3N) * (float)p->tRFC * (float)refreshRows); 
 
-      // annotated by Tao @ 01/22/2013
-      //nextPrecharge = MAX( nextPrecharge, nextActivate + p->tRCD );
-      //nextRead = MAX( nextRead, nextActivate + p->tRCD );
-      //nextWrite = MAX( nextWrite, nextActivate + p->tRCD );
+        refreshEnergy += (float)((p->EIDD5B - p->EIDD3N) * (float)p->tRFC * (float)refreshRows); 
+    }
+    else
+    {
+        bankEnergy += p->Eref;
 
-      // modified by Tao @ 01/22/2013, nextPowerDown = currentCycle + tRFC
-      nextPowerDown = MAX( nextPowerDown, GetEventQueue()->GetCurrentCycle() + p->tRFC );
-      //nextPowerDown = MAX( nextPowerDown, GetEventQueue()->GetCurrentCycle() + refreshRows * p->tRFC );
-
-      // annotated by Tao @ 01/22/2013
-      //nextPowerUp = MAX( nextPowerUp, nextPowerDown + p->tPD );
-
-      refreshRowIndex = (refreshRowIndex + refreshRows) % p->ROWS;
-
-      /*
-       * modified by Tao @ 01/25/2013
-       * change the bank state
-       */
-      state = BANK_CLOSED;
-
-      if( p->EnergyModel_set && p->EnergyModel == "current" )
-        {
-          bankEnergy += (float)((p->EIDD5B - p->EIDD3N) * (float)p->tRFC * (float)refreshRows); 
-
-          refreshEnergy += (float)((p->EIDD5B - p->EIDD3N) * (float)p->tRFC * (float)refreshRows); 
-        }
-      else
-        {
-          bankEnergy += p->Eref;
-
-          refreshEnergy += p->Eref;
-        }
-
-      refreshes++;
-
-      returnValue = true;
+        refreshEnergy += p->Eref;
     }
 
-  return returnValue;
+    refreshes++;
+
+    return true;
 }
 
+/* 
+ * modified by Tao @ 01/26/2013
+ * Bank does not do the refresh timing checking anymore  
+ * MemoryController will do this and send REFRESH command
+ */
 bool Bank::IsIssuable( NVMainRequest *req, FailReason *reason )
 {
   uint64_t opRank;
@@ -886,13 +842,6 @@ bool Bank::IsIssuable( NVMainRequest *req, FailReason *reason )
         if( reason ) reason->reason = BANK_TIMING;
       }
 
-      
-      if( NeedsRefresh( ) && state == BANK_CLOSED )
-      {
-        rv = false;
-        if( reason ) reason->reason = CLOSED_REFRESH_WAITING;
-      }
-
       if( rv == false )
         {
           if( nextActivate > (GetEventQueue()->GetCurrentCycle()) )
@@ -910,16 +859,6 @@ bool Bank::IsIssuable( NVMainRequest *req, FailReason *reason )
           rv = false;
           if( reason ) reason->reason = BANK_TIMING;
         }
-
-      /* 
-       * annotated by Tao @ 01/22/2013, when the bank is open and the data
-       * transfer is not finished yet, let it go. we block the next activate instead
-       */
-      //if( NeedsRefresh( ) )
-      //{
-      //  rv = false;
-      //  if( reason ) reason->reason = OPEN_REFRESH_WAITING;
-      //}
     }
   else if( req->type == WRITE )
     {
@@ -928,21 +867,10 @@ bool Bank::IsIssuable( NVMainRequest *req, FailReason *reason )
           rv = false;
           if( reason ) reason->reason = BANK_TIMING;
         }
-
-      /* 
-       * annotated by Tao @ 01/22/2013
-       * when the bank is open and the data transfer is not finished yet, let it go. 
-       * we block the next activate instead
-       */
-      //if( NeedsRefresh( ) )
-      //{
-      //  rv = false;
-      //  if( reason ) reason->reason = OPEN_REFRESH_WAITING;
-      //}
     }
   else if( req->type == PRECHARGE )
     {
-      if( nextPrecharge > (GetEventQueue()->GetCurrentCycle()) || state != BANK_OPEN )
+      if( nextPrecharge > (GetEventQueue()->GetCurrentCycle()) || state != BANK_OPEN  )
         {
           rv = false;
           if( reason ) reason->reason = BANK_TIMING;
@@ -955,12 +883,6 @@ bool Bank::IsIssuable( NVMainRequest *req, FailReason *reason )
           rv = false;
           if( reason ) reason->reason = BANK_TIMING;
         }
-
-      if( NeedsRefresh( ) )
-      {
-        rv = false;
-        if( reason ) reason->reason = CLOSED_REFRESH_WAITING;
-      }
     }
   else if( req->type == POWERUP )
     {
@@ -969,26 +891,28 @@ bool Bank::IsIssuable( NVMainRequest *req, FailReason *reason )
           rv = false;
           if( reason ) reason->reason = BANK_TIMING;
         }
-
-      /* 
-       * annotated by Tao @ 01/25/2013
-       * refresh must be done when bank is idle (cannot be in powerdown mode)
-       */
-      //// if( NeedsRefresh( ) )
-      //// {
-      ////   rv = false;
-      ////   if( reason ) reason->reason = CLOSED_REFRESH_WAITING;
-      //// }
     }
   else if( req->type == REFRESH )
     {
-    // modified by Tao @ 01/22/2013, the refresh has the same timing
-    // constraint as activate
+    /*
+     * modified by Tao @ 01/22/2013, the refresh has the same timing
+     * constraint as activate
+     */
       //if( state != BANK_CLOSED )
-      if( nextActivate > (GetEventQueue()->GetCurrentCycle()) || state != BANK_CLOSED )
+      if( nextActivate > (GetEventQueue()->GetCurrentCycle()) || state != BANK_CLOSED  )
         {
           rv = false;
-          if( reason ) reason->reason = REFRESH_OPEN_FAILURE;
+          if( reason ) 
+          {
+              if( 
+                   ( ( nextActivate > (GetEventQueue()->GetCurrentCycle() ) ) && state == BANK_CLOSED ) ||
+                   ( ( nextPrecharge > (GetEventQueue()->GetCurrentCycle() ) ) && state == BANK_OPEN ) ||
+                   ( ( nextPowerUp > (GetEventQueue()->GetCurrentCycle() ) ) && ( state == BANK_PDA || state == BANK_PDPF || state == BANK_PDPS ) )
+                )
+                  reason->reason = BANK_TIMING;
+              else 
+                  reason->reason = OPEN_REFRESH_WAITING;
+          }
         }
     }
   else
@@ -1199,15 +1123,16 @@ bool Bank::Idle( )
 }
 
 
-bool Bank::NeedsRefresh( )
-{
-  bool rv = false;
-
-  if( refreshUsed && nextRefresh <= GetEventQueue()->GetCurrentCycle() )
-    rv = true;
-
-  return rv;
-}
+/* 
+ * annotated by Tao @ 01/26/2013
+ * Bank does not do the refresh timing checking anymore  
+ * MemoryController will do this and send REFRESH command
+ */
+////bool Bank::NeedsRefresh( )
+////{
+////  bool rv = false;
+////  return rv;
+////}
 
 
 void Bank::IssueImplicit( )

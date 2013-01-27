@@ -18,6 +18,7 @@
 #include <sstream>
 
 #include "src/Rank.h"
+#include <assert.h>
 
 
 using namespace NVM;
@@ -78,6 +79,11 @@ void Rank::SetConfig( Config *c )
   deviceWidth = p->DeviceWidth;
   busWidth = p->BusWidth;
 
+  /* 
+   * added by Tao @ 01/26/2013
+   */
+  banksPerRefresh = p->BanksPerRefresh;
+
  
   /* Calculate the number of devices needed. */
   deviceCount = busWidth / deviceWidth;
@@ -97,7 +103,6 @@ void Rank::SetConfig( Config *c )
         {
           Bank *newBank = new Bank( );
           std::stringstream formatter;
-          ncycle_t nextRefresh;
 
           formatter << j;
           newBank->SetName( formatter.str( ) );
@@ -115,18 +120,28 @@ void Rank::SetConfig( Config *c )
           /* SetConfig recursively. */
           newBank->SetConfig( c );
 
-          if( p->UseRefresh_set && p->UseRefresh ) 
-            {
-              nextRefresh = static_cast<ncycle_t>(static_cast<float>(p->tRFI) / (static_cast<float>(p->ROWS) / static_cast<float>(p->RefreshRows)));
+          /*
+           * annotated by Tao @ 01/26/2013
+           * Rank and Bank do not have to distinguish REFRESH and other
+           * commands. They only update the related timing registers to
+           * guarantee no timing conflicts.
+           */
+          ////ncycle_t nextRefresh;
+          ////if( p->UseRefresh_set && p->UseRefresh ) 
+          ////  {
+          ////    nextRefresh = static_cast<ncycle_t>(static_cast<float>(p->tRFI) / (static_cast<float>(p->ROWS) / static_cast<float>(p->RefreshRows)));
 
-              /* Equivalent to per-bank refresh in LPDDR3 spec. */
-              if( p->StaggerRefresh_set && p->StaggerRefresh )
-                {
-                  nextRefresh = static_cast<ncycle_t>(static_cast<float>(nextRefresh) * (static_cast<float>(j + 1) / static_cast<float>(bankCount)));
-                }
+          ////    ncycle_t offset = 0;
 
-              newBank->SetNextRefresh( nextRefresh );
-            }
+          ////    /* Equivalent to per-bank refresh in LPDDR3 spec. */
+          ////    if( p->StaggerRefresh_set && p->StaggerRefresh )
+          ////    {
+          ////        offset += static_cast<ncycle_t>(static_cast<float>(nextRefresh) * (static_cast<float>(j) / static_cast<float>(bankCount)));
+          ////    }
+          ////    else
+          ////    {
+          ////    }
+          ////  }
         }
     }
 
@@ -216,7 +231,6 @@ bool Rank::Read( NVMainRequest *request )
     {
       return false;
     }
-
 
   /*
    *  We need to check for bank conflicts. If there are no conflicts, we can issue the 
@@ -348,16 +362,26 @@ bool Rank::PowerUp( NVMainRequest *request )
 
 
 /*
- * modified by Tao @ 01/25/2013
- * refresh is issued to all banks in this rank 
+ * modified by Tao @ 01/26/2013
+ * refresh is issued to those banks that start from the bank specified by the
+ * request.  
  */
-bool Rank::Refresh( NVMainRequest * /*request*/ )
+bool Rank::Refresh( NVMainRequest *request )
 {
-    /* Broadcast request to all banks... this won't call hooks. */
+    uint64_t refreshBankHead;
+    request->address.GetTranslatedAddress( NULL, NULL, &refreshBankHead, NULL, NULL );
+    assert( (refreshBankHead + banksPerRefresh) <= bankCount );
+
     for( ncounter_t i = 0; i < deviceCount; i++ )
-        for( ncounter_t j = 0; i < bankCount; j++ )
-            devices[i].GetBank( j )->Refresh( );
-    
+        for( ncounter_t j = 0; j < banksPerRefresh; j++ )
+            devices[i].GetBank( (refreshBankHead + j) )->Refresh( );
+
+    /*
+     * since refresh must NOT be returned to memory controller, we can delete
+     * it here
+     */
+    delete request;
+
     return true;
 }
 
@@ -491,7 +515,16 @@ bool Rank::IsIssuable( NVMainRequest *req, FailReason *reason )
     }
   else if( req->type == REFRESH )
     {
-      rv = devices[0].GetBank( opBank )->IsIssuable( req, reason );
+        /* 
+         * modified by Tao @ 01/26/2013
+         * REFRESH can only be issued when all banks in the refresh scale are issuable 
+         */ 
+        uint64_t refreshBankHead;
+        req->address.GetTranslatedAddress( NULL, NULL, &refreshBankHead, NULL, NULL );
+        assert( (refreshBankHead + banksPerRefresh) <= bankCount );
+
+        for( ncounter_t i = 0; i < banksPerRefresh; i++ )
+            rv = devices[0].GetBank( (refreshBankHead + i) )->IsIssuable( req, reason );
     }
   /*
    *  Can't issue unknown operations.

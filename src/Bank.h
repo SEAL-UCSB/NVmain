@@ -69,7 +69,12 @@ class Bank : public NVMObject
 
   bool WouldConflict( uint64_t checkRow );
   bool IsIssuable( NVMainRequest *req, FailReason *reason = NULL );
-  bool NeedsRefresh( );
+  /* 
+   * annotated by Tao @ 01/26/2013
+   * Bank does not do the refresh timing checking anymore  
+   * MemoryController will do this and send REFRESH command
+   */
+  ////bool NeedsRefresh( );
 
   bool IssueCommand( NVMainRequest *req );
 
@@ -85,7 +90,6 @@ class Bank : public NVMObject
   ncounter_t GetReads( ) { return reads; }
   ncounter_t GetWrites( ) { return writes; }
 
-  void SetNextRefresh( ncycle_t nextREF ); // Should ONLY be used to stagger refreshes initially.
   void SetRefreshRows( ncounter_t numRows ) { refreshRows = numRows; }
 
   ncycle_t GetNextActivate( ) { return nextActivate; }
@@ -105,9 +109,6 @@ class Bank : public NVMObject
   std::string GetName( );
 
   void Cycle( ncycle_t steps );
-
-  /* added by Tao @ 01/25/2013 */
-  bool RequestComplete( NVMainRequest* );
 
  private:
   Config *conf;
