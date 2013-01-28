@@ -118,6 +118,12 @@ class NVMObject
   std::vector<NVMObject *> *hooks;
   EventQueue *eventQueue;
   HookType hookType;
+  /*
+   * added by Tao @ 01/28/2013
+   * it is better to implement MAX as a function, the original Macro defined
+   * by "#define" may cause problem 
+   */
+  ncycle_t MAX( const ncycle_t, const ncycle_t );
 
 };
 

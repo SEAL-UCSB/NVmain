@@ -316,3 +316,7 @@ void NVMObject::CallHooks( HookType h )
 }
 */
 
+ncycle_t NVMObject::MAX( const ncycle_t a, const ncycle_t b )
+{
+    return (( a > b ) ? a : b );
+}

@@ -26,7 +26,8 @@ using namespace NVM;
 
 
 
-#define MAX(a,b) ((a > b) ? a : b)
+/* annotated by Tao @ 01/28/2013 */
+//#define MAX(a,b) ((a > b) ? a : b)
 
 
 std::string GetFilePath( std::string file );
@@ -368,14 +369,20 @@ bool Rank::PowerUp( NVMainRequest *request )
  */
 bool Rank::Refresh( NVMainRequest *request )
 {
-    uint64_t refreshBankHead;
-    request->address.GetTranslatedAddress( NULL, NULL, &refreshBankHead, NULL, NULL );
+    assert( nextActivate <= ( GetEventQueue()->GetCurrentCycle() ) );
+    uint64_t refreshBankHead, refreshRank;
+    request->address.GetTranslatedAddress( NULL, NULL, &refreshBankHead, &refreshRank, NULL );
     assert( (refreshBankHead + banksPerRefresh) <= bankCount );
 
     for( ncounter_t i = 0; i < deviceCount; i++ )
         for( ncounter_t j = 0; j < banksPerRefresh; j++ )
             devices[i].GetBank( (refreshBankHead + j) )->Refresh( );
 
+    /*
+     * simply treat the REFRESH as an ACTIVATE. For a finer refresh
+     * granularity, the nextActivate does not block the other bank groups
+     */
+    nextActivate = MAX( nextActivate, GetEventQueue()->GetCurrentCycle() + p->tRRDR );
     /*
      * since refresh must NOT be returned to memory controller, we can delete
      * it here
@@ -515,12 +522,21 @@ bool Rank::IsIssuable( NVMainRequest *req, FailReason *reason )
     }
   else if( req->type == REFRESH )
     {
+        /* firstly, check whether REFRESH can be issued to a rank */
+        if( nextActivate > GetEventQueue()->GetCurrentCycle() )
+        {
+            rv = false;
+            if( reason ) reason->reason = RANK_TIMING;
+
+            return rv;
+        }
+
         /* 
          * modified by Tao @ 01/26/2013
          * REFRESH can only be issued when all banks in the group are issuable 
          */ 
-        uint64_t refreshBankHead;
-        req->address.GetTranslatedAddress( NULL, NULL, &refreshBankHead, NULL, NULL );
+        uint64_t refreshBankHead, refreshRank;
+        req->address.GetTranslatedAddress( NULL, NULL, &refreshBankHead, &refreshRank, NULL );
         assert( (refreshBankHead + banksPerRefresh) <= bankCount );
 
         for( ncounter_t i = 0; i < banksPerRefresh; i++ )
@@ -579,6 +595,8 @@ bool Rank::IssueCommand( NVMainRequest *req )
           break;
       
         case REFRESH:
+          uint64_t bank, rank;
+          req->address.GetTranslatedAddress( NULL, NULL, &bank, &rank, NULL );
           rv = this->Refresh( req );
           break;
 
@@ -615,8 +633,7 @@ void Rank::Notify( OpType op )
       nextWrite = MAX( nextWrite, GetEventQueue()->GetCurrentCycle() + p->tBURST
            + p->tOST );
       nextRead = MAX( nextRead, GetEventQueue()->GetCurrentCycle() + p->tBURST
-          + p->tCWD + p->tRTRS
-          - p->tCAS );
+          + p->tCWD + p->tRTRS - p->tCAS );
     }
 }
 

@@ -202,6 +202,7 @@ bool FRFCFS::RequestComplete( NVMainRequest * request )
 
 void FRFCFS::Cycle( ncycle_t )
 {
+
   NVMainRequest *nextRequest = NULL;
 
 
@@ -239,6 +240,7 @@ void FRFCFS::Cycle( ncycle_t )
 
   /* Issue any commands in the command queues. */
   CycleCommandQueues( );
+
 }
 
 
