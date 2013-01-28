@@ -895,25 +895,21 @@ bool Bank::IsIssuable( NVMainRequest *req, FailReason *reason )
   else if( req->type == REFRESH )
     {
     /*
-     * modified by Tao @ 01/22/2013, the refresh has the same timing
-     * constraint as activate
+     * modified by Tao @ 01/27/2013 
+     * only return false if the timing constraint with the last command is not
+     * satisfied. This is because REFRESH can be treated as an activate and a
+     * precharge and a powerup
      */
-      //if( state != BANK_CLOSED )
-      if( nextActivate > (GetEventQueue()->GetCurrentCycle()) || state != BANK_CLOSED  )
-        {
+      if( 
+           ( ( nextActivate > (GetEventQueue()->GetCurrentCycle() ) ) && state == BANK_CLOSED ) ||
+           ( ( nextPrecharge > (GetEventQueue()->GetCurrentCycle() ) ) && state == BANK_OPEN ) ||
+           ( ( nextPowerUp > (GetEventQueue()->GetCurrentCycle() ) ) && ( state == BANK_PDA || state == BANK_PDPF || state == BANK_PDPS ) )
+        )
+      {
           rv = false;
-          if( reason ) 
-          {
-              if( 
-                   ( ( nextActivate > (GetEventQueue()->GetCurrentCycle() ) ) && state == BANK_CLOSED ) ||
-                   ( ( nextPrecharge > (GetEventQueue()->GetCurrentCycle() ) ) && state == BANK_OPEN ) ||
-                   ( ( nextPowerUp > (GetEventQueue()->GetCurrentCycle() ) ) && ( state == BANK_PDA || state == BANK_PDPF || state == BANK_PDPS ) )
-                )
-                  reason->reason = BANK_TIMING;
-              else 
-                  reason->reason = OPEN_REFRESH_WAITING;
-          }
-        }
+          if( reason )
+            reason->reason = BANK_TIMING;
+      }
     }
   else
     {

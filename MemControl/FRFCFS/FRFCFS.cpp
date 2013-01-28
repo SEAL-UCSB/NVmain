@@ -250,7 +250,12 @@ void FRFCFS::Cycle( ncycle_t )
 
           delete dummyPrechargeReq;
       }
-  } 
+  }
+  else if( p->UseRefresh ) 
+  {
+      HandleRefresh();
+  }
+
 
   /* Issue any commands in the command queues. */
   CycleCommandQueues( );
