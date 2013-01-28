@@ -791,6 +791,7 @@ bool Bank::Refresh( )
         dummyCycle = p->tXP;
 
     state = BANK_CLOSED;
+    openRow = p->ROWS;
 
     nextActivate = MAX( nextActivate, (GetEventQueue()->GetCurrentCycle() + p->tRFC + dummyCycle) );
 

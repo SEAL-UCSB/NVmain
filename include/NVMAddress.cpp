@@ -80,7 +80,7 @@ uint8_t NVMAddress::GetBitAddress( )
 }
 
 
-NVMAddress NVMAddress::operator=( NVMAddress m )
+NVMAddress& NVMAddress::operator=( const NVMAddress& m )
 {
   physicalAddress = m.physicalAddress;
   row = m.row;
