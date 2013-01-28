@@ -893,12 +893,6 @@ void MemoryController::CycleCommandQueues( )
             ncounter_t j = (curBank + bankIdx)%p->BANKS;
             FailReason fail;
 
-            if( p->UseRefresh ) 
-            {
-                if( HandleRefresh() )
-                    return;
-            }
-
             if( !bankQueues[i][j].empty( )
                 && memory->IsIssuable( bankQueues[i][j].at( 0 ), &fail ) )
             {
@@ -926,6 +920,12 @@ void MemoryController::CycleCommandQueues( )
                     delete dummyPrechargeReq;
                 }
             }
+            else if( p->UseRefresh ) 
+            {
+                if( HandleRefresh() )
+                    return;
+            }
+
             else if( !bankQueues[i][j].empty( ) )
             {
                 NVMainRequest *queueHead = bankQueues[i][j].at( 0 );
