@@ -900,16 +900,30 @@ bool Bank::IsIssuable( NVMainRequest *req, FailReason *reason )
      * satisfied. This is because REFRESH can be treated as an activate and a
      * precharge and a powerup
      */
-      if( 
-           ( ( nextActivate > (GetEventQueue()->GetCurrentCycle() ) ) && state == BANK_CLOSED ) ||
-           ( ( nextPrecharge > (GetEventQueue()->GetCurrentCycle() ) ) && state == BANK_OPEN ) ||
-           ( ( nextPowerUp > (GetEventQueue()->GetCurrentCycle() ) ) && ( state == BANK_PDA || state == BANK_PDPF || state == BANK_PDPS ) )
-        )
-      {
-          rv = false;
-          if( reason )
-            reason->reason = BANK_TIMING;
-      }
+		switch( state )
+		{
+			case BANK_CLOSED:
+				if( nextActivate > ( GetEventQueue()->GetCurrentCycle() ) )
+					rv = false;
+				break;
+			case BANK_OPEN:
+				if( nextPrecharge > ( GetEventQueue()->GetCurrentCycle() ) )
+					rv = false;
+				break;
+			case BANK_PDA:
+			case BANK_PDPF:
+			case BANK_PDPS:
+				if( nextPowerUp > ( GetEventQueue()->GetCurrentCycle() ) )
+					rv = false;
+				break;
+			default:
+				break;
+		}
+        if( rv == false )
+        {
+            if( reason )
+              reason->reason = BANK_TIMING;
+        }
     }
   else
     {
