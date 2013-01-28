@@ -517,14 +517,18 @@ bool Rank::IsIssuable( NVMainRequest *req, FailReason *reason )
     {
         /* 
          * modified by Tao @ 01/26/2013
-         * REFRESH can only be issued when all banks in the refresh scale are issuable 
+         * REFRESH can only be issued when all banks in the group are issuable 
          */ 
         uint64_t refreshBankHead;
         req->address.GetTranslatedAddress( NULL, NULL, &refreshBankHead, NULL, NULL );
         assert( (refreshBankHead + banksPerRefresh) <= bankCount );
 
         for( ncounter_t i = 0; i < banksPerRefresh; i++ )
+        {
             rv = devices[0].GetBank( (refreshBankHead + i) )->IsIssuable( req, reason );
+            if( rv == false )
+                return rv;
+        }
     }
   /*
    *  Can't issue unknown operations.

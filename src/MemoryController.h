@@ -146,10 +146,17 @@ class MemoryController : public NVMObject
   ncounter_t curRank, curBank; // curRank and curBank record the starting rank (bank) index for the rank-(bank-) level scheduling
   void MoveRankBank(); // MoveRankBank() increment the curRank and/or curBank according to the scheduling scheme
   unsigned **delayedRefreshCounter; // record how many refresh should be handled
+  bool **bankNeedRefresh;
   ncycle_t m_tREFI; // indicate how long a bank should be refreshed
   bool NeedRefresh(uint64_t, uint64_t); // return true if the delayed refresh in the corresponding bank reach the threshold 
   void ProcessRefreshPulse( NVMainRequest* ); // basically, it increment the delayedRefreshCounter and generate the next refresh pulse
   bool IsRefreshBankQueueEmpty(uint64_t, uint64_t); // return true if ALL command queues in the bank group are empty
+  void SetRefresh(uint64_t, uint64_t); // set the refresh flag for a given bank group
+  void ResetRefresh(uint64_t, uint64_t); // reset the refresh flag for a given bank group
+  void IncrementRefreshCounter(uint64_t, uint64_t); // increment the delayedRefreshCounter in a given bank group
+  void DecrementRefreshCounter(uint64_t, uint64_t); // decrement the delayedRefreshCounter in a given bank group
+  ncounter_t nextRefreshRank, nextRefreshBank; // next Refresh rank and bank
+  bool HandleRefresh(); // issue REFRESH command if necessary; otherwise do nothing
   
   class DummyPredicate : public SchedulingPredicate
   {
