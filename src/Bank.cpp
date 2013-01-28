@@ -28,7 +28,8 @@ using namespace NVM;
 
 
 
-#define MAX(a,b) (( a > b ) ? a : b )
+/* annotated by Tao @ 01/28/2013 */
+//#define MAX(a,b) (( a > b ) ? a : b )
 
 
 Bank::Bank( )
@@ -791,9 +792,9 @@ bool Bank::Refresh( )
 
     state = BANK_CLOSED;
 
-    nextActivate = MAX( nextActivate, GetEventQueue()->GetCurrentCycle() + p->tRFC + dummyCycle );
+    nextActivate = MAX( nextActivate, (GetEventQueue()->GetCurrentCycle() + p->tRFC + dummyCycle) );
 
-    nextPowerDown = MAX( nextPowerDown, GetEventQueue()->GetCurrentCycle() + p->tRFC + dummyCycle );
+    nextPowerDown = MAX( nextPowerDown, (GetEventQueue()->GetCurrentCycle() + p->tRFC + dummyCycle) );
 
     refreshRowIndex = (refreshRowIndex + refreshRows) % p->ROWS;
 

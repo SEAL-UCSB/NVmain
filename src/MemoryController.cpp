@@ -223,15 +223,18 @@ void MemoryController::SetConfig( Config *conf )
         // sanity check
         assert( p->BanksPerRefresh <= p->BANKS );
 
-        // it does not make sense when refresh is needed by no bank can be
+        // it does not make sense when refresh is needed but no bank can be
         // refreshed
         assert( p->BanksPerRefresh != 0 );
 
-        ncounter_t m_refreshBankNum = p->BANKS / p->BanksPerRefresh;
+        m_refreshBankNum = p->BANKS / p->BanksPerRefresh;
         
         // first, calculate the tREFI
         m_tREFI = p->tRFI / (p->ROWS / p->RefreshRows );
+
+        // then, calculate the time interval between two refreshes
         ncycle_t m_refreshSlice = m_tREFI / ( p->RANKS * m_refreshBankNum );
+
         for( ncounter_t i = 0; i < p->RANKS; i++ )
         {
             delayedRefreshCounter[i] = new unsigned[m_refreshBankNum];
@@ -243,7 +246,7 @@ void MemoryController::SetConfig( Config *conf )
 
                 // create first refresh pulse to start the refresh countdown
                 NVMainRequest* refreshPulse = MakeRefreshRequest();
-                refreshPulse->address.SetTranslatedAddress( NULL, NULL, ( j * p->BanksPerRefresh ), i, NULL );
+                refreshPulse->address.SetTranslatedAddress( 0, 0, ( j * p->BanksPerRefresh ), i, 0 );
 
                 // stagger the refresh 
                 ncycle_t offset = (i * m_refreshBankNum + j ) * m_refreshSlice; 
@@ -266,7 +269,7 @@ void MemoryController::SetConfig( Config *conf )
  *  3) it automatically find the bank group the argument "bank"
  *  specifies and return the result
  */
-bool MemoryController::NeedRefresh( uint64_t bank, uint64_t rank )
+bool MemoryController::NeedRefresh( const uint64_t bank, const uint64_t rank )
 {
     bool rv = false;
 
@@ -281,7 +284,7 @@ bool MemoryController::NeedRefresh( uint64_t bank, uint64_t rank )
  * added by Tao @ 01/27/2013
  * Set the refresh flag for a given bank group
  */
-void MemoryController::SetRefresh( uint64_t bank, uint64_t rank )
+void MemoryController::SetRefresh( const uint64_t bank, const uint64_t rank )
 {
     // first, align to the head of bank group 
     uint64_t bankHead = ( bank / p->BanksPerRefresh ) * p->BanksPerRefresh;
@@ -294,7 +297,7 @@ void MemoryController::SetRefresh( uint64_t bank, uint64_t rank )
  * added by Tao @ 01/27/2013
  * Reset the refresh flag for a given bank group
  */
-void MemoryController::ResetRefresh( uint64_t bank, uint64_t rank )
+void MemoryController::ResetRefresh( const uint64_t bank, const uint64_t rank )
 {
     // first, align to the head of bank group 
     uint64_t bankHead = ( bank / p->BanksPerRefresh ) * p->BanksPerRefresh;
@@ -307,7 +310,7 @@ void MemoryController::ResetRefresh( uint64_t bank, uint64_t rank )
  * added by Tao @ 01/27/2013
  * increment the delayedRefreshCounter by 1 in a given bank group
  */
-void MemoryController::IncrementRefreshCounter( uint64_t bank, uint64_t rank )
+void MemoryController::IncrementRefreshCounter( const uint64_t bank, const uint64_t rank )
 {
     // first, align to the head of bank group 
     uint64_t bankGroupID = bank / p->BanksPerRefresh;
@@ -319,7 +322,7 @@ void MemoryController::IncrementRefreshCounter( uint64_t bank, uint64_t rank )
  * added by Tao @ 01/27/2013
  * decrement the delayedRefreshCounter by 1 in a given bank group
  */
-void MemoryController::DecrementRefreshCounter( uint64_t bank, uint64_t rank )
+void MemoryController::DecrementRefreshCounter( const uint64_t bank, const uint64_t rank )
 {
     // first, align to the head of bank group 
     uint64_t bankGroupID = bank / p->BanksPerRefresh;
@@ -334,8 +337,6 @@ void MemoryController::DecrementRefreshCounter( uint64_t bank, uint64_t rank )
  */
 bool MemoryController::HandleRefresh( )
 {
-    ncounter_t m_refreshBankNum = p->BANKS / p->BanksPerRefresh;
-
     for( ncounter_t rankIdx = 0; rankIdx < p->RANKS; rankIdx++ )
     {
         for( ncounter_t bankIdx = 0; bankIdx < m_refreshBankNum; bankIdx++ )
@@ -348,7 +349,7 @@ bool MemoryController::HandleRefresh( )
             {
                 /* create a refresh command that will be sent to ranks */
                 NVMainRequest* cmdRefresh = MakeRefreshRequest( );
-                cmdRefresh->address.SetTranslatedAddress( NULL, NULL, j, i, NULL );
+                cmdRefresh->address.SetTranslatedAddress( 0, 0, j, i, 0 );
 
                 if( !memory->IsIssuable( cmdRefresh, &fail ) )
                 {
@@ -430,7 +431,7 @@ void MemoryController::ProcessRefreshPulse( NVMainRequest* refresh )
  * it simply checks all banks in the refresh bank group whether their
  * command queues are empty. the result is the union of each check
  */
-bool MemoryController::IsRefreshBankQueueEmpty( uint64_t bank, uint64_t rank )
+bool MemoryController::IsRefreshBankQueueEmpty( const uint64_t bank, const uint64_t rank )
 {
     // first, align to the head of bank group 
     uint64_t bankHead = ( bank / p->BanksPerRefresh ) * p->BanksPerRefresh;
@@ -885,6 +886,13 @@ bool MemoryController::IssueMemoryCommands( NVMainRequest *req )
 
 void MemoryController::CycleCommandQueues( )
 {
+    /* First of all, see whether we can issue a necessary refresh */
+    if( p->UseRefresh ) 
+    {
+        if( HandleRefresh() )
+            return;
+    }
+
     for( ncounter_t rankIdx = 0; rankIdx < p->RANKS; rankIdx++ )
     {
         for( ncounter_t bankIdx = 0; bankIdx < p->BANKS; bankIdx++ )
@@ -892,12 +900,6 @@ void MemoryController::CycleCommandQueues( )
             ncounter_t i = (curRank + rankIdx)%p->RANKS;
             ncounter_t j = (curBank + bankIdx)%p->BANKS;
             FailReason fail;
-
-            if( p->UseRefresh ) 
-            {
-                if( HandleRefresh() )
-                    return;
-            }
 
             if( !bankQueues[i][j].empty( )
                 && memory->IsIssuable( bankQueues[i][j].at( 0 ), &fail ) )
@@ -932,11 +934,14 @@ void MemoryController::CycleCommandQueues( )
 
                 if( ( GetEventQueue()->GetCurrentCycle() - queueHead->issueCycle ) > 1000000 )
                 {
+                    uint64_t bank, rank, channel;
+                    queueHead->address.GetTranslatedAddress( NULL, NULL, &bank, &rank, &channel );
                     std::cout << "WARNING: Operation could not be sent to memory after a very long time: "
                               << std::endl; 
                     std::cout << "         Address: 0x" << std::hex 
                               << queueHead->address.GetPhysicalAddress( )
-                              << std::dec << ". Queued time: " << queueHead->arrivalCycle
+                              << std::dec << " @ Bank " << bank << ", Rank " << rank << ", Channel " << channel
+                              << ". Queued time: " << queueHead->arrivalCycle
                               << ". Current time: " << GetEventQueue()->GetCurrentCycle() << ". Type: " 
                               << queueHead->type << std::endl;
 
