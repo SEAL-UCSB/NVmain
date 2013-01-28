@@ -38,9 +38,9 @@ class NVMAddress
   uint64_t GetPhysicalAddress( );
   uint8_t GetBitAddress( );
 
-  NVMAddress operator=( NVMAddress m );
+  NVMAddress& operator=( const NVMAddress& m );
   
- private:
+ //private:
   uint64_t physicalAddress;
   uint64_t row;
   uint64_t col;

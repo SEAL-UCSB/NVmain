@@ -37,7 +37,7 @@ class NVMDataBlock
 
   void Print( std::ostream& out ) const;
   
-  NVMDataBlock operator=( NVMDataBlock m );
+  NVMDataBlock& operator=( const NVMDataBlock& m );
 
   /*
    *  Normally the Get/SetByte should be used, but

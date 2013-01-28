@@ -365,7 +365,7 @@ bool MemoryController::HandleRefresh( )
                  * send the refresh command to the rank
                  * Note: some banks may be still open or powerdown. but we
                  * can send the REFRESH command since the extra POWERUP
-                 * or PRECHARGE latency or even both have beed accounted
+                 * or PRECHARGE latency or even both have been counted
                  * in Bank.cc. See this file for the details.  
                  * Note: the cmdRefresh will be deleted in Rank.cpp
                  */

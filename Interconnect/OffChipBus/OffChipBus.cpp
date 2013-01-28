@@ -102,9 +102,7 @@ bool OffChipBus::RequestComplete( NVMainRequest *request )
 bool OffChipBus::IssueCommand( NVMainRequest *req )
 {
   uint64_t opRank;
-  uint64_t opBank;
-  uint64_t opRow;
-  uint64_t opCol;
+
   bool success = false;
 
   if( !configSet || numRanks == 0 )
@@ -114,11 +112,11 @@ bool OffChipBus::IssueCommand( NVMainRequest *req )
       return false;
     }
 
-  req->address.GetTranslatedAddress( &opCol, &opRow, &opBank, &opRank, NULL );
+  req->address.GetTranslatedAddress( NULL, NULL, NULL, &opRank, NULL );
 
   if( ranks[opRank]->IsIssuable( req ) )
     {
-      if( req->type == 0 )
+      if( req->type == NOP )
         {
           std::cout << "OffChipBus got unknown op." << std::endl;
         }
@@ -144,11 +142,8 @@ bool OffChipBus::IssueCommand( NVMainRequest *req )
 bool OffChipBus::IsIssuable( NVMainRequest *req, FailReason *reason )
 {
   uint64_t opRank;
-  uint64_t opBank;
-  uint64_t opRow;
-  uint64_t opCol;
 
-  req->address.GetTranslatedAddress( &opCol, &opRow, &opBank, &opRank, NULL );
+  req->address.GetTranslatedAddress( NULL, NULL, NULL, &opRank, NULL );
 
   return ranks[opRank]->IsIssuable( req, reason );
 }
