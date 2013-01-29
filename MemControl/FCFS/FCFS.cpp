@@ -135,6 +135,9 @@ bool FCFS::RequestComplete( NVMainRequest * request )
     }
 
 
+  if( request->type == REFRESH )
+      ProcessRefreshPulse( request );
+  else
   if( request->owner == this )
     delete request;
   else

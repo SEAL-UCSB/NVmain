@@ -124,6 +124,9 @@ bool DRAMCache::RequestComplete( NVMainRequest *req )
 {
   bool rv = false;
 
+  if( req->type == REFRESH )
+      ProcessRefreshPulse( req );
+  else
   if( req->owner == this )
     {
       delete req;
