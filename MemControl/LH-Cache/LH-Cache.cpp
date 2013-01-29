@@ -355,6 +355,9 @@ bool LH_Cache::RequestComplete( NVMainRequest *req )
     }
 
   
+  if( req->type == REFRESH )
+      ProcessRefreshPulse( req );
+  else
   if( req->owner == this )
     {
       delete req;
