@@ -566,7 +566,9 @@ bool Rank::IssueCommand( NVMainRequest *req )
 
   if( !IsIssuable( req ) )
     {
-      std::cout << "NVMain: Rank: Warning: Command " << req->type << " @ Bank " << req->address.bank << " Rank " << req->address.rank << " Channel " << req->address.channel << " can not be issued!\n" << std::endl;
+      uint64_t bank, rank, channel;
+      req->address.GetTranslatedAddress( NULL, NULL, &bank, &rank, &channel );
+      std::cout << "NVMain: Rank: Warning: Command " << req->type << " @ Bank " << bank << " Rank " << rank << " Channel " << channel << " can not be issued!\n" << std::endl;
     }
   else
     {
