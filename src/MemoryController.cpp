@@ -77,12 +77,10 @@ MemoryController::~MemoryController( )
         {
             /* Note: delete a NULL point is permitted in C++ */
             delete [] delayedRefreshCounter[i];
-            delete [] dummyRefreshPhyAddr[i];
         }
     }
 
     delete [] delayedRefreshCounter;
-    delete [] dummyRefreshPhyAddr;
     
 }
 
@@ -219,7 +217,6 @@ void MemoryController::SetConfig( Config *conf )
     }
         
     delayedRefreshCounter = new unsigned * [p->RANKS];
-    dummyRefreshPhyAddr = new uint64_t * [p->RANKS];
 
     if( p->UseRefresh )
     {
@@ -241,7 +238,6 @@ void MemoryController::SetConfig( Config *conf )
         for( ncounter_t i = 0; i < p->RANKS; i++ )
         {
             delayedRefreshCounter[i] = new unsigned[m_refreshBankNum];
-            dummyRefreshPhyAddr[i] = new uint64_t[m_refreshBankNum];
             
             // initialize the counter to 0
             for( ncounter_t j = 0; j < m_refreshBankNum; j++ )
@@ -249,16 +245,11 @@ void MemoryController::SetConfig( Config *conf )
                 delayedRefreshCounter[i][j] = 0;
 
                 uint64_t refreshBankHead = j * p->BanksPerRefresh;
-                // create the dummy physical address for RERESH use only
-                assert( translator != NULL );
-                dummyRefreshPhyAddr[i][j] = translator->ReverseTranslate( NULL, NULL, &refreshBankHead, &i, NULL );
 
                 // create first refresh pulse to start the refresh countdown
                 NVMainRequest* refreshPulse = MakeRefreshRequest();
                 
                 refreshPulse->address.SetTranslatedAddress( 0, 0, refreshBankHead, i, 0 );
-
-                refreshPulse->address.SetPhysicalAddress( dummyRefreshPhyAddr[i][j] );
 
                 // stagger the refresh 
                 ncycle_t offset = (i * m_refreshBankNum + j ) * m_refreshSlice; 
@@ -362,13 +353,6 @@ bool MemoryController::HandleRefresh( )
                 /* create a refresh command that will be sent to ranks */
                 NVMainRequest* cmdRefresh = MakeRefreshRequest( );
 
-                assert( translator != NULL );
-
-                //uint64_t dummyPhysicalAddr = translator->ReverseTranslate( NULL, NULL, &j, &i, NULL );
-                //uint64_t tmpRow, tmpCols, tmpBanks, tmpRanks, tmpChannels;
-                //translator->Translate( dummyPhysicalAddr, &tmpRow, &tmpCols, &tmpBanks, &tmpRanks, &tmpChannels);
-
-                cmdRefresh->address.SetPhysicalAddress( dummyRefreshPhyAddr[i][j/p->BanksPerRefresh] );
                 cmdRefresh->address.SetTranslatedAddress( 0, 0, j, i, 0 );
 
                 if( !memory->IsIssuable( cmdRefresh, &fail ) )

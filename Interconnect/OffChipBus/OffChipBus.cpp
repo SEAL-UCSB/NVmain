@@ -121,7 +121,14 @@ bool OffChipBus::IssueCommand( NVMainRequest *req )
           std::cout << "OffChipBus got unknown op." << std::endl;
         }
 
-      success = GetChild( req )->IssueCommand( req );
+      /*
+       * modified by Tao @ 01/28/2013
+       * REFRESH needs to make up a request but it is hard to assign a correct
+       * PHYSICAL address to this request. As a result, the 
+       * GetChild( req )->IssueCommand( req ) can not work properly. 
+       */
+      //success = GetChild( req )->IssueCommand( req );
+      success = ranks[opRank]->IssueCommand( req );
 
       /*
        *  To preserve rank-to-rank switching time, we need to notify the

@@ -158,7 +158,6 @@ class MemoryController : public NVMObject
   void DecrementRefreshCounter(const uint64_t, const uint64_t); // decrement the delayedRefreshCounter in a given bank group
   ncounter_t nextRefreshRank, nextRefreshBank; // next Refresh rank and bank
   bool HandleRefresh(); // issue REFRESH command if necessary; otherwise do nothing
-  uint64_t** dummyRefreshPhyAddr;
   
   class DummyPredicate : public SchedulingPredicate
   {
