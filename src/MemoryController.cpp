@@ -795,7 +795,7 @@ bool MemoryController::FindClosedBankRequests( std::list<NVMainRequest *>& trans
   return rv;
 }
 
-bool MemoryController::FindPrechargableBank( uint64_t *preRank, uint64_t *preBank )
+bool MemoryController::FindPrechargableBank( uint64_t *preBank, uint64_t *preRank )
 {
     std::list<NVMainRequest *>::iterator it;
 
@@ -810,7 +810,7 @@ bool MemoryController::FindPrechargableBank( uint64_t *preRank, uint64_t *preBan
              */
             ncounter_t i = (curRank + rankIdx)%p->RANKS;
             ncounter_t j = (curBank + bankIdx)%p->BANKS;
-            if( activateQueued[i][j] && bankQueues[i][j].empty() )
+            if( activateQueued[i][j] && bankQueues[i][j].empty() && !bankNeedRefresh[i][j] )
             {
                 *preRank = i;
                 *preBank = j;
@@ -920,16 +920,25 @@ void MemoryController::CycleCommandQueues( )
             /* added by Tao @ 01/25/2013, if close-page is applied, find a prechargable bank */
             else if( p->ClosePage )
             {
-                uint64_t rank, bank;
-                if( FindPrechargableBank( &rank, &bank ) )
+                uint64_t preRank, preBank;
+                if( FindPrechargableBank( &preBank, &preRank ) )
                 {
+                    // make up a dummy PRECHARGE command to close the bank
                     NVMainRequest* dummyPrechargeReq = new NVMainRequest();
                     dummyPrechargeReq->owner = this;
-                    dummyPrechargeReq->address.SetTranslatedAddress( 0, 0, bank, rank, 0 );
-                    bankQueues[rank][bank].push_back( MakePrechargeRequest( dummyPrechargeReq ) );
-                    activateQueued[rank][bank] = false;
+                    dummyPrechargeReq->address.SetTranslatedAddress( 0, 0, preBank, preRank, 0 );
+                    dummyPrechargeReq->type = PRECHARGE;
+                    dummyPrechargeReq->issueCycle = GetEventQueue()->GetCurrentCycle();
 
-                    delete dummyPrechargeReq;
+                    /*
+                     * enqueue the dummy PRECHARGE command, do not need to
+                     * worry about timing constraints, the above "if{}" part
+                     * will do this automatically
+                     */
+                    bankQueues[preRank][preBank].push_back( dummyPrechargeReq );
+                    activateQueued[preRank][preBank] = false;
+                    effectiveRow[preRank][preBank] = p->ROWS;
+                    //delete dummyPrechargeReq;
                 }
             }
             else if( !bankQueues[i][j].empty( ) )
