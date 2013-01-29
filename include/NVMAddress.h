@@ -40,7 +40,7 @@ class NVMAddress
 
   NVMAddress& operator=( const NVMAddress& m );
   
- //private:
+ private:
   uint64_t physicalAddress;
   uint64_t row;
   uint64_t col;
