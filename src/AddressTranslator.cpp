@@ -49,6 +49,73 @@ TranslationMethod *AddressTranslator::GetTranslationMethod( )
   return method;
 }
 
+/*
+ * added by Tao @ 01/28/2013 
+ * ReverseTranslate can return a physical address based on the translated
+ * address
+ */
+uint64_t AddressTranslator::ReverseTranslate( uint64_t *row, uint64_t *col, uint64_t *bank,
+				   uint64_t *rank, uint64_t *channel )
+{
+    uint64_t unitAddr = 1;
+    uint64_t phyAddr = 0;
+    MemoryPartition part;
+
+    if( GetTranslationMethod( ) == NULL )
+    {
+        std::cerr << "Divider Translator: Translation method not specified!" << std::endl;
+        exit(1);
+    }
+    
+    unsigned rowBits, colBits, bankBits, rankBits, channelBits;
+
+    GetTranslationMethod( )->GetBitWidths( &rowBits, &colBits, &bankBits, &rankBits, &channelBits );
+    
+    for( int i = 4; i >= 0; i-- )
+    {
+        /* 0->4, high to low, FindOrder() will find the correct one */
+        FindOrder( i, &part );
+
+        switch( part )
+        {
+            case MEM_ROW:
+                  unitAddr <<= rowBits;
+                  if( row != NULL )
+                      phyAddr += (*row) * unitAddr; 
+                  break;
+
+            case MEM_COL:
+                  unitAddr <<= colBits;
+                  if( col != NULL )
+                      phyAddr += (*col) * unitAddr; 
+                  break;
+
+            case MEM_BANK:
+                  unitAddr <<= bankBits;
+                  if( bank != NULL )
+                      phyAddr += (*bank) * unitAddr; 
+                  break;
+
+            case MEM_RANK:
+                  unitAddr <<= rankBits;
+                  if( rank != NULL )
+                      phyAddr += (*rank) * unitAddr; 
+                  break;
+
+            case MEM_CHANNEL:
+                  unitAddr <<= channelBits;
+                  if( channel != NULL )
+                      phyAddr += (*channel) * unitAddr; 
+                  break;
+
+            default:
+                  break;
+        }
+    }
+
+    return phyAddr;
+} 
+
 
 void AddressTranslator::Translate( uint64_t address, uint64_t *row, uint64_t *col, uint64_t *bank,
 				   uint64_t *rank, uint64_t *channel )

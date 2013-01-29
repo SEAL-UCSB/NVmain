@@ -39,6 +39,9 @@ class AddressTranslator
   
   virtual void Translate( uint64_t address, uint64_t *row, uint64_t *col, uint64_t *bank, uint64_t *rank, uint64_t *channel );
 
+  /* added by Tao @ 01/28/2012, reversely generate a physical address */
+  uint64_t ReverseTranslate( uint64_t *row, uint64_t *col, uint64_t *bank, uint64_t *rank, uint64_t *channel );
+
   uint64_t Translate( uint64_t address );
   void SetDefaultField( TranslationField f ); 
 
