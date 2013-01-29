@@ -321,7 +321,13 @@ bool Rank::Precharge( NVMainRequest *request )
    *  There are no rank-level constraints on precharges. If the bank says timing
    *  was met we can send the command to the bank.
    */
-  GetChild( request )->IssueCommand( request );
+  /* 
+   * modified by Tao @ 01/29/2013
+   * since we may have dummy PRECHARGE commands and it is hard to make up a
+   * physical address, we bypass the GetChild() and directly use the
+   * IssueCommand in a bank
+   */ 
+  devices[0].GetBank( prechargeBank )->IssueCommand( request );
 
   /* Broadcast request to remaining banks... this won't call hooks. */
   for( ncounter_t i = 1; i < deviceCount; i++ )
