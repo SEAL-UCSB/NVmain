@@ -15,6 +15,7 @@
  */
 
 #include <iostream>
+#include <cstdlib>
 
 
 #include "src/AddressTranslator.h"
