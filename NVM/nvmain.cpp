@@ -177,7 +177,6 @@ void NVMain::SetConfig( Config *conf, std::string memoryName )
 
       channelConfig[i] = new Config( *config );
 
-      channelConfig[i]->Read( config->GetFileName( ) );
       channelConfig[i]->SetSimInterface( config->GetSimInterface( ) );
 
       confString << "CONFIG_CHANNEL" << i;
