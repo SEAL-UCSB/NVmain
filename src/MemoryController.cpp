@@ -1,55 +1,64 @@
-/*
- *  This file is part of NVMain- A cycle accurate timing, bit-accurate
- *  energy simulator for non-volatile memory. Originally developed by 
- *  Matt Poremba at the Pennsylvania State University.
- *
- *  Website: http://www.cse.psu.edu/~poremba/nvmain/
- *  Email: mrp5060@psu.edu
- *
- *  ---------------------------------------------------------------------
- *
- *  If you use this software for publishable research, please include 
- *  the original NVMain paper in the citation list and mention the use 
- *  of NVMain.
- *
- */
+/*******************************************************************************
+* Copyright (c) 2012-2013, The Microsystems Design Labratory (MDL)
+* Department of Computer Science and Engineering, The Pennsylvania State University
+* All rights reserved.
+* 
+* This source code is part of NVMain - A cycle accurate timing, bit accurate
+* energy simulator for both volatile (e.g., DRAM) and nono-volatile memory
+* (e.g., PCRAM). The source code is free and you can redistribute and/or
+* modify it by providing that the following conditions are met:
+* 
+*  1) Redistributions of source code must retain the above copyright notice,
+*     this list of conditions and the following disclaimer.
+* 
+*  2) Redistributions in binary form must reproduce the above copyright notice,
+*     this list of conditions and the following disclaimer in the documentation
+*     and/or other materials provided with the distribution.
+* 
+* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+* ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+* WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+* DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+* FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+* DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+* SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+* CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+* OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+* 
+* Author list: 
+*   Matt Poremba    ( Email: mrp5060 at psu dot edu 
+*                     Website: http://www.cse.psu.edu/~poremba/ )
+*   Tao Zhang       ( Email: tzz106 at cse dot psu dot edu
+*                     Website: http://www.cse.psu.edu/~tzz106 )
+*******************************************************************************/
 
 #include <stdlib.h>
-
-
 #include "src/MemoryController.h"
 #include "include/NVMainRequest.h"
 #include <assert.h>
 
-
 using namespace NVM;
-
-
 
 MemoryController::MemoryController( )
 {
-  transactionQueues = NULL;
-  memory = NULL;
-  translator = NULL;
+    transactionQueues = NULL;
+    memory = NULL;
+    translator = NULL;
 
-  starvationThreshold = 4;
-  starvationCounter = NULL;
-  activateQueued = NULL;
-  effectiveRow = NULL;
+    starvationThreshold = 4;
+    starvationCounter = NULL;
+    activateQueued = NULL;
+    effectiveRow = NULL;
 
-  /* added by Tao  @ 01/26/2013 */
-  delayedRefreshCounter = NULL;
-  
-  curRank = 0;
-  curBank = 0;
-  nextRefreshRank = 0;
-  nextRefreshBank = 0;
+    delayedRefreshCounter = NULL;
+    
+    curRank = 0;
+    curBank = 0;
+    nextRefreshRank = 0;
+    nextRefreshBank = 0;
 }
 
-/* 
- * added by Tao @ 01/26/2013
- * release the memory space in the destructor
- */
 MemoryController::~MemoryController( )
 {
 
@@ -68,9 +77,6 @@ MemoryController::~MemoryController( )
     delete [] effectiveRow;
     delete [] bankNeedRefresh;
     
-    /* transactionQueues may still be used in the derived classes */
-    //delete [] transactionQueues;
-
     if( p->UseRefresh )
     {
         for( ncounter_t i = 0; i < p->RANKS; i++ )
@@ -86,92 +92,80 @@ MemoryController::~MemoryController( )
 
 MemoryController::MemoryController( Interconnect *memory, AddressTranslator *translator )
 {
-  this->memory = memory;
-  this->translator = translator;
+    this->memory = memory;
+    this->translator = translator;
 
-  transactionQueues = NULL;
+    transactionQueues = NULL;
 }
 
 AddressTranslator *MemoryController::GetAddressTranslator( )
 {
-  return translator;
+    return translator;
 }
-
 
 void MemoryController::InitQueues( unsigned int numQueues )
 {
-  if( transactionQueues != NULL )
-    delete [] transactionQueues;
+    if( transactionQueues != NULL )
+        delete [] transactionQueues;
 
-  transactionQueues = new NVMTransactionQueue[ numQueues ];
+    transactionQueues = new NVMTransactionQueue[ numQueues ];
 
-  for( unsigned int i = 0; i < numQueues; i++ )
-    transactionQueues[i].clear( );
+    for( unsigned int i = 0; i < numQueues; i++ )
+        transactionQueues[i].clear( );
 }
-
 
 void MemoryController::Cycle( ncycle_t )
 {
 }
 
-
 bool MemoryController::RequestComplete( NVMainRequest *request )
 {
-  bool rv = false;
+    bool rv = false;
 
-  if( request->owner == this )
+    if( request->owner == this )
     {
-      /* 
-       *  Any activate/precharge/etc commands belong to the memory controller, and 
-       *  we are in charge of deleting them!
-       */
-      delete request;
-      rv = true;
+        /* 
+         *  Any activate/precharge/etc commands belong to the memory controller, and 
+         *  we are in charge of deleting them!
+         */
+        delete request;
+        rv = true;
     }
-  else
+    else
     {
-      GetParent( )->RequestComplete( request );
+        GetParent( )->RequestComplete( request );
     }
 
-  return rv;
+    return rv;
 }
-
 
 bool MemoryController::QueueFull( NVMainRequest * /*request*/ )
 {
-  return false;
+    return false;
 }
-
 
 void MemoryController::SetMemory( Interconnect *mem )
 {
-  this->memory = mem;
+    this->memory = mem;
 
-  AddChild( mem );
-  mem->SetParent( this );
+    AddChild( mem );
+    mem->SetParent( this );
 }
-
-
 
 Interconnect *MemoryController::GetMemory( )
 {
-  return (this->memory);
+    return (this->memory);
 }
-
-
 
 void MemoryController::SetTranslator( AddressTranslator *trans )
 {
-  this->translator = trans;
+    this->translator = trans;
 }
-
-
 
 AddressTranslator *MemoryController::GetTranslator( )
 {
-  return (this->translator);
+    return (this->translator);
 }
-
 
 void MemoryController::SetConfig( Config *conf )
 {
@@ -203,9 +197,6 @@ void MemoryController::SetConfig( Config *conf )
         }
     }
 
-    /* 
-     * added by Tao @ 01/26/2013 
-     */
     bankNeedRefresh = new bool * [p->RANKS];
     for( ncounter_t i = 0; i < p->RANKS; i++ )
     {
@@ -220,41 +211,46 @@ void MemoryController::SetConfig( Config *conf )
 
     if( p->UseRefresh )
     {
-        // sanity check
+        /* sanity check */
         assert( p->BanksPerRefresh <= p->BANKS );
 
-        // it does not make sense when refresh is needed but no bank can be
-        // refreshed
+        /* 
+         * it does not make sense when refresh is needed 
+         * but no bank can be refreshed 
+         */
         assert( p->BanksPerRefresh != 0 );
 
         m_refreshBankNum = p->BANKS / p->BanksPerRefresh;
         
-        // first, calculate the tREFI
+        /* first, calculate the tREFI */
         m_tREFI = p->tRFI / (p->ROWS / p->RefreshRows );
 
-        // then, calculate the time interval between two refreshes
+        /* then, calculate the time interval between two refreshes */
         ncycle_t m_refreshSlice = m_tREFI / ( p->RANKS * m_refreshBankNum );
 
         for( ncounter_t i = 0; i < p->RANKS; i++ )
         {
             delayedRefreshCounter[i] = new unsigned[m_refreshBankNum];
             
-            // initialize the counter to 0
+            /* initialize the counter to 0 */
             for( ncounter_t j = 0; j < m_refreshBankNum; j++ )
             {
                 delayedRefreshCounter[i][j] = 0;
 
                 uint64_t refreshBankHead = j * p->BanksPerRefresh;
 
-                // create first refresh pulse to start the refresh countdown
+                /* create first refresh pulse to start the refresh countdown */ 
                 NVMainRequest* refreshPulse = MakeRefreshRequest();
                 
                 refreshPulse->address.SetTranslatedAddress( 0, 0, refreshBankHead, i, 0 );
 
-                // stagger the refresh 
+                /* stagger the refresh */
                 ncycle_t offset = (i * m_refreshBankNum + j ) * m_refreshSlice; 
 
-                // insert refresh pulse, the event queue behaves like a refresh countdown timer
+                /* 
+                 * insert refresh pulse, the event queue behaves like a 
+                 * refresh countdown timer 
+                 */
                 GetEventQueue()->InsertEvent( EventResponse, this, refreshPulse, 
                         ( GetEventQueue()->GetCurrentCycle() + m_tREFI + offset ) );
             }
@@ -263,8 +259,7 @@ void MemoryController::SetConfig( Config *conf )
 }
 
 /* 
- * added by Tao @ 01/26/2013
- * NeedRefresh has three functions:
+ * NeedRefresh() has three functions:
  *  1) it returns false when no refresh is used (p->UseRefresh = false) 
  *  2) it returns false if the delayed refresh counter does not
  *  reach the threshold, which provides the flexibility for
@@ -284,12 +279,11 @@ bool MemoryController::NeedRefresh( const uint64_t bank, const uint64_t rank )
 }
 
 /* 
- * added by Tao @ 01/27/2013
  * Set the refresh flag for a given bank group
  */
 void MemoryController::SetRefresh( const uint64_t bank, const uint64_t rank )
 {
-    // first, align to the head of bank group 
+    /* align to the head of bank group */
     uint64_t bankHead = ( bank / p->BanksPerRefresh ) * p->BanksPerRefresh;
 
     for( ncounter_t i = 0; i < p->BanksPerRefresh; i++ )
@@ -297,12 +291,11 @@ void MemoryController::SetRefresh( const uint64_t bank, const uint64_t rank )
 }
 
 /* 
- * added by Tao @ 01/27/2013
  * Reset the refresh flag for a given bank group
  */
 void MemoryController::ResetRefresh( const uint64_t bank, const uint64_t rank )
 {
-    // first, align to the head of bank group 
+    /* align to the head of bank group */
     uint64_t bankHead = ( bank / p->BanksPerRefresh ) * p->BanksPerRefresh;
 
     for( ncounter_t i = 0; i < p->BanksPerRefresh; i++ )
@@ -310,32 +303,29 @@ void MemoryController::ResetRefresh( const uint64_t bank, const uint64_t rank )
 }
 
 /* 
- * added by Tao @ 01/27/2013
- * increment the delayedRefreshCounter by 1 in a given bank group
+ * Increment the delayedRefreshCounter by 1 in a given bank group
  */
 void MemoryController::IncrementRefreshCounter( const uint64_t bank, const uint64_t rank )
 {
-    // first, align to the head of bank group 
+    /* get the bank group ID */
     uint64_t bankGroupID = bank / p->BanksPerRefresh;
 
     delayedRefreshCounter[rank][bankGroupID]++;
 }
 
 /* 
- * added by Tao @ 01/27/2013
  * decrement the delayedRefreshCounter by 1 in a given bank group
  */
 void MemoryController::DecrementRefreshCounter( const uint64_t bank, const uint64_t rank )
 {
-    // first, align to the head of bank group 
+    /* get the bank group ID */
     uint64_t bankGroupID = bank / p->BanksPerRefresh;
 
     delayedRefreshCounter[rank][bankGroupID]--;
 }
 
 /* 
- * added by Tao @ 01/27/2013
- * it simply check all the banks in the refresh bank group whether their
+ * it simply checks all the banks in the refresh bank group whether their
  * command queues are empty. the result is the union of each check
  */
 bool MemoryController::HandleRefresh( )
@@ -386,7 +376,7 @@ bool MemoryController::HandleRefresh( )
                 /* decrement the corresponding counter by 1 */
                 DecrementRefreshCounter( j, i );
 
-                // if do not need refresh anymore, reset the refresh flag
+                /* if do not need refresh anymore, reset the refresh flag */
                 if( !NeedRefresh( j, i ) )
                     ResetRefresh( j, i );
 
@@ -410,8 +400,7 @@ bool MemoryController::HandleRefresh( )
 }
 
 /* 
- * added by Tao @ 01/26/2013
- * it simply increment the corresponding delayed refresh counter 
+ * it simply increments the corresponding delayed refresh counter 
  * and re-insert the refresh pulse into event queue
  */
 void MemoryController::ProcessRefreshPulse( NVMainRequest* refresh )
@@ -431,13 +420,12 @@ void MemoryController::ProcessRefreshPulse( NVMainRequest* refresh )
 }
 
 /* 
- * added by Tao @ 01/26/2013
  * it simply checks all banks in the refresh bank group whether their
  * command queues are empty. the result is the union of each check
  */
 bool MemoryController::IsRefreshBankQueueEmpty( const uint64_t bank, const uint64_t rank )
 {
-    // first, align to the head of bank group 
+    /* align to the head of bank group */
     uint64_t bankHead = ( bank / p->BanksPerRefresh ) * p->BanksPerRefresh;
 
     for( ncounter_t i = 0; i < p->BanksPerRefresh; i++ )
@@ -449,350 +437,337 @@ bool MemoryController::IsRefreshBankQueueEmpty( const uint64_t bank, const uint6
 
 Config *MemoryController::GetConfig( )
 {
-  return (this->config);
+    return (this->config);
 }
-
 
 void MemoryController::SetID( unsigned int id )
 {
-  this->id = id;
+    this->id = id;
 }
-
 
 NVMainRequest *MemoryController::MakeActivateRequest( NVMainRequest *triggerRequest )
 {
-  NVMainRequest *activateRequest = new NVMainRequest( );
+    NVMainRequest *activateRequest = new NVMainRequest( );
 
-  activateRequest->type = ACTIVATE;
-  activateRequest->issueCycle = GetEventQueue()->GetCurrentCycle();
-  activateRequest->address = triggerRequest->address;
-  activateRequest->owner = this;
+    activateRequest->type = ACTIVATE;
+    activateRequest->issueCycle = GetEventQueue()->GetCurrentCycle();
+    activateRequest->address = triggerRequest->address;
+    activateRequest->owner = this;
 
-  return activateRequest;
+    return activateRequest;
 }
-
 
 NVMainRequest *MemoryController::MakePrechargeRequest( NVMainRequest *triggerRequest )
 {
-  NVMainRequest *prechargeRequest = new NVMainRequest( );
+    NVMainRequest *prechargeRequest = new NVMainRequest( );
 
-  prechargeRequest->type = PRECHARGE;
-  prechargeRequest->issueCycle = GetEventQueue()->GetCurrentCycle();
-  prechargeRequest->address = triggerRequest->address;
-  prechargeRequest->owner = this;
+    prechargeRequest->type = PRECHARGE;
+    prechargeRequest->issueCycle = GetEventQueue()->GetCurrentCycle();
+    prechargeRequest->address = triggerRequest->address;
+    prechargeRequest->owner = this;
 
-  return prechargeRequest;
+    return prechargeRequest;
 }
-
-
 
 NVMainRequest *MemoryController::MakeRefreshRequest( )
 {
-  NVMainRequest *refreshRequest = new NVMainRequest( );
+    NVMainRequest *refreshRequest = new NVMainRequest( );
 
-  refreshRequest->type = REFRESH;
-  refreshRequest->issueCycle = GetEventQueue()->GetCurrentCycle();
-  refreshRequest->owner = this;
+    refreshRequest->type = REFRESH;
+    refreshRequest->issueCycle = GetEventQueue()->GetCurrentCycle();
+    refreshRequest->owner = this;
 
-  return refreshRequest;
+    return refreshRequest;
 }
 
-
-bool MemoryController::FindStarvedRequest( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **starvedRequest )
+bool MemoryController::FindStarvedRequest( std::list<NVMainRequest *>& transactionQueue, 
+        NVMainRequest **starvedRequest )
 {
-  DummyPredicate pred;
+    DummyPredicate pred;
 
-  return FindStarvedRequest( transactionQueue, starvedRequest, pred );
+    return FindStarvedRequest( transactionQueue, starvedRequest, pred );
 }
 
-
-bool MemoryController::FindStarvedRequest( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **starvedRequest, SchedulingPredicate& pred )
+bool MemoryController::FindStarvedRequest( std::list<NVMainRequest *>& transactionQueue, 
+        NVMainRequest **starvedRequest, SchedulingPredicate& pred )
 {
-  bool rv = false;
-  std::list<NVMainRequest *>::iterator it;
+    bool rv = false;
+    std::list<NVMainRequest *>::iterator it;
 
-  for( it = transactionQueue.begin(); it != transactionQueue.end(); it++ )
+    for( it = transactionQueue.begin(); it != transactionQueue.end(); it++ )
     {
-      uint64_t rank, bank, row;
+        uint64_t rank, bank, row;
 
-      (*it)->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
+        (*it)->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
 
-      if( activateQueued[rank][bank] && effectiveRow[rank][bank] != row    /* The effective row is not the row of this request. */
-          && !bankNeedRefresh[rank][bank]                                  /* added By Tao @ 01/27/2013, request is blocked when refresh is needed */
-          && starvationCounter[rank][bank] >= starvationThreshold          /* This bank has reached it's starvation threshold. */
-          && bankQueues[rank][bank].empty()                                /* No requests are currently issued to this bank. */
-          && pred( rank, bank ) )                                          /* User-defined predicate is true. */
+        if( activateQueued[rank][bank] && effectiveRow[rank][bank] != row    /* The effective row is not the row of this request. */
+            && !bankNeedRefresh[rank][bank]                                  /* added By Tao @ 01/27/2013, request is blocked when refresh is needed */
+            && starvationCounter[rank][bank] >= starvationThreshold          /* This bank has reached it's starvation threshold. */
+            && bankQueues[rank][bank].empty()                                /* No requests are currently issued to this bank. */
+            && pred( rank, bank ) )                                          /* User-defined predicate is true. */
         {
-          *starvedRequest = (*it);
-          transactionQueue.erase( it );
+            *starvedRequest = (*it);
+            transactionQueue.erase( it );
 
-          rv = true;
-          break;
+            rv = true;
+            break;
         }
     }
 
-  return rv;
+    return rv;
 }
 
-
-
-bool MemoryController::FindRowBufferHit( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **hitRequest )
+bool MemoryController::FindRowBufferHit( std::list<NVMainRequest *>& transactionQueue, 
+        NVMainRequest **hitRequest )
 {
-  DummyPredicate pred;
+    DummyPredicate pred;
 
-  return FindRowBufferHit( transactionQueue, hitRequest, pred );
+    return FindRowBufferHit( transactionQueue, hitRequest, pred );
 }
 
-
-
-bool MemoryController::FindRowBufferHit( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **hitRequest, SchedulingPredicate& pred )
+bool MemoryController::FindRowBufferHit( std::list<NVMainRequest *>& transactionQueue, 
+        NVMainRequest **hitRequest, SchedulingPredicate& pred )
 {
-  bool rv = false;
-  std::list<NVMainRequest *>::iterator it;
+    bool rv = false;
+    std::list<NVMainRequest *>::iterator it;
 
-  for( it = transactionQueue.begin(); it != transactionQueue.end(); it++ )
+    for( it = transactionQueue.begin(); it != transactionQueue.end(); it++ )
     {
-      uint64_t rank, bank, row;
+        uint64_t rank, bank, row;
 
-      (*it)->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
+        (*it)->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
 
-      if( activateQueued[rank][bank] && effectiveRow[rank][bank] == row    /* The effective row is the row of this request. */
-          && !bankNeedRefresh[rank][bank]                                  /* added By Tao @ 01/27/2013, request is blocked when refresh is needed */
-          && bankQueues[rank][bank].empty()                                /* No requests are currently issued to this bank. */
-          && pred( rank, bank ) )                                          /* User-defined predicate is true. */
+        if( activateQueued[rank][bank] && effectiveRow[rank][bank] == row    /* The effective row is the row of this request. */
+            && !bankNeedRefresh[rank][bank]                                  /* added By Tao @ 01/27/2013, request is blocked when refresh is needed */
+            && bankQueues[rank][bank].empty()                                /* No requests are currently issued to this bank. */
+            && pred( rank, bank ) )                                          /* User-defined predicate is true. */
         {
-          *hitRequest = (*it);
-          transactionQueue.erase( it );
+            *hitRequest = (*it);
+            transactionQueue.erase( it );
 
-          rv = true;
-          break;
+            rv = true;
+            break;
         }
     }
 
-  return rv;
+    return rv;
 }
 
-
-
-bool MemoryController::FindOldestReadyRequest( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **oldestRequest )
+bool MemoryController::FindOldestReadyRequest( std::list<NVMainRequest *>& transactionQueue, 
+        NVMainRequest **oldestRequest )
 {
-  DummyPredicate pred;
+    DummyPredicate pred;
 
-  return FindOldestReadyRequest( transactionQueue, oldestRequest, pred );
+    return FindOldestReadyRequest( transactionQueue, oldestRequest, pred );
 }
 
-
-bool MemoryController::FindOldestReadyRequest( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **oldestRequest, SchedulingPredicate& pred )
+bool MemoryController::FindOldestReadyRequest( std::list<NVMainRequest *>& transactionQueue, 
+        NVMainRequest **oldestRequest, SchedulingPredicate& pred )
 {
-  bool rv = false;
-  std::list<NVMainRequest *>::iterator it;
+    bool rv = false;
+    std::list<NVMainRequest *>::iterator it;
 
-  for( it = transactionQueue.begin(); it != transactionQueue.end(); it++ )
+    for( it = transactionQueue.begin(); it != transactionQueue.end(); it++ )
     {
-      uint64_t rank, bank, row;
+        uint64_t rank, bank, row;
 
-      (*it)->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
+        (*it)->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
 
-      if( activateQueued[rank][bank] 
-          && !bankNeedRefresh[rank][bank]                                  /* added By Tao @ 01/27/2013, request is blocked when refresh is needed */
-          && bankQueues[rank][bank].empty()                                /* No requests are currently issued to this bank (Ready). */
-          && pred( rank, bank ) )                                          /* User-defined predicate is true. */
+        if( activateQueued[rank][bank] 
+            && !bankNeedRefresh[rank][bank]                                  /* added By Tao @ 01/27/2013, request is blocked when refresh is needed */
+            && bankQueues[rank][bank].empty()                                /* No requests are currently issued to this bank (Ready). */
+            && pred( rank, bank ) )                                          /* User-defined predicate is true. */
         {
-          *oldestRequest = (*it);
-          transactionQueue.erase( it );
-          
-          rv = true;
-          break;
+            *oldestRequest = (*it);
+            transactionQueue.erase( it );
+            
+            rv = true;
+            break;
         }
     }
 
-  return rv;
+    return rv;
 }
 
-
-bool MemoryController::FindClosedBankRequest( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **closedRequest )
+bool MemoryController::FindClosedBankRequest( std::list<NVMainRequest *>& transactionQueue, 
+        NVMainRequest **closedRequest )
 {
-  DummyPredicate pred;
+    DummyPredicate pred;
 
-  return FindClosedBankRequest( transactionQueue, closedRequest, pred );
+    return FindClosedBankRequest( transactionQueue, closedRequest, pred );
 }
 
-
-bool MemoryController::FindClosedBankRequest( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **closedRequest, SchedulingPredicate& pred )
+bool MemoryController::FindClosedBankRequest( std::list<NVMainRequest *>& transactionQueue, 
+        NVMainRequest **closedRequest, SchedulingPredicate& pred )
 {
-  bool rv = false;
-  std::list<NVMainRequest *>::iterator it;
+    bool rv = false;
+    std::list<NVMainRequest *>::iterator it;
 
-  for( it = transactionQueue.begin(); it != transactionQueue.end(); it++ )
+    for( it = transactionQueue.begin(); it != transactionQueue.end(); it++ )
     {
-      uint64_t rank, bank, row;
+        uint64_t rank, bank, row;
 
-      (*it)->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
+        (*it)->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
 
-      if( !activateQueued[rank][bank]                                      /* This bank is closed, anyone can issue. */
-          && !bankNeedRefresh[rank][bank]                                  /* added By Tao @ 01/27/2013, request is blocked when refresh is needed */
-          && bankQueues[rank][bank].empty()                                /* No requests are currently issued to this bank (Ready). */
-          && pred( rank, bank ) )                                          /* User defined predicate is true. */
+        if( !activateQueued[rank][bank]          /* This bank is closed, anyone can issue. */
+            && !bankNeedRefresh[rank][bank]      /* request is blocked when refresh is needed */
+            && bankQueues[rank][bank].empty()    /* No requests are currently issued to this bank (Ready). */
+            && pred( rank, bank ) )              /* User defined predicate is true. */
         {
-          *closedRequest = (*it);
-          transactionQueue.erase( it );
-          
-          rv = true;
-          break;
+            *closedRequest = (*it);
+            transactionQueue.erase( it );
+            
+            rv = true;
+            break;
         }
     }
 
-  return rv;
+    return rv;
 }
-
 
 /*
  *  Slightly modify the scheduling functions form MemoryController.cpp to return a list instead
  *  of just a single request
  */
-bool MemoryController::FindStarvedRequests( std::list<NVMainRequest *>& transactionQueue, std::vector<NVMainRequest *>& starvedRequests )
+bool MemoryController::FindStarvedRequests( std::list<NVMainRequest *>& transactionQueue, 
+        std::vector<NVMainRequest *>& starvedRequests )
 {
-  DummyPredicate pred;
+    DummyPredicate pred;
 
-  return FindStarvedRequests( transactionQueue, starvedRequests );
+    return FindStarvedRequests( transactionQueue, starvedRequests );
 }
 
-
-
-bool MemoryController::FindStarvedRequests( std::list<NVMainRequest *>& transactionQueue, std::vector<NVMainRequest *>& starvedRequests, SchedulingPredicate& pred )
+bool MemoryController::FindStarvedRequests( std::list<NVMainRequest *>& transactionQueue, 
+        std::vector<NVMainRequest *>& starvedRequests, SchedulingPredicate& pred )
 {
-  bool rv = false;
-  std::list<NVMainRequest *>::iterator it;
+    bool rv = false;
+    std::list<NVMainRequest *>::iterator it;
 
-  for( it = transactionQueue.begin(); it != transactionQueue.end(); it++ )
+    for( it = transactionQueue.begin(); it != transactionQueue.end(); it++ )
     {
-      uint64_t rank, bank, row;
+        uint64_t rank, bank, row;
 
-      (*it)->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
+        (*it)->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
 
-      if( activateQueued[rank][bank] && effectiveRow[rank][bank] != row    /* The effective row is not the row of this request. */
-          && !bankNeedRefresh[rank][bank]                                  /* added By Tao @ 01/27/2013, request is blocked when refresh is needed */
-          && starvationCounter[rank][bank] >= starvationThreshold          /* This bank has reached it's starvation threshold. */
-          && bankQueues[rank][bank].empty()                                /* No requests are currently issued to this bank. */
-          && pred( rank, bank ) )
+        if( activateQueued[rank][bank] && effectiveRow[rank][bank] != row    /* The effective row is not the row of this request. */
+            && !bankNeedRefresh[rank][bank]                                  /* added By Tao @ 01/27/2013, request is blocked when refresh is needed */
+            && starvationCounter[rank][bank] >= starvationThreshold          /* This bank has reached it's starvation threshold. */
+            && bankQueues[rank][bank].empty()                                /* No requests are currently issued to this bank. */
+            && pred( rank, bank ) )
         {
-          starvedRequests.push_back( (*it) );
-          transactionQueue.erase( it );
+            starvedRequests.push_back( (*it) );
+            transactionQueue.erase( it );
 
-          rv = true;
+            rv = true;
         }
     }
 
-  return rv;
+    return rv;
 }
 
-
-
-bool MemoryController::FindRowBufferHits( std::list<NVMainRequest *>& transactionQueue, std::vector<NVMainRequest *>& hitRequests )
+bool MemoryController::FindRowBufferHits( std::list<NVMainRequest *>& transactionQueue, 
+        std::vector<NVMainRequest *>& hitRequests )
 {
-  DummyPredicate pred;
+    DummyPredicate pred;
 
-  return FindRowBufferHits( transactionQueue, hitRequests, pred );
+    return FindRowBufferHits( transactionQueue, hitRequests, pred );
 }
 
-
-
-bool MemoryController::FindRowBufferHits( std::list<NVMainRequest *>& transactionQueue, std::vector<NVMainRequest* >& hitRequests, SchedulingPredicate& pred )
+bool MemoryController::FindRowBufferHits( std::list<NVMainRequest *>& transactionQueue, 
+        std::vector<NVMainRequest* >& hitRequests, SchedulingPredicate& pred )
 {
-  bool rv = false;
-  std::list<NVMainRequest *>::iterator it;
+    bool rv = false;
+    std::list<NVMainRequest *>::iterator it;
 
-  for( it = transactionQueue.begin(); it != transactionQueue.end(); it++ )
+    for( it = transactionQueue.begin(); it != transactionQueue.end(); it++ )
     {
-      uint64_t rank, bank, row;
+        uint64_t rank, bank, row;
 
-      (*it)->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
+        (*it)->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
 
-      if( activateQueued[rank][bank] && effectiveRow[rank][bank] == row    /* The effective row is the row of this request. */
-          && !bankNeedRefresh[rank][bank]                                  /* added By Tao @ 01/27/2013, request is blocked when refresh is needed */
-          && bankQueues[rank][bank].empty()                                /* No requests are currently issued to this bank. */
-          && pred( rank, bank ) )                                          /* User-defined predicate is true. */
+        if( activateQueued[rank][bank] && effectiveRow[rank][bank] == row    /* The effective row is the row of this request. */
+            && !bankNeedRefresh[rank][bank]                                  /* added By Tao @ 01/27/2013, request is blocked when refresh is needed */
+            && bankQueues[rank][bank].empty()                                /* No requests are currently issued to this bank. */
+            && pred( rank, bank ) )                                          /* User-defined predicate is true. */
         {
-          hitRequests.push_back( (*it) );
-          transactionQueue.erase( it );
+            hitRequests.push_back( (*it) );
+            transactionQueue.erase( it );
 
-          rv = true;
+            rv = true;
         }
     }
 
-  return rv;
+    return rv;
 }
 
-
-
-
-bool MemoryController::FindOldestReadyRequests( std::list<NVMainRequest *>& transactionQueue, std::vector<NVMainRequest *> &oldestRequests )
+bool MemoryController::FindOldestReadyRequests( std::list<NVMainRequest *>& transactionQueue, 
+        std::vector<NVMainRequest *> &oldestRequests )
 {
-  DummyPredicate pred;
+    DummyPredicate pred;
 
-  return FindOldestReadyRequests( transactionQueue, oldestRequests, pred );
+    return FindOldestReadyRequests( transactionQueue, oldestRequests, pred );
 }
 
-
-bool MemoryController::FindOldestReadyRequests( std::list<NVMainRequest *>& transactionQueue, std::vector<NVMainRequest *>& oldestRequests, SchedulingPredicate& pred )
+bool MemoryController::FindOldestReadyRequests( std::list<NVMainRequest *>& transactionQueue, 
+        std::vector<NVMainRequest *>& oldestRequests, SchedulingPredicate& pred )
 {
-  bool rv = false;
-  std::list<NVMainRequest *>::iterator it;
+    bool rv = false;
+    std::list<NVMainRequest *>::iterator it;
 
-  for( it = transactionQueue.begin(); it != transactionQueue.end(); it++ )
+    for( it = transactionQueue.begin(); it != transactionQueue.end(); it++ )
     {
-      uint64_t rank, bank, row;
+        uint64_t rank, bank, row;
 
-      (*it)->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
+        (*it)->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
 
-      if( activateQueued[rank][bank] 
-          && !bankNeedRefresh[rank][bank]                                  /* added By Tao @ 01/27/2013, request is blocked when refresh is needed */
-          && bankQueues[rank][bank].empty()                                /* No requests are currently issued to this bank (Ready). */
-          && pred( rank, bank ) )                                          /* User-defined predicate is true. */
+        if( activateQueued[rank][bank] 
+            && !bankNeedRefresh[rank][bank]    /* request is blocked when refresh is needed */
+            && bankQueues[rank][bank].empty()  /* No requests are currently issued to this bank (Ready). */
+            && pred( rank, bank ) )            /* User-defined predicate is true. */
         {
-          oldestRequests.push_back( (*it) );
-          transactionQueue.erase( it );
-          
-          rv = true;
+            oldestRequests.push_back( (*it) );
+            transactionQueue.erase( it );
+            
+            rv = true;
         }
     }
 
-  return rv;
+    return rv;
 }
 
-
-bool MemoryController::FindClosedBankRequests( std::list<NVMainRequest *>& transactionQueue, std::vector<NVMainRequest *> &closedRequests )
+bool MemoryController::FindClosedBankRequests( std::list<NVMainRequest *>& transactionQueue, 
+        std::vector<NVMainRequest *> &closedRequests )
 {
-  DummyPredicate pred;
+    DummyPredicate pred;
 
-  return FindClosedBankRequests( transactionQueue, closedRequests, pred );
+    return FindClosedBankRequests( transactionQueue, closedRequests, pred );
 }
 
-
-bool MemoryController::FindClosedBankRequests( std::list<NVMainRequest *>& transactionQueue, std::vector<NVMainRequest *> &closedRequests, SchedulingPredicate& pred )
+bool MemoryController::FindClosedBankRequests( std::list<NVMainRequest *>& transactionQueue, 
+        std::vector<NVMainRequest *> &closedRequests, SchedulingPredicate& pred )
 {
-  bool rv = false;
-  std::list<NVMainRequest *>::iterator it;
+    bool rv = false;
+    std::list<NVMainRequest *>::iterator it;
 
-  for( it = transactionQueue.begin(); it != transactionQueue.end(); it++ )
+    for( it = transactionQueue.begin(); it != transactionQueue.end(); it++ )
     {
-      uint64_t rank, bank, row;
+        uint64_t rank, bank, row;
 
-      (*it)->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
+        (*it)->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
 
-      if( !activateQueued[rank][bank]                                      /* This bank is closed, anyone can issue. */
-          && !bankNeedRefresh[rank][bank]                                  /* added By Tao @ 01/27/2013, request is blocked when refresh is needed */
-          && bankQueues[rank][bank].empty()                                /* No requests are currently issued to this bank (Ready). */
-          && pred( rank, bank ) )                                          /* User defined predicate is true. */
+        if( !activateQueued[rank][bank]        /* This bank is closed, anyone can issue. */
+            && !bankNeedRefresh[rank][bank]    /* request is blocked when refresh is needed */
+            && bankQueues[rank][bank].empty()  /* No requests are currently issued to this bank (Ready). */
+            && pred( rank, bank ) )            /* User defined predicate is true. */
         {
-          closedRequests.push_back( (*it ) );
-          transactionQueue.erase( it );
-          
-          rv = true;
+            closedRequests.push_back( (*it ) );
+            transactionQueue.erase( it );
+            
+            rv = true;
         }
     }
 
-  return rv;
+    return rv;
 }
 
 bool MemoryController::FindPrechargableBank( uint64_t *preBank, uint64_t *preRank )
@@ -821,72 +796,72 @@ bool MemoryController::FindPrechargableBank( uint64_t *preBank, uint64_t *preRan
     return false;
 }
 
-
 bool MemoryController::DummyPredicate::operator() (uint64_t, uint64_t)
 {
-  return true;
+    return true;
 }
 
 
 bool MemoryController::IssueMemoryCommands( NVMainRequest *req )
 {
-  bool rv = false;
-  uint64_t rank, bank, row;
+    bool rv = false;
+    uint64_t rank, bank, row;
 
-  req->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
+    req->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
 
-  /*
-   *  This function assumes the memory controller uses any predicates when
-   *  scheduling. They will not be re-checked here.
-   */
+    /*
+     *  This function assumes the memory controller uses any predicates when
+     *  scheduling. They will not be re-checked here.
+     */
 
-  if( !activateQueued[rank][bank] && bankQueues[rank][bank].empty() )
+    if( !activateQueued[rank][bank] && bankQueues[rank][bank].empty() )
     {
-      /* Any activate will request the starvation counter */
-      starvationCounter[rank][bank] = 0;
-      activateQueued[rank][bank] = true;
-      effectiveRow[rank][bank] = row;
+        /* Any activate will request the starvation counter */
+        starvationCounter[rank][bank] = 0;
+        activateQueued[rank][bank] = true;
+        effectiveRow[rank][bank] = row;
 
-      req->issueCycle = GetEventQueue()->GetCurrentCycle();
+        req->issueCycle = GetEventQueue()->GetCurrentCycle();
 
-      bankQueues[rank][bank].push_back( MakeActivateRequest( req ) );
-      bankQueues[rank][bank].push_back( req );
+        bankQueues[rank][bank].push_back( MakeActivateRequest( req ) );
+        bankQueues[rank][bank].push_back( req );
 
-      rv = true;
+        rv = true;
     }
-  else if( activateQueued[rank][bank] && effectiveRow[rank][bank] != row && bankQueues[rank][bank].empty() )
+    else if( activateQueued[rank][bank] 
+            && effectiveRow[rank][bank] != row 
+            && bankQueues[rank][bank].empty() )
     {
-      /* Any activate will request the starvation counter */
-      starvationCounter[rank][bank] = 0;
-      activateQueued[rank][bank] = true;
-      effectiveRow[rank][bank] = row;
+        /* Any activate will request the starvation counter */
+        starvationCounter[rank][bank] = 0;
+        activateQueued[rank][bank] = true;
+        effectiveRow[rank][bank] = row;
 
-      req->issueCycle = GetEventQueue()->GetCurrentCycle();
+        req->issueCycle = GetEventQueue()->GetCurrentCycle();
 
-      bankQueues[rank][bank].push_back( MakePrechargeRequest( req ) );
-      bankQueues[rank][bank].push_back( MakeActivateRequest( req ) );
-      bankQueues[rank][bank].push_back( req );
+        bankQueues[rank][bank].push_back( MakePrechargeRequest( req ) );
+        bankQueues[rank][bank].push_back( MakeActivateRequest( req ) );
+        bankQueues[rank][bank].push_back( req );
 
-      rv = true;
+        rv = true;
     }
-  else if( activateQueued[rank][bank] && effectiveRow[rank][bank] == row )
+    else if( activateQueued[rank][bank] && effectiveRow[rank][bank] == row )
     {
-      starvationCounter[rank][bank]++;
+        starvationCounter[rank][bank]++;
 
-      req->issueCycle = GetEventQueue()->GetCurrentCycle();
+        req->issueCycle = GetEventQueue()->GetCurrentCycle();
 
-      bankQueues[rank][bank].push_back( req );
+        bankQueues[rank][bank].push_back( req );
 
-      rv = true;
+        rv = true;
     }
-  else
+    else
     {
-      rv = false;
+        rv = false;
     }
 
-  return rv;
+    return rv;
 }
-
 
 void MemoryController::CycleCommandQueues( )
 {
@@ -917,13 +892,12 @@ void MemoryController::CycleCommandQueues( )
                 /* we should return since one time only one command can be issued */
                 return ;
             }
-            /* added by Tao @ 01/25/2013, if close-page is applied, find a prechargable bank */
             else if( p->ClosePage )
             {
                 uint64_t preRank, preBank;
                 if( FindPrechargableBank( &preBank, &preRank ) )
                 {
-                    // make up a dummy PRECHARGE command to close the bank
+                    /* make up a dummy PRECHARGE command to close the bank */
                     NVMainRequest* dummyPrechargeReq = new NVMainRequest();
                     dummyPrechargeReq->owner = this;
                     dummyPrechargeReq->address.SetTranslatedAddress( 0, 0, preBank, preRank, 0 );
@@ -938,7 +912,6 @@ void MemoryController::CycleCommandQueues( )
                     bankQueues[preRank][preBank].push_back( dummyPrechargeReq );
                     activateQueued[preRank][preBank] = false;
                     effectiveRow[preRank][preBank] = p->ROWS;
-                    //delete dummyPrechargeReq;
                 }
             }
             else if( !bankQueues[i][j].empty( ) )
@@ -958,10 +931,6 @@ void MemoryController::CycleCommandQueues( )
                               << ". Current time: " << GetEventQueue()->GetCurrentCycle() << ". Type: " 
                               << queueHead->type << std::endl;
 
-                    /* 
-                     * added by Tao @ 01/25/2012, avoid print too much warning
-                     * that eats the disk space 
-                     */
                     exit(1);
                 }
             }
@@ -1002,13 +971,8 @@ void MemoryController::MoveRankBank( )
     /* if fixed scheduling is used, we do nothing */
 }
 
-
-
 void MemoryController::PrintStats( )
 {
-  memory->PrintStats( );
-  translator->PrintStats( );
+    memory->PrintStats( );
+    translator->PrintStats( );
 }
-
-
-

@@ -1,115 +1,118 @@
-/*
- *  This file is part of NVMain- A cycle accurate timing, bit-accurate
- *  energy simulator for non-volatile memory. Originally developed by 
- *  Matt Poremba at the Pennsylvania State University.
- *
- *  Website: http://www.cse.psu.edu/~poremba/nvmain/
- *  Email: mrp5060@psu.edu
- *
- *  ---------------------------------------------------------------------
- *
- *  If you use this software for publishable research, please include 
- *  the original NVMain paper in the citation list and mention the use 
- *  of NVMain.
- *
- */
+/*******************************************************************************
+* Copyright (c) 2012-2013, The Microsystems Design Labratory (MDL)
+* Department of Computer Science and Engineering, The Pennsylvania State University
+* All rights reserved.
+* 
+* This source code is part of NVMain - A cycle accurate timing, bit accurate
+* energy simulator for both volatile (e.g., DRAM) and nono-volatile memory
+* (e.g., PCRAM). The source code is free and you can redistribute and/or
+* modify it by providing that the following conditions are met:
+* 
+*  1) Redistributions of source code must retain the above copyright notice,
+*     this list of conditions and the following disclaimer.
+* 
+*  2) Redistributions in binary form must reproduce the above copyright notice,
+*     this list of conditions and the following disclaimer in the documentation
+*     and/or other materials provided with the distribution.
+* 
+* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+* ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+* WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+* DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+* FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+* DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+* SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+* CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+* OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+* 
+* Author list: 
+*   Matt Poremba    ( Email: mrp5060 at psu dot edu 
+*                     Website: http://www.cse.psu.edu/~poremba/ )
+*   Tao Zhang       ( Email: tzz106 at cse dot psu dot edu
+*                     Website: http://www.cse.psu.edu/~tzz106 )
+*******************************************************************************/
 
 #ifndef __RANK_H__
 #define __RANK_H__
 
-
 #include <stdint.h>
 #include <list>
-
-
 #include "src/Bank.h"
 #include "src/Device.h"
 #include "src/Params.h"
 #include "src/NVMObject.h"
-
-
 #include <iostream>
-
 
 namespace NVM {
 
-
 class Rank : public NVMObject
 {
-public:
-  Rank( );
-  ~Rank( );
+  public:
+    Rank( );
+    ~Rank( );
 
-  void SetConfig( Config *c );
-  void SetParams( Params *params ) { p = params; }
+    void SetConfig( Config *c );
+    void SetParams( Params *params ) { p = params; }
 
-  bool IssueCommand( NVMainRequest *mop );
-  bool IsIssuable( NVMainRequest *mop, FailReason *reason = NULL );
-  void Notify( OpType op );
+    bool IssueCommand( NVMainRequest *mop );
+    bool IsIssuable( NVMainRequest *mop, FailReason *reason = NULL );
+    void Notify( OpType op );
 
-  void SetName( std::string name );
-  void PrintStats( );
-  void StatName( std::string name ) { statName = name; }
+    void SetName( std::string name );
+    void PrintStats( );
+    void StatName( std::string name ) { statName = name; }
 
-  ncycle_t GetNextActivate( uint64_t bank );
-  ncycle_t GetNextRead( uint64_t bank );
-  ncycle_t GetNextWrite( uint64_t bank );
-  ncycle_t GetNextPrecharge( uint64_t bank );
-  ncycle_t GetNextRefresh( uint64_t bank );
+    ncycle_t GetNextActivate( uint64_t bank );
+    ncycle_t GetNextRead( uint64_t bank );
+    ncycle_t GetNextWrite( uint64_t bank );
+    ncycle_t GetNextPrecharge( uint64_t bank );
+    ncycle_t GetNextRefresh( uint64_t bank );
 
-  void Cycle( ncycle_t steps );
+    void Cycle( ncycle_t steps );
 
-  Device *GetDevice( uint64_t device ) { return &(devices[device]); }
+    Device *GetDevice( uint64_t device ) { return &(devices[device]); }
 
-private:
-  Config *conf;
-  ncounter_t stateTimeout;
-  std::string statName;
-  uint64_t psInterval;
+  private:
+    Config *conf;
+    ncounter_t stateTimeout;
+    std::string statName;
+    uint64_t psInterval;
 
-  Device *devices;
-  ncounter_t bankCount;
-  ncounter_t deviceWidth;
-  ncounter_t deviceCount;
-  ncounter_t busWidth;
-  ncycles_t lastActivate[4];
-  ncounter_t FAWindex;
-  /* 
-   * added by Tao @ 01/26/2013
-   * banksPerRefresh specify how many banks will be refreshed in a single
-   * REFRESH command
-   */
-  unsigned banksPerRefresh;
+    Device *devices;
+    ncounter_t bankCount;
+    ncounter_t deviceWidth;
+    ncounter_t deviceCount;
+    ncounter_t busWidth;
+    ncycles_t lastActivate[4];
+    ncounter_t FAWindex;
+    unsigned banksPerRefresh;
 
-  ncycle_t nextRead;
-  ncycle_t nextWrite;
-  ncycle_t nextActivate;
-  ncycle_t nextPrecharge;
+    ncycle_t nextRead;
+    ncycle_t nextWrite;
+    ncycle_t nextActivate;
+    ncycle_t nextPrecharge;
 
-  ncounter_t rrdWaits;
-  ncounter_t rrdWaitTime;
-  ncounter_t fawWaits;
-  ncounter_t fawWaitTime;
-  ncounter_t actWaits;
-  ncounter_t actWaitTime;
+    ncounter_t rrdWaits;
+    ncounter_t rrdWaitTime;
+    ncounter_t fawWaits;
+    ncounter_t fawWaitTime;
+    ncounter_t actWaits;
+    ncounter_t actWaitTime;
 
-  float backgroundEnergy;
+    float backgroundEnergy;
 
-  bool Activate( NVMainRequest *request );
-  bool Read( NVMainRequest *request );
-  bool Write( NVMainRequest *request );
-  bool Precharge( NVMainRequest *request );
-  bool Refresh( NVMainRequest *request );
+    bool Activate( NVMainRequest *request );
+    bool Read( NVMainRequest *request );
+    bool Write( NVMainRequest *request );
+    bool Precharge( NVMainRequest *request );
+    bool Refresh( NVMainRequest *request );
 
-  bool PowerUp( NVMainRequest *request );
+    bool PowerUp( NVMainRequest *request );
 
-  Params *p;
-
+    Params *p;
 };
 
-
 };
-
 
 #endif
-

@@ -1,27 +1,42 @@
-/*
- *  This file is part of NVMain- A cycle accurate timing, bit-accurate
- *  energy simulator for non-volatile memory. Originally developed by 
- *  Matt Poremba at the Pennsylvania State University.
- *
- *  Website: http://www.cse.psu.edu/~poremba/nvmain/
- *  Email: mrp5060@psu.edu
- *
- *  ---------------------------------------------------------------------
- *
- *  If you use this software for publishable research, please include 
- *  the original NVMain paper in the citation list and mention the use 
- *  of NVMain.
- *
- */
+/*******************************************************************************
+* Copyright (c) 2012-2013, The Microsystems Design Labratory (MDL)
+* Department of Computer Science and Engineering, The Pennsylvania State University
+* All rights reserved.
+* 
+* This source code is part of NVMain - A cycle accurate timing, bit accurate
+* energy simulator for both volatile (e.g., DRAM) and nono-volatile memory
+* (e.g., PCRAM). The source code is free and you can redistribute and/or
+* modify it by providing that the following conditions are met:
+* 
+*  1) Redistributions of source code must retain the above copyright notice,
+*     this list of conditions and the following disclaimer.
+* 
+*  2) Redistributions in binary form must reproduce the above copyright notice,
+*     this list of conditions and the following disclaimer in the documentation
+*     and/or other materials provided with the distribution.
+* 
+* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+* ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+* WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+* DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+* FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+* DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+* SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+* CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+* OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+* 
+* Author list: 
+*   Matt Poremba    ( Email: mrp5060 at psu dot edu 
+*                     Website: http://www.cse.psu.edu/~poremba/ )
+*******************************************************************************/
 
 #ifndef __ENDURANCEMODEL_H__
 #define __ENDURANCEMODEL_H__
 
-
 #include <string>
 #include <map>
 #include <stdint.h>
-
 #include "src/Config.h"
 #include "src/NVMObject.h"
 #include "src/EnduranceDistribution.h"
@@ -29,49 +44,44 @@
 #include "include/NVMAddress.h"
 #include "src/FaultModel.h"
 
-
 namespace NVM {
-
 
 class FaultModel;
 
 class EnduranceModel : public NVMObject
 {
- public:
-  EnduranceModel( );
-  ~EnduranceModel( ) {}
+  public:
+    EnduranceModel( );
+    ~EnduranceModel( ) {}
 
-  virtual bool Write( NVMAddress address, NVMDataBlock oldData, NVMDataBlock newData ) = 0;
+    virtual bool Write( NVMAddress address, NVMDataBlock oldData, NVMDataBlock newData ) = 0;
 
-  virtual void SetConfig( Config *conf );
-  Config *GetConfig( );
+    virtual void SetConfig( Config *conf );
+    Config *GetConfig( );
 
-  uint64_t GetWorstLife( );
-  uint64_t GetAverageLife( );
+    uint64_t GetWorstLife( );
+    uint64_t GetAverageLife( );
 
-  virtual void PrintStats( ) { }
+    virtual void PrintStats( ) { }
 
-  void Cycle( ncycle_t steps );
+    void Cycle( ncycle_t steps );
 
- protected:
-  Config *config;
-  EnduranceDistribution *enduranceDist;
-  FaultModel *faultModel;
-  std::map<uint64_t, uint64_t> life;
-  
-  bool DecrementLife( uint64_t addr, NVMAddress faultAddr );
+  protected:
+    Config *config;
+    EnduranceDistribution *enduranceDist;
+    FaultModel *faultModel;
+    std::map<uint64_t, uint64_t> life;
+    
+    bool DecrementLife( uint64_t addr, NVMAddress faultAddr );
 
-  void SetGranularity( uint64_t bits );
-  uint64_t GetGranularity( );
+    void SetGranularity( uint64_t bits );
+    uint64_t GetGranularity( );
 
- private:
-  uint64_t granularity;
-
-};
-
+  private:
+    uint64_t granularity;
 
 };
 
+};
 
 #endif
-
