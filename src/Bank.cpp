@@ -94,7 +94,6 @@ Bank::Bank( )
     psInterval = 0;
 }
 
-
 Bank::~Bank( )
 {
 }
@@ -107,9 +106,7 @@ void Bank::SetConfig( Config *c )
     params->SetParams( c );
     SetParams( params );
 
-    /*
-     *  We need to create an endurance model on a bank-by-bank basis.
-     */
+    /* We need to create an endurance model on a bank-by-bank basis */
     endrModel = EnduranceModelFactory::CreateEnduranceModel( p->EnduranceModel );
     if( endrModel )
         endrModel->SetConfig( conf );

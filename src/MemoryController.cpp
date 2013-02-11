@@ -501,7 +501,7 @@ bool MemoryController::FindStarvedRequest( std::list<NVMainRequest *>& transacti
         (*it)->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
 
         if( activateQueued[rank][bank] && effectiveRow[rank][bank] != row    /* The effective row is not the row of this request. */
-            && !bankNeedRefresh[rank][bank]                                  /* added By Tao @ 01/27/2013, request is blocked when refresh is needed */
+            && !bankNeedRefresh[rank][bank]                                  /* request is blocked when refresh is needed */
             && starvationCounter[rank][bank] >= starvationThreshold          /* This bank has reached it's starvation threshold. */
             && bankQueues[rank][bank].empty()                                /* No requests are currently issued to this bank. */
             && pred( rank, bank ) )                                          /* User-defined predicate is true. */
@@ -538,7 +538,7 @@ bool MemoryController::FindRowBufferHit( std::list<NVMainRequest *>& transaction
         (*it)->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
 
         if( activateQueued[rank][bank] && effectiveRow[rank][bank] == row    /* The effective row is the row of this request. */
-            && !bankNeedRefresh[rank][bank]                                  /* added By Tao @ 01/27/2013, request is blocked when refresh is needed */
+            && !bankNeedRefresh[rank][bank]                                  /* request is blocked when refresh is needed */
             && bankQueues[rank][bank].empty()                                /* No requests are currently issued to this bank. */
             && pred( rank, bank ) )                                          /* User-defined predicate is true. */
         {
@@ -574,9 +574,9 @@ bool MemoryController::FindOldestReadyRequest( std::list<NVMainRequest *>& trans
         (*it)->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
 
         if( activateQueued[rank][bank] 
-            && !bankNeedRefresh[rank][bank]                                  /* added By Tao @ 01/27/2013, request is blocked when refresh is needed */
-            && bankQueues[rank][bank].empty()                                /* No requests are currently issued to this bank (Ready). */
-            && pred( rank, bank ) )                                          /* User-defined predicate is true. */
+            && !bankNeedRefresh[rank][bank]    /* request is blocked when refresh is needed */
+            && bankQueues[rank][bank].empty()  /* No requests are currently issued to this bank (Ready). */
+            && pred( rank, bank ) )            /* User-defined predicate is true. */
         {
             *oldestRequest = (*it);
             transactionQueue.erase( it );
@@ -650,7 +650,7 @@ bool MemoryController::FindStarvedRequests( std::list<NVMainRequest *>& transact
         (*it)->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
 
         if( activateQueued[rank][bank] && effectiveRow[rank][bank] != row    /* The effective row is not the row of this request. */
-            && !bankNeedRefresh[rank][bank]                                  /* added By Tao @ 01/27/2013, request is blocked when refresh is needed */
+            && !bankNeedRefresh[rank][bank]                                  /* request is blocked when refresh is needed */
             && starvationCounter[rank][bank] >= starvationThreshold          /* This bank has reached it's starvation threshold. */
             && bankQueues[rank][bank].empty()                                /* No requests are currently issued to this bank. */
             && pred( rank, bank ) )
@@ -686,7 +686,7 @@ bool MemoryController::FindRowBufferHits( std::list<NVMainRequest *>& transactio
         (*it)->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
 
         if( activateQueued[rank][bank] && effectiveRow[rank][bank] == row    /* The effective row is the row of this request. */
-            && !bankNeedRefresh[rank][bank]                                  /* added By Tao @ 01/27/2013, request is blocked when refresh is needed */
+            && !bankNeedRefresh[rank][bank]                                  /* request is blocked when refresh is needed */
             && bankQueues[rank][bank].empty()                                /* No requests are currently issued to this bank. */
             && pred( rank, bank ) )                                          /* User-defined predicate is true. */
         {
