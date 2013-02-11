@@ -1,37 +1,56 @@
-/*
- *  This file is part of NVMain- A cycle accurate timing, bit-accurate
- *  energy simulator for non-volatile memory. Originally developed by 
- *  Matt Poremba at the Pennsylvania State University.
- *
- *  Website: http://www.cse.psu.edu/~poremba/nvmain/
- *  Email: mrp5060@psu.edu
- *
- *  ---------------------------------------------------------------------
- *
- *  If you use this software for publishable research, please include 
- *  the original NVMain paper in the citation list and mention the use 
- *  of NVMain.
- *
- */
+/*******************************************************************************
+* Copyright (c) 2012-2013, The Microsystems Design Labratory (MDL)
+* Department of Computer Science and Engineering, The Pennsylvania State University
+* All rights reserved.
+* 
+* This source code is part of NVMain - A cycle accurate timing, bit accurate
+* energy simulator for both volatile (e.g., DRAM) and nono-volatile memory
+* (e.g., PCRAM). The source code is free and you can redistribute and/or
+* modify it by providing that the following conditions are met:
+* 
+*  1) Redistributions of source code must retain the above copyright notice,
+*     this list of conditions and the following disclaimer.
+* 
+*  2) Redistributions in binary form must reproduce the above copyright notice,
+*     this list of conditions and the following disclaimer in the documentation
+*     and/or other materials provided with the distribution.
+* 
+* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+* ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+* WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+* DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+* FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+* DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+* SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+* CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+* OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+* 
+* Author list: 
+*   Matt Poremba    ( Email: mrp5060 at psu dot edu 
+*                     Website: http://www.cse.psu.edu/~poremba/ )
+*******************************************************************************/
 
 #ifndef __NVMAINREQUESTzz_H__
 #define __NVMAINREQUESTzz_H__
 
-
 #include "include/NVMAddress.h"
 #include "include/NVMDataBlock.h"
 #include "include/NVMTypes.h"
-
 #include <iostream>
 #include <signal.h>
-
 
 namespace NVM {
 
 
-enum OpType { NOP = 0, ACTIVATE, READ, WRITE, PRECHARGE, POWERDOWN_PDA, POWERDOWN_PDPF, POWERDOWN_PDPS, POWERUP, REFRESH, BUS_READ, BUS_WRITE };
-enum MemRequestStatus { MEM_REQUEST_INCOMPLETE, MEM_REQUEST_COMPLETE, MEM_REQUEST_RETRY, MEM_REQUEST_NUM };
+enum OpType { NOP = 0, ACTIVATE, READ, WRITE, PRECHARGE, POWERDOWN_PDA, 
+             POWERDOWN_PDPF, POWERDOWN_PDPS, POWERUP, REFRESH, BUS_READ, BUS_WRITE };
+
+enum MemRequestStatus { MEM_REQUEST_INCOMPLETE, MEM_REQUEST_COMPLETE, 
+                        MEM_REQUEST_RETRY, MEM_REQUEST_NUM };
+
 enum NVMAccessType { UNKNOWN_ACCESS, SUPERVISOR_ACCESS, USER_ACCESS };
+
 enum BulkCommand { CMD_NOP = 0, 
 		   CMD_PRE,
 		   CMD_READPRE,
@@ -64,85 +83,76 @@ enum BulkCommand { CMD_NOP = 0,
 
 class NVMObject;
 
-//extern uint64_t g_requests_alloced;
-
-
 class NVMainRequest
 {
- public:
-  NVMainRequest( ) 
-  { 
-      type = NOP;
-      bulkCmd = CMD_NOP; 
-      threadId = 0; 
-      tag = 0; 
-      reqInfo = NULL; 
-      arrivalCycle = 0; 
-      issueCycle = 0; 
-      queueCycle = 0;
-      completionCycle = 0; 
-      isPrefetch = false; 
-      programCounter = 0; 
-      owner = NULL;
-      //g_requests_alloced++;
-      //std::cout << g_requests_alloced << " NVMainRequests allocated. " << std::endl;
-  };
+  public:
+    NVMainRequest( ) 
+    { 
+        type = NOP;
+        bulkCmd = CMD_NOP; 
+        threadId = 0; 
+        tag = 0; 
+        reqInfo = NULL; 
+        arrivalCycle = 0; 
+        issueCycle = 0; 
+        queueCycle = 0;
+        completionCycle = 0; 
+        isPrefetch = false; 
+        programCounter = 0; 
+        owner = NULL;
+    };
 
-  ~NVMainRequest( )
-  { 
-      //int a;
-      //if( (void*)this < (void*)&a ) g_requests_alloced--;
-  };
+    ~NVMainRequest( )
+    { 
+    };
 
-  NVMAddress address;            //< Address of request
-  OpType type;                   //< Operation type of request (read, write, etc)
-  BulkCommand bulkCmd;           //< Bulk Commands (i.e., Read+Precharge, Write+Precharge, etc)
-  int threadId;                  //< Thread ID of issuing application
-  NVMDataBlock data;             //< Data to be written, or data that would be read
-  MemRequestStatus status;       //< Complete, incomplete, etc.
-  NVMAccessType access;          //< User or kernel mode access
-  int tag;                       //< User-defined tag for request
-  void *reqInfo;                 //< User-defined info for request
-  bool isPrefetch;               //< Whether request is a prefetch or not
-  NVMAddress pfTrigger;          //< Address that triggered this prefetch
-  uint64_t programCounter;       //< Program counter of CPU issuing request
-  NVMObject *owner;              //< Pointer to the object that created this request
+    NVMAddress address;            //< Address of request
+    OpType type;                   //< Operation type of request (read, write, etc)
+    BulkCommand bulkCmd;           //< Bulk Commands (i.e., Read+Precharge, Write+Precharge, etc)
+    int threadId;                  //< Thread ID of issuing application
+    NVMDataBlock data;             //< Data to be written, or data that would be read
+    MemRequestStatus status;       //< Complete, incomplete, etc.
+    NVMAccessType access;          //< User or kernel mode access
+    int tag;                       //< User-defined tag for request
+    void *reqInfo;                 //< User-defined info for request
+    bool isPrefetch;               //< Whether request is a prefetch or not
+    NVMAddress pfTrigger;          //< Address that triggered this prefetch
+    uint64_t programCounter;       //< Program counter of CPU issuing request
+    NVMObject *owner;              //< Pointer to the object that created this request
 
-  ncycle_t arrivalCycle;         //< When the request arrived at the memory controller
-  ncycle_t queueCycle;           //< When the memory controller accepted (queued) the request
-  ncycle_t issueCycle;           //< When the memory controller issued the request to the interconnect (dequeued)
-  ncycle_t completionCycle;      //< When the request was sent back to the requestor
+    ncycle_t arrivalCycle;         //< When the request arrived at the memory controller
+    ncycle_t queueCycle;           //< When the memory controller accepted (queued) the request
+    ncycle_t issueCycle;           //< When the memory controller issued the request to the interconnect (dequeued)
+    ncycle_t completionCycle;      //< When the request was sent back to the requestor
 
-  const NVMainRequest& operator=( const NVMainRequest& );
-  bool operator<( NVMainRequest m ) const;
+    const NVMainRequest& operator=( const NVMainRequest& );
+    bool operator<( NVMainRequest m ) const;
 };
-
 
 inline
 const NVMainRequest& NVMainRequest::operator=( const NVMainRequest& m )
 {
-  address = m.address;
-  type = m.type;
-  bulkCmd = m.bulkCmd;
-  threadId = m.threadId;
-  data = m.data;
-  status = m.status;
-  access = m.access;
-  tag = m.tag;
-  reqInfo = m.reqInfo;
-  isPrefetch = m.isPrefetch;
-  pfTrigger = m.pfTrigger;
-  programCounter = m.programCounter;
-  owner = m.owner;
+    address = m.address;
+    type = m.type;
+    bulkCmd = m.bulkCmd;
+    threadId = m.threadId;
+    data = m.data;
+    status = m.status;
+    access = m.access;
+    tag = m.tag;
+    reqInfo = m.reqInfo;
+    isPrefetch = m.isPrefetch;
+    pfTrigger = m.pfTrigger;
+    programCounter = m.programCounter;
+    owner = m.owner;
 
-  arrivalCycle = m.arrivalCycle;
-  queueCycle = m.queueCycle;
-  issueCycle = m.issueCycle;
-  completionCycle = m.completionCycle;
+    arrivalCycle = m.arrivalCycle;
+    queueCycle = m.queueCycle;
+    issueCycle = m.issueCycle;
+    completionCycle = m.completionCycle;
 
-  return *this; 
+    return *this; 
 }
-
 
 inline
 bool NVMainRequest::operator<( NVMainRequest m ) const
@@ -150,10 +160,6 @@ bool NVMainRequest::operator<( NVMainRequest m ) const
     return ( this < &m );
 }
 
-
 };
 
-
 #endif
-
-

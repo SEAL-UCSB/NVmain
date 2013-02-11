@@ -1,701 +1,652 @@
-/*
- *  This file is part of NVMain- A cycle accurate timing, bit-accurate
- *  energy simulator for non-volatile memory. Originally developed by 
- *  Matt Poremba at the Pennsylvania State University.
- *
- *  Website: http://www.cse.psu.edu/~poremba/nvmain/
- *  Email: mrp5060@psu.edu
- *
- *  ---------------------------------------------------------------------
- *
- *  If you use this software for publishable research, please include 
- *  the original NVMain paper in the citation list and mention the use 
- *  of NVMain.
- *
- */
+/*******************************************************************************
+* Copyright (c) 2012-2013, The Microsystems Design Labratory (MDL)
+* Department of Computer Science and Engineering, The Pennsylvania State University
+* All rights reserved.
+* 
+* This source code is part of NVMain - A cycle accurate timing, bit accurate
+* energy simulator for both volatile (e.g., DRAM) and nono-volatile memory
+* (e.g., PCRAM). The source code is free and you can redistribute and/or
+* modify it by providing that the following conditions are met:
+* 
+*  1) Redistributions of source code must retain the above copyright notice,
+*     this list of conditions and the following disclaimer.
+* 
+*  2) Redistributions in binary form must reproduce the above copyright notice,
+*     this list of conditions and the following disclaimer in the documentation
+*     and/or other materials provided with the distribution.
+* 
+* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+* ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+* WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+* DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+* FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+* DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+* SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+* CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+* OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+* 
+* Author list: 
+*   Matt Poremba    ( Email: mrp5060 at psu dot edu 
+*                     Website: http://www.cse.psu.edu/~poremba/ )
+*******************************************************************************/
 
 #include "MemControl/LH-Cache/LH-Cache.h"
 #include "include/NVMHelpers.h"
 #include "NVM/nvmain.h"
-
 #include <iostream>
 #include <set>
 #include <assert.h>
 
-
 using namespace NVM;
-
 
 LH_Cache::LH_Cache( Interconnect *memory, AddressTranslator *translator )
     : locks(*this), FQF(*this), NWB(*this)
 {
-  translator->GetTranslationMethod( )->SetOrder( 5, 1, 4, 3, 2 );
+    translator->GetTranslationMethod( )->SetOrder( 5, 1, 4, 3, 2 );
 
+    SetMemory( memory );
+    SetTranslator( translator );
 
-  SetMemory( memory );
-  SetTranslator( translator );
+    std::cout << "Create a Basic DRAM Cache!" << std::endl;
 
-  std::cout << "Create a Basic DRAM Cache!" << std::endl;
+    averageHitLatency = 0.0f;
+    averageHitQueueLatency = 0.0f;
+    averageMissLatency = 0.0f;
+    averageMissQueueLatency = 0.0f;
+    averageMMLatency = 0.0f;
+    averageMMQueueLatency = 0.0f;
+    averageFillLatency = 0.0f;
+    averageFillQueueLatency = 0.0f;
 
-  averageHitLatency = 0.0f;
-  averageHitQueueLatency = 0.0f;
-  averageMissLatency = 0.0f;
-  averageMissQueueLatency = 0.0f;
-  averageMMLatency = 0.0f;
-  averageMMQueueLatency = 0.0f;
-  averageFillLatency = 0.0f;
-  averageFillQueueLatency = 0.0f;
+    measuredHitLatencies = 0;
+    measuredHitQueueLatencies = 0;
+    measuredMissLatencies = 0;
+    measuredMissQueueLatencies = 0;
+    measuredMMLatencies = 0;
+    measuredMMQueueLatencies = 0;
+    measuredFillLatencies = 0;
+    measuredFillQueueLatencies = 0;
 
-  measuredHitLatencies = 0;
-  measuredHitQueueLatencies = 0;
-  measuredMissLatencies = 0;
-  measuredMissQueueLatencies = 0;
-  measuredMMLatencies = 0;
-  measuredMMQueueLatencies = 0;
-  measuredFillLatencies = 0;
-  measuredFillQueueLatencies = 0;
+    mem_reads = 0;
+    mem_writes = 0;
 
-  mem_reads = 0;
-  mem_writes = 0;
+    mm_reqs = 0;
+    mm_reads = 0;
+    fills = 0;
 
-  mm_reqs = 0;
-  mm_reads = 0;
-  fills = 0;
+    rb_hits = 0;
+    rb_miss = 0;
 
-  rb_hits = 0;
-  rb_miss = 0;
+    drcHits = 0;
+    drcMiss = 0;
 
-  drcHits = 0;
-  drcMiss = 0;
+    starvation_precharges = 0;
 
-  starvation_precharges = 0;
+    psInterval = 0;
 
-  psInterval = 0;
+    InitQueues( 2 );
 
-  InitQueues( 2 );
+    functionalCache = NULL;
 
-  functionalCache = NULL;
+    useWriteBuffer = true;
 
-  useWriteBuffer = true;
+    mainMemory = NULL;
 
-  mainMemory = NULL;
-
-  /* Alias */
-  drcQueue = &(transactionQueues[0]);
-  fillQueue = &(transactionQueues[1]);
+    /* Alias */
+    drcQueue = &(transactionQueues[0]);
+    fillQueue = &(transactionQueues[1]);
 }
-
 
 LH_Cache::~LH_Cache( )
 {
-
 }
-
 
 void LH_Cache::SetConfig( Config *conf )
 {
-  /* Defaults */
-  starvationThreshold = 4;
-  drcQueueSize = 32;
-  fillQueueSize = 8;
-  useWriteBuffer = true;
+    /* Defaults */
+    starvationThreshold = 4;
+    drcQueueSize = 32;
+    fillQueueSize = 8;
+    useWriteBuffer = true;
 
-  if( conf->KeyExists( "StarvationThreshold" ) )
-    starvationThreshold = static_cast<unsigned int>( conf->GetValue( "StarvationThreshold" ) );
-  if( conf->KeyExists( "DRCQueueSize" ) )
-    drcQueueSize = static_cast<uint64_t>( conf->GetValue( "DRCQueueSize" ) );
-  if( conf->KeyExists( "FillQueueSize" ) )
-    fillQueueSize = static_cast<uint64_t>( conf->GetValue( "FillQueueSize" ) );
-  if( conf->KeyExists( "UseWriteBuffer" ) && conf->GetString( "UseWriteBuffer" ) == "false" )
-    useWriteBuffer = false;
+    if( conf->KeyExists( "StarvationThreshold" ) )
+        starvationThreshold = static_cast<unsigned int>( 
+                conf->GetValue( "StarvationThreshold" ) );
+    if( conf->KeyExists( "DRCQueueSize" ) )
+        drcQueueSize = static_cast<uint64_t>( conf->GetValue( "DRCQueueSize" ) );
+    if( conf->KeyExists( "FillQueueSize" ) )
+        fillQueueSize = static_cast<uint64_t>( conf->GetValue( "FillQueueSize" ) );
+    if( conf->KeyExists( "UseWriteBuffer" ) 
+            && conf->GetString( "UseWriteBuffer" ) == "false" )
+        useWriteBuffer = false;
+    
+    /*
+     *  Lock banks between tag read and access. Initialize locks here.
+     */
+    ncounter_t banks, ranks;
+    unsigned int i, j;
 
-  
-  /*
-   *  Lock banks between tag read and access. Initialize locks here.
-   */
-  ncounter_t banks, ranks;
-  unsigned int i, j;
+    ranks = static_cast<ncounter_t>( conf->GetValue( "RANKS" ) );
+    banks = static_cast<ncounter_t>( conf->GetValue( "BANKS" ) );
 
-  ranks = static_cast<ncounter_t>( conf->GetValue( "RANKS" ) );
-  banks = static_cast<ncounter_t>( conf->GetValue( "BANKS" ) );
-
-  bankLocked = new bool*[ranks];
-  functionalCache = new CacheBank**[ranks];
-  for( i = 0; i < ranks; i++ )
+    bankLocked = new bool*[ranks];
+    functionalCache = new CacheBank**[ranks];
+    for( i = 0; i < ranks; i++ )
     {
-      bankLocked[i] = new bool[banks];
-      functionalCache[i] = new CacheBank*[banks];
+        bankLocked[i] = new bool[banks];
+        functionalCache[i] = new CacheBank*[banks];
 
-      for( j = 0; j < banks; j++ )
+        for( j = 0; j < banks; j++ )
         {
-          bankLocked[i][j] = false;
-          functionalCache[i][j] = new CacheBank( conf->GetValue( "ROWS" ), 29, 64 );
+            bankLocked[i][j] = false;
+            functionalCache[i][j] = new CacheBank( 
+                                         conf->GetValue( "ROWS" ), 29, 64 );
         }
     }
 
-
-  /*
-   *  Initialize off-chip memory;
-   */
-  //std::string configFile;
-
-  //configFile  = NVM::GetFilePath( conf->GetFileName( ) );
-  //configFile += conf->GetString( "MM_CONFIG" );
-
-  //mainMemoryConfig = new Config( );
-  //mainMemoryConfig->Read( configFile );
-
-  //mainMemory = new NVMain( );
-  //mainMemory->SetConfig( mainMemoryConfig, "offChipMemory" );
-  //mainMemory->SetParent( this );
-
-
-  MemoryController::SetConfig( conf );
+    MemoryController::SetConfig( conf );
 }
-
 
 void LH_Cache::SetMainMemory( NVMain *mm )
 {
-  mainMemory = mm;
+    mainMemory = mm;
 }
 
-
-void LH_Cache::CalculateLatency( NVMainRequest *req, float *average, uint64_t *measured )
+void LH_Cache::CalculateLatency( NVMainRequest *req, float *average, 
+        uint64_t *measured )
 {
-      (*average) = (( (*average) * static_cast<float>(*measured))
-                      + static_cast<float>(req->completionCycle)
-                      - static_cast<float>(req->issueCycle))
-                   / static_cast<float>((*measured)+1);
-      (*measured) += 1;
+    (*average) = (( (*average) * static_cast<float>(*measured))
+                    + static_cast<float>(req->completionCycle)
+                    - static_cast<float>(req->issueCycle))
+                 / static_cast<float>((*measured)+1);
+    (*measured) += 1;
 }
 
-
-void LH_Cache::CalculateQueueLatency( NVMainRequest *req, float *average, uint64_t *measured )
+void LH_Cache::CalculateQueueLatency( NVMainRequest *req, float *average, 
+        uint64_t *measured )
 {
-      (*average) = (( (*average) * static_cast<float>(*measured))
-                      + static_cast<float>(req->issueCycle)
-                      - static_cast<float>(req->arrivalCycle))
-                   / static_cast<float>((*measured)+1);
-      (*measured) += 1;
+    (*average) = (( (*average) * static_cast<float>(*measured))
+                    + static_cast<float>(req->issueCycle)
+                    - static_cast<float>(req->arrivalCycle))
+                 / static_cast<float>((*measured)+1);
+    (*measured) += 1;
 }
-
 
 bool LH_Cache::IssueAtomic( NVMainRequest *req )
 {
-  uint64_t rank, bank, row;
-  NVMDataBlock dummy;
+    uint64_t rank, bank, row;
+    NVMDataBlock dummy;
 
-  req->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
+    req->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
 
-  //std::cout << "DRC: Atomic Request to address 0x" << std::hex << req->address.GetPhysicalAddress()
-  //          << std::dec << std::endl;
-
-  if( functionalCache[rank][bank]->SetFull( req->address ) ) 
+    if( functionalCache[rank][bank]->SetFull( req->address ) ) 
     {
-      NVMAddress victim;
+        NVMAddress victim;
 
-      (void)functionalCache[rank][bank]->ChooseVictim( req->address, &victim );
-      (void)functionalCache[rank][bank]->Evict( victim, &dummy );
+        (void)functionalCache[rank][bank]->ChooseVictim( req->address, &victim );
+        (void)functionalCache[rank][bank]->Evict( victim, &dummy );
     }
 
-  (void)functionalCache[rank][bank]->Install( req->address, dummy ); 
+    (void)functionalCache[rank][bank]->Install( req->address, dummy ); 
 
-  return true;
+    return true;
 }
-
 
 bool LH_Cache::IssueCommand( NVMainRequest *req )
 {
-  if( drcQueue->size( ) >= drcQueueSize )
+    if( drcQueue->size( ) >= drcQueueSize )
     {
-      return false;
+        return false;
     }
 
+    req->arrivalCycle = GetEventQueue()->GetCurrentCycle();
 
-  req->arrivalCycle = GetEventQueue()->GetCurrentCycle();
+    /*
+     *  We first check the DRAM cache *always.* If that misses, we then issue to
+     *  main memory, which will trigger and install request and return the request
+     *  to the higher-level caches.
+     */
+    drcQueue->push_back( req );
 
-  //std::cout << "Adding request 0x" << std::hex << req->address.GetPhysicalAddress( )
-  //          << " to DRC queue (0x" << req << std::dec << ")" << std::endl;
+    if( req->type == READ )
+        mem_reads++;
+    else
+        mem_writes++;
 
-  /*
-   *  We first check the DRAM cache *always.* If that misses, we then issue to
-   *  main memory, which will trigger and install request and return the request
-   *  to the higher-level caches.
-   */
-  drcQueue->push_back( req );
-
-
-  if( req->type == READ )
-    mem_reads++;
-  else
-    mem_writes++;
-
-
-  return true;
+    return true;
 }
-
-
 
 bool LH_Cache::RequestComplete( NVMainRequest *req )
 {
-  bool rv = false;
+    bool rv = false;
 
-  req->completionCycle = GetEventQueue()->GetCurrentCycle();
+    req->completionCycle = GetEventQueue()->GetCurrentCycle();
 
-  if( req->tag == DRC_TAGREAD3 )
+    if( req->tag == DRC_TAGREAD3 )
     {
-      bool miss;
-      uint64_t rank, bank, row;
-      NVMainRequest *originalRequest = static_cast<NVMainRequest *>(req->reqInfo);
+        bool miss;
+        uint64_t rank, bank, row;
+        NVMainRequest *originalRequest = static_cast<NVMainRequest *>(req->reqInfo);
 
-      req->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
+        req->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
 
-      /*
-       *  Check functional cache for hit or miss status here.
-       */
-      miss = true;
-      if( originalRequest->type == WRITE || functionalCache[rank][bank]->Present( req->address ) )
-        miss = false;
+        /*  Check functional cache for hit or miss status here */
+        miss = true;
+        if( originalRequest->type == WRITE 
+                || functionalCache[rank][bank]->Present( req->address ) )
+            miss = false;
 
-      /*
-       *  If it is a hit, issue a request to the bank for the cache line
-       */
-      if( !miss )
+        /* If it is a hit, issue a request to the bank for the cache line */
+        if( !miss )
         {
-          bankQueues[rank][bank].push_back( MakeDRCRequest( req ) );
+            bankQueues[rank][bank].push_back( MakeDRCRequest( req ) );
 
-          drcHits++;
+            drcHits++;
         }
-      /*
-       *  If it is a miss, issue a request to main memory for the cache line to be filled.
-       */
-      else
+        /* 
+         * If it is a miss, issue a request to main memory for the cache line 
+         * to be filled.
+         */
+        else
         {
-          NVMainRequest *memReq = new NVMainRequest( );
+            NVMainRequest *memReq = new NVMainRequest( );
 
-          *memReq = *req;
-          memReq->owner = this;
-          memReq->tag = DRC_MEMREAD;
+            *memReq = *req;
+            memReq->owner = this;
+            memReq->tag = DRC_MEMREAD;
 
-          mm_reqs++;
+            mm_reqs++;
 
-          /* TODO: Figure out what to do if this fails. */
-          mainMemory->NewRequest( memReq );
+            /* TODO: Figure out what to do if this fails. */
+            mainMemory->NewRequest( memReq );
 
-          drcMiss++;
+            drcMiss++;
         }
 
-      /* 
-       *  In either case, unlock the bank. 
-       * 
-       *  For a miss, we need to go to main memory, so unlock since this is time consuming.
-       *  For a hit, we already injected the DRC request into the bank queue, so we can't 
-       *             issue anyways.
-       */
-      bankLocked[rank][bank] = false;
+        /* 
+         *  In either case, unlock the bank. 
+         * 
+         *  For a miss, we need to go to main memory, so unlock since this is time consuming.
+         *  For a hit, we already injected the DRC request into the bank queue, so we can't 
+         *             issue anyways.
+         */
+        bankLocked[rank][bank] = false;
 
-      //std::cout << "Completed tag lookup 0x" << std::hex << req->address.GetPhysicalAddress( )
-      //          << " (0x" << req << ") with owner 0x" << req->owner << std::dec << std::endl;
     }
-  else if( req->tag == DRC_MEMREAD )
+    else if( req->tag == DRC_MEMREAD )
     {
-      /*
-       *  Issue new fill request to drcQueue to be filled. 
-       */
-      NVMainRequest *fillReq = new NVMainRequest( );
+        /* Issue new fill request to drcQueue to be filled */
+        NVMainRequest *fillReq = new NVMainRequest( );
 
-      *fillReq = *req;
-      fillReq->owner = this;
-      fillReq->tag = DRC_FILL;
-      fillReq->arrivalCycle = GetEventQueue()->GetCurrentCycle();
+        *fillReq = *req;
+        fillReq->owner = this;
+        fillReq->tag = DRC_FILL;
+        fillReq->arrivalCycle = GetEventQueue()->GetCurrentCycle();
 
-      /* TODO: Figure out what to do if this is full. */
-      if( useWriteBuffer )
-        fillQueue->push_back( fillReq );
-      else
-        drcQueue->push_back( fillReq );
+        /* TODO: Figure out what to do if this is full. */
+        if( useWriteBuffer )
+            fillQueue->push_back( fillReq );
+        else
+            drcQueue->push_back( fillReq );
 
-      mm_reads++;
+        mm_reads++;
 
-      CalculateLatency( req, &averageMMLatency, &measuredMMLatencies );
-      CalculateQueueLatency( req, &averageMMQueueLatency, &measuredMMQueueLatencies );
+        CalculateLatency( req, &averageMMLatency, &measuredMMLatencies );
+        CalculateQueueLatency( req, &averageMMQueueLatency, &measuredMMQueueLatencies );
 
-      /*
-       *  Mark the original request complete 
-       */
-      NVMainRequest *originalRequest = static_cast<NVMainRequest *>(req->reqInfo);
+        /* Mark the original request complete */
+        NVMainRequest *originalRequest = static_cast<NVMainRequest *>(req->reqInfo);
 
-      GetParent( )->RequestComplete( originalRequest );
+        GetParent( )->RequestComplete( originalRequest );
 
-      originalRequest->completionCycle = GetEventQueue()->GetCurrentCycle();
+        originalRequest->completionCycle = GetEventQueue()->GetCurrentCycle();
 
-      CalculateLatency( originalRequest, &averageMissLatency, &measuredMissLatencies );
-      CalculateQueueLatency( originalRequest, &averageMissQueueLatency, &measuredMissQueueLatencies );
+        CalculateLatency( originalRequest, &averageMissLatency, 
+                &measuredMissLatencies );
 
-      //std::cout << "Completed mem read 0x" << std::hex << req->address.GetPhysicalAddress( )
-      //          << " (0x" << req << ") with owner 0x" << req->owner << std::dec << std::endl;
+        CalculateQueueLatency( originalRequest, &averageMissQueueLatency, 
+                &measuredMissQueueLatencies );
+
     }
-  else if( req->tag == DRC_FILL )
+    else if( req->tag == DRC_FILL )
     {
-      fills++;
+        fills++;
 
-      /*
-       *  Fill complete, just calculate some stats
-       */
-      CalculateLatency( req, &averageFillLatency, &measuredFillLatencies );
-      CalculateQueueLatency( req, &averageFillQueueLatency, &measuredFillQueueLatencies );
+        /* Fill complete, just calculate some stats */
+        CalculateLatency( req, &averageFillLatency, 
+                &measuredFillLatencies );
 
-      //std::cout << "Completed fill 0x" << std::hex << req->address.GetPhysicalAddress( )
-      //          << " (0x" << req << ") with owner 0x" << req->owner << std::dec << std::endl;
+        CalculateQueueLatency( req, &averageFillQueueLatency, 
+                &measuredFillQueueLatencies );
     }
-  else if( req->tag == DRC_ACCESS )
+    else if( req->tag == DRC_ACCESS )
     {
-      CalculateLatency( req, &averageHitLatency, &measuredHitLatencies );
-      CalculateQueueLatency( req, &averageHitQueueLatency, &measuredHitQueueLatencies );
+        CalculateLatency( req, &averageHitLatency, &measuredHitLatencies );
+        CalculateQueueLatency( req, &averageHitQueueLatency, 
+                &measuredHitQueueLatencies );
     }
 
-  
-  if( req->type == REFRESH )
-      ProcessRefreshPulse( req );
-  else
-  if( req->owner == this )
+    if( req->type == REFRESH )
+        ProcessRefreshPulse( req );
+    else if( req->owner == this )
     {
-      delete req;
-      rv = true;
+        delete req;
+        rv = true;
     }
-  else
+    else
     {
-      GetParent( )->RequestComplete( req );
-      rv = false;
+        GetParent( )->RequestComplete( req );
+        rv = false;
     }
 
-  return rv;
+    return rv;
 }
-
 
 bool LH_Cache::FillQueueFull::operator() (uint64_t, uint64_t)
 {
-  if( memoryController.useWriteBuffer && draining == false
-      && memoryController.fillQueue->size() >= memoryController.fillQueueSize )
+    if( memoryController.useWriteBuffer && draining == false
+        && memoryController.fillQueue->size() >= memoryController.fillQueueSize )
     {
-      draining = true;
+        draining = true;
     }
-  else if( memoryController.fillQueue->size() == 0
-           && draining == true )
+    else if( memoryController.fillQueue->size() == 0
+             && draining == true )
     {
-      draining = false;
+        draining = false;
     }
 
-  return draining;
+    return draining;
 }
-
 
 bool LH_Cache::BankLocked::operator() (uint64_t rank, uint64_t bank)
 {
-  bool rv = false;
+    bool rv = false;
 
-  if( memoryController.bankLocked[rank][bank] == false
-      && !memoryController.FQF(rank, bank) )
-    rv = true;
+    if( memoryController.bankLocked[rank][bank] == false
+        && !memoryController.FQF(rank, bank) )
+        rv = true;
 
-  return rv;
+    return rv;
 }
-
 
 bool LH_Cache::NoWriteBuffering::operator() (uint64_t, uint64_t)
 {
-  return !memoryController.useWriteBuffer;
+    return !memoryController.useWriteBuffer;
 }
-
 
 void LH_Cache::Cycle( ncycle_t /*steps*/ )
 {
-  NVMainRequest *nextRequest = NULL;
+    NVMainRequest *nextRequest = NULL;
 
 
-  /* Check fill queue (write buffering). */
-  if( FindStarvedRequest( *fillQueue, &nextRequest, FQF ) )
+    /* Check fill queue (write buffering). */
+    if( FindStarvedRequest( *fillQueue, &nextRequest, FQF ) )
     {
-      rb_miss++;
-      starvation_precharges++;
+        rb_miss++;
+        starvation_precharges++;
     }
-  else if( FindRowBufferHit( *fillQueue, &nextRequest, FQF ) )
+    else if( FindRowBufferHit( *fillQueue, &nextRequest, FQF ) )
     {
-      rb_hits++;
+        rb_hits++;
     }
-  else if( FindOldestReadyRequest( *fillQueue, &nextRequest, FQF ) )
+    else if( FindOldestReadyRequest( *fillQueue, &nextRequest, FQF ) )
     {
-      rb_miss++;
+        rb_miss++;
     }
-  else if( FindClosedBankRequest( *fillQueue, &nextRequest, FQF ) )
+    else if( FindClosedBankRequest( *fillQueue, &nextRequest, FQF ) )
     {
-      rb_miss++;
-    }
-
-  /* Check request queue. */
-  else if( FindStarvedRequest( *drcQueue, &nextRequest, locks ) )
-    {
-      rb_miss++;
-      starvation_precharges++;
-    }
-  else if( FindRowBufferHit( *drcQueue, &nextRequest, locks ) )
-    {
-      rb_hits++;
-    }
-  else if( FindOldestReadyRequest( *drcQueue, &nextRequest, locks ) )
-    {
-      rb_miss++;
-    }
-  else if( FindClosedBankRequest( *drcQueue, &nextRequest, locks ) )
-    {
-      rb_miss++;
+        rb_miss++;
     }
 
-  /* Check fill queue (no write buffering). */
-  else if( FindStarvedRequest( *fillQueue, &nextRequest, NWB ) )
+    /* Check request queue. */
+    else if( FindStarvedRequest( *drcQueue, &nextRequest, locks ) )
     {
-      rb_miss++;
-      starvation_precharges++;
+        rb_miss++;
+        starvation_precharges++;
     }
-  else if( FindRowBufferHit( *fillQueue, &nextRequest, NWB ) )
+    else if( FindRowBufferHit( *drcQueue, &nextRequest, locks ) )
     {
-      rb_hits++;
+        rb_hits++;
     }
-  else if( FindOldestReadyRequest( *fillQueue, &nextRequest, NWB ) )
+    else if( FindOldestReadyRequest( *drcQueue, &nextRequest, locks ) )
     {
-      rb_miss++;
+        rb_miss++;
     }
-  else if( FindClosedBankRequest( *fillQueue, &nextRequest, NWB ) )
+    else if( FindClosedBankRequest( *drcQueue, &nextRequest, locks ) )
     {
-      rb_miss++;
-    }
-
-  if( nextRequest != NULL )
-    {
-      if( nextRequest->tag == DRC_FILL )
-        IssueFillCommands( nextRequest );
-      else
-        IssueDRCCommands( nextRequest );
+        rb_miss++;
     }
 
+    /* Check fill queue (no write buffering). */
+    else if( FindStarvedRequest( *fillQueue, &nextRequest, NWB ) )
+    {
+        rb_miss++;
+        starvation_precharges++;
+    }
+    else if( FindRowBufferHit( *fillQueue, &nextRequest, NWB ) )
+    {
+        rb_hits++;
+    }
+    else if( FindOldestReadyRequest( *fillQueue, &nextRequest, NWB ) )
+    {
+        rb_miss++;
+    }
+    else if( FindClosedBankRequest( *fillQueue, &nextRequest, NWB ) )
+    {
+        rb_miss++;
+    }
 
-  CycleCommandQueues( );
+    if( nextRequest != NULL )
+    {
+        if( nextRequest->tag == DRC_FILL )
+            IssueFillCommands( nextRequest );
+        else
+            IssueDRCCommands( nextRequest );
+    }
 
-
-  //mainMemory->Cycle( steps );
+    CycleCommandQueues( );
 }
-
-
 
 NVMainRequest *LH_Cache::MakeTagRequest( NVMainRequest *triggerRequest, int tag )
 {
-  NVMainRequest *tagRequest = new NVMainRequest( );
+    NVMainRequest *tagRequest = new NVMainRequest( );
 
-  tagRequest->type = READ;
-  tagRequest->issueCycle = GetEventQueue()->GetCurrentCycle();
-  tagRequest->address = triggerRequest->address;
-  tagRequest->tag = tag;
-  tagRequest->owner = this;
+    tagRequest->type = READ;
+    tagRequest->issueCycle = GetEventQueue()->GetCurrentCycle();
+    tagRequest->address = triggerRequest->address;
+    tagRequest->tag = tag;
+    tagRequest->owner = this;
 
-  /* The reqInfo pointer will point to the original request from cache. */
-  tagRequest->reqInfo = static_cast<void *>( triggerRequest );
+    /* The reqInfo pointer will point to the original request from cache. */
+    tagRequest->reqInfo = static_cast<void *>( triggerRequest );
 
-  return tagRequest;
+    return tagRequest;
 }
-
-
 
 NVMainRequest *LH_Cache::MakeDRCRequest( NVMainRequest *triggerRequest)
 {
-  /* Retreive the original request. */
-  NVMainRequest *drcRequest = static_cast<NVMainRequest *>(triggerRequest->reqInfo);
+    /* Retreive the original request. */
+    NVMainRequest *drcRequest = static_cast<NVMainRequest *>(triggerRequest->reqInfo);
 
-  drcRequest->tag = DRC_ACCESS;
+    drcRequest->tag = DRC_ACCESS;
 
-  /* Set the request as issued now. */
-  drcRequest->issueCycle = GetEventQueue()->GetCurrentCycle();
+    /* Set the request as issued now. */
+    drcRequest->issueCycle = GetEventQueue()->GetCurrentCycle();
 
-  return drcRequest;
+    return drcRequest;
 }
-
-
 
 NVMainRequest *LH_Cache::MakeTagWriteRequest( NVMainRequest *triggerRequest )
 {
-  NVMainRequest *tagRequest = new NVMainRequest( );
+    NVMainRequest *tagRequest = new NVMainRequest( );
 
-  tagRequest->type = WRITE;
-  tagRequest->issueCycle = GetEventQueue()->GetCurrentCycle();
-  tagRequest->address = triggerRequest->address;
-  tagRequest->owner = this;
+    tagRequest->type = WRITE;
+    tagRequest->issueCycle = GetEventQueue()->GetCurrentCycle();
+    tagRequest->address = triggerRequest->address;
+    tagRequest->owner = this;
 
-  /* The reqInfo pointer will point to the original request from cache. */
-  tagRequest->reqInfo = static_cast<void *>( triggerRequest );
+    /* The reqInfo pointer will point to the original request from cache. */
+    tagRequest->reqInfo = static_cast<void *>( triggerRequest );
 
-  return tagRequest;
+    return tagRequest;
 }
-
-
 
 bool LH_Cache::IssueDRCCommands( NVMainRequest *req )
 {
-  bool rv = false;
-  uint64_t rank, bank, row;
+    bool rv = false;
+    uint64_t rank, bank, row;
 
-  req->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
+    req->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
 
-  if( !activateQueued[rank][bank] && bankQueues[rank][bank].empty() )
+    if( !activateQueued[rank][bank] && bankQueues[rank][bank].empty() )
     {
-      /* Any activate will request the starvation counter */
-      starvationCounter[rank][bank] = 0;
-      activateQueued[rank][bank] = true;
-      effectiveRow[rank][bank] = row;
+        /* Any activate will request the starvation counter */
+        starvationCounter[rank][bank] = 0;
+        activateQueued[rank][bank] = true;
+        effectiveRow[rank][bank] = row;
 
-      req->issueCycle = GetEventQueue()->GetCurrentCycle();
+        req->issueCycle = GetEventQueue()->GetCurrentCycle();
 
-      bankQueues[rank][bank].push_back( MakeActivateRequest( req ) );
-      bankQueues[rank][bank].push_back( MakeTagRequest( req, DRC_TAGREAD1 ) );
-      bankQueues[rank][bank].push_back( MakeTagRequest( req, DRC_TAGREAD2 ) );
-      bankQueues[rank][bank].push_back( MakeTagRequest( req, DRC_TAGREAD3 ) );
-      bankLocked[rank][bank] = true;
+        bankQueues[rank][bank].push_back( MakeActivateRequest( req ) );
+        bankQueues[rank][bank].push_back( MakeTagRequest( req, DRC_TAGREAD1 ) );
+        bankQueues[rank][bank].push_back( MakeTagRequest( req, DRC_TAGREAD2 ) );
+        bankQueues[rank][bank].push_back( MakeTagRequest( req, DRC_TAGREAD3 ) );
+        bankLocked[rank][bank] = true;
 
-      rv = true;
+        rv = true;
     }
-  else if( activateQueued[rank][bank] && effectiveRow[rank][bank] != row && bankQueues[rank][bank].empty() )
+    else if( activateQueued[rank][bank] && effectiveRow[rank][bank] != row && bankQueues[rank][bank].empty() )
     {
-      /* Any activate will request the starvation counter */
-      starvationCounter[rank][bank] = 0;
-      activateQueued[rank][bank] = true;
-      effectiveRow[rank][bank] = row;
+        /* Any activate will request the starvation counter */
+        starvationCounter[rank][bank] = 0;
+        activateQueued[rank][bank] = true;
+        effectiveRow[rank][bank] = row;
 
-      req->issueCycle = GetEventQueue()->GetCurrentCycle();
+        req->issueCycle = GetEventQueue()->GetCurrentCycle();
 
-      bankQueues[rank][bank].push_back( MakePrechargeRequest( req ) );
-      bankQueues[rank][bank].push_back( MakeActivateRequest( req ) );
-      bankQueues[rank][bank].push_back( MakeTagRequest( req, DRC_TAGREAD1 ) );
-      bankQueues[rank][bank].push_back( MakeTagRequest( req, DRC_TAGREAD2 ) );
-      bankQueues[rank][bank].push_back( MakeTagRequest( req, DRC_TAGREAD3 ) );
-      bankLocked[rank][bank] = true;
+        bankQueues[rank][bank].push_back( MakePrechargeRequest( req ) );
+        bankQueues[rank][bank].push_back( MakeActivateRequest( req ) );
+        bankQueues[rank][bank].push_back( MakeTagRequest( req, DRC_TAGREAD1 ) );
+        bankQueues[rank][bank].push_back( MakeTagRequest( req, DRC_TAGREAD2 ) );
+        bankQueues[rank][bank].push_back( MakeTagRequest( req, DRC_TAGREAD3 ) );
+        bankLocked[rank][bank] = true;
 
-      rv = true;
+        rv = true;
     }
-  else if( activateQueued[rank][bank] && effectiveRow[rank][bank] == row )
+    else if( activateQueued[rank][bank] && effectiveRow[rank][bank] == row )
     {
-      starvationCounter[rank][bank]++;
+        starvationCounter[rank][bank]++;
 
-      req->issueCycle = GetEventQueue()->GetCurrentCycle();
+        req->issueCycle = GetEventQueue()->GetCurrentCycle();
 
-      bankQueues[rank][bank].push_back( MakeTagRequest( req, DRC_TAGREAD1 ) );
-      bankQueues[rank][bank].push_back( MakeTagRequest( req, DRC_TAGREAD2 ) );
-      bankQueues[rank][bank].push_back( MakeTagRequest( req, DRC_TAGREAD3 ) );
-      bankLocked[rank][bank] = true;
+        bankQueues[rank][bank].push_back( MakeTagRequest( req, DRC_TAGREAD1 ) );
+        bankQueues[rank][bank].push_back( MakeTagRequest( req, DRC_TAGREAD2 ) );
+        bankQueues[rank][bank].push_back( MakeTagRequest( req, DRC_TAGREAD3 ) );
+        bankLocked[rank][bank] = true;
 
-      rv = true;
+        rv = true;
     }
-  else
+    else
     {
-      rv = false;
+        rv = false;
     }
 
-  return rv;
+    return rv;
 }
-
-
 
 bool LH_Cache::IssueFillCommands( NVMainRequest *req )
 {
-  bool rv = false;
-  uint64_t rank, bank, row;
+    bool rv = false;
+    uint64_t rank, bank, row;
 
-  req->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
+    req->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
 
-  if( !activateQueued[rank][bank] && bankQueues[rank][bank].empty() )
+    if( !activateQueued[rank][bank] && bankQueues[rank][bank].empty() )
     {
-      /* Any activate will request the starvation counter */
-      starvationCounter[rank][bank] = 0;
-      activateQueued[rank][bank] = true;
-      effectiveRow[rank][bank] = row;
+        /* Any activate will request the starvation counter */
+        starvationCounter[rank][bank] = 0;
+        activateQueued[rank][bank] = true;
+        effectiveRow[rank][bank] = row;
 
-      req->issueCycle = GetEventQueue()->GetCurrentCycle();
+        req->issueCycle = GetEventQueue()->GetCurrentCycle();
 
-      bankQueues[rank][bank].push_back( MakeActivateRequest( req ) );
-      bankQueues[rank][bank].push_back( MakeTagWriteRequest( req ) );
-      bankQueues[rank][bank].push_back( req );
+        bankQueues[rank][bank].push_back( MakeActivateRequest( req ) );
+        bankQueues[rank][bank].push_back( MakeTagWriteRequest( req ) );
+        bankQueues[rank][bank].push_back( req );
 
-      rv = true;
+        rv = true;
     }
-  else if( activateQueued[rank][bank] && effectiveRow[rank][bank] != row && bankQueues[rank][bank].empty() )
+    else if( activateQueued[rank][bank] && effectiveRow[rank][bank] != row 
+            && bankQueues[rank][bank].empty() )
     {
-      /* Any activate will request the starvation counter */
-      starvationCounter[rank][bank] = 0;
-      activateQueued[rank][bank] = true;
-      effectiveRow[rank][bank] = row;
+        /* Any activate will request the starvation counter */
+        starvationCounter[rank][bank] = 0;
+        activateQueued[rank][bank] = true;
+        effectiveRow[rank][bank] = row;
 
-      req->issueCycle = GetEventQueue()->GetCurrentCycle();
+        req->issueCycle = GetEventQueue()->GetCurrentCycle();
 
-      bankQueues[rank][bank].push_back( MakePrechargeRequest( req ) );
-      bankQueues[rank][bank].push_back( MakeActivateRequest( req ) );
-      bankQueues[rank][bank].push_back( MakeTagWriteRequest( req ) );
-      bankQueues[rank][bank].push_back( req );
+        bankQueues[rank][bank].push_back( MakePrechargeRequest( req ) );
+        bankQueues[rank][bank].push_back( MakeActivateRequest( req ) );
+        bankQueues[rank][bank].push_back( MakeTagWriteRequest( req ) );
+        bankQueues[rank][bank].push_back( req );
 
-      rv = true;
+        rv = true;
     }
-  else if( activateQueued[rank][bank] && effectiveRow[rank][bank] == row )
+    else if( activateQueued[rank][bank] && effectiveRow[rank][bank] == row )
     {
-      starvationCounter[rank][bank]++;
+        starvationCounter[rank][bank]++;
 
-      req->issueCycle = GetEventQueue()->GetCurrentCycle();
+        req->issueCycle = GetEventQueue()->GetCurrentCycle();
 
-      bankQueues[rank][bank].push_back( MakeTagWriteRequest( req ) );
-      bankQueues[rank][bank].push_back( req );
+        bankQueues[rank][bank].push_back( MakeTagWriteRequest( req ) );
+        bankQueues[rank][bank].push_back( req );
 
-      rv = true;
+        rv = true;
     }
-  else
+    else
     {
-      rv = false;
+        rv = false;
     }
 
-  return rv;
+    return rv;
 }
-
 
 void LH_Cache::PrintStats( )
 {
-  std::cout << "i" << psInterval << "." << statName << id << ".mem_reads " << mem_reads << std::endl;
-  std::cout << "i" << psInterval << "." << statName << id << ".mem_writes " << mem_writes << std::endl;
-  std::cout << "i" << psInterval << "." << statName << id << ".rb_hits " << rb_hits << std::endl;
-  std::cout << "i" << psInterval << "." << statName << id << ".rb_miss " << rb_miss << std::endl;
-  std::cout << "i" << psInterval << "." << statName << id << ".drcHits " << drcHits << std::endl;
-  std::cout << "i" << psInterval << "." << statName << id << ".drcMiss " << drcMiss << std::endl;
-  std::cout << "i" << psInterval << "." << statName << id << ".mm_reqs " << mm_reqs << std::endl;
-  std::cout << "i" << psInterval << "." << statName << id << ".mm_reads " << mm_reads << std::endl;
-  std::cout << "i" << psInterval << "." << statName << id << ".fills " << fills << std::endl;
-  std::cout << "i" << psInterval << "." << statName << id << ".starvation_precharges " << starvation_precharges << std::endl;
+    std::cout << "i" << psInterval << "." << statName << id << ".mem_reads " << mem_reads << std::endl;
+    std::cout << "i" << psInterval << "." << statName << id << ".mem_writes " << mem_writes << std::endl;
+    std::cout << "i" << psInterval << "." << statName << id << ".rb_hits " << rb_hits << std::endl;
+    std::cout << "i" << psInterval << "." << statName << id << ".rb_miss " << rb_miss << std::endl;
+    std::cout << "i" << psInterval << "." << statName << id << ".drcHits " << drcHits << std::endl;
+    std::cout << "i" << psInterval << "." << statName << id << ".drcMiss " << drcMiss << std::endl;
+    std::cout << "i" << psInterval << "." << statName << id << ".mm_reqs " << mm_reqs << std::endl;
+    std::cout << "i" << psInterval << "." << statName << id << ".mm_reads " << mm_reads << std::endl;
+    std::cout << "i" << psInterval << "." << statName << id << ".fills " << fills << std::endl;
+    std::cout << "i" << psInterval << "." << statName << id << ".starvation_precharges " << starvation_precharges << std::endl;
 
-  std::cout << "i" << psInterval << "." << statName << id << ".averageHitLatency " << averageHitLatency << std::endl;
-  std::cout << "i" << psInterval << "." << statName << id << ".measuredHitLatencies " << measuredHitLatencies << std::endl;
-  std::cout << "i" << psInterval << "." << statName << id << ".averageHitQueueLatency " << averageHitQueueLatency << std::endl;
-  std::cout << "i" << psInterval << "." << statName << id << ".measuredHitQueueLatencies " << measuredHitQueueLatencies << std::endl;
+    std::cout << "i" << psInterval << "." << statName << id << ".averageHitLatency " << averageHitLatency << std::endl;
+    std::cout << "i" << psInterval << "." << statName << id << ".measuredHitLatencies " << measuredHitLatencies << std::endl;
+    std::cout << "i" << psInterval << "." << statName << id << ".averageHitQueueLatency " << averageHitQueueLatency << std::endl;
+    std::cout << "i" << psInterval << "." << statName << id << ".measuredHitQueueLatencies " << measuredHitQueueLatencies << std::endl;
 
-  std::cout << "i" << psInterval << "." << statName << id << ".averageMissLatency " << averageMissLatency << std::endl;
-  std::cout << "i" << psInterval << "." << statName << id << ".measuredMissLatencies " << measuredMissLatencies << std::endl;
-  std::cout << "i" << psInterval << "." << statName << id << ".averageMissQueueLatency " << averageMissQueueLatency << std::endl;
-  std::cout << "i" << psInterval << "." << statName << id << ".measuredMissQueueLatencies " << measuredMissQueueLatencies << std::endl;
+    std::cout << "i" << psInterval << "." << statName << id << ".averageMissLatency " << averageMissLatency << std::endl;
+    std::cout << "i" << psInterval << "." << statName << id << ".measuredMissLatencies " << measuredMissLatencies << std::endl;
+    std::cout << "i" << psInterval << "." << statName << id << ".averageMissQueueLatency " << averageMissQueueLatency << std::endl;
+    std::cout << "i" << psInterval << "." << statName << id << ".measuredMissQueueLatencies " << measuredMissQueueLatencies << std::endl;
  
-  std::cout << "i" << psInterval << "." << statName << id << ".averageMMLatency " << averageMMLatency << std::endl;
-  std::cout << "i" << psInterval << "." << statName << id << ".measuredMMLatencies " << measuredMMLatencies << std::endl;
-  std::cout << "i" << psInterval << "." << statName << id << ".averageMMQueueLatency " << averageMMQueueLatency << std::endl;
-  std::cout << "i" << psInterval << "." << statName << id << ".measuredMMQueueLatencies " << measuredMMQueueLatencies << std::endl;
+    std::cout << "i" << psInterval << "." << statName << id << ".averageMMLatency " << averageMMLatency << std::endl;
+    std::cout << "i" << psInterval << "." << statName << id << ".measuredMMLatencies " << measuredMMLatencies << std::endl;
+    std::cout << "i" << psInterval << "." << statName << id << ".averageMMQueueLatency " << averageMMQueueLatency << std::endl;
+    std::cout << "i" << psInterval << "." << statName << id << ".measuredMMQueueLatencies " << measuredMMQueueLatencies << std::endl;
 
-  std::cout << "i" << psInterval << "." << statName << id << ".averageFillLatency " << averageFillLatency << std::endl;
-  std::cout << "i" << psInterval << "." << statName << id << ".measuredFillLatencies " << measuredFillLatencies << std::endl;
-  std::cout << "i" << psInterval << "." << statName << id << ".averageFillQueueLatency " << averageFillQueueLatency << std::endl;
-  std::cout << "i" << psInterval << "." << statName << id << ".measuredFillQueueLatencies " << measuredFillQueueLatencies << std::endl;
+    std::cout << "i" << psInterval << "." << statName << id << ".averageFillLatency " << averageFillLatency << std::endl;
+    std::cout << "i" << psInterval << "." << statName << id << ".measuredFillLatencies " << measuredFillLatencies << std::endl;
+    std::cout << "i" << psInterval << "." << statName << id << ".averageFillQueueLatency " << averageFillQueueLatency << std::endl;
+    std::cout << "i" << psInterval << "." << statName << id << ".measuredFillQueueLatencies " << measuredFillQueueLatencies << std::endl;
 
-  MemoryController::PrintStats( );
+    MemoryController::PrintStats( );
 
-  psInterval++;
+    psInterval++;
 }
-
-
