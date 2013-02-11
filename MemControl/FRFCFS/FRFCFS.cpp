@@ -32,11 +32,13 @@
 *******************************************************************************/
 
 #include "MemControl/FRFCFS/FRFCFS.h"
-#include "SimInterface/Gem5Interface/Gem5Interface.h"
-#include "base/statistics.hh"
-#include "base/types.hh"
-#include "sim/core.hh"
-#include "sim/stat_control.hh"
+#ifndef TRACE
+  #include "SimInterface/Gem5Interface/Gem5Interface.h"
+  #include "base/statistics.hh"
+  #include "base/types.hh"
+  #include "sim/core.hh"
+  #include "sim/stat_control.hh"
+#endif
 #include <iostream>
 #include <set>
 #include <assert.h>
