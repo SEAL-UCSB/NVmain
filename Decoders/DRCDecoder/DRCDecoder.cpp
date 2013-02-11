@@ -1,158 +1,155 @@
-/*
- *  This file is part of NVMain- A cycle accurate timing, bit-accurate
- *  energy simulator for non-volatile memory. Originally developed by 
- *  Matt Poremba at the Pennsylvania State University.
- *
- *  Website: http://www.cse.psu.edu/~poremba/nvmain/
- *  Email: mrp5060@psu.edu
- *
- *  ---------------------------------------------------------------------
- *
- *  If you use this software for publishable research, please include 
- *  the original NVMain paper in the citation list and mention the use 
- *  of NVMain.
- *
- */
+/*******************************************************************************
+* Copyright (c) 2012-2013, The Microsystems Design Labratory (MDL)
+* Department of Computer Science and Engineering, The Pennsylvania State University
+* All rights reserved.
+* 
+* This source code is part of NVMain - A cycle accurate timing, bit accurate
+* energy simulator for both volatile (e.g., DRAM) and nono-volatile memory
+* (e.g., PCRAM). The source code is free and you can redistribute and/or
+* modify it by providing that the following conditions are met:
+* 
+*  1) Redistributions of source code must retain the above copyright notice,
+*     this list of conditions and the following disclaimer.
+* 
+*  2) Redistributions in binary form must reproduce the above copyright notice,
+*     this list of conditions and the following disclaimer in the documentation
+*     and/or other materials provided with the distribution.
+* 
+* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+* ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+* WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+* DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+* FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+* DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+* SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+* CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+* OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+* 
+* Author list: 
+*   Matt Poremba    ( Email: mrp5060 at psu dot edu 
+*                     Website: http://www.cse.psu.edu/~poremba/ )
+*******************************************************************************/
 
 #include "Decoders/DRCDecoder/DRCDecoder.h"
 #include "include/NVMHelpers.h"
-
 #include <iostream>
 
 using namespace NVM;
 
-
 DRCDecoder::DRCDecoder( )
 {
-  ignoreBits = 0;
-  cachelineSize = 64;
+    ignoreBits = 0;
+    cachelineSize = 64;
 
-  std::cout << "Created a DRC decoder!" << std::endl;
+    std::cout << "Created a DRC decoder!" << std::endl;
 }
-
-
 
 void DRCDecoder::SetIgnoreBits( uint64_t numIgnore )
 {
-  ignoreBits = numIgnore;
+    ignoreBits = numIgnore;
 }
-
 
 void DRCDecoder::SetCachelineSize( uint64_t lineSize )
 {
-  cachelineSize = lineSize;
+    cachelineSize = lineSize;
 }
 
-
-void DRCDecoder::Translate( uint64_t address, uint64_t *row, uint64_t *col, uint64_t *bank, uint64_t *rank, uint64_t *channel )
+void DRCDecoder::Translate( uint64_t address, uint64_t *row, uint64_t *col, 
+                            uint64_t *bank, uint64_t *rank, uint64_t *channel )
 {
-  int rowOrder, colOrder, bankOrder, rankOrder, channelOrder;
-  unsigned int rowBits, colBits, bankBits, rankBits, channelBits;
-  uint64_t workingAddr;
+    int rowOrder, colOrder, bankOrder, rankOrder, channelOrder;
+    unsigned int rowBits, colBits, bankBits, rankBits, channelBits;
+    uint64_t workingAddr;
 
-  /* 
-   *  Get the widths and order from the translation method so we know what 
-   *  the user wants for bank/rank/channel ordering.
-   */
-  GetTranslationMethod( )->GetBitWidths( &rowBits, &colBits, &bankBits, &rankBits, &channelBits );
-  GetTranslationMethod( )->GetOrder( &rowOrder, &colOrder, &bankOrder, &rankOrder, &channelOrder );
+    /* 
+     *  Get the widths and order from the translation method so we know what 
+     *  the user wants for bank/rank/channel ordering.
+     */
+    GetTranslationMethod( )->GetBitWidths( &rowBits, &colBits, &bankBits, 
+            &rankBits, &channelBits );
+    GetTranslationMethod( )->GetOrder( &rowOrder, &colOrder, &bankOrder, 
+            &rankOrder, &channelOrder );
 
-  /*
-   *  Chop off the cacheline length and ignore bits first.
-   */
-  workingAddr = address;
-  workingAddr = workingAddr >> mlog2( (int)cachelineSize );
-  if( ignoreBits != 0 )
-    workingAddr = workingAddr >> ignoreBits;
+    /* Chop off the cacheline length and ignore bits first */
+    workingAddr = address;
+    workingAddr = workingAddr >> mlog2( (int)cachelineSize );
+    if( ignoreBits != 0 )
+      workingAddr = workingAddr >> ignoreBits;
 
+    /* Column is ignored in our dram cache */
+    *col = 0;
 
-  /*
-   *  Row always goes first.
-   */
-  //*row = workingAddr % (1 << rowBits);
-  //workingAddr = workingAddr >> rowBits;
-
-
-  /*
-   *  Column is ignored in our dram cache.
-   */
-  *col = 0;
-
-
-  /* 
-   *  Find out if bank, rank, or channel are first, then decode accordingly.
-   */
-  if( channelOrder < rankOrder && channelOrder < bankOrder )
+    /* Find out if bank, rank, or channel are first, then decode accordingly */
+    if( channelOrder < rankOrder && channelOrder < bankOrder )
     {
-      *channel = workingAddr % (1 << channelBits);
-      workingAddr = workingAddr >> channelBits;
+        *channel = workingAddr % (1 << channelBits);
+        workingAddr = workingAddr >> channelBits;
 
-      if( rankOrder < bankOrder )
+        if( rankOrder < bankOrder )
         {
-          *rank = workingAddr % (1 << rankBits);
-          workingAddr = workingAddr >> rankBits;
+            *rank = workingAddr % (1 << rankBits);
+            workingAddr = workingAddr >> rankBits;
 
-          *bank = workingAddr % (1 << bankBits);
-          workingAddr = workingAddr >> bankBits;
+            *bank = workingAddr % (1 << bankBits);
+            workingAddr = workingAddr >> bankBits;
         }
-      else
+        else
         {
-          *bank = workingAddr % (1 << bankBits);
-          workingAddr = workingAddr >> bankBits;
+            *bank = workingAddr % (1 << bankBits);
+            workingAddr = workingAddr >> bankBits;
 
-          *rank = workingAddr % (1 << rankBits);
-          workingAddr = workingAddr >> rankBits;
+            *rank = workingAddr % (1 << rankBits);
+            workingAddr = workingAddr >> rankBits;
         }
     }
-  /* Try rank first */
-  else if( rankOrder < channelOrder && rankOrder < bankOrder )
+    /* Try rank first */
+    else if( rankOrder < channelOrder && rankOrder < bankOrder )
     {
-      *rank = workingAddr % (1 << rankBits);
-      workingAddr = workingAddr >> rankBits;
+        *rank = workingAddr % (1 << rankBits);
+        workingAddr = workingAddr >> rankBits;
 
-      if( channelOrder < bankOrder )
+        if( channelOrder < bankOrder )
         {
-          *channel = workingAddr % (1 << channelBits);
-          workingAddr = workingAddr >> channelBits;
+            *channel = workingAddr % (1 << channelBits);
+            workingAddr = workingAddr >> channelBits;
 
-          *bank = workingAddr % (1 << bankBits);
-          workingAddr = workingAddr >> bankBits;
+            *bank = workingAddr % (1 << bankBits);
+            workingAddr = workingAddr >> bankBits;
         }
-      else
+        else
         {
-          *bank = workingAddr % (1 << bankBits);
-          workingAddr = workingAddr >> bankBits;
+            *bank = workingAddr % (1 << bankBits);
+            workingAddr = workingAddr >> bankBits;
 
-          *channel = workingAddr % (1 << channelBits);
-          workingAddr = workingAddr >> channelBits;
+            *channel = workingAddr % (1 << channelBits);
+            workingAddr = workingAddr >> channelBits;
         }
     }
-  /* Bank first */
-  else
+    /* Bank first */
+    else
     {
-      *bank = workingAddr % (1 << bankBits);
-      workingAddr = workingAddr >> bankBits;
+        *bank = workingAddr % (1 << bankBits);
+        workingAddr = workingAddr >> bankBits;
 
-      if( channelOrder < rankOrder )
+        if( channelOrder < rankOrder )
         {
-          *channel = workingAddr % (1 << channelBits);
-          workingAddr = workingAddr >> channelBits;
+            *channel = workingAddr % (1 << channelBits);
+            workingAddr = workingAddr >> channelBits;
 
-          *rank = workingAddr % (1 << rankBits);
-          workingAddr = workingAddr >> rankBits;
+            *rank = workingAddr % (1 << rankBits);
+            workingAddr = workingAddr >> rankBits;
         }
-      else
+        else
         {
-          *rank = workingAddr % (1 << rankBits);
-          workingAddr = workingAddr >> rankBits;
+            *rank = workingAddr % (1 << rankBits);
+            workingAddr = workingAddr >> rankBits;
 
-          *channel = workingAddr % (1 << channelBits);
-          workingAddr = workingAddr >> channelBits;
+            *channel = workingAddr % (1 << channelBits);
+            workingAddr = workingAddr >> channelBits;
         }
     }
 
-
-  *row = workingAddr % (1 << rowBits);
-  workingAddr = workingAddr >> rowBits;
+    *row = workingAddr % (1 << rowBits);
+    workingAddr = workingAddr >> rowBits;
 }
-
