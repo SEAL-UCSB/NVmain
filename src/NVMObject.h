@@ -1,53 +1,64 @@
-/*
- *  This file is part of NVMain- A cycle accurate timing, bit-accurate
- *  energy simulator for non-volatile memory. Originally developed by 
- *  Matt Poremba at the Pennsylvania State University.
- *
- *  Website: http://www.cse.psu.edu/~poremba/nvmain/
- *  Email: mrp5060@psu.edu
- *
- *  ---------------------------------------------------------------------
- *
- *  If you use this software for publishable research, please include 
- *  the original NVMain paper in the citation list and mention the use 
- *  of NVMain.
- *
- */
+/*******************************************************************************
+* Copyright (c) 2012-2013, The Microsystems Design Labratory (MDL)
+* Department of Computer Science and Engineering, The Pennsylvania State University
+* All rights reserved.
+* 
+* This source code is part of NVMain - A cycle accurate timing, bit accurate
+* energy simulator for both volatile (e.g., DRAM) and nono-volatile memory
+* (e.g., PCRAM). The source code is free and you can redistribute and/or
+* modify it by providing that the following conditions are met:
+* 
+*  1) Redistributions of source code must retain the above copyright notice,
+*     this list of conditions and the following disclaimer.
+* 
+*  2) Redistributions in binary form must reproduce the above copyright notice,
+*     this list of conditions and the following disclaimer in the documentation
+*     and/or other materials provided with the distribution.
+* 
+* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+* ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+* WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+* DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+* FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+* DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+* SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+* CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+* OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+* 
+* Author list: 
+*   Matt Poremba    ( Email: mrp5060 at psu dot edu 
+*                     Website: http://www.cse.psu.edu/~poremba/ )
+*   Tao Zhang       ( Email: tzz106 at cse dot psu dot edu
+*                     Website: http://www.cse.psu.edu/~tzz106 )
+*******************************************************************************/
 
 #ifndef __CYCLER_H__
 #define __CYCLER_H__
-
 
 #include "include/NVMTypes.h"
 #include "include/FailReasons.h"
 #include "src/EventQueue.h"
 #include "Decoders/DecoderFactory.h"
-
 #include <vector>
 #include <typeinfo>
-
-
 
 #define NVMObjectType (typeid(*(parent->GetTrampoline())).name())
 #define NVMClass(a) (typeid(a).name())
 #define HookedConfig (static_cast<NVMain *>(GetParent( )->GetTrampoline( ))->GetConfig( ))
 
-
 namespace NVM {
-
 
 class NVMainRequest;
 class EventQueue;
 class AddressTranslator;
 class NVMObject;
 
-
 enum HookType { NVMHOOK_NONE = 0,
                 NVMHOOK_PREISSUE,                /* Call hook before IssueCommand */
                 NVMHOOK_POSTISSUE,               /* Call hook after IssueCommand */
                 NVMHOOK_COUNT
 };
-
 
 /*
  *  This class is used to hook IssueCommands to any NVMObject so that pre- and post-commands may be called.
@@ -56,19 +67,19 @@ enum HookType { NVMHOOK_NONE = 0,
  */
 class NVMObject_hook
 {
- public:
-  NVMObject_hook( NVMObject *trampoline );
+  public:
+    NVMObject_hook( NVMObject *trampoline );
 
-  bool IssueCommand( NVMainRequest *req );
-  bool IsIssuable( NVMainRequest *req, FailReason *reason = NULL );
-  bool IssueAtomic( NVMainRequest *req );
+    bool IssueCommand( NVMainRequest *req );
+    bool IsIssuable( NVMainRequest *req, FailReason *reason = NULL );
+    bool IssueAtomic( NVMainRequest *req );
 
-  bool RequestComplete( NVMainRequest *req );
+    bool RequestComplete( NVMainRequest *req );
 
-  NVMObject *GetTrampoline( );
+    NVMObject *GetTrampoline( );
 
- private:
-  NVMObject *trampoline;
+  private:
+    NVMObject *trampoline;
 };
 
 
@@ -78,59 +89,49 @@ class NVMObject_hook
  */
 class NVMObject
 {
- public:
-  NVMObject( );
-  virtual ~NVMObject(  ) { }
+  public:
+    NVMObject( );
+    virtual ~NVMObject(  ) { }
 
-  virtual void Init( ); 
+    virtual void Init( ); 
 
-  virtual void Cycle( ncycle_t steps ) = 0;
+    virtual void Cycle( ncycle_t steps ) = 0;
 
-  virtual bool IssueCommand( NVMainRequest *req );
-  virtual bool IsIssuable( NVMainRequest *req, FailReason *reason = NULL );
-  virtual bool IssueAtomic( NVMainRequest *req );
+    virtual bool IssueCommand( NVMainRequest *req );
+    virtual bool IsIssuable( NVMainRequest *req, FailReason *reason = NULL );
+    virtual bool IssueAtomic( NVMainRequest *req );
 
-  virtual bool RequestComplete( NVMainRequest *req );
+    virtual bool RequestComplete( NVMainRequest *req );
 
-  virtual void SetParent( NVMObject *p );
-  virtual void AddChild( NVMObject *c ); 
+    virtual void SetParent( NVMObject *p );
+    virtual void AddChild( NVMObject *c ); 
 
-  virtual void SetEventQueue( EventQueue *eq );
-  virtual EventQueue *GetEventQueue( );
+    virtual void SetEventQueue( EventQueue *eq );
+    virtual EventQueue *GetEventQueue( );
 
-  NVMObject_hook *GetParent( );
-  std::vector<NVMObject_hook *>& GetChildren( );
-  NVMObject_hook *GetChild( NVMainRequest *req );  
+    NVMObject_hook *GetParent( );
+    std::vector<NVMObject_hook *>& GetChildren( );
+    NVMObject_hook *GetChild( NVMainRequest *req );  
 
-  virtual void SetDecoder( AddressTranslator *at );
-  virtual AddressTranslator *GetDecoder( );
+    virtual void SetDecoder( AddressTranslator *at );
+    virtual AddressTranslator *GetDecoder( );
 
-  HookType GetHookType( );
-  void SetHookType( HookType );
+    HookType GetHookType( );
+    void SetHookType( HookType );
 
-  void AddHook( NVMObject *hook );
-  std::vector<NVMObject *>& GetHooks( HookType h );
+    void AddHook( NVMObject *hook );
+    std::vector<NVMObject *>& GetHooks( HookType h );
 
- protected:
-  NVMObject_hook *parent;
-  AddressTranslator *decoder;
-  std::vector<NVMObject_hook *> children;
-  std::vector<NVMObject *> *hooks;
-  EventQueue *eventQueue;
-  HookType hookType;
-  /*
-   * added by Tao @ 01/28/2013
-   * it is better to implement MAX as a function, the original Macro defined
-   * by "#define" may cause problem 
-   */
-  ncycle_t MAX( const ncycle_t, const ncycle_t );
-
+  protected:
+    NVMObject_hook *parent;
+    AddressTranslator *decoder;
+    std::vector<NVMObject_hook *> children;
+    std::vector<NVMObject *> *hooks;
+    EventQueue *eventQueue;
+    HookType hookType;
+    ncycle_t MAX( const ncycle_t, const ncycle_t );
 };
 
-
 };
-
-
 
 #endif
-
