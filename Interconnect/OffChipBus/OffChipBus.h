@@ -1,77 +1,85 @@
-/*
- *  this file is part of nvmain- a cycle accurate timing, bit-accurate
- *  energy simulator for non-volatile memory. originally developed by 
- *  matt poremba at the pennsylvania state university.
- *
- *  website: http://www.cse.psu.edu/~poremba/nvmain/
- *  email: mrp5060@psu.edu
- *
- *  ---------------------------------------------------------------------
- *
- *  if you use this software for publishable research, please include 
- *  the original nvmain paper in the citation list and mention the use 
- *  of nvmain.
- *
- */
+/*******************************************************************************
+* Copyright (c) 2012-2013, The Microsystems Design Labratory (MDL)
+* Department of Computer Science and Engineering, The Pennsylvania State University
+* All rights reserved.
+* 
+* This source code is part of NVMain - A cycle accurate timing, bit accurate
+* energy simulator for both volatile (e.g., DRAM) and nono-volatile memory
+* (e.g., PCRAM). The source code is free and you can redistribute and/or
+* modify it by providing that the following conditions are met:
+* 
+*  1) Redistributions of source code must retain the above copyright notice,
+*     this list of conditions and the following disclaimer.
+* 
+*  2) Redistributions in binary form must reproduce the above copyright notice,
+*     this list of conditions and the following disclaimer in the documentation
+*     and/or other materials provided with the distribution.
+* 
+* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+* ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+* WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+* DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+* FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+* DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+* SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+* CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+* OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+* 
+* Author list: 
+*   Matt Poremba    ( Email: mrp5060 at psu dot edu 
+*                     Website: http://www.cse.psu.edu/~poremba/ )
+*******************************************************************************/
 
 #ifndef __INTERCONNECT_OFFCHIPBUS_H__
 #define __INTERCONNECT_OFFCHIPBUS_H__
 
-
 #include "src/Rank.h"
 #include "src/Interconnect.h"
-
 #include <list>
-
 
 namespace NVM {
 
-
-
 class OffChipBus : public Interconnect
 {
- public:
-  OffChipBus( );
-  ~OffChipBus( );
+  public:
+    OffChipBus( );
+    ~OffChipBus( );
 
-  void SetConfig( Config *c );
-  void SetParams( Params *params ) { p = params; }
+    void SetConfig( Config *c );
+    void SetParams( Params *params ) { p = params; }
 
-  bool IssueCommand( NVMainRequest *req );
-  bool IsIssuable( NVMainRequest *req, FailReason *reason = NULL );
+    bool IssueCommand( NVMainRequest *req );
+    bool IsIssuable( NVMainRequest *req, FailReason *reason = NULL );
 
-  bool RequestComplete( NVMainRequest *request );
+    bool RequestComplete( NVMainRequest *request );
 
-  ncycle_t GetNextActivate( uint64_t rank, uint64_t bank );
-  ncycle_t GetNextRead( uint64_t rank, uint64_t bank );
-  ncycle_t GetNextWrite( uint64_t rank, uint64_t bank );
-  ncycle_t GetNextPrecharge( uint64_t rank, uint64_t bank );
-  ncycle_t GetNextRefresh( uint64_t rank, uint64_t bank );
+    ncycle_t GetNextActivate( uint64_t rank, uint64_t bank );
+    ncycle_t GetNextRead( uint64_t rank, uint64_t bank );
+    ncycle_t GetNextWrite( uint64_t rank, uint64_t bank );
+    ncycle_t GetNextPrecharge( uint64_t rank, uint64_t bank );
+    ncycle_t GetNextRefresh( uint64_t rank, uint64_t bank );
 
-  void PrintStats( );
+    void PrintStats( );
 
-  void Cycle( ncycle_t steps );
+    void Cycle( ncycle_t steps );
 
-  Rank *GetRank( uint64_t rank ) { return ranks[rank]; }
+    Rank *GetRank( uint64_t rank ) { return ranks[rank]; }
 
- private:
-  bool configSet;
-  ncounter_t numRanks;
-  ncycle_t offChipDelay;
-  float syncValue;
+  private:
+    bool configSet;
+    ncounter_t numRanks;
+    ncycle_t offChipDelay;
+    float syncValue;
 
-  Config *conf;
-  Rank **ranks;
+    Config *conf;
+    Rank **ranks;
 
-  float CalculateIOPower( bool isRead, unsigned int bitValue );
+    float CalculateIOPower( bool isRead, unsigned int bitValue );
 
-  Params *p;
-
+    Params *p;
 };
 
 };
-
-
 
 #endif
-
