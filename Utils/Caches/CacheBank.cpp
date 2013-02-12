@@ -1,272 +1,263 @@
-/*
- *  This file is part of NVMain- A cycle accurate timing, bit-accurate
- *  energy simulator for non-volatile memory. Originally developed by 
- *  Matt Poremba at the Pennsylvania State University.
- *
- *  Website: http://www.cse.psu.edu/~poremba/nvmain/
- *  Email: mrp5060@psu.edu
- *
- *  ---------------------------------------------------------------------
- *
- *  If you use this software for publishable research, please include 
- *  the original NVMain paper in the citation list and mention the use 
- *  of NVMain.
- *
- */
-
+/*******************************************************************************
+* Copyright (c) 2012-2013, The Microsystems Design Labratory (MDL)
+* Department of Computer Science and Engineering, The Pennsylvania State University
+* All rights reserved.
+* 
+* This source code is part of NVMain - A cycle accurate timing, bit accurate
+* energy simulator for both volatile (e.g., DRAM) and nono-volatile memory
+* (e.g., PCRAM). The source code is free and you can redistribute and/or
+* modify it by providing that the following conditions are met:
+* 
+*  1) Redistributions of source code must retain the above copyright notice,
+*     this list of conditions and the following disclaimer.
+* 
+*  2) Redistributions in binary form must reproduce the above copyright notice,
+*     this list of conditions and the following disclaimer in the documentation
+*     and/or other materials provided with the distribution.
+* 
+* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+* ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+* WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+* DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+* FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+* DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+* SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+* CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+* OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+* 
+* Author list: 
+*   Matt Poremba    ( Email: mrp5060 at psu dot edu 
+*                     Website: http://www.cse.psu.edu/~poremba/ )
+*******************************************************************************/
 
 #include "Utils/Caches/CacheBank.h"
 #include "include/NVMHelpers.h"
-
 #include <iostream>
 #include <assert.h>
 
-
 using namespace NVM;
-
-
 
 CacheBank::CacheBank( uint64_t sets, uint64_t assoc, uint64_t lineSize )
 {
-  uint64_t i, j;
+    uint64_t i, j;
 
-  cacheEntry = new CacheEntry* [ sets ];
-  for( i = 0; i < sets; i++ )
+    cacheEntry = new CacheEntry* [ sets ];
+    for( i = 0; i < sets; i++ )
     {
-      cacheEntry[i] = new CacheEntry[assoc];
-      for( j = 0; j < assoc; j++ )
+        cacheEntry[i] = new CacheEntry[assoc];
+        for( j = 0; j < assoc; j++ )
         {
-          /* Clear valid bit, dirty bit, etc. */
-          cacheEntry[i][j].flags = CACHE_ENTRY_NONE;
+            /* Clear valid bit, dirty bit, etc. */
+            cacheEntry[i][j].flags = CACHE_ENTRY_NONE;
         }
     }
 
+    numSets = sets;
+    numAssoc = assoc;
+    cachelineSize = lineSize;
 
-  numSets = sets;
-  numAssoc = assoc;
-  cachelineSize = lineSize;
+    state = CACHE_IDLE;
+    stateTimer = 0;
 
-  state = CACHE_IDLE;
-  stateTimer = 0;
+    decodeClass = NULL;
+    decodeFunc = NULL;
+    SetDecodeFunction( this, 
+            static_cast<CacheSetDecoder>(&NVM::CacheBank::DefaultDecoder) );
 
-  decodeClass = NULL;
-  decodeFunc = NULL;
-  SetDecodeFunction( this, static_cast<CacheSetDecoder>(&NVM::CacheBank::DefaultDecoder) );
+    readTime = 1; // 1 cycle
+    writeTime = 1;  // 1 cycle
 
-  readTime = 1; // 1 cycle
-  writeTime = 1;  // 1 cycle
-
-  isMissMap = false;
+    isMissMap = false;
 }
-
-
 
 CacheBank::~CacheBank( )
 {
-  uint64_t i;
+    uint64_t i;
 
-  for( i = 0; i < numSets; i++ )
+    for( i = 0; i < numSets; i++ )
     {
-      delete [] cacheEntry[i];
+        delete [] cacheEntry[i];
     }
 
-  delete [] cacheEntry;
+    delete [] cacheEntry;
 }
-
 
 void CacheBank::SetDecodeFunction( NVMObject *dcClass, CacheSetDecoder dcFunc )
 {
-  decodeClass = dcClass;
-  decodeFunc = dcFunc;
+    decodeClass = dcClass;
+    decodeFunc = dcFunc;
 }
-
 
 uint64_t CacheBank::DefaultDecoder( NVMAddress &addr )
 {
-  return (addr.GetPhysicalAddress( ) >> (uint64_t)mlog2( (int)cachelineSize )) % numSets;
+    return (addr.GetPhysicalAddress( ) >> 
+            (uint64_t)mlog2( (int)cachelineSize )) % numSets;
 }
-
 
 uint64_t CacheBank::SetID( NVMAddress& addr )
 {
-  /*
-   *  By default we'll just chop off the bits for the cacheline and use the
-   *  least significant bits as the set address, and the remaining bits are 
-   *  the tag bits.
-   */
-  uint64_t setID;
+    /*
+     *  By default we'll just chop off the bits for the cacheline and use the
+     *  least significant bits as the set address, and the remaining bits are 
+     *  the tag bits.
+     */
+    uint64_t setID;
 
-      //if( isMissMap )
-          //setID = (addr.GetPhysicalAddress( )) % numSets;
+    //if( isMissMap )
+    //    setID = (addr.GetPhysicalAddress( )) % numSets;
 
-  setID = (decodeClass->*decodeFunc)( addr );
+    setID = (decodeClass->*decodeFunc)( addr );
 
-
-  return setID;
+    return setID;
 }
-
-
 
 CacheEntry *CacheBank::FindSet( NVMAddress& addr )
 {
-  /*
-   *  By default we'll just chop off the bits for the cacheline and use the
-   *  least significant bits as the set address, and the remaining bits are 
-   *  the tag bits.
-   */
-  uint64_t setID = SetID( addr );
+    /*
+     *  By default we'll just chop off the bits for the cacheline and use the
+     *  least significant bits as the set address, and the remaining bits are 
+     *  the tag bits.
+     */
+    uint64_t setID = SetID( addr );
 
-  return cacheEntry[setID];
+    return cacheEntry[setID];
 }
-
 
 bool CacheBank::Present( NVMAddress& addr )
 {
-  CacheEntry *set = FindSet( addr );
-  bool found = false;
+    CacheEntry *set = FindSet( addr );
+    bool found = false;
 
-
-  for( uint64_t i = 0; i < numAssoc; i++ )
+    for( uint64_t i = 0; i < numAssoc; i++ )
     {
-      if( set[i].address.GetPhysicalAddress( ) == addr.GetPhysicalAddress( ) 
-          && (set[i].flags & CACHE_ENTRY_VALID ) )
+        if( set[i].address.GetPhysicalAddress( ) == addr.GetPhysicalAddress( ) 
+            && (set[i].flags & CACHE_ENTRY_VALID ) )
         {
-          found = true;
-          break;
+            found = true;
+            break;
         }
     }
 
-
-  return found;
+    return found;
 }
-
 
 bool CacheBank::SetFull( NVMAddress& addr )
 {
-  CacheEntry *set = FindSet( addr );
-  bool rv = true;
+    CacheEntry *set = FindSet( addr );
+    bool rv = true;
 
-  for( uint64_t i = 0; i < numAssoc; i++ )
+    for( uint64_t i = 0; i < numAssoc; i++ )
     {
-      /* If there is an invalid entry (e.g., not used) the set isn't full. */
-      if( !(set[i].flags & CACHE_ENTRY_VALID) )
+        /* If there is an invalid entry (e.g., not used) the set isn't full. */
+        if( !(set[i].flags & CACHE_ENTRY_VALID) )
         {
-          rv = false;
-          break;
+            rv = false;
+            break;
         }
     }
 
-  return rv;
+    return rv;
 }
-
 
 bool CacheBank::Install( NVMAddress& addr, NVMDataBlock& data )
 {
-  CacheEntry *set = FindSet( addr );
-  bool rv = false;
+    CacheEntry *set = FindSet( addr );
+    bool rv = false;
 
-  //assert( !Present( addr ) );
+    //assert( !Present( addr ) );
 
-  for( uint64_t i = 0; i < numAssoc; i++ )
+    for( uint64_t i = 0; i < numAssoc; i++ )
     {
-      if( !(set[i].flags & CACHE_ENTRY_VALID) )
+        if( !(set[i].flags & CACHE_ENTRY_VALID) )
         {
-          set[i].address = addr;
-          set[i].data = data;
-          set[i].flags |= CACHE_ENTRY_VALID; 
-          rv = true;
-          break;
+            set[i].address = addr;
+            set[i].data = data;
+            set[i].flags |= CACHE_ENTRY_VALID; 
+            rv = true;
+            break;
         }
     }
 
-  return rv;
+    return rv;
 }
-
 
 bool CacheBank::Read( NVMAddress& addr, NVMDataBlock *data )
 {
-  CacheEntry *set = FindSet( addr );
-  bool rv = false;
+    CacheEntry *set = FindSet( addr );
+    bool rv = false;
 
-  assert( Present( addr ) );
+    assert( Present( addr ) );
 
-  for( uint64_t i = 0; i < numAssoc; i++ )
+    for( uint64_t i = 0; i < numAssoc; i++ )
     {
-      if( set[i].address.GetPhysicalAddress( ) == addr.GetPhysicalAddress( ) 
-          && (set[i].flags & CACHE_ENTRY_VALID) )
+        if( set[i].address.GetPhysicalAddress( ) == addr.GetPhysicalAddress( ) 
+            && (set[i].flags & CACHE_ENTRY_VALID) )
         {
-          *data = set[i].data;
-          rv = true;
+            *data = set[i].data;
+            rv = true;
 
-          /*
-           *  Move cache entry to MRU position.
-           */
-          CacheEntry tmp;
+            /* Move cache entry to MRU position */
+            CacheEntry tmp;
 
-          tmp.flags = set[i].flags;
-          tmp.address = set[i].address;
-          tmp.data = set[i].data;
+            tmp.flags = set[i].flags;
+            tmp.address = set[i].address;
+            tmp.data = set[i].data;
 
-          for( uint64_t j = i; j > 0; j-- )
+            for( uint64_t j = i; j > 0; j-- )
             {
-              set[j].flags = set[j-1].flags;
-              set[j].address = set[j-1].address;
-              set[j].data = set[j-1].data;
+                set[j].flags = set[j-1].flags;
+                set[j].address = set[j-1].address;
+                set[j].data = set[j-1].data;
             }
 
-          set[0].flags = tmp.flags;
-          set[0].address = tmp.address;
-          set[0].data = tmp.data;
+            set[0].flags = tmp.flags;
+            set[0].address = tmp.address;
+            set[0].data = tmp.data;
         }
     }
 
-  return rv;
+    return rv;
 }
-
-
 
 bool CacheBank::Write( NVMAddress& addr, NVMDataBlock& data )
 {
-  CacheEntry *set = FindSet( addr );
-  bool rv = false;
+    CacheEntry *set = FindSet( addr );
+    bool rv = false;
 
-  assert( Present( addr ) );
+    assert( Present( addr ) );
 
-  for( uint64_t i = 0; i < numAssoc; i++ )
+    for( uint64_t i = 0; i < numAssoc; i++ )
     {
-      if( set[i].address.GetPhysicalAddress( ) == addr.GetPhysicalAddress( )
-          && (set[i].flags & CACHE_ENTRY_VALID) )
+        if( set[i].address.GetPhysicalAddress( ) == addr.GetPhysicalAddress( )
+            && (set[i].flags & CACHE_ENTRY_VALID) )
         {
-          set[i].data = data;
-          set[i].flags |= CACHE_ENTRY_DIRTY;
-          rv = true;
+            set[i].data = data;
+            set[i].flags |= CACHE_ENTRY_DIRTY;
+            rv = true;
 
-          /*
-           *  Move cache entry to MRU position.
-           */
-          CacheEntry tmp;
+            /* Move cache entry to MRU position */
+            CacheEntry tmp;
 
-          tmp.flags = set[i].flags;
-          tmp.address = set[i].address;
-          tmp.data = set[i].data;
+            tmp.flags = set[i].flags;
+            tmp.address = set[i].address;
+            tmp.data = set[i].data;
 
-          for( uint64_t j = i; j > 1; j-- )
+            for( uint64_t j = i; j > 1; j-- )
             {
-              set[j].flags = set[j-1].flags;
-              set[j].address = set[j-1].address;
-              set[j].data = set[j-1].data;
+                set[j].flags = set[j-1].flags;
+                set[j].address = set[j-1].address;
+                set[j].data = set[j-1].data;
             }
 
-          set[0].flags = tmp.flags;
-          set[0].address = tmp.address;
-          set[0].data = tmp.data;
+            set[0].flags = tmp.flags;
+            set[0].address = tmp.address;
+            set[0].data = tmp.data;
         }
     }
 
-  return rv;
+    return rv;
 }
-
-
 
 /* 
  *  Updates data without changing dirty bit or LRU position
@@ -274,237 +265,224 @@ bool CacheBank::Write( NVMAddress& addr, NVMDataBlock& data )
  */
 bool CacheBank::UpdateData( NVMAddress& addr, NVMDataBlock& data )
 {
-  CacheEntry *set = FindSet( addr );
-  bool rv = false;
+    CacheEntry *set = FindSet( addr );
+    bool rv = false;
 
-  assert( Present( addr ) );
+    assert( Present( addr ) );
 
-  for( uint64_t i = 0; i < numAssoc; i++ )
+    for( uint64_t i = 0; i < numAssoc; i++ )
     {
-      if( set[i].address.GetPhysicalAddress( ) == addr.GetPhysicalAddress( )
-          && (set[i].flags & CACHE_ENTRY_VALID) )
+        if( set[i].address.GetPhysicalAddress( ) == addr.GetPhysicalAddress( )
+            && (set[i].flags & CACHE_ENTRY_VALID) )
         {
-          set[i].data = data;
-          rv = true;
+            set[i].data = data;
+            rv = true;
         }
     }
 
-  return rv;
+    return rv;
 }
-
-
 
 /* Return true if the victim data is dirty. */
 bool CacheBank::ChooseVictim( NVMAddress& addr, NVMAddress *victim )
 {
-  bool rv = false;
-  CacheEntry *set = FindSet( addr );
+    bool rv = false;
+    CacheEntry *set = FindSet( addr );
 
-  assert( SetFull( addr ) );
-  assert( set[numAssoc-1].flags & CACHE_ENTRY_VALID );
+    assert( SetFull( addr ) );
+    assert( set[numAssoc-1].flags & CACHE_ENTRY_VALID );
 
-  *victim = set[numAssoc-1].address;
-  
-  if( set[numAssoc-1].flags & CACHE_ENTRY_DIRTY )
-    rv = true;
+    *victim = set[numAssoc-1].address;
+    
+    if( set[numAssoc-1].flags & CACHE_ENTRY_DIRTY )
+        rv = true;
 
-  return rv;
+    return rv;
 }
 
 
 bool CacheBank::Evict( NVMAddress& addr, NVMDataBlock *data )
 {
-  bool rv;
-  CacheEntry *set = FindSet( addr );
+    bool rv;
+    CacheEntry *set = FindSet( addr );
 
-  assert( Present( addr ) );
+    assert( Present( addr ) );
 
-  rv = false; 
+    rv = false; 
 
-  for( uint64_t i = 0; i < numAssoc; i++ )
+    for( uint64_t i = 0; i < numAssoc; i++ )
     {
-      if( set[i].address.GetPhysicalAddress( ) == addr.GetPhysicalAddress( ) 
-          && (set[i].flags & CACHE_ENTRY_VALID) )
+        if( set[i].address.GetPhysicalAddress( ) == addr.GetPhysicalAddress( ) 
+            && (set[i].flags & CACHE_ENTRY_VALID) )
         {
-          if( set[i].flags & CACHE_ENTRY_DIRTY )
+            if( set[i].flags & CACHE_ENTRY_DIRTY )
             {
-              *data = set[i].data;
-              rv = true;
+                *data = set[i].data;
+                rv = true;
             }
-          else
+            else
             {
-              *data = set[i].data;
-              rv = false;
+                *data = set[i].data;
+                rv = false;
             }
 
-          set[i].flags = CACHE_ENTRY_NONE;
+            set[i].flags = CACHE_ENTRY_NONE;
 
-          break;
+            break;
         }
     }
 
-  return rv;
+    return rv;
 }
-
 
 void CacheBank::SetReadTime( uint64_t rtime )
 {
-  readTime = rtime;
+    readTime = rtime;
 }
-
 
 void CacheBank::SetWriteTime( uint64_t wtime )
 {
-  writeTime = wtime;
+    writeTime = wtime;
 }
-
 
 uint64_t CacheBank::GetReadTime( )
 {
-  return readTime;
+    return readTime;
 }
-
 
 uint64_t CacheBank::GetWriteTime( )
 {
-  return writeTime;
+    return writeTime;
 }
-
 
 uint64_t CacheBank::GetAssociativity( )
 {
-  return numAssoc;
+    return numAssoc;
 }
-
 
 uint64_t CacheBank::GetCachelineSize( )
 {
-  return cachelineSize;
+    return cachelineSize;
 }
-
 
 uint64_t CacheBank::GetSetCount( )
 {
-  return numSets;
+    return numSets;
 }
-
 
 float CacheBank::GetCacheOccupancy( )
 {
-  float occupancy;
-  uint64_t valid, total;
+    float occupancy;
+    uint64_t valid, total;
 
-  valid = 0;
-  total = numSets*numAssoc;
+    valid = 0;
+    total = numSets*numAssoc;
 
-  for( uint64_t i = 0; i < numSets; i++ )
+    for( uint64_t i = 0; i < numSets; i++ )
     {
-      CacheEntry *set = cacheEntry[i];
+        CacheEntry *set = cacheEntry[i];
 
-      for( uint64_t j = 0; j < numAssoc; j++ )
+        for( uint64_t j = 0; j < numAssoc; j++ )
         {
-          if( set[i].flags & CACHE_ENTRY_VALID )
-            valid++;
+            if( set[i].flags & CACHE_ENTRY_VALID )
+                valid++;
         }
     }
 
-  occupancy = static_cast<float>(valid) / static_cast<float>(total);
+    occupancy = static_cast<float>(valid) / static_cast<float>(total);
 
-  return occupancy;
+    return occupancy;
 }
-
 
 bool CacheBank::IsIssuable( NVMainRequest * /*req*/ )
 {
-  bool rv = false;
+    bool rv = false;
 
-  /* 
-   *  We can issue if the cache is idle. Pretty simple.
-   */
-  if( state == CACHE_IDLE )
+    /* We can issue if the cache is idle. Pretty simple */
+    if( state == CACHE_IDLE )
     {
-      rv = true;
+        rv = true;
     }
-  else
+    else
     {
-      rv = false;
+        rv = false;
     }
 
-  return rv;
+    return rv;
 }
-
 
 bool CacheBank::IssueCommand( NVMainRequest *nreq )
 {
-  NVMDataBlock dummy;
-  CacheRequest *req = static_cast<CacheRequest *>( nreq->reqInfo );
+    NVMDataBlock dummy;
+    CacheRequest *req = static_cast<CacheRequest *>( nreq->reqInfo );
 
-  assert( IsIssuable( nreq ) );
+    assert( IsIssuable( nreq ) );
 
-  if( !IsIssuable( nreq ) )
-    return false;
+    if( !IsIssuable( nreq ) )
+        return false;
 
-  switch( req->optype )
+    switch( req->optype )
     {
-    case CACHE_READ:
-      state = CACHE_BUSY;
-      stateTimer = GetEventQueue( )->GetCurrentCycle( ) + readTime;
-      req->hit = Present( req->address );
-      if( req->hit ) Read( req->address, &(req->data) ); 
-      GetEventQueue( )->InsertEvent( EventResponse, this, nreq, stateTimer );
-      break;
-    case CACHE_WRITE:
-      state = CACHE_BUSY;
-      stateTimer = GetEventQueue( )->GetCurrentCycle( ) + writeTime;
+        case CACHE_READ:
+            state = CACHE_BUSY;
+            stateTimer = GetEventQueue( )->GetCurrentCycle( ) + readTime;
+            req->hit = Present( req->address );
+            if( req->hit ) 
+                Read( req->address, &(req->data) ); 
+            GetEventQueue( )->InsertEvent( EventResponse, this, nreq, stateTimer );
+            break;
 
-      if( SetFull( req->address ) )
-        {
-          NVMainRequest *mmEvict = new NVMainRequest( );
-          CacheRequest *evreq = new CacheRequest;
-          
-          ChooseVictim( req->address, &(evreq->address) );
-          Evict( evreq->address, &(evreq->data) );
+        case CACHE_WRITE:
+            state = CACHE_BUSY;
+            stateTimer = GetEventQueue( )->GetCurrentCycle( ) + writeTime;
 
-          evreq->optype = CACHE_EVICT;
+            if( SetFull( req->address ) )
+            {
+                NVMainRequest *mmEvict = new NVMainRequest( );
+                CacheRequest *evreq = new CacheRequest;
+                
+                ChooseVictim( req->address, &(evreq->address) );
+                Evict( evreq->address, &(evreq->data) );
 
-          *mmEvict = *nreq;
-          mmEvict->owner = nreq->owner;
-          mmEvict->reqInfo = static_cast<void *>( evreq );
-          mmEvict->tag = nreq->tag;
+                evreq->optype = CACHE_EVICT;
 
-          GetEventQueue( )->InsertEvent( EventResponse, this, mmEvict, stateTimer );
-        }
+                *mmEvict = *nreq;
+                mmEvict->owner = nreq->owner;
+                mmEvict->reqInfo = static_cast<void *>( evreq );
+                mmEvict->tag = nreq->tag;
 
-      req->hit = Present( req->address );
-      if( req->hit ) 
-        Write( req->address, req->data );
-      else
-        Install( req->address, req->data );
+                GetEventQueue( )->InsertEvent( EventResponse, this, mmEvict,
+                                               stateTimer );
+            }
 
-      GetEventQueue( )->InsertEvent( EventResponse, this, nreq, stateTimer );
+            req->hit = Present( req->address );
+            if( req->hit ) 
+                Write( req->address, req->data );
+            else
+                Install( req->address, req->data );
 
-      break;
-    default:
-      std::cout << "CacheBank: Unknown operation `" << req->optype << "'!" << std::endl;
-      break;
+            GetEventQueue( )->InsertEvent( EventResponse, this, nreq, stateTimer );
+
+            break;
+
+        default:
+            std::cout << "CacheBank: Unknown operation `" << req->optype << "'!"
+                << std::endl;
+            break;
     }
 
-  return true;
+    return true;
 }
-
 
 bool CacheBank::RequestComplete( NVMainRequest *req )
 {
-  GetParent( )->RequestComplete( req );
+    GetParent( )->RequestComplete( req );
 
-  state = CACHE_IDLE;
+    state = CACHE_IDLE;
 
-  return true;
+    return true;
 }
-
-
 
 void CacheBank::Cycle( ncycle_t /*steps*/ )
 {
 }
-
