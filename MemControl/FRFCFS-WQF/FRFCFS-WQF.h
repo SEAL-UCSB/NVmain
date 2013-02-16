@@ -60,36 +60,24 @@ class FRFCFS_WQF : public MemoryController
     void PrintStats( );
 
   private:
+    /* separate read/write queue */
     NVMTransactionQueue readQueue;
     NVMTransactionQueue writeQueue;
-
-    /* Scheduling predicates. */
-    class WriteQueueFull : public SchedulingPredicate
-    {
-        friend class FRFCFS_WQF; 
-
-        FRFCFS_WQF &memoryController;
-        bool draining;
-
-      public:
-        WriteQueueFull( FRFCFS_WQF &_memoryController ) : memoryController(_memoryController), draining(false) { }
-
-        bool operator() (uint64_t, uint64_t);
-    };
 
     /* Cached Configuration Variables*/
     uint64_t writeQueueSize;
     uint64_t readQueueSize;
-    WriteQueueFull WQF;
-    ComplementPredicate WQFc;
 
     /* write drain high and low watermark */
     uint64_t HighWaterMark;
     uint64_t LowWaterMark;
 
+    /* write draining flag */
+    bool     m_draining;
+
     /* Stats */
     uint64_t measuredLatencies, measuredQueueLatencies;
-    float averageLatency, averageQueueLatency;
+    float    averageLatency, averageQueueLatency;
     uint64_t mem_reads, mem_writes;
     uint64_t starvation_precharges;
     uint64_t rq_rb_hits;
