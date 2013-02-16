@@ -45,7 +45,6 @@ using namespace NVM;
  * and drains until empty.
  */
 FRFCFS_WQF::FRFCFS_WQF( Interconnect *memory, AddressTranslator *translator )
-  : WQF(*this), WQFc(&WQF) /* Important! Initialize the predicates */
 {
     translator->GetTranslationMethod( )->SetOrder( 5, 1, 4, 3, 2 );
 
@@ -98,6 +97,7 @@ FRFCFS_WQF::FRFCFS_WQF( Interconnect *memory, AddressTranslator *translator )
     m_drain_end_readqueue_size = 0;
     m_min_start_readqueue_size = 1e10;
     m_max_start_readqueue_size = 0;
+    m_draining = false;
 
     measuredLatencies = 0;
     measuredQueueLatencies = 0;
@@ -176,7 +176,7 @@ bool FRFCFS_WQF::IssueCommand( NVMainRequest *request )
     /* during a write drain, no write can enqueue */
     if( (request->type == READ  && readQueue.size()  >= readQueueSize) 
             || (request->type == WRITE && ( writeQueue.size() >= writeQueueSize 
-                    || WQF.draining == true ) ) )
+                    || m_draining == true ) ) )
     {
         return false;
     }
@@ -244,44 +244,20 @@ bool FRFCFS_WQF::RequestComplete( NVMainRequest * request )
     return true;
 }
 
-bool FRFCFS_WQF::WriteQueueFull::operator() (uint64_t, uint64_t)
-{
-    /*
-     *  If the write queue becomes full/passes our threshold, start the drain.
-     *  Otherwise, if the write queue becomes empty/below a threshold, stop.
-     */
-    if( draining == false && memoryController.writeQueue.size() >= memoryController.HighWaterMark )
-    {
-        draining = true;
-    }
-    else if( draining == true && memoryController.writeQueue.size() <= memoryController.LowWaterMark )
-    {
-        draining = false;
-    }
-
-    return draining;
-}
-
 void FRFCFS_WQF::Cycle( ncycle_t )
 {
-    NVMainRequest *nextRequest = NULL;
     /* check whether it is the time to switch from read to write drain */
-    bool m_drain = WQF.draining;
-    /* if the write drain should be triggered */
-    if( m_drain == false && writeQueue.size() >= HighWaterMark )
+    if( m_draining == false && writeQueue.size() >= HighWaterMark )
     {
         /* record the drain start cycle */
         m_drain_start_cycle = GetEventQueue()->GetCurrentCycle();
         m_drain_start_readqueue_size = readQueue.size();
 
-        /* 
-         * NOTE: this is a trick because WQF() may not be called due to short
-         * circuit in FindXXXX() function (defined in MemoryController.cpp) 
-         */
-        WQF(0, 0);
+        /* switch to write drain */
+        m_draining = true;
     }
     /* or, if the write drain has completed */
-    else if( m_drain == true && writeQueue.size() <= LowWaterMark )
+    else if( m_draining == true && writeQueue.size() <= LowWaterMark )
     {
         /* record the drain end cycle */
         m_drain_end_cycle = GetEventQueue()->GetCurrentCycle();
@@ -361,11 +337,8 @@ void FRFCFS_WQF::Cycle( ncycle_t )
         /* record the last drain end cycle */
         m_last_drain_end_cycle = m_drain_end_cycle;
 
-        /* 
-         * NOTE: this is a trick because WQF() may not be called due to short
-         * circuit in FindXXXX() function (defined in MemoryController.cpp) 
-         */
-        WQF(0, 0);
+        /* switch to read */
+        m_draining = false;
     }
 
     /*
@@ -379,46 +352,54 @@ void FRFCFS_WQF::Cycle( ncycle_t )
      *  true if we are draining. If we aren't draining the functions will return
      *  false always, and thus nothing from the write queue will be scheduled.
      */
-    if( FindStarvedRequest( writeQueue, &nextRequest, WQF ) )
-    {
-        wq_rb_miss++;
-        starvation_precharges++;
-        m_request_per_drain++;
-    }
-    else if( FindRowBufferHit( writeQueue, &nextRequest, WQF ) )
-    {
-        wq_rb_hits++;
-        m_request_per_drain++;
-    }
-    else if( FindOldestReadyRequest( writeQueue, &nextRequest, WQF ) )
-    {
-        wq_rb_miss++;
-        m_request_per_drain++;
-    }
-    else if( FindClosedBankRequest( writeQueue, &nextRequest, WQF ) )
-    {
-        wq_rb_miss++;
-        m_request_per_drain++;
-    }
-
     
-    /* Only issue reads if we aren't draining. */
-    if( FindStarvedRequest( readQueue, &nextRequest, WQFc ) )
+    NVMainRequest *nextRequest = NULL;
+
+    /* if we are draining the write, only write queue is checked */
+    if( m_draining == true )
     {
-        rq_rb_miss++;
-        starvation_precharges++;
+        if( FindStarvedRequest( writeQueue, &nextRequest ) )
+        {
+            wq_rb_miss++;
+            starvation_precharges++;
+            m_request_per_drain++;
+        }
+        else if( FindRowBufferHit( writeQueue, &nextRequest ) )
+        {
+            wq_rb_hits++;
+            m_request_per_drain++;
+        }
+        else if( FindOldestReadyRequest( writeQueue, &nextRequest ) )
+        {
+            wq_rb_miss++;
+            m_request_per_drain++;
+        }
+        else if( FindClosedBankRequest( writeQueue, &nextRequest ) )
+        {
+            wq_rb_miss++;
+            m_request_per_drain++;
+        }
     }
-    else if( FindRowBufferHit( readQueue, &nextRequest, WQFc ) )
+    /* else, only read queue is checked */
+    else
     {
-        rq_rb_hits++;
-    }
-    else if( FindOldestReadyRequest( readQueue, &nextRequest, WQFc ) )
-    {
-        rq_rb_miss++;
-    }
-    else if( FindClosedBankRequest( readQueue, &nextRequest, WQFc ) )
-    {
-        rq_rb_miss++;
+        if( FindStarvedRequest( readQueue, &nextRequest ) )
+        {
+            rq_rb_miss++;
+            starvation_precharges++;
+        }
+        else if( FindRowBufferHit( readQueue, &nextRequest ) )
+        {
+            rq_rb_hits++;
+        }
+        else if( FindOldestReadyRequest( readQueue, &nextRequest ) )
+        {
+            rq_rb_miss++;
+        }
+        else if( FindClosedBankRequest( readQueue, &nextRequest ) )
+        {
+            rq_rb_miss++;
+        }
     }
 
     /* Issue the memory transaction as a series of commands to the command queue. */
