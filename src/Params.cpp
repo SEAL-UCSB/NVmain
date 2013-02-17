@@ -163,5 +163,6 @@ void Params::SetParams( Config *c )
     LowWaterMark = c->GetValue ( "LowWaterMark" );
     BanksPerRefresh = c->GetValue ( "BanksPerRefresh" );
     DelayedRefreshThreshold = c->GetValue ( "DelayedRefreshThreshold" );
+    AddressMappingScheme = c->GetString ( "AddressMappingScheme" );
 }
 

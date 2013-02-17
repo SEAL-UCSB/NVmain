@@ -46,13 +46,15 @@ using namespace NVM;
  */
 FRFCFS_WQF::FRFCFS_WQF( Interconnect *memory, AddressTranslator *translator )
 {
-    translator->GetTranslationMethod( )->SetOrder( 5, 1, 4, 3, 2 );
-
     SetMemory( memory );
     SetTranslator( translator );
 
     std::cout << "Created a First Ready First Come First Serve memory \
         controller with write queue!" << std::endl;
+
+    /* empty the read/write queue */
+    readQueue.clear();
+    writeQueue.clear();
 
     /* Memory controller options. */
     readQueueSize = 32;

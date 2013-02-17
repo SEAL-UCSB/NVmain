@@ -29,6 +29,8 @@
 * Author list: 
 *   Matt Poremba    ( Email: mrp5060 at psu dot edu 
 *                     Website: http://www.cse.psu.edu/~poremba/ )
+*   Tao Zhang       ( Email: tzz106 at cse dot psu dot edu 
+*                     Website: http://www.cse.psu.edu/~tzz106/ )
 *******************************************************************************/
 
 #include <iostream>
@@ -45,7 +47,7 @@ TranslationMethod::TranslationMethod( )
      * The bits widths for each are 1 - 1 - 16 - 3 - 8
      */
     SetBitWidths( 16, 8, 3, 1, 1 );
-    SetOrder( 3, 5, 4, 2, 1 );
+    SetOrder( 3, 1, 2, 4, 5 );
 }
 
 TranslationMethod::~TranslationMethod( )
@@ -124,4 +126,70 @@ void TranslationMethod::GetCount( uint64_t *rows, uint64_t *cols, uint64_t *bank
     *banks = count[MEM_BANK];
     *ranks = count[MEM_RANK];
     *channels = count[MEM_CHANNEL];
+}
+
+/*
+ * Set the address mapping scheme
+ * "R"-Row, "C"-Column, "BK"-Bank, "RK"-Rank, "CH"-Channel
+ */
+void TranslationMethod::SetAddressMappingScheme( std::string scheme )
+{
+    /* maximize row buffer hit */
+    if( !scheme.compare( "R:RK:BK:CH:C" ) )
+        SetOrder( 5, 1, 3, 4, 2 );
+    else if( !scheme.compare( "R:BK:RK:CH:C" ) )
+        SetOrder( 5, 1, 4, 3, 2 );
+    else if( !scheme.compare( "R:CH:BK:RK:C" ) )
+        SetOrder( 5, 1, 3, 2, 4 );
+    else if( !scheme.compare( "R:BK:CH:RK:C" ) )
+        SetOrder( 5, 1, 4, 2, 3 );
+    else if( !scheme.compare( "R:CH:RK:BK:C" ) )
+        SetOrder( 5, 1, 2, 3, 4 );
+    else if( !scheme.compare( "R:RK:CH:BK:C" ) )
+        SetOrder( 5, 1, 2, 4, 3 );
+    /* channel interleaving */
+    else if( !scheme.compare( "R:RK:BK:C:CH" ) )
+        SetOrder( 5, 2, 3, 4, 1 );
+    else if( !scheme.compare( "R:BK:RK:C:CH" ) )
+        SetOrder( 5, 2, 4, 3, 1 );
+    else if( !scheme.compare( "R:C:BK:RK:CH" ) )
+        SetOrder( 5, 4, 3, 2, 1 );
+    else if( !scheme.compare( "R:BK:C:RK:CH" ) )
+        SetOrder( 5, 3, 4, 2, 1 );
+    else if( !scheme.compare( "R:C:RK:BK:CH" ) )
+        SetOrder( 5, 4, 2, 3, 1 );
+    else if( !scheme.compare( "R:RK:C:BK:CH" ) )
+        SetOrder( 5, 3, 2, 4, 1 );
+    /* bank interleaving */
+    else if( !scheme.compare( "R:RK:CH:C:BK" ) )
+        SetOrder( 5, 2, 1, 4, 3 );
+    else if( !scheme.compare( "R:CH:RK:C:BK" ) )
+        SetOrder( 5, 2, 1, 3, 4 );
+    else if( !scheme.compare( "R:C:CH:RK:BK" ) )
+        SetOrder( 5, 4, 1, 2, 3 );
+    else if( !scheme.compare( "R:CH:C:RK:BK" ) )
+        SetOrder( 5, 3, 1, 2, 4 );
+    else if( !scheme.compare( "R:C:RK:CH:BK" ) )
+        SetOrder( 5, 4, 1, 3, 2 );
+    else if( !scheme.compare( "R:RK:C:CH:BK" ) )
+        SetOrder( 5, 3, 1, 4, 2 );
+    /* rank interleaving */
+    else if( !scheme.compare( "R:BK:CH:C:RK" ) )
+        SetOrder( 5, 2, 4, 1, 3 );
+    else if( !scheme.compare( "R:CH:BK:C:RK" ) )
+        SetOrder( 5, 2, 3, 1, 4 );
+    else if( !scheme.compare( "R:C:CH:BK:RK" ) )
+        SetOrder( 5, 4, 2, 1, 3 );
+    else if( !scheme.compare( "R:CH:C:BK:RK" ) )
+        SetOrder( 5, 3, 2, 1, 4 );
+    else if( !scheme.compare( "R:C:BK:CH:RK" ) )
+        SetOrder( 5, 4, 3, 1, 2 );
+    else if( !scheme.compare( "R:BK:C:CH:RK" ) )
+        SetOrder( 5, 3, 4, 1, 2 );
+    else
+    {
+        SetOrder( 5, 1, 3, 4, 2 );
+        std::cout << "NVMain Warning: Unrecognized address mapping scheme."
+            << " Set the default scheme: R:RK:BK:CH:C." << std::endl;
+    }
 }
