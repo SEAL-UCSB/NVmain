@@ -147,6 +147,7 @@ class Params
     unsigned LowWaterMark; // write drain low watermark
     unsigned BanksPerRefresh; // the number of banks in a refresh (in lockstep)
     unsigned DelayedRefreshThreshold; // the threshold that indicates how many refresh can be delayed
+    std::string AddressMappingScheme; // the address mapping scheme
 };
 
 };

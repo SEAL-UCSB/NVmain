@@ -29,12 +29,15 @@
 * Author list: 
 *   Matt Poremba    ( Email: mrp5060 at psu dot edu 
 *                     Website: http://www.cse.psu.edu/~poremba/ )
+*   Tao Zhang       ( Email: tzz106 at cse dot psu dot edu 
+*                     Website: http://www.cse.psu.edu/~tzz106/ )
 *******************************************************************************/
 
 #ifndef __TRANSLATIONMETHOD_H__
 #define __TRANSLATIONMETHOD_H__
 
 #include <stdint.h>
+#include <string>
 
 namespace NVM {
 
@@ -50,6 +53,7 @@ class TranslationMethod
     TranslationMethod( );
     ~TranslationMethod( );
 
+    void SetAddressMappingScheme( std::string scheme );
     void SetBitWidths( unsigned int rowBits, unsigned int colBits, unsigned int bankBits, 
           	     unsigned int rankBits, unsigned int channelBits );
     void SetOrder( int row, int col, int bank, int rank, int channel );

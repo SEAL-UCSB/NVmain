@@ -175,6 +175,9 @@ void MemoryController::SetConfig( Config *conf )
     params->SetParams( conf );
     SetParams( params );
     
+    translator->GetTranslationMethod( )->SetAddressMappingScheme( 
+            p->AddressMappingScheme );
+    
     bankQueues = new std::deque<NVMainRequest *> * [p->RANKS];
     starvationCounter = new unsigned int * [p->RANKS];
     activateQueued = new bool * [p->RANKS];
