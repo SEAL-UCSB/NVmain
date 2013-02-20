@@ -193,6 +193,16 @@ bool LH_Cache::IssueAtomic( NVMainRequest *req )
     return true;
 }
 
+bool LH_Cache::IssueFunctional( NVMainRequest *req )
+{
+    uint64_t rank, bank;
+    NVMDataBlock dummy;
+
+    req->address.GetTranslatedAddress( NULL, NULL, &bank, &rank, NULL );
+
+    return functionalCache[rank][bank]->Present( req->address );
+}
+
 bool LH_Cache::IssueCommand( NVMainRequest *req )
 {
     if( drcQueue->size( ) >= drcQueueSize )

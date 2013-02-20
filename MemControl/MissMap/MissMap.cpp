@@ -495,7 +495,7 @@ void MissMap::Cycle( ncycle_t )
         /* Give priority to write to install new miss map entires */
         if( !missMapFillQueue.empty() )
         {
-            if( missMap->IsIssuable( missMapFillQueue.front() ) )
+            if( missMap->IsIssuable( missMapFillQueue.front(), NULL ) )
             {
                 missMap->IssueCommand( missMapFillQueue.front() );
                 missMapFillQueue.pop( );
@@ -507,7 +507,7 @@ void MissMap::Cycle( ncycle_t )
         }
         else
         {
-            if( missMap->IsIssuable( missMapQueue.front() ) )
+            if( missMap->IsIssuable( missMapQueue.front(), NULL ) )
             {
                 missMap->IssueCommand( missMapQueue.front() );
                 missMapQueue.pop( );

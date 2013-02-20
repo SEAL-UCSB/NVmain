@@ -31,44 +31,46 @@
 *                     Website: http://www.cse.psu.edu/~poremba/ )
 *******************************************************************************/
 
-#ifndef __MEMCONTROL_DRAMCACHE_H__
-#define __MEMCONTROL_DRAMCACHE_H__
+#ifndef __UTILS_PERFECTPREDICTOR_H__
+#define __UTILS_PERFECTPREDICTOR_H__
 
-#include "src/MemoryController.h"
-#include "Utils/Caches/CacheBank.h"
-#include "MemControl/DRAMCache/AbstractDRAMCache.h"
+
+#include "Utils/AccessPredictor/AccessPredictor.h"
+
+#include <set>
+
 
 namespace NVM {
 
-class NVMain;
 
-class DRAMCache : public MemoryController
+class PerfectPredictor : public AccessPredictor
 {
   public:
-    DRAMCache( Interconnect *memory, AddressTranslator *translator );
-    ~DRAMCache( );
+    PerfectPredictor( );
+    ~PerfectPredictor( );
 
+    void Cycle( ncycle_t steps );
 
-    void SetConfig( Config *conf );
+    void SetHitDestination( NVMain *hitMemory );
+    void SetHitDestination( MemoryController *hitController );
 
-    bool IssueAtomic( NVMainRequest *req );
+    void SetMissDestination( NVMain *missMemory );
+    void SetMissDestination( MemoryController *missController );
+
     bool IssueCommand( NVMainRequest *req );
-    bool IssueFunctional( NVMainRequest *req );
+    bool IssueAtomic( NVMainRequest *req );
     bool RequestComplete( NVMainRequest *req );
 
-    void Cycle( ncycle_t );
+  private:
+    NVMain *hitMemory, *missMemory;
+    MemoryController *hitController, *missController;
 
-    void PrintStats( );
+    std::set<uint64_t> outstandingMisses;
+};
 
-    NVMain *GetMainMemory( );
-
- private:
-    NVMain *mainMemory;
-    AbstractDRAMCache **drcChannels;
-    ncounter_t numChannels;
 
 };
 
-};
 
 #endif
+

@@ -37,6 +37,10 @@
 #include "MemControl/FRFCFS-WQF/FRFCFS-WQF.h"
 #include "MemControl/PerfectMemory/PerfectMemory.h"
 #include "MemControl/DRAMCache/DRAMCache.h"
+#include "MemControl/LH-Cache/LH-Cache.h"
+#include "MemControl/LO-Cache/LO-Cache.h"
+#include "MemControl/PredictorDRC/PredictorDRC.h"
+
 #include <iostream>
 
 using namespace NVM;
@@ -59,6 +63,12 @@ MemoryController *MemoryControllerFactory::CreateNewController( std::string cont
         memoryController = new PerfectMemory( memory, translator );
     else if( controller == "DRC" )
         memoryController = new DRAMCache( memory, translator );
+    else if( controller == "LH_Cache" )
+        memoryController = new LH_Cache( memory, translator );
+    else if( controller == "LO_Cache" )
+        memoryController = new LO_Cache( memory, translator );
+    else if( controller == "PredictorDRC" )
+        memoryController = new PredictorDRC( memory, translator );
 
     if( memoryController == NULL )
         std::cout << "NVMain: Unknown memory controller `" 

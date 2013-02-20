@@ -71,7 +71,7 @@ int main( int argc, char *argv[] )
     config->Read( argv[1] );
     config->SetSimInterface( simInterface );
     simInterface->SetConfig( config );
-    nvmain->SetConfig( config );
+    nvmain->SetConfig( config, "defaultMemory" );
 
 
     if( config->KeyExists( "TraceReader" ) )

@@ -61,6 +61,17 @@ Config::Config(const Config& conf)
     {
         values.insert( std::pair<std::string, std::string>( it->first, it->second ) );
     }
+
+    fileName = conf.fileName;
+    simPtr = conf.simPtr;
+
+    std::vector<std::string> tmpVec(conf.hookList);
+    std::vector<std::string>::iterator vit;
+
+    for( vit = tmpVec.begin(); vit != tmpVec.end(); vit++ )
+    {
+        hookList.push_back( (*vit) );
+    }
 }
 
 

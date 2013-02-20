@@ -394,7 +394,7 @@ float CacheBank::GetCacheOccupancy( )
     return occupancy;
 }
 
-bool CacheBank::IsIssuable( NVMainRequest * /*req*/ )
+bool CacheBank::IsIssuable( NVMainRequest * /*req*/, FailReason * /*reason*/ )
 {
     bool rv = false;
 
@@ -416,9 +416,9 @@ bool CacheBank::IssueCommand( NVMainRequest *nreq )
     NVMDataBlock dummy;
     CacheRequest *req = static_cast<CacheRequest *>( nreq->reqInfo );
 
-    assert( IsIssuable( nreq ) );
+    assert( IsIssuable( nreq, NULL ) );
 
-    if( !IsIssuable( nreq ) )
+    if( !IsIssuable( nreq, NULL ) )
         return false;
 
     switch( req->optype )

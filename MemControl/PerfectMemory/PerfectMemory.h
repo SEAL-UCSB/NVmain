@@ -48,7 +48,7 @@ class PerfectMemory : public MemoryController
 
     void PrintStats( );
 
-    void Cycle( );
+    void Cycle( ncycle_t );
 };
 
 };
