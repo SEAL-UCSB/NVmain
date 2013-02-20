@@ -1,5 +1,5 @@
 CC = g++
-CXXFLAGS = -Wall -g -O0 -fPIC -Isrc/
+CXXFLAGS = -Wall -g -O0 -fPIC -Isrc/ -pedantic
 LDFLAGS = 
 DEFS =
 OBJS = 

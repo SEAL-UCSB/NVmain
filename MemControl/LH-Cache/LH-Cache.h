@@ -34,8 +34,8 @@
 #ifndef __MEMCONTROL_BASICDRC_H__
 #define __MEMCONTROL_BASICDRC_H__
 
-#include "src/MemoryController.h"
 #include "Utils/Caches/CacheBank.h"
+#include "MemControl/DRAMCache/AbstractDRAMCache.h"
 
 namespace NVM {
 
@@ -49,7 +49,7 @@ namespace NVM {
 class NVMain;
 
 
-class LH_Cache : public MemoryController
+class LH_Cache : public AbstractDRAMCache 
 {
   public:
     LH_Cache( Interconnect *memory, AddressTranslator *translator );
@@ -60,6 +60,7 @@ class LH_Cache : public MemoryController
 
     bool IssueAtomic( NVMainRequest *req );
     bool IssueCommand( NVMainRequest *req );
+    bool IssueFunctional( NVMainRequest *req );
     bool RequestComplete( NVMainRequest *req );
 
     void Cycle( ncycle_t );

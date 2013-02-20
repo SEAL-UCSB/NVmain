@@ -215,7 +215,7 @@ void NVMain::SetConfig( Config *conf, std::string memoryName )
                 channelConfig[i]->GetString( "MEM_CTL" ), memory[i], translator );
 
         confString.str( "" );
-        confString << memoryName << ".Controller" << i << "." << channelConfig[i]->GetString( "MEM_CTL" ); 
+        confString << memoryName << ".channel" << i << "." << channelConfig[i]->GetString( "MEM_CTL" ); 
         memoryControllers[i]->StatName( confString.str( ) );
         memoryControllers[i]->SetID( i );
 
@@ -420,3 +420,4 @@ void NVMain::PrintStats( )
     for( unsigned int i = 0; i < numChannels; i++ )
         memoryControllers[i]->PrintStats( );
 }
+

@@ -43,8 +43,8 @@ AddressTranslator *DecoderFactory::CreateDecoder( std::string decoder )
 {
     AddressTranslator *trans = NULL;
 
-    if( decoder == "DRCDecoder" ) 
-        trans = new DRCDecoder( );
+    if( decoder == "Default" ) trans = new AddressTranslator( );
+    else if( decoder == "DRCDecoder" ) trans = new DRCDecoder( );
 
     return trans;
 }

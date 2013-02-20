@@ -31,25 +31,36 @@
 *                     Website: http://www.cse.psu.edu/~poremba/ )
 *******************************************************************************/
 
-#ifndef __MEMCONTROL_DRAMCACHE_H__
-#define __MEMCONTROL_DRAMCACHE_H__
 
-#include "src/MemoryController.h"
+#ifndef __MEMCONTROL_LOCACHE_H__
+#define __MEMCONTROL_LOCACHE_H__
+
+
 #include "Utils/Caches/CacheBank.h"
 #include "MemControl/DRAMCache/AbstractDRAMCache.h"
 
+
+#include <map>
+
+
 namespace NVM {
+
+
+#define DRC_MEMREAD 20
+#define DRC_FILL    30
+
 
 class NVMain;
 
-class DRAMCache : public MemoryController
+
+class LO_Cache : public AbstractDRAMCache
 {
   public:
-    DRAMCache( Interconnect *memory, AddressTranslator *translator );
-    ~DRAMCache( );
-
+    LO_Cache( Interconnect *memory, AddressTranslator *decoder );
+    virtual ~LO_Cache( );
 
     void SetConfig( Config *conf );
+    void SetMainMemory( NVMain *mm );
 
     bool IssueAtomic( NVMainRequest *req );
     bool IssueCommand( NVMainRequest *req );
@@ -60,15 +71,22 @@ class DRAMCache : public MemoryController
 
     void PrintStats( );
 
-    NVMain *GetMainMemory( );
-
- private:
+  private:
+    NVMTransactionQueue *drcQueue;
     NVMain *mainMemory;
-    AbstractDRAMCache **drcChannels;
-    ncounter_t numChannels;
+    Config *mainMemoryConfig;
+    CacheBank ***functionalCache;
+
+    ncounter_t starvationThreshold;
+    ncounter_t drcQueueSize;
+
+    ncounter_t drc_hits, drc_miss;
+
+    std::map<uint64_t, uint64_t> hit_count;
+};
+
 
 };
 
-};
 
 #endif

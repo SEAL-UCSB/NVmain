@@ -31,44 +31,38 @@
 *                     Website: http://www.cse.psu.edu/~poremba/ )
 *******************************************************************************/
 
-#ifndef __MEMCONTROL_DRAMCACHE_H__
-#define __MEMCONTROL_DRAMCACHE_H__
+#ifndef __UTILS_ACCESSPREDICTOR_H__
+#define __UTILS_ACCESSPREDICTOR_H__
 
-#include "src/MemoryController.h"
-#include "Utils/Caches/CacheBank.h"
-#include "MemControl/DRAMCache/AbstractDRAMCache.h"
+
+#include "src/NVMObject.h"
+
 
 namespace NVM {
 
-class NVMain;
 
-class DRAMCache : public MemoryController
+class NVMain;
+class MemoryController;
+
+
+class AccessPredictor : public NVMObject
 {
   public:
-    DRAMCache( Interconnect *memory, AddressTranslator *translator );
-    ~DRAMCache( );
-
-
-    void SetConfig( Config *conf );
-
-    bool IssueAtomic( NVMainRequest *req );
-    bool IssueCommand( NVMainRequest *req );
-    bool IssueFunctional( NVMainRequest *req );
-    bool RequestComplete( NVMainRequest *req );
+    AccessPredictor( );
+    ~AccessPredictor( );
 
     void Cycle( ncycle_t );
 
-    void PrintStats( );
+    virtual void SetHitDestination( NVMain *hitMemory ) = 0;
+    virtual void SetHitDestination( MemoryController *hitController ) = 0;
 
-    NVMain *GetMainMemory( );
+    virtual void SetMissDestination( NVMain *missMemory ) = 0;
+    virtual void SetMissDestination( MemoryController *missController ) = 0;
+};
 
- private:
-    NVMain *mainMemory;
-    AbstractDRAMCache **drcChannels;
-    ncounter_t numChannels;
 
 };
 
-};
 
 #endif
+

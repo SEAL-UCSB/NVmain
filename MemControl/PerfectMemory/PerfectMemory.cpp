@@ -106,7 +106,7 @@ bool PerfectMemory::IssueCommand( NVMainRequest *req )
     return true;
 }
 
-void PerfectMemory::Cycle( )
+void PerfectMemory::Cycle( ncycle_t )
 {
 }
 

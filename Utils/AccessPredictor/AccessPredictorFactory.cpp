@@ -31,44 +31,31 @@
 *                     Website: http://www.cse.psu.edu/~poremba/ )
 *******************************************************************************/
 
-#ifndef __MEMCONTROL_DRAMCACHE_H__
-#define __MEMCONTROL_DRAMCACHE_H__
+#include "Utils/AccessPredictor/AccessPredictorFactory.h"
 
-#include "src/MemoryController.h"
-#include "Utils/Caches/CacheBank.h"
-#include "MemControl/DRAMCache/AbstractDRAMCache.h"
+#include "Utils/AccessPredictor/PerfectPredictor/PerfectPredictor.h"
 
-namespace NVM {
 
-class NVMain;
+#include <cstdlib>
 
-class DRAMCache : public MemoryController
+
+using namespace NVM;
+
+
+AccessPredictor *AccessPredictorFactory::CreateAccessPredictor( std::string name )
 {
-  public:
-    DRAMCache( Interconnect *memory, AddressTranslator *translator );
-    ~DRAMCache( );
+    AccessPredictor *predictor = NULL;
+
+    if( name == "PerfectPredictor" ) predictor = new PerfectPredictor( );
+
+    if( predictor == NULL )
+    {
+        std::cout << "Error: Could not find AccessPredictor named `" << name << "'!" << std::endl;
+        exit(1);
+    }
+
+    return predictor;
+}
 
 
-    void SetConfig( Config *conf );
 
-    bool IssueAtomic( NVMainRequest *req );
-    bool IssueCommand( NVMainRequest *req );
-    bool IssueFunctional( NVMainRequest *req );
-    bool RequestComplete( NVMainRequest *req );
-
-    void Cycle( ncycle_t );
-
-    void PrintStats( );
-
-    NVMain *GetMainMemory( );
-
- private:
-    NVMain *mainMemory;
-    AbstractDRAMCache **drcChannels;
-    ncounter_t numChannels;
-
-};
-
-};
-
-#endif

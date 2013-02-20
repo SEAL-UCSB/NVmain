@@ -32,10 +32,16 @@
 *******************************************************************************/
 
 #include "MemControl/DRAMCache/DRAMCache.h"
+#include "MemControl/MemoryControllerFactory.h"
+#include "Interconnect/InterconnectFactory.h"
 #include "include/NVMHelpers.h"
 #include "NVM/nvmain.h"
+#include "Decoders/DRCDecoder/DRCDecoder.h"
+
 #include <iostream>
-#include <assert.h>
+#include <sstream>
+#include <cassert>
+#include <cstdlib>
 
 using namespace NVM;
 
@@ -71,32 +77,63 @@ void DRAMCache::SetConfig( Config *conf )
 
     mainMemory = new NVMain( );
     mainMemory->SetConfig( mainMemoryConfig, "offChipMemory" );
-    /* TODO: Somehow this needs to have all the basic DRCs as parents.. */
     mainMemory->SetParent( this ); 
 
     /* Initialize DRAM Cache channels */
-    if( conf->KeyExists( "DRC_CHANNELS" ) )
-        numChannels = static_cast<ncounter_t>( conf->GetValue( "DRC_CHANNELS" ) );
-    else
-        numChannels = 1;
+    numChannels = static_cast<ncounter_t>( conf->GetValue( "DRC_CHANNELS" ) );
 
+    if( !conf->KeyExists( "DRCVariant" ) )
+    {
+        std::cout << "Error: No DRCVariant specified." << std::endl;
+        exit(1);
+    }
 
-    drcChannels = new LH_Cache*[numChannels];
+    drcChannels = new AbstractDRAMCache*[numChannels];
     for( ncounter_t i = 0; i < numChannels; i++ )
     {
-        /* 
-         * TODO: Create a factory for other types of DRAM caches and change 
-         * this type to a generic memory controller 
-         */
-        drcChannels[i] = new LH_Cache( GetMemory(), GetTranslator() ); 
+        std::stringstream formatter;
+
+        Interconnect *channelMemory = InterconnectFactory::CreateInterconnect( conf->GetString( "INTERCONNECT" ) );
+
+        formatter.str( "" );
+        formatter << this->statName << ".drcChannel" << i;
+        channelMemory->StatName( formatter.str() );
+
+        TranslationMethod *drcMethod = new TranslationMethod();
+        drcMethod->SetBitWidths( NVM::mlog2( conf->GetValue( "ROWS" ) ),
+                                 NVM::mlog2( conf->GetValue( "COLS" ) ),
+                                 NVM::mlog2( conf->GetValue( "BANKS" ) ),
+                                 NVM::mlog2( conf->GetValue( "RANKS" ) ),
+                                 NVM::mlog2( conf->GetValue( "DRC_CHANNELS" ) )
+                                 );
+        drcMethod->SetCount( conf->GetValue( "ROWS" ),
+                             conf->GetValue( "COLS" ),
+                             conf->GetValue( "BANKS" ),
+                             conf->GetValue( "RANKS" ),
+                             conf->GetValue( "DRC_CHANNELS" )
+                             );
+        
+        DRCDecoder *drcDecoder = new DRCDecoder( );
+        drcDecoder->SetTranslationMethod( drcMethod );
+
+        channelMemory->SetDecoder( drcDecoder );
+
+        drcChannels[i] = dynamic_cast<AbstractDRAMCache *>( MemoryControllerFactory::CreateNewController( conf->GetString( "DRCVariant" ), channelMemory, drcDecoder ) );
         drcChannels[i]->SetMainMemory( mainMemory );
 
-        drcChannels[i]->SetID( static_cast<int>(i) );
-        drcChannels[i]->StatName( this->statName ); 
+        formatter << "." << conf->GetString( "DRCVariant" );
 
-        drcChannels[i]->SetParent( this );
+        drcChannels[i]->StatName( formatter.str() ); 
+        drcChannels[i]->SetID( static_cast<int>(i) );
+
         AddChild( drcChannels[i] );
 
+        drcChannels[i]->SetParent( this );
+        drcChannels[i]->AddChild( channelMemory );
+
+        channelMemory->SetParent( drcChannels[i] );
+
+        channelMemory->SetConfig( conf );
         drcChannels[i]->SetConfig( conf );
     }
 
@@ -123,6 +160,17 @@ bool DRAMCache::IssueCommand( NVMainRequest *req )
     assert( chan < numChannels );
 
     return drcChannels[chan]->IssueCommand( req );
+}
+
+bool DRAMCache::IssueFunctional( NVMainRequest *req )
+{
+    uint64_t chan;
+
+    req->address.GetTranslatedAddress( NULL, NULL, NULL, NULL, &chan );
+
+    assert( chan < numChannels );
+
+    return drcChannels[chan]->IssueFunctional( req );
 }
 
 bool DRAMCache::RequestComplete( NVMainRequest *req )
@@ -193,4 +241,9 @@ void DRAMCache::PrintStats( )
     }
 
     mainMemory->PrintStats( );
+}
+
+NVMain *DRAMCache::GetMainMemory( )
+{
+    return mainMemory;
 }
