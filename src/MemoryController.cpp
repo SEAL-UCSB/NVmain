@@ -259,6 +259,8 @@ void MemoryController::SetConfig( Config *conf )
             }
         }
     }
+
+    this->config->Print();
 }
 
 /* 
