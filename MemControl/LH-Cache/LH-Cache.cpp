@@ -34,6 +34,8 @@
 #include "MemControl/LH-Cache/LH-Cache.h"
 #include "include/NVMHelpers.h"
 #include "NVM/nvmain.h"
+#include "src/EventQueue.h"
+
 #include <iostream>
 #include <set>
 #include <assert.h>
@@ -269,7 +271,7 @@ bool LH_Cache::RequestComplete( NVMainRequest *req )
             mm_reqs++;
 
             /* TODO: Figure out what to do if this fails. */
-            mainMemory->NewRequest( memReq );
+            mainMemory->IssueCommand( memReq );
 
             drcMiss++;
         }

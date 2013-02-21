@@ -34,7 +34,9 @@
 *******************************************************************************/
 
 #include "MemControl/FRFCFS-WQF/FRFCFS-WQF.h"
-#include <assert.h>
+#include "src/EventQueue.h"
+
+#include <cassert>
 
 using namespace NVM;
 

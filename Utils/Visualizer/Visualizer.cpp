@@ -32,6 +32,7 @@
 *******************************************************************************/
 
 #include "Utils/Visualizer/Visualizer.h"
+#include "src/EventQueue.h"
 
 /* Hooks must include any classes they are comparing types to filter. */
 #include "src/Bank.h"
@@ -56,20 +57,11 @@ Visualizer::~Visualizer( )
 }
 
 /* 
- *  This function is called when this hook is initialized. During initialization,
- *  this object's parent will be the NVMain class under which is it generated 
- *  (i.e., If you are using a hierarchy of memories, it won't be the root NVMain
- *  class connected to your simulator/traceMain). This means casting 
- *  GetParent()->GetTrampoline() to NVMain will allow you to call any functions 
- *  there needed for initialize (e.g., GetConfig).
- *  
  *  After initialization, the parent will become whichever NVMObject the request
  *  currently resides at (e.g., interconnect, rank, bank, etc.).
  */
-void Visualizer::Init( )
+void Visualizer::Init( Config *conf )
 {
-    Config *conf = HookedConfig;
-
     numRanks = static_cast<ncounter_t>( conf->GetValue( "RANKS" ) );
     numBanks = static_cast<ncounter_t>( conf->GetValue( "BANKS" ) );
     busBurstLength = static_cast<ncycle_t>( conf->GetValue( "tBURST" ) );

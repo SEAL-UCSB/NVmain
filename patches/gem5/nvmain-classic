@@ -1,9 +1,9 @@
 # HG changeset patch
-# Parent 94cd3ffe9a8b7c82102d8a63feb1157e3e7d72fe
+# Parent 1dea10b5befc92cb941068219eca3168d24cfcd1
 
-diff -r 94cd3ffe9a8b src/mem/NVMainMemory.py
+diff -r 1dea10b5befc src/mem/NVMainMemory.py
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/NVMainMemory.py	Fri Jan 25 13:17:17 2013 -0500
++++ b/src/mem/NVMainMemory.py	Thu Feb 21 12:34:15 2013 -0500
 @@ -0,0 +1,45 @@
 +# Copyright (c) 2012-2013 Pennsylvania State University
 +# All rights reserved.
@@ -50,9 +50,9 @@ diff -r 94cd3ffe9a8b src/mem/NVMainMemory.py
 +    configparams = Param.String("", "")
 +    configvalues = Param.String("", "")
 +    NVMainWarmUp = Param.Bool(False, "Enable to warm up the internal cache in NVMain")
-diff -r 94cd3ffe9a8b src/mem/SConscript
---- a/src/mem/SConscript	Fri Jan 25 11:33:48 2013 -0500
-+++ b/src/mem/SConscript	Fri Jan 25 13:17:17 2013 -0500
+diff -r 1dea10b5befc src/mem/SConscript
+--- a/src/mem/SConscript	Mon Feb 04 12:25:41 2013 -0500
++++ b/src/mem/SConscript	Thu Feb 21 12:34:15 2013 -0500
 @@ -60,8 +60,10 @@
      SimObject('AbstractMemory.py')
      SimObject('SimpleMemory.py')
@@ -72,10 +72,10 @@ diff -r 94cd3ffe9a8b src/mem/SConscript
  
  DebugFlag('ProtocolTrace')
  DebugFlag('RubyCache')
-diff -r 94cd3ffe9a8b src/mem/nvmain_mem.cc
+diff -r 1dea10b5befc src/mem/nvmain_mem.cc
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/nvmain_mem.cc	Fri Jan 25 13:17:17 2013 -0500
-@@ -0,0 +1,472 @@
++++ b/src/mem/nvmain_mem.cc	Thu Feb 21 12:34:15 2013 -0500
+@@ -0,0 +1,520 @@
 +/*
 + * Copyright (c) 2012-2013 Pennsylvania State University
 + * All rights reserved.
@@ -121,14 +121,12 @@ diff -r 94cd3ffe9a8b src/mem/nvmain_mem.cc
 + */
 +
 +#include "SimInterface/Gem5Interface/Gem5Interface.h"
++#include "Utils/HookFactory.h"
 +#include "base/random.hh"
 +#include "debug/NVMain.hh"
 +#include "mem/nvmain_mem.hh"
 +
 +using namespace NVM;
-+
-+
-+void breakGDB() { }
 +
 +
 +NVMainMemory::NVMainMemory(const Params *p)
@@ -195,10 +193,9 @@ diff -r 94cd3ffe9a8b src/mem/nvmain_mem.cc
 +{
 +    m_nvmainPtr = new NVMain( );
 +    m_nvmainSimInterface = new Gem5Interface( );
++    m_nvmainEventQueue = new NVM::EventQueue( );
 +
 +    m_nvmainConfig->SetSimInterface( m_nvmainSimInterface );
-+
-+    m_nvmainPtr->SetConfig( m_nvmainConfig );
 +
 +    if (port.isConnected()) {
 +        port.sendRangeChange();
@@ -210,8 +207,35 @@ diff -r 94cd3ffe9a8b src/mem/nvmain_mem.cc
 +
 +    registerExitCallback( &statPrinter );
 +
++    SetEventQueue( m_nvmainEventQueue );
++
++    /*  Add any specified hooks */
++    std::vector<std::string>& hookList = m_nvmainConfig->GetHooks( );
++
++    for( size_t i = 0; i < hookList.size( ); i++ )
++    {
++        std::cout << "Creating hook " << hookList[i] << std::endl;
++
++        NVMObject *hook = HookFactory::CreateHook( hookList[i] );
++
++        if( hook != NULL )
++        {
++            AddHook( hook );
++            hook->SetParent( this );
++            hook->Init( m_nvmainConfig );
++        }
++        else
++        {
++            std::cout << "Warning: Could not create a hook named `"
++                << hookList[i] << "'." << std::endl;
++        }
++    }
++
++    /* Setup child and parent modules. */
 +    AddChild( m_nvmainPtr );
 +    m_nvmainPtr->SetParent( this );
++
++    m_nvmainPtr->SetConfig( m_nvmainConfig );
 +}
 +
 +
@@ -310,7 +334,7 @@ diff -r 94cd3ffe9a8b src/mem/nvmain_mem.cc
 +        /*
 +         * Issue the request to NVMain as an atomic request
 +         */
-+        memory.m_nvmainPtr->AtomicRequest(request);
++        memory.GetChild( )->IssueAtomic(request);
 +
 +        delete request;
 +    }
@@ -401,7 +425,20 @@ diff -r 94cd3ffe9a8b src/mem/nvmain_mem.cc
 +    if(pkt->req->hasPC()) request->programCounter = pkt->req->getPC();
 +    if(pkt->req->hasContextId()) request->threadId = pkt->req->contextId();
 +
-+    enqueued = memory.m_nvmainPtr->NewRequest(request);
++    /* Call hooks here manually, since there is no one else to do it. */
++    std::vector<NVMObject *>& preHooks  = memory.GetHooks( NVMHOOK_PREISSUE );
++    std::vector<NVMObject *>& postHooks = memory.GetHooks( NVMHOOK_POSTISSUE );
++    std::vector<NVMObject *>::iterator it;
++
++    /* Call pre-issue hooks */
++    // TODO: Figure out what to do if it's not enqueued.
++    for( it = preHooks.begin(); it != preHooks.end(); it++ )
++    {
++        (*it)->SetParent( &memory );
++        (*it)->IssueCommand( request );
++    }
++
++    enqueued = memory.GetChild( )->IssueCommand(request);
 +    if(enqueued)
 +    {
 +        memory.m_slot_available = true;
@@ -443,9 +480,20 @@ diff -r 94cd3ffe9a8b src/mem/nvmain_mem.cc
 +        memory.m_slot_available = false;
 +
 +        delete request;
++        request = NULL;
 +    }
 +
 +    //memory.Sync();
++
++    /* Call post-issue hooks. */
++    if( request != NULL )
++    {
++        for( it = postHooks.begin(); it != postHooks.end(); it++ )
++        {
++            (*it)->SetParent( &memory );
++            (*it)->IssueCommand( request );
++        }
++    }
 +
 +    return enqueued;
 +}
@@ -548,10 +596,10 @@ diff -r 94cd3ffe9a8b src/mem/nvmain_mem.cc
 +    return new NVMainMemory(this);
 +}
 +
-diff -r 94cd3ffe9a8b src/mem/nvmain_mem.hh
+diff -r 1dea10b5befc src/mem/nvmain_mem.hh
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/nvmain_mem.hh	Fri Jan 25 13:17:17 2013 -0500
-@@ -0,0 +1,197 @@
++++ b/src/mem/nvmain_mem.hh	Thu Feb 21 12:34:15 2013 -0500
+@@ -0,0 +1,199 @@
 +/*
 + * Copyright (c) 2012-2013 Pennsylvania State University
 + * All rights reserved.
@@ -611,6 +659,7 @@ diff -r 94cd3ffe9a8b src/mem/nvmain_mem.hh
 +#include "src/Config.h"
 +#include "src/NVMObject.h"
 +#include "src/SimInterface.h"
++#include "src/EventQueue.h"
 +
 +class NVMainMemory : public AbstractMemory, public NVM::NVMObject
 +{
@@ -689,6 +738,7 @@ diff -r 94cd3ffe9a8b src/mem/nvmain_mem.hh
 +    NVMainMemoryEventManager *eventManager;
 +
 +    NVM::NVMain *m_nvmainPtr;
++    NVM::EventQueue *m_nvmainEventQueue;
 +    NVM::Config *m_nvmainConfig;
 +    NVM::SimInterface *m_nvmainSimInterface;
 +    std::string m_nvmainConfigPath;

@@ -35,8 +35,10 @@
 
 #include "Interconnect/OffChipBus/OffChipBus.h"
 #include "src/MemoryController.h"
+#include "src/EventQueue.h"
+
 #include <sstream>
-#include <assert.h>
+#include <cassert>
 
 using namespace NVM;
 
@@ -103,7 +105,7 @@ void OffChipBus::SetConfig( Config *c )
 
 bool OffChipBus::RequestComplete( NVMainRequest *request )
 {
-    GetEventQueue( )->InsertEvent( EventResponse, GetParent( )->GetTrampoline( ), 
+    GetEventQueue( )->InsertEvent( EventResponse, GetParent( ), 
             request, GetEventQueue()->GetCurrentCycle() + offChipDelay ); 
 
     return true;
@@ -136,8 +138,16 @@ bool OffChipBus::IssueCommand( NVMainRequest *req )
          * PHYSICAL address to this request. As a result, the 
          * GetChild( req )->IssueCommand( req ) can not work properly. 
          */
-        //success = GetChild( req )->IssueCommand( req );
-        success = ranks[opRank]->IssueCommand( req );
+        if( req->type == REFRESH )
+        {
+            // TODO: Fix this because it bypasses hooks. Easy hack is to cast to NVMObject*.
+            success = ranks[opRank]->IssueCommand( req );
+        }
+        else
+        {
+            assert( GetChild( req )->GetTrampoline() == ranks[opRank] );
+            success = GetChild( req )->IssueCommand( req );
+        }
 
         /*
          *  To preserve rank-to-rank switching time, we need to notify the

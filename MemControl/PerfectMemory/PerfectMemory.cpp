@@ -32,6 +32,7 @@
 *******************************************************************************/
 
 #include "MemControl/PerfectMemory/PerfectMemory.h"
+#include "src/EventQueue.h"
 
 #ifndef TRACE
   #include "base/statistics.hh"

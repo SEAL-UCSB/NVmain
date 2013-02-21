@@ -33,10 +33,13 @@
 *                     Website: http://www.cse.psu.edu/~tzz106 )
 *******************************************************************************/
 
-#include <stdlib.h>
 #include "src/MemoryController.h"
 #include "include/NVMainRequest.h"
-#include <assert.h>
+#include "src/EventQueue.h"
+
+#include <cassert>
+#include <cstdlib>
+#include <csignal>
 
 using namespace NVM;
 
@@ -147,9 +150,6 @@ bool MemoryController::QueueFull( NVMainRequest * /*request*/ )
 void MemoryController::SetMemory( Interconnect *mem )
 {
     this->memory = mem;
-
-    AddChild( mem );
-    mem->SetParent( this );
 }
 
 Interconnect *MemoryController::GetMemory( )
@@ -369,7 +369,7 @@ bool MemoryController::HandleRefresh( )
                  * Note: the cmdRefresh will be deleted in Rank.cpp
                  */
                 cmdRefresh->issueCycle = GetEventQueue()->GetCurrentCycle();
-                memory->IssueCommand( cmdRefresh );
+                GetChild( )->IssueCommand( cmdRefresh );
 
                 for( ncounter_t x = 0; x < p->BanksPerRefresh; x++ )
                 {
@@ -888,7 +888,7 @@ void MemoryController::CycleCommandQueues( )
             if( !bankQueues[i][j].empty( )
                 && memory->IsIssuable( bankQueues[i][j].at( 0 ), &fail ) )
             {
-                memory->IssueCommand( bankQueues[i][j].at( 0 ) );
+                GetChild( )->IssueCommand( bankQueues[i][j].at( 0 ) );
 
                 bankQueues[i][j].erase( bankQueues[i][j].begin( ) );
 
@@ -936,6 +936,8 @@ void MemoryController::CycleCommandQueues( )
                               << ". Current time: " << GetEventQueue()->GetCurrentCycle() << ". Type: " 
                               << queueHead->type << std::endl;
 
+                    // Give the opportunity to attach a debugger here.
+                    raise( SIGSTOP );
                     exit(1);
                 }
             }

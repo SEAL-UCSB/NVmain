@@ -295,7 +295,7 @@ bool MissMap::RequestComplete( NVMainRequest *req )
                     if( cacheReq->originalRequest->type == READ )
                     {
                         cacheReq->originalRequest->tag = MISSMAP_MEMREAD;
-                        mainMemory->NewRequest( cacheReq->originalRequest );
+                        mainMemory->IssueCommand( cacheReq->originalRequest );
                     }
                     else
                     {
@@ -350,7 +350,7 @@ bool MissMap::RequestComplete( NVMainRequest *req )
                 if( cacheReq->originalRequest->type == READ )
                 {
                     cacheReq->originalRequest->tag = MISSMAP_MEMREAD;
-                    mainMemory->NewRequest( cacheReq->originalRequest );
+                    mainMemory->IssueCommand( cacheReq->originalRequest );
                 }
                 else
                 {

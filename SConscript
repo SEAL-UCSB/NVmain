@@ -63,6 +63,8 @@ Source('src/EventQueue.cpp')
 Source('Utils/HookFactory.cpp')
 Source('Utils/Caches/CacheBank.cpp')
 Source('Utils/Visualizer/Visualizer.cpp')
+Source('Utils/RequestTracer/RequestTracer.cpp')
+
 Source('Utils/AccessPredictor/AccessPredictor.cpp')
 Source('Utils/AccessPredictor/AccessPredictorFactory.cpp')
 Source('Utils/AccessPredictor/PerfectPredictor/PerfectPredictor.cpp')

@@ -38,14 +38,12 @@
 
 #include "include/NVMTypes.h"
 #include "include/FailReasons.h"
-#include "src/EventQueue.h"
 #include "Decoders/DecoderFactory.h"
 #include <vector>
 #include <typeinfo>
 
 #define NVMObjectType (typeid(*(parent->GetTrampoline())).name())
 #define NVMClass(a) (typeid(a).name())
-#define HookedConfig (static_cast<NVMain *>(GetParent( )->GetTrampoline( ))->GetConfig( ))
 
 namespace NVM {
 
@@ -53,6 +51,7 @@ class NVMainRequest;
 class EventQueue;
 class AddressTranslator;
 class NVMObject;
+class Config;
 
 enum HookType { NVMHOOK_NONE = 0,
                 NVMHOOK_PREISSUE,                /* Call hook before IssueCommand */
@@ -75,6 +74,9 @@ class NVMObject_hook
     bool IssueAtomic( NVMainRequest *req );
 
     bool RequestComplete( NVMainRequest *req );
+    void Callback( void *data );
+
+    void Cycle( ncycle_t steps );
 
     NVMObject *GetTrampoline( );
 
@@ -93,7 +95,7 @@ class NVMObject
     NVMObject( );
     virtual ~NVMObject(  ) { }
 
-    virtual void Init( ); 
+    virtual void Init( Config *conf ); 
 
     virtual void Cycle( ncycle_t steps ) = 0;
 
@@ -102,6 +104,7 @@ class NVMObject
     virtual bool IssueAtomic( NVMainRequest *req );
 
     virtual bool RequestComplete( NVMainRequest *req );
+    virtual void Callback( void *data );
 
     virtual void SetParent( NVMObject *p );
     virtual void AddChild( NVMObject *c ); 
@@ -112,6 +115,7 @@ class NVMObject
     NVMObject_hook *GetParent( );
     std::vector<NVMObject_hook *>& GetChildren( );
     NVMObject_hook *GetChild( NVMainRequest *req );  
+    NVMObject_hook *GetChild( );
 
     virtual void SetDecoder( AddressTranslator *at );
     virtual AddressTranslator *GetDecoder( );

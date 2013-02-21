@@ -62,9 +62,9 @@ class NVMain : public NVMObject
 
     Config *GetConfig( );
 
-    int  NewRequest( NVMainRequest *request );
-    int  AtomicRequest( NVMainRequest *request );
-    bool CanIssue( NVMainRequest *request );
+    bool IssueCommand( NVMainRequest *request );
+    bool IssueAtomic( NVMainRequest *request );
+    bool IsIssuable( NVMainRequest *request, FailReason *reason );
 
     void PrintStats( );
 
@@ -77,7 +77,6 @@ class NVMain : public NVMObject
     Interconnect **memory;
     AddressTranslator *translator;
     SimInterface *simInterface;
-    EventQueue *mainEventQueue;
 
     unsigned int numChannels;
     float syncValue;

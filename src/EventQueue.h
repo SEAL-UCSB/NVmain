@@ -55,10 +55,10 @@
 
 
 #include <map>
+#include <list>
 
 
 #include "include/NVMTypes.h"
-#include "src/NVMObject.h"
 #include "include/NVMainRequest.h"
 
 
@@ -66,6 +66,7 @@ namespace NVM {
 
 
 class Event;
+class NVMObject_hook;
 typedef std::list<Event *> EventList;
 
 
@@ -73,28 +74,32 @@ enum EventType { EventUnknown,
                  EventCycle,
                  EventIdle,    /* Automatic event */
                  EventRequest,
-                 EventResponse
+                 EventResponse,
+                 EventCallback
 };
 
 
 class Event
 {
  public:
-  Event() : type(EventUnknown), recipient(NULL) {}
+  Event() : type(EventUnknown), recipient(NULL), request(NULL), data(NULL) {}
   ~Event() {}
 
   void SetType( EventType e ) { type = e; }
-  void SetRecipient( NVMObject *r ) { recipient = r; }
+  void SetRecipient( NVMObject_hook *r ) { recipient = r; }
   void SetRequest( NVMainRequest *r ) { request = r; }
+  void SetData( void *d ) { data = d; }
 
   EventType GetType( ) { return type; }
-  NVMObject *GetRecipient( ) { return recipient; }
+  NVMObject_hook *GetRecipient( ) { return recipient; }
   NVMainRequest *GetRequest( ) { return request; }
+  void *GetData( ) { return data; }
 
  private:
-  EventType type;         /* Type of event (which callback to invoke). */
-  NVMObject *recipient;   /* Who to callback. */
-  NVMainRequest *request; /* Request causing event. */
+  EventType type;              /* Type of event (which callback to invoke). */
+  NVMObject_hook *recipient;   /* Who to callback. */
+  NVMainRequest *request;      /* Request causing event. */
+  void *data;                  /* Generic data to pass to callback. */
 
 };
 
@@ -106,7 +111,9 @@ class EventQueue
   ~EventQueue();
 
 
+  void InsertEvent( EventType type, NVMObject_hook *recipient, NVMainRequest *req, ncycle_t when );
   void InsertEvent( EventType type, NVMObject *recipient, NVMainRequest *req, ncycle_t when );
+  void InsertEvent( EventType type, NVMObject_hook *recipient, ncycle_t when );
   void InsertEvent( EventType type, NVMObject *recipient, ncycle_t when );
   void InsertEvent( Event *event, ncycle_t when );
   bool RemoveEvent( Event *event, ncycle_t when );

@@ -31,18 +31,21 @@
 *                     Website: http://www.cse.psu.edu/~poremba/ )
 *******************************************************************************/
 
-#include <sstream>
 #include "nvmain.h"
 #include "src/Config.h"
 #include "src/AddressTranslator.h"
 #include "src/Interconnect.h"
 #include "src/SimInterface.h"
+#include "src/EventQueue.h"
 #include "Interconnect/InterconnectFactory.h"
 #include "MemControl/MemoryControllerFactory.h"
 #include "Decoders/DecoderFactory.h"
 #include "Utils/HookFactory.h"
 #include "include/NVMainRequest.h"
 #include "include/NVMHelpers.h"
+
+#include <sstream>
+#include <cassert>
 
 using namespace NVM;
 
@@ -137,15 +140,12 @@ void NVMain::SetConfig( Config *conf, std::string memoryName )
           		);
     method->SetCount( rows, cols, banks, ranks, channels );
     translator->SetTranslationMethod( method );
+    translator->SetDefaultField( CHANNEL_FIELD );
 
     SetDecoder( translator );
 
-    mainEventQueue = new EventQueue( );
-    SetEventQueue( mainEventQueue );
-
-    std::cout << "mainEventQueue pointer is " << (void*)(mainEventQueue) << std::endl;
-
     /*  Add any specified hooks */
+    /*
     std::vector<std::string>& hookList = config->GetHooks( );
 
     for( size_t i = 0; i < hookList.size( ); i++ )
@@ -166,6 +166,7 @@ void NVMain::SetConfig( Config *conf, std::string memoryName )
                 << hookList[i] << "'." << std::endl;
         }
     }
+    */
 
     memory = new Interconnect* [channels];
 
@@ -220,10 +221,9 @@ void NVMain::SetConfig( Config *conf, std::string memoryName )
         memoryControllers[i]->SetID( i );
 
         AddChild( memoryControllers[i] );
-
         memoryControllers[i]->SetParent( this );
+
         memoryControllers[i]->AddChild( memory[i] );
-        
         memory[i]->SetParent( memoryControllers[i] );
 
         /* Set Config recursively. */
@@ -255,7 +255,7 @@ void NVMain::SetConfig( Config *conf, std::string memoryName )
     }
 }
 
-bool NVMain::CanIssue( NVMainRequest *request )
+bool NVMain::IsIssuable( NVMainRequest *request, FailReason * /*reason*/ )
 {
     uint64_t channel, rank, bank, row, col;
     bool rv;
@@ -337,7 +337,7 @@ void NVMain::PrintPreTrace( NVMainRequest *request )
     }
 }
 
-int NVMain::NewRequest( NVMainRequest *request )
+bool NVMain::IssueCommand( NVMainRequest *request )
 {
     uint64_t channel, rank, bank, row, col;
     int mc_rv;
@@ -353,14 +353,15 @@ int NVMain::NewRequest( NVMainRequest *request )
     request->address.SetTranslatedAddress( row, col, bank, rank, channel );
     request->bulkCmd = CMD_NOP;
 
-    mc_rv = memoryControllers[channel]->IssueCommand( request );
+    assert( GetChild( request )->GetTrampoline( ) == memoryControllers[channel] );
+    mc_rv = GetChild( request )->IssueCommand( request );
     if( mc_rv == true )
         PrintPreTrace( request );
 
     return mc_rv;
 }
 
-int NVMain::AtomicRequest( NVMainRequest *request )
+bool NVMain::IssueAtomic( NVMainRequest *request )
 {
     uint64_t channel, rank, bank, row, col;
     int mc_rv;
@@ -412,7 +413,7 @@ void NVMain::Cycle( ncycle_t )
         memoryControllers[i]->Cycle( 1 );
       }
 
-    mainEventQueue->Loop( );
+    GetEventQueue()->Loop( );
 }
 
 void NVMain::PrintStats( )

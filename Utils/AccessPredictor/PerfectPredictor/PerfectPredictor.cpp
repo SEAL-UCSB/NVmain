@@ -166,7 +166,7 @@ bool PerfectPredictor::IssueCommand( NVMainRequest *req )
     {
         if( missMemory != NULL )
         {
-            rv = missMemory->NewRequest( req );
+            rv = missMemory->IssueCommand( req );
         }
         else if( missController != NULL )
         {

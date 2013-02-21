@@ -31,40 +31,65 @@
 *                     Website: http://www.cse.psu.edu/~poremba/ )
 *******************************************************************************/
 
-#ifndef __NVMAIN_UTILS_VISUALIZER_H__
-#define __NVMAIN_UTILS_VISUALIZER_H__
+#ifndef __NVMAIN_UTILS_REQUESTTRACER_H__
+#define __NVMAIN_UTILS_REQUESTTRACER_H__
 
 #include "src/NVMObject.h"
 #include "include/NVMainRequest.h"
 #include "include/NVMTypes.h"
+#include "src/EventQueue.h"
+
+#include <string>
+#include <map>
 
 namespace NVM {
 
-class Visualizer : public NVMObject
+
+typedef enum  { TracedIssue, TracedCompletion } TracedType;
+
+
+class RequestTracer : public NVMObject
 {
   public:
-    Visualizer( );
-    ~Visualizer( );
+    RequestTracer( );
+    ~RequestTracer( );
 
     bool IssueCommand( NVMainRequest *req );
     bool IssueAtomic( NVMainRequest *req );
 
     bool RequestComplete( NVMainRequest *req );
+    void Callback( void *data );
 
     void Cycle( ncycle_t );
 
     void Init( Config *conf );
 
  private:
-    ncounter_t numRanks, numBanks;
-    ncycle_t busBurstLength;
-    ncycle_t startCycle, endCycle, endCycle2;
-    ncounter_t lineLength;
+    class TracedRequest
+    {
+      public:
+        TracedRequest( );
+        ~TracedRequest( );
 
-    std::vector<std::string> graphLines;
-    std::vector<char> graphSymbol;
+        std::string moduleName;
+        TracedType type;
+        TracedRequest *next;
+        Event *deadlockEvent;
+        ncycle_t deadlockTimer;
+    };
+
+    void TraceAddress( NVMainRequest *req, TracedType traceType );
+    std::string Demangle( const char* cxxname );
+
+    std::map<uint64_t, TracedRequest*> tracedRequests;
+
+    NVMObject_hook *selfHook;
+    ncycle_t deadlockThreshold;
+    bool detectDeadlocks;
+    bool printTrace;
 };
 
 };
 
 #endif
+

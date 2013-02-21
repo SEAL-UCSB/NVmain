@@ -33,10 +33,12 @@
 *                     Website: http://www.cse.psu.edu/~tzz106 )
 *******************************************************************************/
 
+#include "src/Rank.h"
+#include "src/EventQueue.h"
+
 #include <iostream>
 #include <sstream>
-#include "src/Rank.h"
-#include <assert.h>
+#include <cassert>
 
 using namespace NVM;
 
@@ -286,7 +288,9 @@ bool Rank::Precharge( NVMainRequest *request )
      *  There are no rank-level constraints on precharges. If the bank says timing
      *  was met we can send the command to the bank.
      */
-    devices[0].GetBank( prechargeBank )->IssueCommand( request );
+    //devices[0].GetBank( prechargeBank )->IssueCommand( request );
+    assert( devices[0].GetBank( prechargeBank ) == GetChild( request )->GetTrampoline() );
+    GetChild( request )->IssueCommand( request );
 
     /* Broadcast request to remaining banks... this won't call hooks. */
     for( ncounter_t i = 1; i < deviceCount; i++ )

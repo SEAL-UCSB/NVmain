@@ -33,8 +33,10 @@
 
 #include "Utils/Caches/CacheBank.h"
 #include "include/NVMHelpers.h"
+#include "src/EventQueue.h"
+
 #include <iostream>
-#include <assert.h>
+#include <cassert>
 
 using namespace NVM;
 
