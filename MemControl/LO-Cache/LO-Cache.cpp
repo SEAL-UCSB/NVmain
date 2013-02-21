@@ -35,6 +35,7 @@
 #include "MemControl/LO-Cache/LO-Cache.h"
 #include "include/NVMHelpers.h"
 #include "NVM/nvmain.h"
+#include "src/EventQueue.h"
 
 #include <iostream>
 #include <set>
@@ -280,7 +281,7 @@ bool LO_Cache::RequestComplete( NVMainRequest *req )
             if( !hit )
             {
                 req->tag = DRC_MEMREAD;
-                mainMemory->NewRequest( req );
+                mainMemory->IssueCommand( req );
 
                 drc_miss++;
             }

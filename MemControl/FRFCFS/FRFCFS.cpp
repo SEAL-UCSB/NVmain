@@ -32,6 +32,7 @@
 *******************************************************************************/
 
 #include "MemControl/FRFCFS/FRFCFS.h"
+#include "src/EventQueue.h"
 #ifndef TRACE
   #include "SimInterface/Gem5Interface/Gem5Interface.h"
   #include "base/statistics.hh"

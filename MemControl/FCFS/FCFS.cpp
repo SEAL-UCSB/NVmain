@@ -33,6 +33,8 @@
 
 #include "MemControl/FCFS/FCFS.h"
 #include "SimInterface/GemsInterface/GemsInterface.h"
+#include "src/EventQueue.h"
+
 #include <iostream>
 
 using namespace NVM;

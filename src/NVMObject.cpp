@@ -39,6 +39,8 @@
 #include "src/AddressTranslator.h"
 #include "src/Rank.h"
 
+#include <cassert>
+
 using namespace NVM;
 
 NVMObject_hook::NVMObject_hook( NVMObject *t )
@@ -115,7 +117,8 @@ bool NVMObject_hook::RequestComplete( NVMainRequest *req )
     /* Call pre-complete hooks */
     for( it = preHooks.begin(); it != preHooks.end(); it++ )
     {
-        (*it)->SetParent( trampoline->GetChild( req )->GetTrampoline( ) );
+        //(*it)->SetParent( trampoline->GetChild( req )->GetTrampoline( ) );
+        (*it)->SetParent( trampoline );
         (*it)->RequestComplete( req );
     }
 
@@ -125,11 +128,23 @@ bool NVMObject_hook::RequestComplete( NVMainRequest *req )
     /* Call post-complete hooks. */
     for( it = postHooks.begin(); it != postHooks.end(); it++ )
     {
-        (*it)->SetParent( trampoline->GetChild( req )->GetTrampoline( ) );
+        //(*it)->SetParent( trampoline->GetChild( req )->GetTrampoline( ) );
+        (*it)->SetParent( trampoline );
         (*it)->RequestComplete( req );
     }
 
     return rv;
+}
+
+void NVMObject_hook::Callback( void *data )
+{
+    /* Call the trampoline callback. */
+    trampoline->Callback( data );
+}
+
+void NVMObject_hook::Cycle( ncycle_t steps )
+{
+    trampoline->Cycle( steps );
 }
 
 NVMObject *NVMObject_hook::GetTrampoline( )
@@ -147,7 +162,7 @@ NVMObject::NVMObject( )
     hooks = new std::vector<NVMObject *> [NVMHOOK_COUNT];
 }
 
-void NVMObject::Init( )
+void NVMObject::Init( Config * )
 {
 }
 
@@ -193,6 +208,11 @@ bool NVMObject::RequestComplete( NVMainRequest *request )
     }
 
     return rv;
+}
+
+void NVMObject::Callback( void * /*data*/ )
+{
+    // Ignored by default.
 }
 
 void NVMObject::SetEventQueue( EventQueue *eq )
@@ -250,6 +270,14 @@ NVMObject_hook *NVMObject::GetChild( NVMainRequest *req )
     child = GetDecoder( )->Translate( req->address.GetPhysicalAddress( ) );
 
     return children[child];
+}
+
+NVMObject_hook *NVMObject::GetChild( void )
+{
+    /* This should only be used if there is gauranteed to be only one child. */
+    assert( children.size() == 1 );
+
+    return children[0];
 }
 
 void NVMObject::SetDecoder( AddressTranslator *at )

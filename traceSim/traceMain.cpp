@@ -46,6 +46,8 @@
 #include "Endurance/EnduranceDistributionFactory.h"
 #include "SimInterface/NullInterface/NullInterface.h"
 #include "include/NVMHelpers.h"
+#include "Utils/HookFactory.h"
+#include "src/EventQueue.h"
 #include "NVM/nvmain.h"
 
 using namespace NVM;
@@ -57,6 +59,7 @@ int main( int argc, char *argv[] )
     TraceLine *tl = new TraceLine( );
     SimInterface *simInterface = new NullInterface( );
     NVMain *nvmain = new NVMain( );
+    EventQueue *mainEventQueue = new EventQueue( );
 
     unsigned int simulateCycles;
     unsigned int currentCycle;
@@ -70,6 +73,30 @@ int main( int argc, char *argv[] )
 
     config->Read( argv[1] );
     config->SetSimInterface( simInterface );
+    nvmain->SetEventQueue( mainEventQueue );
+
+    /*  Add any specified hooks */
+    std::vector<std::string>& hookList = config->GetHooks( );
+
+    for( size_t i = 0; i < hookList.size( ); i++ )
+    {
+        std::cout << "Creating hook " << hookList[i] << std::endl;
+
+        NVMObject *hook = HookFactory::CreateHook( hookList[i] );
+        
+        if( hook != NULL )
+        {
+            nvmain->AddHook( hook );
+            hook->SetParent( nvmain );
+            hook->Init( config );
+        }
+        else
+        {
+            std::cout << "Warning: Could not create a hook named `" 
+                << hookList[i] << "'." << std::endl;
+        }
+    }
+
     simInterface->SetConfig( config );
     nvmain->SetConfig( config, "defaultMemory" );
 
@@ -178,7 +205,7 @@ int main( int argc, char *argv[] )
              *  Wait for the memory controller to accept the next command.. 
              *  the trace reader is "stalling" until then.
              */
-            while( !nvmain->NewRequest( request ) )
+            while( !nvmain->IssueCommand( request ) )
             {
                 if( currentCycle >= simulateCycles )
                     break;

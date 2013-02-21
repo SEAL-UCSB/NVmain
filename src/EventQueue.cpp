@@ -32,6 +32,8 @@
 *******************************************************************************/
 
 #include "src/EventQueue.h"
+#include "src/NVMObject.h"
+
 #include <limits>
 #include <assert.h>
 
@@ -51,10 +53,52 @@ EventQueue::~EventQueue( )
 
 void EventQueue::InsertEvent( EventType type, NVMObject *recipient, ncycle_t when )
 {
+    /* The parent has our hook in the children list, we need to find this. */
+    std::vector<NVMObject_hook *>& children = recipient->GetParent( )->GetTrampoline( )->GetChildren( );
+    std::vector<NVMObject_hook *>::iterator it;
+    NVMObject_hook *hook = NULL;
+
+    for( it = children.begin(); it != children.end(); it++ )
+    {
+        if( (*it)->GetTrampoline() == recipient )
+        {
+            hook = (*it);
+            break;
+        }
+    }
+
+    assert( hook != NULL );
+
+    InsertEvent( type, hook, NULL, when );
+}
+
+void EventQueue::InsertEvent( EventType type, NVMObject_hook *recipient, ncycle_t when )
+{
     InsertEvent( type, recipient, NULL, when );
 }
 
 void EventQueue::InsertEvent( EventType type, NVMObject *recipient, NVMainRequest *req, ncycle_t when )
+{
+    /* The parent has our hook in the children list, we need to find this. */
+    std::vector<NVMObject_hook *>& children = recipient->GetParent( )->GetTrampoline( )->GetChildren( );
+    std::vector<NVMObject_hook *>::iterator it;
+    NVMObject_hook *hook = NULL;
+
+    for( it = children.begin(); it != children.end(); it++ )
+    {
+        if( (*it)->GetTrampoline() == recipient )
+        {
+            hook = (*it);
+            break;
+        }
+    }
+
+    assert( hook != NULL );
+
+    InsertEvent( type, hook, req, when );
+}
+
+void EventQueue::InsertEvent( EventType type, NVMObject_hook *recipient, NVMainRequest *req, ncycle_t when )
 {
     /* Create our event */
     Event *event = new Event( );
@@ -135,6 +179,10 @@ bool EventQueue::RemoveEvent( Event *event, ncycle_t when )
 
                 rv = true;
 
+                /* If the list is empty now, we can also erase the map entry. */
+                if( eventList.empty() )
+                    eventMap.erase( when );
+
                 break;
             }
         }
@@ -180,6 +228,9 @@ void EventQueue::Process( )
             case EventResponse:
                 (*it)->GetRecipient( )->RequestComplete( (*it)->GetRequest( ) );
                 break;
+
+            case EventCallback:
+                (*it)->GetRecipient( )->Callback( (*it)->GetData() );
 
             case EventUnknown:
                 // TODO: Add this

@@ -32,8 +32,11 @@
 *******************************************************************************/
 
 #include "Interconnect/OnChipBus/OnChipBus.h"
+#include "src/EventQueue.h"
+
 #include <sstream>
 #include <iostream>
+#include <cassert>
 
 using namespace NVM;
 
@@ -118,7 +121,22 @@ bool OnChipBus::IssueCommand( NVMainRequest *req )
             std::cout << "OnChipBus got unknown op.\n";
         }
         
-        success = ranks[opRank]->IssueCommand( req );
+        /*
+         * REFRESH needs to make up a request but it is hard to assign a correct
+         * PHYSICAL address to this request. As a result, the 
+         * GetChild( req )->IssueCommand( req ) can not work properly. 
+         */
+        if( req->type == REFRESH )
+        {
+            // TODO: Fix this because it bypasses hooks. Easy hack is to cast to NVMObject*.
+            success = ranks[opRank]->IssueCommand( req );
+        }
+        else
+        {
+            assert( GetChild( req )->GetTrampoline() == ranks[opRank] );
+            success = GetChild( req )->IssueCommand( req );
+        }
+
 
         /*
          *  To preserve rank-to-rank switching time, we need to notify the

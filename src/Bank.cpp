@@ -33,14 +33,16 @@
 *                     Website: http://www.cse.psu.edu/~tzz106 )
 *******************************************************************************/
 
-#include <iostream>
-#include <limits>
 
 #include "src/Bank.h"
 #include "src/MemoryController.h"
+#include "src/EventQueue.h"
 #include "Endurance/EnduranceModelFactory.h"
+
 #include <signal.h>
-#include <assert.h>
+#include <cassert>
+#include <iostream>
+#include <limits>
 
 using namespace NVM;
 
