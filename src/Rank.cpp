@@ -174,6 +174,7 @@ bool Rank::Activate( NVMainRequest *request )
         && (ncycles_t)lastActivate[FAWindex] + (ncycles_t)p->tRRDR <= (ncycles_t)GetEventQueue()->GetCurrentCycle()
         && (ncycles_t)lastActivate[(FAWindex + 1)%4] + (ncycles_t)p->tFAW <= (ncycles_t)GetEventQueue()->GetCurrentCycle() )
     {
+        assert( GetChild(request)->GetTrampoline() == devices[0].GetBank(activateBank) );
         GetChild( request )->IssueCommand( request );
 
         /* Broadcast request to remaining banks... this won't call hooks. */
