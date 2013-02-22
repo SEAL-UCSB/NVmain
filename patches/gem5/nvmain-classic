@@ -1,9 +1,9 @@
 # HG changeset patch
-# Parent 1dea10b5befc92cb941068219eca3168d24cfcd1
+# Parent 50ac1ccf8444f1e6a64a1693147a4558d69780e5
 
-diff -r 1dea10b5befc src/mem/NVMainMemory.py
+diff -r 50ac1ccf8444 src/mem/NVMainMemory.py
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/NVMainMemory.py	Thu Feb 21 12:34:15 2013 -0500
++++ b/src/mem/NVMainMemory.py	Fri Feb 22 10:35:41 2013 -0500
 @@ -0,0 +1,45 @@
 +# Copyright (c) 2012-2013 Pennsylvania State University
 +# All rights reserved.
@@ -50,9 +50,9 @@ diff -r 1dea10b5befc src/mem/NVMainMemory.py
 +    configparams = Param.String("", "")
 +    configvalues = Param.String("", "")
 +    NVMainWarmUp = Param.Bool(False, "Enable to warm up the internal cache in NVMain")
-diff -r 1dea10b5befc src/mem/SConscript
---- a/src/mem/SConscript	Mon Feb 04 12:25:41 2013 -0500
-+++ b/src/mem/SConscript	Thu Feb 21 12:34:15 2013 -0500
+diff -r 50ac1ccf8444 src/mem/SConscript
+--- a/src/mem/SConscript	Fri Feb 22 10:20:51 2013 -0500
++++ b/src/mem/SConscript	Fri Feb 22 10:35:41 2013 -0500
 @@ -60,8 +60,10 @@
      SimObject('AbstractMemory.py')
      SimObject('SimpleMemory.py')
@@ -72,10 +72,10 @@ diff -r 1dea10b5befc src/mem/SConscript
  
  DebugFlag('ProtocolTrace')
  DebugFlag('RubyCache')
-diff -r 1dea10b5befc src/mem/nvmain_mem.cc
+diff -r 50ac1ccf8444 src/mem/nvmain_mem.cc
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/nvmain_mem.cc	Thu Feb 21 12:34:15 2013 -0500
-@@ -0,0 +1,520 @@
++++ b/src/mem/nvmain_mem.cc	Fri Feb 22 10:35:41 2013 -0500
+@@ -0,0 +1,523 @@
 +/*
 + * Copyright (c) 2012-2013 Pennsylvania State University
 + * All rights reserved.
@@ -380,6 +380,9 @@ diff -r 1dea10b5befc src/mem/nvmain_mem.cc
 +
 +        return true;
 +    }
++    
++    // TODO: someone should pay for this!
++    pkt->busFirstWordDelay = pkt->busLastWordDelay = 0;
 +
 +    NVMainRequest *request = new NVMainRequest( );
 +
@@ -596,9 +599,9 @@ diff -r 1dea10b5befc src/mem/nvmain_mem.cc
 +    return new NVMainMemory(this);
 +}
 +
-diff -r 1dea10b5befc src/mem/nvmain_mem.hh
+diff -r 50ac1ccf8444 src/mem/nvmain_mem.hh
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/nvmain_mem.hh	Thu Feb 21 12:34:15 2013 -0500
++++ b/src/mem/nvmain_mem.hh	Fri Feb 22 10:35:41 2013 -0500
 @@ -0,0 +1,199 @@
 +/*
 + * Copyright (c) 2012-2013 Pennsylvania State University

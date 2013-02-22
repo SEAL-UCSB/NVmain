@@ -67,6 +67,8 @@ class DRAMCache : public MemoryController
     AbstractDRAMCache **drcChannels;
     ncounter_t numChannels;
 
+    void Retranslate( NVMainRequest *req );
+
 };
 
 };

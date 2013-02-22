@@ -76,8 +76,13 @@ void DRAMCache::SetConfig( Config *conf )
     mainMemoryConfig->Read( configFile );
 
     mainMemory = new NVMain( );
-    mainMemory->SetConfig( mainMemoryConfig, "offChipMemory" );
     mainMemory->SetParent( this ); 
+    mainMemory->SetConfig( mainMemoryConfig, "offChipMemory" );
+
+    /* Orphan the interconnect created by NVMain */
+    std::vector<NVMObject_hook *>& childNodes = GetChildren( );
+
+    childNodes.clear();
 
     /* Initialize DRAM Cache channels */
     numChannels = static_cast<ncounter_t>( conf->GetValue( "DRC_CHANNELS" ) );
@@ -114,9 +119,16 @@ void DRAMCache::SetConfig( Config *conf )
                              );
         
         DRCDecoder *drcDecoder = new DRCDecoder( );
-        drcDecoder->SetTranslationMethod( drcMethod );
+        DRCDecoder *intDecoder = new DRCDecoder( );
 
-        channelMemory->SetDecoder( drcDecoder );
+        drcDecoder->SetTranslationMethod( drcMethod );
+        drcDecoder->SetDefaultField( CHANNEL_FIELD );
+
+        intDecoder->SetTranslationMethod( drcMethod );
+        intDecoder->SetDefaultField( RANK_FIELD );
+
+        channelMemory->SetDecoder( intDecoder );
+        SetDecoder( drcDecoder );
 
         drcChannels[i] = dynamic_cast<AbstractDRAMCache *>( MemoryControllerFactory::CreateNewController( conf->GetString( "DRCVariant" ), channelMemory, drcDecoder ) );
         drcChannels[i]->SetMainMemory( mainMemory );
@@ -140,6 +152,14 @@ void DRAMCache::SetConfig( Config *conf )
     MemoryController::SetConfig( conf );
 }
 
+void DRAMCache::Retranslate( NVMainRequest *req )
+{
+    uint64_t col, row, bank, rank, chan;
+
+    GetDecoder()->Translate( req->address.GetPhysicalAddress(), &row, &col, &bank, &rank, &chan );
+    req->address.SetTranslatedAddress( row, col, bank, rank, chan );
+}
+
 bool DRAMCache::IssueAtomic( NVMainRequest *req )
 {
     uint64_t chan;
@@ -155,9 +175,10 @@ bool DRAMCache::IssueCommand( NVMainRequest *req )
 {
     uint64_t chan;
 
+    Retranslate( req );
     req->address.GetTranslatedAddress( NULL, NULL, NULL, NULL, &chan );
-
     assert( chan < numChannels );
+    assert( GetChild(req)->GetTrampoline() == drcChannels[chan] );
 
     return drcChannels[chan]->IssueCommand( req );
 }
