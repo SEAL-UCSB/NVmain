@@ -194,10 +194,16 @@ bool EventQueue::RemoveEvent( Event *event, ncycle_t when )
 
 void EventQueue::Loop( )
 {
-    currentCycle++;
-
+    /* 
+     * Loop() is called by NVMain::Cycle() in nvmain.cc, where the whole
+     * memory system inserts new events into the mainEventQueue. We need to
+     * guarantee that the event that is inserted in current cycle and must
+     * be handled in current cycle can be processed.
+     */  
     if( nextEventCycle == currentCycle )
         Process( );
+
+    currentCycle++;
 }
 
 

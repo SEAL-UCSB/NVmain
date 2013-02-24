@@ -33,7 +33,6 @@
 *                     Website: http://www.cse.psu.edu/~tzz106 )
 *******************************************************************************/
 
-
 #include "src/Bank.h"
 #include "src/MemoryController.h"
 #include "src/EventQueue.h"
@@ -830,11 +829,11 @@ bool Bank::IsIssuable( NVMainRequest *req, FailReason *reason )
     else if( req->type == WRITE )
     {
         if( nextWrite > (GetEventQueue()->GetCurrentCycle()) || state != BANK_OPEN || opRow != openRow )
-          {
+        {
             rv = false;
             if( reason ) 
                 reason->reason = BANK_TIMING;
-          }
+        }
     }
     else if( req->type == PRECHARGE )
     {
