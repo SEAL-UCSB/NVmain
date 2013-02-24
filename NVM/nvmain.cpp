@@ -409,9 +409,9 @@ void NVMain::Cycle( ncycle_t )
     }
 
     for( unsigned int i = 0; i < numChannels; i++ )
-      {
+    {
         memoryControllers[i]->Cycle( 1 );
-      }
+    }
 
     GetEventQueue()->Loop( );
 }
