@@ -804,7 +804,8 @@ bool Bank::IsIssuable( NVMainRequest *req, FailReason *reason )
         if( nextActivate > (GetEventQueue()->GetCurrentCycle()) || state != BANK_CLOSED )
         {
             rv = false;
-            if( reason ) reason->reason = BANK_TIMING;
+            if( reason ) 
+                reason->reason = BANK_TIMING;
         }
 
         if( rv == false )
