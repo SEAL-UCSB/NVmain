@@ -29,46 +29,21 @@
 * Author list: 
 *   Matt Poremba    ( Email: mrp5060 at psu dot edu 
 *                     Website: http://www.cse.psu.edu/~poremba/ )
-*   Tao Zhang       ( Email: tzz106 at cse dot psu dot edu
-*                     Website: http://www.cse.psu.edu/~tzz106 )
 *******************************************************************************/
-
-/*
- *  This file is part of NVMain- A cycle accurate timing, bit-accurate
- *  energy simulator for non-volatile memory. Originally developed by 
- *  Matt Poremba at the Pennsylvania State University.
- *
- *  Website: http://www.cse.psu.edu/~poremba/nvmain/
- *  Email: mrp5060@psu.edu
- *
- *  ---------------------------------------------------------------------
- *
- *  If you use this software for publishable research, please include 
- *  the original NVMain paper in the citation list and mention the use 
- *  of NVMain.
- *
- */
-
 
 #ifndef __NVMAIN_EVENTQUEUE_H__
 #define __NVMAIN_EVENTQUEUE_H__
 
-
 #include <map>
 #include <list>
-
-
 #include "include/NVMTypes.h"
 #include "include/NVMainRequest.h"
 
-
 namespace NVM {
-
 
 class Event;
 class NVMObject_hook;
 typedef std::list<Event *> EventList;
-
 
 enum EventType { EventUnknown,
                  EventCycle,
@@ -78,67 +53,56 @@ enum EventType { EventUnknown,
                  EventCallback
 };
 
-
 class Event
 {
- public:
-  Event() : type(EventUnknown), recipient(NULL), request(NULL), data(NULL) {}
-  ~Event() {}
+  public:
+    Event() : type(EventUnknown), recipient(NULL), request(NULL), data(NULL) {}
+    ~Event() {}
 
-  void SetType( EventType e ) { type = e; }
-  void SetRecipient( NVMObject_hook *r ) { recipient = r; }
-  void SetRequest( NVMainRequest *r ) { request = r; }
-  void SetData( void *d ) { data = d; }
+    void SetType( EventType e ) { type = e; }
+    void SetRecipient( NVMObject_hook *r ) { recipient = r; }
+    void SetRequest( NVMainRequest *r ) { request = r; }
+    void SetData( void *d ) { data = d; }
 
-  EventType GetType( ) { return type; }
-  NVMObject_hook *GetRecipient( ) { return recipient; }
-  NVMainRequest *GetRequest( ) { return request; }
-  void *GetData( ) { return data; }
+    EventType GetType( ) { return type; }
+    NVMObject_hook *GetRecipient( ) { return recipient; }
+    NVMainRequest *GetRequest( ) { return request; }
+    void *GetData( ) { return data; }
 
  private:
-  EventType type;              /* Type of event (which callback to invoke). */
-  NVMObject_hook *recipient;   /* Who to callback. */
-  NVMainRequest *request;      /* Request causing event. */
-  void *data;                  /* Generic data to pass to callback. */
-
+    EventType type;              /* Type of event (which callback to invoke). */
+    NVMObject_hook *recipient;   /* Who to callback. */
+    NVMainRequest *request;      /* Request causing event. */
+    void *data;                  /* Generic data to pass to callback. */
 };
 
 
 class EventQueue
 {
- public:
-  EventQueue();
-  ~EventQueue();
+  public:
+    EventQueue();
+    ~EventQueue();
 
+    void InsertEvent( EventType type, NVMObject_hook *recipient, NVMainRequest *req, ncycle_t when );
+    void InsertEvent( EventType type, NVMObject *recipient, NVMainRequest *req, ncycle_t when );
+    void InsertEvent( EventType type, NVMObject_hook *recipient, ncycle_t when );
+    void InsertEvent( EventType type, NVMObject *recipient, ncycle_t when );
+    void InsertEvent( Event *event, ncycle_t when );
+    bool RemoveEvent( Event *event, ncycle_t when );
+    void Process( );
+    void Loop( );
 
-  void InsertEvent( EventType type, NVMObject_hook *recipient, NVMainRequest *req, ncycle_t when );
-  void InsertEvent( EventType type, NVMObject *recipient, NVMainRequest *req, ncycle_t when );
-  void InsertEvent( EventType type, NVMObject_hook *recipient, ncycle_t when );
-  void InsertEvent( EventType type, NVMObject *recipient, ncycle_t when );
-  void InsertEvent( Event *event, ncycle_t when );
-  bool RemoveEvent( Event *event, ncycle_t when );
-  void Process( );
-  void Loop( );
+    ncycle_t GetNextEvent( );
+    ncycle_t GetCurrentCycle( );
 
-  ncycle_t GetNextEvent( );
-  ncycle_t GetCurrentCycle( );
+  private:
+    ncycle_t nextEventCycle;
+    ncycle_t lastEventCycle;
+    ncycle_t currentCycle; 
 
-
- private:
-  ncycle_t nextEventCycle;
-  ncycle_t lastEventCycle;
-  ncycle_t currentCycle; 
-
-  std::map< ncycle_t, EventList> eventMap; 
-
-
+    std::map< ncycle_t, EventList> eventMap; 
 };
 
-
-
 };
-
 
 #endif
-
-
