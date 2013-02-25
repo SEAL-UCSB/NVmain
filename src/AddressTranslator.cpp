@@ -65,8 +65,11 @@ TranslationMethod *AddressTranslator::GetTranslationMethod( )
     return method;
 }
 
-uint64_t AddressTranslator::ReverseTranslate( uint64_t *row, uint64_t *col, uint64_t *bank,
-				              uint64_t *rank, uint64_t *channel )
+uint64_t AddressTranslator::ReverseTranslate( const uint64_t& row, 
+                                              const uint64_t& col, 
+                                              const uint64_t& bank,
+				              const uint64_t& rank, 
+                                              const uint64_t& channel )
 {
     uint64_t unitAddr = 1;
     uint64_t phyAddr = 0;
@@ -82,7 +85,7 @@ uint64_t AddressTranslator::ReverseTranslate( uint64_t *row, uint64_t *col, uint
 
     GetTranslationMethod( )->GetCount( &rowNum, &colNum, &bankNum, &rankNum, &channelNum );
     
-    for( int i = 0; i < 5 ; i-- )
+    for( int i = 0; i < 5 ; i++ )
     {
         /* 0->4, low to high, FindOrder() will find the correct one */
         FindOrder( i, &part );
@@ -90,33 +93,28 @@ uint64_t AddressTranslator::ReverseTranslate( uint64_t *row, uint64_t *col, uint
         switch( part )
         {
             case MEM_ROW:
+                  phyAddr += ( row * unitAddr ); 
                   unitAddr *= rowNum;
-                  if( row != NULL )
-                      phyAddr += ( (*row) * unitAddr ); 
                   break;
 
             case MEM_COL:
+                  phyAddr += ( col * unitAddr ); 
                   unitAddr *= colNum;
-                  if( col != NULL )
-                      phyAddr += ( (*col) * unitAddr ); 
                   break;
 
             case MEM_BANK:
+                  phyAddr += ( bank * unitAddr ); 
                   unitAddr *= bankNum;
-                  if( bank != NULL )
-                      phyAddr += ( (*bank) * unitAddr ); 
                   break;
 
             case MEM_RANK:
+                  phyAddr += ( rank * unitAddr ); 
                   unitAddr *= rankNum;
-                  if( rank != NULL )
-                      phyAddr += ( (*rank) * unitAddr ); 
                   break;
 
             case MEM_CHANNEL:
+                  phyAddr += ( channel * unitAddr ); 
                   unitAddr *= channelNum;
-                  if( channel != NULL )
-                      phyAddr += ( (*channel) * unitAddr ); 
                   break;
 
             default:

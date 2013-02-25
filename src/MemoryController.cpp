@@ -244,7 +244,9 @@ void MemoryController::SetConfig( Config *conf )
 
                 /* create first refresh pulse to start the refresh countdown */ 
                 NVMainRequest* refreshPulse = MakeRefreshRequest();
+                uint64_t dummyPhyAddr = translator->ReverseTranslate( 0, 0, refreshBankHead, i, 0 );
                 
+                refreshPulse->address.SetPhysicalAddress( dummyPhyAddr );
                 refreshPulse->address.SetTranslatedAddress( 0, 0, refreshBankHead, i, 0 );
 
                 /* stagger the refresh */
@@ -347,7 +349,9 @@ bool MemoryController::HandleRefresh( )
             {
                 /* create a refresh command that will be sent to ranks */
                 NVMainRequest* cmdRefresh = MakeRefreshRequest( );
+                uint64_t dummyPhyAddr = translator->ReverseTranslate( 0, 0, j, i, 0 );
 
+                cmdRefresh->address.SetPhysicalAddress( dummyPhyAddr );
                 cmdRefresh->address.SetTranslatedAddress( 0, 0, j, i, 0 );
 
                 if( !memory->IsIssuable( cmdRefresh, &fail ) )
@@ -905,6 +909,8 @@ void MemoryController::CycleCommandQueues( )
                     /* make up a dummy PRECHARGE command to close the bank */
                     NVMainRequest* dummyPrechargeReq = new NVMainRequest();
                     dummyPrechargeReq->owner = this;
+                    uint64_t dummyPhyAddr = translator->ReverseTranslate( 0, 0, preBank, preRank, 0 );
+                    dummyPrechargeReq->address.SetPhysicalAddress( dummyPhyAddr );
                     dummyPrechargeReq->address.SetTranslatedAddress( 0, 0, preBank, preRank, 0 );
                     dummyPrechargeReq->type = PRECHARGE;
                     dummyPrechargeReq->issueCycle = GetEventQueue()->GetCurrentCycle();
