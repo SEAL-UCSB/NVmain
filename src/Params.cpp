@@ -85,6 +85,7 @@ void Params::SetParams( Config *c )
     Erd = c->GetEnergy( "Erd" );
     Eref = c->GetEnergy( "Eref" );
     Ewr = c->GetEnergy( "Ewr" );
+    Eleak = c->GetEnergy( "Eleak" );
     Voltage = c->GetEnergy( "Voltage" );
 
     Rtt_nom = (unsigned int)c->GetValue( "Rtt_nom" );

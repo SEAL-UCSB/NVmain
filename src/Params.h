@@ -69,6 +69,7 @@ class Params
     float Erd;
     float Eref;
     float Ewr;
+    float Eleak;
     float Voltage;
 
     unsigned int Rtt_nom;
