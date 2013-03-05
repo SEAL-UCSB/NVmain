@@ -213,7 +213,8 @@ bool FRFCFS_WQF::RequestComplete( NVMainRequest * request )
      * Only reads and writes are sent back to NVMain and checked for in the 
      * transaction queue 
      */
-    if( request->type == READ || request->type == WRITE )
+    if( request->type == READ || request->type == READ_PRECHARGE 
+            || request->type == WRITE || request->type == WRITE_PRECHARGE )
     {
         /* this isn't really used anymore, but doesn't hurt */
         request->status = MEM_REQUEST_COMPLETE; 
@@ -238,17 +239,10 @@ bool FRFCFS_WQF::RequestComplete( NVMainRequest * request )
         measuredQueueLatencies += 1;
     }
 
-    if( request->type == REFRESH )
-        ProcessRefreshPulse( request );
-    else if( request->owner == this )
-        delete request;
-    else
-        GetParent( )->RequestComplete( request );
-
-    return true;
+    return MemoryController::RequestComplete( request );
 }
 
-void FRFCFS_WQF::Cycle( ncycle_t )
+void FRFCFS_WQF::Cycle( ncycle_t steps )
 {
     /* check whether it is the time to switch from read to write drain */
     if( m_draining == false && writeQueue.size() >= HighWaterMark )
@@ -414,6 +408,8 @@ void FRFCFS_WQF::Cycle( ncycle_t )
 
     /* Issue memory commands from the command queue. */
     CycleCommandQueues( );
+
+    MemoryController::Cycle( steps );
 }
 
 void FRFCFS_WQF::PrintStats( )

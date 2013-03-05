@@ -130,7 +130,9 @@ class MemoryController : public NVMObject
     unsigned int starvationThreshold;
 
     NVMainRequest *MakeActivateRequest( NVMainRequest *triggerRequest );
+    NVMainRequest *MakeImplicitPrechargeRequest( NVMainRequest *triggerRequest );
     NVMainRequest *MakePrechargeRequest( NVMainRequest *triggerRequest );
+    NVMainRequest *MakePrechargeAllRequest( NVMainRequest *triggerRequest );
     NVMainRequest *MakeRefreshRequest( );
 
     bool FindStarvedRequest( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **starvedRequest );
@@ -153,8 +155,8 @@ class MemoryController : public NVMObject
     bool FindRowBufferHits( std::list<NVMainRequest *>& transactionQueue, std::vector<NVMainRequest *>& hitRequests, NVM::SchedulingPredicate& p  );
     bool FindOldestReadyRequests( std::list<NVMainRequest *>& transactionQueue, std::vector<NVMainRequest *>& oldestRequests, NVM::SchedulingPredicate& p  );
     bool FindClosedBankRequests( std::list<NVMainRequest *>& transactionQueue, std::vector<NVMainRequest *>& closedRequests, NVM::SchedulingPredicate& p  );
-    /* FindPrechargableBank() find the bank that can be precharged */
-    bool FindPrechargableBank (uint64_t*, uint64_t*); 
+    /* IsLastRequest() tells whether no other request has the row buffer hit in the transaction queue */
+    bool IsLastRequest( std::list<NVMainRequest *>& transactionQueue, uint64_t mRow, uint64_t mBank, uint64_t mRank ); 
     /* curRank and curBank record the starting rank (bank) index for the rank-(bank-) level scheduling */
     ncounter_t curRank, curBank; 
     /* MoveRankBank() increment the curRank and/or curBank according to the scheduling scheme */

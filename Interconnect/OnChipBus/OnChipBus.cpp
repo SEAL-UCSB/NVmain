@@ -205,6 +205,8 @@ void OnChipBus::PrintStats( )
     }
 }
 
-void OnChipBus::Cycle( ncycle_t )
+void OnChipBus::Cycle( ncycle_t steps )
 {
+    for( unsigned rankIdx = 0; rankIdx < numRanks; rankIdx++ )
+        ranks[rankIdx]->Cycle( steps );
 }

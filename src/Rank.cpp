@@ -66,18 +66,10 @@ Rank::Rank( )
 
 Rank::~Rank( )
 {
-    if( devices != NULL )
-    {
-        for( ncounter_t i = 0; i < deviceCount; i++ )
-            for( ncounter_t j = 0; j < bankCount; j++ )
-            {
-                Bank *bank = devices[i].GetBank( j );
+    for( ncounter_t i = 0; i < bankCount; i++ )
+        delete banks[i];
 
-                delete bank;
-            }
-
-        delete [] devices;
-    }
+    delete [] banks;
 }
 
 void Rank::SetConfig( Config *c )
@@ -94,7 +86,6 @@ void Rank::SetConfig( Config *c )
 
     banksPerRefresh = p->BanksPerRefresh;
 
- 
     /* Calculate the number of devices needed. */
     deviceCount = busWidth / deviceWidth;
     if( busWidth % deviceWidth != 0 )
@@ -105,32 +96,27 @@ void Rank::SetConfig( Config *c )
 
     std::cout << "Creating " << bankCount << " banks in all " << deviceCount << " devices.\n";
 
-    devices = new Device[deviceCount];
+    banks = new Bank*[bankCount];
     
-    for( ncounter_t i = 0; i < deviceCount; i++ )
+    for( ncounter_t i = 0; i < bankCount; i++ )
     {
-        for( ncounter_t j = 0; j < bankCount; j++ )
-        {
-            Bank *newBank = new Bank( );
-            std::stringstream formatter;
+        std::stringstream formatter;
 
-            formatter << j;
-            newBank->SetName( formatter.str( ) );
-            newBank->SetId( (int)i );
-            formatter.str( "" );
+        banks[i] = new Bank;
 
-            devices[i].AddBank( newBank );
+        formatter << i;
+        banks[i]->SetName( formatter.str( ) );
+        banks[i]->SetId( i );
+        formatter.str( "" );
 
-            formatter << statName << ".bank" << j;
-            newBank->StatName( formatter.str( ) );
+        formatter << statName << ".bank" << i;
+        banks[i]->StatName( formatter.str( ) );
 
-            newBank->SetParent( this );
-            AddChild( newBank );
+        banks[i]->SetParent( this );
+        AddChild( banks[i] );
 
-            /* SetConfig recursively. */
-            newBank->SetConfig( c );
-
-        }
+        /* SetConfig recursively. */
+        banks[i]->SetConfig( c );
     }
 
     /* When selecting a child, use the rank field from the decoder. */
@@ -171,23 +157,23 @@ bool Rank::Activate( NVMainRequest *request )
      *  power consumption.
      */
     if( nextActivate <= GetEventQueue()->GetCurrentCycle() 
-        && (ncycles_t)lastActivate[FAWindex] + (ncycles_t)p->tRRDR <= (ncycles_t)GetEventQueue()->GetCurrentCycle()
-        && (ncycles_t)lastActivate[(FAWindex + 1)%4] + (ncycles_t)p->tFAW <= (ncycles_t)GetEventQueue()->GetCurrentCycle() )
+        && (ncycles_t)lastActivate[FAWindex] + (ncycles_t)p->tRRDR 
+            <= (ncycles_t)GetEventQueue()->GetCurrentCycle()
+        && (ncycles_t)lastActivate[(FAWindex + 1)%4] + (ncycles_t)p->tFAW 
+            <= (ncycles_t)GetEventQueue()->GetCurrentCycle() )
     {
-        assert( GetChild(request)->GetTrampoline() == devices[0].GetBank(activateBank) );
+        /* issue ACTIVATE to target bank */
         GetChild( request )->IssueCommand( request );
-
-        /* Broadcast request to remaining banks... this won't call hooks. */
-        for( ncounter_t i = 1; i < deviceCount; i++ )
-          devices[i].GetBank( activateBank )->Activate( request );
 
         FAWindex = (FAWindex + 1) % 4;
         lastActivate[FAWindex] = (ncycles_t)GetEventQueue()->GetCurrentCycle();
-        nextActivate = MAX( nextActivate, GetEventQueue()->GetCurrentCycle() + p->tRRDR );
+        nextActivate = MAX( nextActivate, GetEventQueue()->GetCurrentCycle() 
+                                            + p->tRRDR );
     }
     else
     {
-        std::cerr << "Rank: Activation FAILED! Did you check IsIssuable?" << std::endl;
+        std::cerr << "NVMain Error: Rank Activation FAILED! " 
+            << "Did you check IsIssuable?" << std::endl;
     }
 
     return true;
@@ -201,12 +187,15 @@ bool Rank::Read( NVMainRequest *request )
 
     if( readBank >= bankCount )
     {
-        std::cerr << "Attempted to read non-existant bank: " << readBank << "!" << std::endl;
+        std::cerr << "NVMain Error: Rank attempted to read non-existant bank: " 
+            << readBank << "!" << std::endl;
         return false;
     }
 
     if( nextRead > GetEventQueue()->GetCurrentCycle() )
     {
+        std::cerr << "NVMain Error: Rank Read violates the timing constraint: " 
+            << readBank << "!" << std::endl;
         return false;
     }
 
@@ -215,21 +204,21 @@ bool Rank::Read( NVMainRequest *request )
      *  command as long as the bus will be ready and the column can decode that fast. The
      *  bank code ensures the second criteria.
      */
-    if( !devices[0].GetBank( readBank )->WouldConflict( readRow ) )
+    if( !banks[readBank]->WouldConflict( readRow ) )
     {
+        /* issue READ or READ_PRECHARGE to target bank */
         GetChild( request )->IssueCommand( request );
 
-        /* Broadcast request to remaining banks... this won't call hooks. */
-        for( ncounter_t i = 1; i < deviceCount; i++ )
-          devices[i].GetBank( readBank )->Read( request );
+        /* Even though the command may be READ_PRECHARGE, it still works */
+        nextRead = MAX( nextRead, GetEventQueue()->GetCurrentCycle() 
+                                    + MAX( p->tBURST, p->tCCD ) );
 
-        nextRead = MAX( nextRead, GetEventQueue()->GetCurrentCycle() + MAX( p->tBURST, p->tCCD ) );
-        nextWrite = MAX( nextWrite, GetEventQueue()->GetCurrentCycle() + p->tCAS + p->tBURST +
-             p->tRTRS - p->tCWD ); 
+        nextWrite = MAX( nextWrite, GetEventQueue()->GetCurrentCycle() 
+                                    + p->tCAS + p->tBURST + p->tRTRS - p->tCWD ); 
     }
     else
     {
-        std::cerr << "Rank: Read FAILED! Did you check IsIssuable?" << std::endl;
+        std::cerr << "NVMain Error: Rank Read FAILED! Did you check IsIssuable?" << std::endl;
     }
 
     return true;
@@ -244,30 +233,34 @@ bool Rank::Write( NVMainRequest *request )
 
     if( writeBank >= bankCount )
     {
-        std::cerr << "Attempted to write non-existant bank: " << writeBank << "!" << std::endl;
+        std::cerr << "NVMain Error: Attempted to write non-existant bank: " 
+            << writeBank << "!" << std::endl;
         return false;
     }
 
     if( nextWrite > GetEventQueue()->GetCurrentCycle() )
     {
+        std::cerr << "NVMain Error: Rank Write violates the timing constraint: " 
+            << writeBank << "!" << std::endl;
         return false;
     }
 
-    if( !devices[0].GetBank( writeBank )->WouldConflict( writeRow ) )
+    if( !banks[writeBank]->WouldConflict( writeRow ) )
     {
+        /* issue WRITE or WRITE_PRECHARGE to the target bank */
         GetChild( request )->IssueCommand( request );
 
-        /* Broadcast request to remaining banks... this won't call hooks. */
-        for( ncounter_t i = 1; i < deviceCount; i++ )
-          devices[i].GetBank( writeBank )->Write( request );
+        /* Even though the command may be WRITE_PRECHARGE, it still works */
+        nextRead = MAX( nextRead, GetEventQueue()->GetCurrentCycle() 
+                                    + p->tCWD + p->tBURST + p->tWTR );
 
-        nextRead = MAX( nextRead, GetEventQueue()->GetCurrentCycle() + p->tCWD + p->tBURST
-                + p->tWTR );
-        nextWrite = MAX( nextWrite, GetEventQueue()->GetCurrentCycle() + MAX( p->tBURST, p->tCCD ) );
+        nextWrite = MAX( nextWrite, GetEventQueue()->GetCurrentCycle() 
+                                    + MAX( p->tBURST, p->tCCD ) );
     }
     else
     {
-        std::cerr << "Rank: Write FAILED! Did you check IsIssuable?" << std::endl;
+        std::cerr << "NVMain Error: Rank Write FAILED! Did you check IsIssuable?" 
+            << std::endl;
     }
 
     return true;
@@ -275,13 +268,14 @@ bool Rank::Write( NVMainRequest *request )
 
 bool Rank::Precharge( NVMainRequest *request )
 {
-    uint64_t prechargeBank;
+    uint64_t preBank;
 
-    request->address.GetTranslatedAddress( NULL, NULL, &prechargeBank, NULL, NULL );
+    request->address.GetTranslatedAddress( NULL, NULL, &preBank, NULL, NULL );
 
-    if( prechargeBank >= bankCount )
+    if( preBank >= bankCount )
     {
-        std::cerr << "Rank: Attempted to precharge non-existant bank: " << prechargeBank << std::endl;
+        std::cerr << "NVMain Error: Rank Attempted to precharge non-existant bank: " 
+            << preBank << std::endl;
         return false;
     }
 
@@ -289,46 +283,79 @@ bool Rank::Precharge( NVMainRequest *request )
      *  There are no rank-level constraints on precharges. If the bank says timing
      *  was met we can send the command to the bank.
      */
-    //devices[0].GetBank( prechargeBank )->IssueCommand( request );
-    assert( devices[0].GetBank( prechargeBank ) == GetChild( request )->GetTrampoline() );
+    /* issue PRECHARGE/PRECHARGE_ALL to the target bank */
     GetChild( request )->IssueCommand( request );
-
-    /* Broadcast request to remaining banks... this won't call hooks. */
-    for( ncounter_t i = 1; i < deviceCount; i++ )
-      devices[i].GetBank( prechargeBank )->Precharge( request );
 
     return true;
 }
 
+bool Rank::CanPowerDown( OpType pdOp )
+{
+    bool issuable = true;
+    NVMainRequest req;
+    NVMAddress address;
+
+    /* Create a dummy operation to determine if we can issue */
+    req.type = pdOp;
+    req.address.SetTranslatedAddress( 0, 0, 0, 0, 0 );
+    req.address.SetPhysicalAddress( 0 );
+
+    for( ncounter_t i = 0; i < bankCount; i++ )
+        if( !banks[i]->IsIssuable( &req ) )
+        {
+            issuable = false;
+            break;
+        }
+
+    return issuable;
+}
+
+bool Rank::PowerDown( NVMainRequest *request )
+{
+    /* TODO: use hooker to issue POWERDOWN?? */
+    /* 
+     * PowerDown() should be completed to all banks, partial PowerDown is
+     * incorrect. Therefore, call CanPowerDown() first before every PowerDown
+     */
+    for( ncounter_t i = 0; i < bankCount; i++ )
+       banks[i]->PowerDown( request->type );
+
+    delete request;
+
+    return true;
+}
+
+bool Rank::CanPowerUp()
+{
+    bool issuable = true;
+    NVMainRequest req;
+    NVMAddress address;
+
+    /* Create a dummy operation to determine if we can issue */
+    req.type = POWERUP;
+    req.address.SetTranslatedAddress( 0, 0, 0, 0, 0 );
+    req.address.SetPhysicalAddress( 0 );
+
+    /* since all banks are powered down, check the first bank is enough */
+    if( !banks[0]->IsIssuable( &req ) )
+        issuable = false;
+
+    return issuable;
+}
+
 bool Rank::PowerUp( NVMainRequest *request )
 {
-    bool returnValue = false;
-    uint64_t puBank;
+    /* TODO: use hooker to issue POWERDOWN?? */
+    /* 
+     * PowerUp() should be completed to all banks, partial PowerUp is
+     * incorrect. Therefore, call CanPowerUp() first before every PowerDown
+     */
+    for( ncounter_t i = 0; i < bankCount; i++ )
+       banks[i]->PowerUp( );
 
-    request->address.GetTranslatedAddress( NULL, NULL, &puBank, NULL, NULL );
+    delete request;
 
-    if( puBank >= bankCount )
-    {
-        std::cerr << "Rank: Attempted to powerup non-existant bank: " << puBank << std::endl;
-        return false;
-    }
-
-    returnValue = GetChild( request )->IssueCommand( request );
-
-    if( returnValue )
-    {
-        /* Broadcast request to remaining banks... this won't call hooks. */
-        for( ncounter_t i = 1; i < deviceCount; i++ )
-            if( !devices[i].GetBank( puBank )->PowerUp( request ) )
-            {
-                if( i != 0 )
-                    std::cerr << "Rank: Error partial power up failure!" << std::endl;
-
-                returnValue = false;
-            }
-    }
-
-    return returnValue;
+    return true;
 }
 
 /*
@@ -339,18 +366,24 @@ bool Rank::Refresh( NVMainRequest *request )
 {
     assert( nextActivate <= ( GetEventQueue()->GetCurrentCycle() ) );
     uint64_t refreshBankHead, refreshRank;
-    request->address.GetTranslatedAddress( NULL, NULL, &refreshBankHead, &refreshRank, NULL );
+    request->address.GetTranslatedAddress( 
+            NULL, NULL, &refreshBankHead, &refreshRank, NULL );
+
     assert( (refreshBankHead + banksPerRefresh) <= bankCount );
 
-    for( ncounter_t i = 0; i < deviceCount; i++ )
-        for( ncounter_t j = 0; j < banksPerRefresh; j++ )
-            devices[i].GetBank( (refreshBankHead + j) )->Refresh( );
+    /* TODO: use hooker to issue REFRESH?? */
+    for( ncounter_t i = 0; i < banksPerRefresh; i++ )
+        banks[refreshBankHead + i]->Refresh( );
 
     /*
      * simply treat the REFRESH as an ACTIVATE. For a finer refresh
      * granularity, the nextActivate does not block the other bank groups
      */
-    nextActivate = MAX( nextActivate, GetEventQueue()->GetCurrentCycle() + p->tRRDR );
+    nextActivate = MAX( nextActivate, GetEventQueue( )->GetCurrentCycle( ) 
+                                        + p->tRRDR );
+    FAWindex = (FAWindex + 1) % 4;
+    lastActivate[FAWindex] = (ncycles_t)GetEventQueue( )->GetCurrentCycle( );
+
     /*
      * since refresh must NOT be returned to memory controller, we can delete
      * it here
@@ -363,7 +396,7 @@ bool Rank::Refresh( NVMainRequest *request )
 ncycle_t Rank::GetNextActivate( uint64_t bank )
 {
     return MAX( 
-            MAX( nextActivate, devices[0].GetBank( bank )->GetNextActivate( ) ),
+            MAX( nextActivate, banks[bank]->GetNextActivate( ) ),
             MAX( lastActivate[FAWindex] + p->tRRDR, 
                 lastActivate[(FAWindex + 1)%4] + p->tFAW ) 
            );
@@ -371,33 +404,32 @@ ncycle_t Rank::GetNextActivate( uint64_t bank )
 
 ncycle_t Rank::GetNextRead( uint64_t bank )
 {
-    return MAX( nextRead, devices[0].GetBank( bank )->GetNextRead( ) );
+    return MAX( nextRead, banks[bank]->GetNextRead( ) );
 }
 
 ncycle_t Rank::GetNextWrite( uint64_t bank )
 {
-    return MAX( nextWrite, devices[0].GetBank( bank )->GetNextWrite( ) );
+    return MAX( nextWrite, banks[bank]->GetNextWrite( ) );
 }
 
 ncycle_t Rank::GetNextPrecharge( uint64_t bank )
 {
-    return MAX( nextPrecharge, devices[0].GetBank( bank )->GetNextPrecharge( ) );
+    return MAX( nextPrecharge, banks[bank]->GetNextPrecharge( ) );
 }
 
 ncycle_t Rank::GetNextRefresh( uint64_t bank )
 {
-    return devices[0].GetBank( bank )->GetNextRefresh( );
+    return banks[bank]->GetNextRefresh( );
 }
 
 bool Rank::IsIssuable( NVMainRequest *req, FailReason *reason )
 {
-    uint64_t opRank;
     uint64_t opBank;
     uint64_t opRow;
     uint64_t opCol;
     bool rv;
     
-    req->address.GetTranslatedAddress( &opRow, &opCol, &opBank, &opRank, NULL );
+    req->address.GetTranslatedAddress( &opRow, &opCol, &opBank, NULL, NULL );
 
     rv = true;
 
@@ -415,7 +447,7 @@ bool Rank::IsIssuable( NVMainRequest *req, FailReason *reason )
                 reason->reason = RANK_TIMING;
         }
         else
-            rv = devices[0].GetBank( opBank )->IsIssuable( req, reason );
+            rv = banks[opBank]->IsIssuable( req, reason );
 
         if( rv == false )
         {
@@ -441,10 +473,10 @@ bool Rank::IsIssuable( NVMainRequest *req, FailReason *reason )
             }
         }
     }
-    else if( req->type == READ )
+    else if( req->type == READ || req->type == READ_PRECHARGE )
     {
         if( nextRead > (GetEventQueue()->GetCurrentCycle()) 
-                || devices[0].GetBank( opBank )->WouldConflict( opRow ) )
+                || banks[opBank]->WouldConflict( opRow ) )
         {
             rv = false;
 
@@ -452,12 +484,12 @@ bool Rank::IsIssuable( NVMainRequest *req, FailReason *reason )
                 reason->reason = RANK_TIMING;
         }
         else
-            rv = devices[0].GetBank( opBank )->IsIssuable( req, reason );
+            rv = banks[opBank]->IsIssuable( req, reason );
     }
-    else if( req->type == WRITE )
+    else if( req->type == WRITE || req->type == WRITE_PRECHARGE )
     {
         if( nextWrite > (GetEventQueue()->GetCurrentCycle()) 
-                || devices[0].GetBank( opBank )->WouldConflict( opRow ) )
+                || banks[opBank]->WouldConflict( opRow ) )
         {
             rv = false;
 
@@ -465,9 +497,9 @@ bool Rank::IsIssuable( NVMainRequest *req, FailReason *reason )
                 reason->reason = RANK_TIMING;
         }
         else
-            rv = devices[0].GetBank( opBank )->IsIssuable( req, reason );
+            rv = banks[opBank]->IsIssuable( req, reason );
     }
-    else if( req->type == PRECHARGE )
+    else if( req->type == PRECHARGE || req->type == PRECHARGE_ALL )
     {
         if( nextPrecharge > (GetEventQueue()->GetCurrentCycle()) )
         {
@@ -477,37 +509,49 @@ bool Rank::IsIssuable( NVMainRequest *req, FailReason *reason )
                 reason->reason = RANK_TIMING;
         }
         else
-            rv = devices[0].GetBank( opBank )->IsIssuable( req, reason );
+            rv = banks[opBank]->IsIssuable( req, reason );
     }
     else if( req->type == POWERDOWN_PDA 
             || req->type == POWERDOWN_PDPF 
             || req->type == POWERDOWN_PDPS )
     {
-        rv = devices[0].CanPowerDown( req->type );
+        rv = CanPowerDown( req->type );
+
+        if( reason ) 
+            reason->reason = RANK_TIMING;
     }
     else if( req->type == POWERUP )
     {
-        rv = devices[0].CanPowerUp( opBank );
+        rv = CanPowerUp();
+
+        if( reason ) 
+            reason->reason = RANK_TIMING;
     }
     else if( req->type == REFRESH )
     {
         /* firstly, check whether REFRESH can be issued to a rank */
-        if( nextActivate > GetEventQueue()->GetCurrentCycle() )
+        if( nextActivate > GetEventQueue()->GetCurrentCycle() 
+            || ( lastActivate[FAWindex] + static_cast<ncycles_t>(p->tRRDR) 
+                > static_cast<ncycles_t>(GetEventQueue()->GetCurrentCycle()) )
+            || ( lastActivate[(FAWindex + 1)%4] + static_cast<ncycles_t>(p->tFAW) 
+                > static_cast<ncycles_t>(GetEventQueue()->GetCurrentCycle()) ) )
         {
             rv = false;
-            if( reason ) reason->reason = RANK_TIMING;
+            if( reason ) 
+                reason->reason = RANK_TIMING;
 
             return rv;
         }
 
         /* REFRESH can only be issued when all banks in the group are issuable */ 
         uint64_t refreshBankHead, refreshRank;
-        req->address.GetTranslatedAddress( NULL, NULL, &refreshBankHead, &refreshRank, NULL );
+        req->address.GetTranslatedAddress( NULL, NULL, &refreshBankHead, 
+                &refreshRank, NULL );
         assert( (refreshBankHead + banksPerRefresh) <= bankCount );
 
         for( ncounter_t i = 0; i < banksPerRefresh; i++ )
         {
-            rv = devices[0].GetBank( (refreshBankHead + i) )->IsIssuable( req, reason );
+            rv = banks[refreshBankHead + i]->IsIssuable( req, reason );
             if( rv == false )
                 return rv;
         }
@@ -547,14 +591,17 @@ bool Rank::IssueCommand( NVMainRequest *req )
                 break;
             
             case READ:
+            case READ_PRECHARGE:
                 rv = this->Read( req );
                 break;
             
             case WRITE:
+            case WRITE_PRECHARGE:
                 rv = this->Write( req );
                 break;
             
             case PRECHARGE:
+            case PRECHARGE_ALL:
                 rv = this->Precharge( req );
                 break;
 
@@ -583,26 +630,28 @@ bool Rank::IssueCommand( NVMainRequest *req )
 void Rank::Notify( OpType op )
 {
     /* We only care if other ranks are reading/writing (to avoid bus contention) */
-    if( op == READ )
+    if( op == READ || op == READ_PRECHARGE )
     {
-        nextRead = MAX( nextRead, 
-                GetEventQueue()->GetCurrentCycle() + p->tBURST + p->tRTRS );
+        nextRead = MAX( nextRead, GetEventQueue()->GetCurrentCycle() 
+                                    + p->tBURST + p->tRTRS );
 
-        nextWrite = MAX( nextWrite, 
-                GetEventQueue()->GetCurrentCycle() + p->tCAS + p->tBURST + p->tRTRS - p->tCWD);
+        nextWrite = MAX( nextWrite, GetEventQueue()->GetCurrentCycle() 
+                                    + p->tCAS + p->tBURST + p->tRTRS - p->tCWD);
     }
-    else if( op == WRITE )
+    else if( op == WRITE || op == WRITE_PRECHARGE )
     {
-        nextWrite = MAX( nextWrite, 
-                GetEventQueue()->GetCurrentCycle() + p->tBURST + p->tOST );
+        nextWrite = MAX( nextWrite, GetEventQueue()->GetCurrentCycle() 
+                                    + p->tBURST + p->tOST );
 
-        nextRead = MAX( nextRead, 
-                GetEventQueue()->GetCurrentCycle() + p->tBURST + p->tCWD + p->tRTRS - p->tCAS );
+        nextRead = MAX( nextRead, GetEventQueue()->GetCurrentCycle()
+                                    + p->tBURST + p->tCWD + p->tRTRS - p->tCAS );
     }
 }
 
-void Rank::Cycle( ncycle_t )
+void Rank::Cycle( ncycle_t steps )
 {
+    for( unsigned bankIdx = 0; bankIdx < bankCount; bankIdx++ )
+        banks[bankIdx]->Cycle( steps );
 }
 
 /*
@@ -622,11 +671,11 @@ void Rank::PrintStats( )
     writes = 0;
     for( ncounter_t i = 0; i < bankCount; i++ )
     {
-        totalEnergy += devices[0].GetBank( i )->GetEnergy( );
-        totalPower += devices[0].GetBank( i )->GetPower( );
+        totalEnergy += banks[i]->GetEnergy( );
+        totalPower += banks[i]->GetPower( );
 
-        reads += devices[0].GetBank( i )->GetReads( );
-        writes += devices[0].GetBank( i )->GetWrites( );
+        reads += banks[i]->GetReads( );
+        writes += banks[i]->GetWrites( );
     }
 
     totalEnergy *= (float)deviceCount;
@@ -656,7 +705,7 @@ void Rank::PrintStats( )
 
     for( ncounter_t i = 0; i < bankCount; i++ )
     {
-        devices[0].GetBank( i )->PrintStats( );
+        banks[i]->PrintStats( );
     }
 
     psInterval++;

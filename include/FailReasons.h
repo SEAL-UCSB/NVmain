@@ -40,6 +40,7 @@ enum FailReasons { UNKNOWN_FAILURE,
                    OPEN_REFRESH_WAITING,
                    CLOSED_REFRESH_WAITING,
                    REFRESH_OPEN_FAILURE,
+                   SUBARRAY_TIMING,
                    BANK_TIMING,
                    RANK_TIMING
                  };

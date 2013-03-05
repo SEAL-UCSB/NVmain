@@ -160,17 +160,10 @@ bool FRFCFS::RequestComplete( NVMainRequest * request )
         measuredQueueLatencies += 1;
     }
 
-    if( request->type == REFRESH )
-        ProcessRefreshPulse( request );
-    else if( request->owner == this )
-        delete request;
-    else
-        GetParent( )->RequestComplete( request );
-
-    return true;
+    return MemoryController::RequestComplete( request );
 }
 
-void FRFCFS::Cycle( ncycle_t )
+void FRFCFS::Cycle( ncycle_t steps )
 {
     NVMainRequest *nextRequest = NULL;
 
@@ -208,6 +201,8 @@ void FRFCFS::Cycle( ncycle_t )
 
     /* Issue any commands in the command queues. */
     CycleCommandQueues( );
+
+    MemoryController::Cycle( steps );
 }
 
 void FRFCFS::PrintStats( )

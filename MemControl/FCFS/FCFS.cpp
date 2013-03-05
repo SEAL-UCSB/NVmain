@@ -155,7 +155,7 @@ bool FCFS::IssueCommand( NVMainRequest *req )
     return true;
 }
 
-void FCFS::Cycle( ncycle_t )
+void FCFS::Cycle( ncycle_t steps )
 {
     NVMainRequest *nextReq = NULL;
 
@@ -172,6 +172,8 @@ void FCFS::Cycle( ncycle_t )
     }
 
     CycleCommandQueues( );
+
+    MemoryController::Cycle( steps );
 }
 
 void FCFS::PrintStats( )

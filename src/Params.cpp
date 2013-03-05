@@ -157,12 +157,13 @@ void Params::SetParams( Config *c )
     tRDPDEN = c->GetValue( "tRDPDEN" );
     tWRPDEN = c->GetValue( "tWRPDEN" );
     tWRAPDEN = c->GetValue( "tWRAPDEN" );
-    ClosePage = ( c->GetString( "ClosePage" ) == "true" );
+    ClosePage = c->GetValue( "ClosePage" );
     ScheduleScheme = c->GetValue ( "ScheduleScheme" );
     HighWaterMark = c->GetValue ( "HighWaterMark" );
     LowWaterMark = c->GetValue ( "LowWaterMark" );
     BanksPerRefresh = c->GetValue ( "BanksPerRefresh" );
     DelayedRefreshThreshold = c->GetValue ( "DelayedRefreshThreshold" );
     AddressMappingScheme = c->GetString ( "AddressMappingScheme" );
+    SALP = c->GetValue( "SALP" );
 }
 
