@@ -163,8 +163,6 @@ class SubArray : public NVMObject
     int subArrayId;
  
     Params *p;
-
-    void IssueImplicit( );
 };
 
 };

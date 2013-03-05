@@ -181,8 +181,6 @@ class Bank : public NVMObject
     int bankId;
  
     Params *p;
-
-    void IssueImplicit( );
 };
 
 };
