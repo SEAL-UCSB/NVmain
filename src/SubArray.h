@@ -49,7 +49,7 @@
 namespace NVM {
 
 /*
- *  We only use four subarray states because we use distributed timing control
+ *  We only use three subarray states because we use distributed timing control
  *  No PowerDown state is implemented since it does not make sense to apply 
  *  PowerDown to a subarray. As a result, PowerDown is management by Bank
  *

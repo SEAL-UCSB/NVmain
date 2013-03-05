@@ -52,8 +52,12 @@
 namespace NVM {
 
 /*
- *  We only use three bank states because our timing and energy parameters
+ *  We only use six bank states because our timing and energy parameters
  *  only tell us the delay of the entire read/write cycle to one bank.
+ *  Even though all banks should be powered down in lockstep, we use three
+ *  bank states to indicate different PowerDown modes. In addition, as all
+ *  banks are powered up, some banks may be active directly according to
+ *  different PowerDown states.
  *
  *  In the case of non-volatile memory, consecutive reads and writes do
  *  not need to consider the case when reads occur before tRAS, since
@@ -95,8 +99,8 @@ class Bank : public NVMObject
     bool Idle( );
     ncycle_t GetDataCycles( ) { return dataCycles; }
     void CalculatePower( );
-    float GetPower( );
-    float GetEnergy( ) { return bankEnergy; }
+    float GetPower( ); 
+    float GetEnergy( ); 
     ncounter_t GetReads( ) { return reads; }
     ncounter_t GetWrites( ) { return writes; }
 
