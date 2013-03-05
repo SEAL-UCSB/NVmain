@@ -723,6 +723,9 @@ void SubArray::CalculatePower( )
         return;
     }
 
+    // TODO: Move this somewhere else in case we need other variables
+    backgroundEnergy = p->Eleak * simulationTime;
+
     backgroundPower = 
         ((backgroundEnergy / (float)GetEventQueue()->GetCurrentCycle()) 
         * p->Voltage) / 1000.0f;
