@@ -910,15 +910,18 @@ BankState Bank::GetState( )
     return state;
 }
 
-float Bank::GetPower( )
-{
-    return bankPower;
-}
-
 void Bank::CalculatePower( )
 {
     float saPower, bgPower, actPower, bstPower, refPower;
     float saEnergy, bgEnergy, actEnergy, bstEnergy, refEnergy;
+    
+    /* first reset all counters so that it does not cumulate */
+    bankEnergy = backgroundEnergy = activeEnergy = burstEnergy = refreshEnergy 
+               = 0.0f;
+
+    bankPower = backgroundPower = activePower = burstPower = refreshPower 
+              = 0.0f;
+
     for( unsigned saIdx = 0; saIdx < subArrayNum; saIdx++ )
     {
         subArrays[saIdx]->GetEnergy( saEnergy, bgEnergy, actEnergy, bstEnergy,
@@ -939,6 +942,20 @@ void Bank::CalculatePower( )
         burstPower += bstPower;
         refreshPower += refreshPower;
     }
+}
+
+float Bank::GetPower( )
+{
+    CalculatePower( );
+
+    return bankPower;
+}
+
+float Bank::GetEnergy( )
+{
+    CalculatePower( );
+
+    return bankEnergy;
 }
 
 void Bank::SetName( std::string )
