@@ -141,13 +141,14 @@ class Params
     ncycle_t tRDPDEN; // interval between Read/ReadA and PowerDown
     ncycle_t tWRPDEN; // interval between Write and PowerDown
     ncycle_t tWRAPDEN; // interval between WriteA and PowerDown
-    bool ClosePage; // enable close-page management policy
+    ncycle_t ClosePage; // enable close-page management policy
     unsigned ScheduleScheme; // command scheduling policy 
     unsigned HighWaterMark; // write drain high watermark
     unsigned LowWaterMark; // write drain low watermark
     unsigned BanksPerRefresh; // the number of banks in a refresh (in lockstep)
     unsigned DelayedRefreshThreshold; // the threshold that indicates how many refresh can be delayed
     std::string AddressMappingScheme; // the address mapping scheme
+    ncycle_t SALP; // subarray-level parallelism
 };
 
 };

@@ -40,6 +40,7 @@
 #include "MemControl/LH-Cache/LH-Cache.h"
 #include "MemControl/LO-Cache/LO-Cache.h"
 #include "MemControl/PredictorDRC/PredictorDRC.h"
+#include "MemControl/SegmentDRAM/SegmentDRAM.h"
 
 #include <iostream>
 
@@ -69,6 +70,9 @@ MemoryController *MemoryControllerFactory::CreateNewController( std::string cont
         memoryController = new LO_Cache( memory, translator );
     else if( controller == "PredictorDRC" )
         memoryController = new PredictorDRC( memory, translator );
+    /* added by Tao @ 02/24/2013, custom memory controller */
+    else if( controller == "SegmentDRAM" )
+        memoryController = new SegmentDRAM( memory, translator );
 
     if( memoryController == NULL )
         std::cout << "NVMain: Unknown memory controller `" 

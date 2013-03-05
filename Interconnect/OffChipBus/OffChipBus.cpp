@@ -214,8 +214,10 @@ void OffChipBus::PrintStats( )
     }
 }
 
-void OffChipBus::Cycle( ncycle_t )
+void OffChipBus::Cycle( ncycle_t steps )
 {
+    for( unsigned rankIdx = 0; rankIdx < numRanks; rankIdx++ )
+        ranks[rankIdx]->Cycle( steps );
 }
 
 float OffChipBus::CalculateIOPower( bool isRead, unsigned int bitValue )

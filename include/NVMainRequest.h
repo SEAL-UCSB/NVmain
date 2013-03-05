@@ -43,42 +43,71 @@
 namespace NVM {
 
 
-enum OpType { NOP = 0, ACTIVATE, READ, WRITE, PRECHARGE, POWERDOWN_PDA, 
-             POWERDOWN_PDPF, POWERDOWN_PDPS, POWERUP, REFRESH, BUS_READ, BUS_WRITE };
+enum OpType 
+{ 
+    NOP = 0,        /* No Operation */
+    ACTIVATE,       /* a.k.a. RAS */
+    READ,           /* a.k.a. CAS-R */ 
+    READ_PRECHARGE, /* CAS-R with implicit PRECHARGE */ 
+    WRITE,          /* a.k.a. CAS-W */  
+    WRITE_PRECHARGE,/* CAS-W with implicit PRECHARGE */ 
+    PRECHARGE,      /* PRECHARGE */
+    PRECHARGE_ALL,  /* PRECHARGE all sub-arrays */
+    POWERDOWN_PDA,  /* Active PowerDown */
+    POWERDOWN_PDPF, /* Standby PowerDown with Fast Exit */
+    POWERDOWN_PDPS, /* Standby PowerDown with Slow Exit */
+    POWERUP,        /* PowerUp */
+    REFRESH,        /* Refresh */
+    BUS_READ,       /* Data bus read burst */
+    BUS_WRITE       /* Data bus write burst */ 
+};
 
-enum MemRequestStatus { MEM_REQUEST_INCOMPLETE, MEM_REQUEST_COMPLETE, 
-                        MEM_REQUEST_RETRY, MEM_REQUEST_NUM };
+enum MemRequestStatus 
+{ 
+    MEM_REQUEST_INCOMPLETE, /* Incomplete request */
+    MEM_REQUEST_COMPLETE,   /* finished request */
+    MEM_REQUEST_RETRY,      /* request that retried */
+    MEM_REQUEST_NUM 
+};      
 
-enum NVMAccessType { UNKNOWN_ACCESS, SUPERVISOR_ACCESS, USER_ACCESS };
+enum NVMAccessType 
+{ 
+    UNKNOWN_ACCESS,     /* Undefined access right */
+    SUPERVISOR_ACCESS,  /* Kernel access right */
+    USER_ACCESS         /* User access right */
+};
 
-enum BulkCommand { CMD_NOP = 0, 
-		   CMD_PRE,
-		   CMD_READPRE,
-		   CMD_READ2PRE,
-		   CMD_READ3PRE,
-		   CMD_READ4PRE,
-		   CMD_WRITEPRE,
-		   CMD_WRITE2PRE,
-		   CMD_WRITE3PRE,
-		   CMD_WRITE4PRE,
-		   CMD_ACTREADPRE, // 10
-		   CMD_ACTREAD2PRE,
-		   CMD_ACTREAD3PRE,
-		   CMD_ACTREAD4PRE,
-		   CMD_ACTWRITEPRE,
-		   CMD_ACTWRITE2PRE,
-		   CMD_ACTWRITE3PRE,
-		   CMD_ACTWRITE4PRE,
-		   CMD_PU_ACT_READ_PRE_PDPF,
-		   CMD_PU_ACT_WRITE_PRE_PDPF,
-		   CMD_ACT_READ_PRE_PDPF, // 20
-		   CMD_ACT_WRITE_PRE_PDPF,
-		   CMD_READ_PRE_PDPF,
-		   CMD_WRITE_PRE_PDPF,
-		   CMD_PRE_PDPF,
-		   CMD_PDPF,
-		   CMD_PU_ACT_READ_PRE,
-		   CMD_PU_ACT_WRITE_PRE,
+enum BulkCommand 
+{ 
+    /* TODO: do we still need this */
+    CMD_NOP = 0, 
+    CMD_PRE,
+    CMD_READPRE,
+    CMD_READ2PRE,
+    CMD_READ3PRE,
+    CMD_READ4PRE,
+    CMD_WRITEPRE,
+    CMD_WRITE2PRE,
+    CMD_WRITE3PRE,
+    CMD_WRITE4PRE,
+    CMD_ACTREADPRE, // 10
+    CMD_ACTREAD2PRE,
+    CMD_ACTREAD3PRE,
+    CMD_ACTREAD4PRE,
+    CMD_ACTWRITEPRE,
+    CMD_ACTWRITE2PRE,
+    CMD_ACTWRITE3PRE,
+    CMD_ACTWRITE4PRE,
+    CMD_PU_ACT_READ_PRE_PDPF,
+    CMD_PU_ACT_WRITE_PRE_PDPF,
+    CMD_ACT_READ_PRE_PDPF, // 20
+    CMD_ACT_WRITE_PRE_PDPF,
+    CMD_READ_PRE_PDPF,
+    CMD_WRITE_PRE_PDPF,
+    CMD_PRE_PDPF,
+    CMD_PDPF,
+    CMD_PU_ACT_READ_PRE,
+    CMD_PU_ACT_WRITE_PRE,
 };
 
 class NVMObject;

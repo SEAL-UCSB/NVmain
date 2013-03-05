@@ -40,7 +40,8 @@
 
 namespace NVM {
 
-typedef enum { NO_FIELD, ROW_FIELD, COL_FIELD, BANK_FIELD, RANK_FIELD, CHANNEL_FIELD } TranslationField;
+typedef enum { NO_FIELD, ROW_FIELD, COL_FIELD, BANK_FIELD, 
+                RANK_FIELD, CHANNEL_FIELD } TranslationField;
 
 class AddressTranslator
 {

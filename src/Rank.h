@@ -39,7 +39,7 @@
 #include <stdint.h>
 #include <list>
 #include "src/Bank.h"
-#include "src/Device.h"
+//#include "src/Device.h"
 #include "src/Params.h"
 #include "src/NVMObject.h"
 #include <iostream>
@@ -71,15 +71,13 @@ class Rank : public NVMObject
 
     void Cycle( ncycle_t steps );
 
-    Device *GetDevice( uint64_t device ) { return &(devices[device]); }
-
   private:
     Config *conf;
     ncounter_t stateTimeout;
     std::string statName;
     uint64_t psInterval;
 
-    Device *devices;
+    Bank **banks;
     ncounter_t bankCount;
     ncounter_t deviceWidth;
     ncounter_t deviceCount;
@@ -107,8 +105,10 @@ class Rank : public NVMObject
     bool Write( NVMainRequest *request );
     bool Precharge( NVMainRequest *request );
     bool Refresh( NVMainRequest *request );
-
+    bool PowerDown( NVMainRequest *request );
     bool PowerUp( NVMainRequest *request );
+    bool CanPowerDown( OpType pdOp );
+    bool CanPowerUp();
 
     Params *p;
 };
