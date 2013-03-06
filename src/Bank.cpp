@@ -339,7 +339,7 @@ bool Bank::Activate( NVMainRequest *request )
             if( success == true )
             {
                 activeSubArray.pop_back( );
-                precharges++;
+                //precharges++;
             }
             else
             {
@@ -591,7 +591,7 @@ bool Bank::Precharge( NVMainRequest *request )
 
     if( p->SALP == 0 || p->SALP == 1 ) 
     {
-        assert( activeSubArray.size() == 1 );
+        assert( activeSubArray.size() <= 1 );
 
         ncounter_t openedSubArray = activeSubArray.front( );
 
