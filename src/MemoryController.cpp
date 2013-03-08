@@ -1017,11 +1017,13 @@ bool MemoryController::IssueMemoryCommands( NVMainRequest *req )
         /* Any activate will request the starvation counter */
         starvationCounter[rank][bank] = 0;
         activateQueued[rank][bank] = true;
-        effectiveRow[rank][bank] = row;
 
         req->issueCycle = GetEventQueue()->GetCurrentCycle();
 
-        bankQueues[rank][bank].push_back( MakePrechargeRequest( req ) );
+        bankQueues[rank][bank].push_back( 
+                MakePrechargeRequest( effectiveRow[rank][bank], 0, bank, rank ) );
+
+        effectiveRow[rank][bank] = row;
         bankQueues[rank][bank].push_back( MakeActivateRequest( req ) );
         bankQueues[rank][bank].push_back( req );
 

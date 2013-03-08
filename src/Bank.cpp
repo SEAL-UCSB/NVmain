@@ -278,6 +278,8 @@ bool Bank::Activate( NVMainRequest *request )
 
     request->address.GetTranslatedAddress( &activateRow, NULL, NULL, NULL, NULL );
 
+    ncounter_t activateSubArray = activateRow / MATHeight;
+
     /* TODO: Can we remove this sanity check and totally trust IsIssuable()? */
     /* sanity check */
     if( nextActivate > GetEventQueue()->GetCurrentCycle() )
@@ -292,15 +294,15 @@ bool Bank::Activate( NVMainRequest *request )
          * if subarray-level parallelism is disabled, just update the time
          * constraint like a subarray does
          */
-        if( p->SALP == 0 )
+        if( ( p->SALP == 0 )
+            || ( p->SALP == 1 && activeSubArray.empty( ) ) 
+            || ( p->SALP == 1 && activateSubArray != activeSubArray.front( ) ) )
         {
             std::cerr << "NVMain Error: try to open a bank that is not idle!"
                 << std::endl;
             return false;
         }
     }
-
-    ncounter_t activateSubArray = activateRow / MATHeight;
 
     /* update the timing constraints */
     if( p->SALP == 0 || p-> SALP == 1 )
@@ -328,7 +330,7 @@ bool Bank::Activate( NVMainRequest *request )
         assert( activeSubArray.size() <= 1 );
 
         /* if there is already a open row, close it */
-        if( activeSubArray.empty() == false )
+        if( activeSubArray.empty( ) == false )
         {
             ncounter_t openedSubArray = activeSubArray.front( );
             NVMainRequest* dummyPrecharge = new NVMainRequest;
@@ -779,6 +781,7 @@ bool Bank::IsIssuable( NVMainRequest *req, FailReason *reason )
       
     if( req->type == ACTIVATE )
     {
+        /* if the bank-level nextActive is not satisfied, cannot issue */
         if( nextActivate > (GetEventQueue()->GetCurrentCycle()) )
         {
             rv = false;
@@ -788,14 +791,34 @@ bool Bank::IsIssuable( NVMainRequest *req, FailReason *reason )
             actWaits++;
             actWaitTime += nextActivate - (GetEventQueue()->GetCurrentCycle());
         }
-        else if( p->SALP == 1 && activeSubArray.empty() == false )
+        /* 
+         * else, if SALP = 0 and the bank is not idle, cannot issue 
+         * or, if SALP = 1, no active subarrays and the bank is not idle,
+         * cannot issue
+         */
+        else if( ( p->SALP == 0 && state != BANK_CLOSED )
+            || ( p->SALP == 1 && activeSubArray.empty( ) && state != BANK_CLOSED ) )
+        {
+            rv = false;
+            if( reason )
+                reason->reason = BANK_TIMING;
+        }
+        /* 
+         * else, if SALP = 1 and there is a active subarray, check whether the
+         * coming activation references to the same subarray. if so, cannot
+         * issue
+         */
+        else if( p->SALP == 1 && activeSubArray.empty( ) == false )
         {
             ncounter_t openedSubArray = activeSubArray.front( );
             if( openedSubArray == opSubArray )
+            {
                 rv = false;
-            else 
-                rv = subArrays[opSubArray]->IsIssuable( req, reason );
+                if( reason )
+                    reason->reason = BANK_TIMING;
+            }
         }
+        /* finally, see whether the command can be accepted by subarray */
         else
             rv = subArrays[opSubArray]->IsIssuable( req, reason );
     }
