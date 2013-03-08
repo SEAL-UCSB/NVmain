@@ -48,6 +48,8 @@
 #include <iostream>
 #include <list>
 
+#define NVM_LASTREQUEST 999
+
 namespace NVM {
 
 enum ProcessorOp { LOAD, STORE };
@@ -58,7 +60,7 @@ class SchedulingPredicate
     SchedulingPredicate( ) { }
     ~SchedulingPredicate( ) { }
 
-    virtual bool operator() (uint64_t, uint64_t) { return true; }
+    virtual bool operator() (uint64_t, uint64_t, uint64_t) { return true; }
 };
 
 
@@ -74,9 +76,9 @@ class ComplementPredicate : public SchedulingPredicate
     explicit ComplementPredicate( SchedulingPredicate *_pred ) : pred(_pred) { }
     ~ComplementPredicate( ) { }
 
-    bool operator() (uint64_t bank, uint64_t rank)
+    bool operator() (uint64_t row, uint64_t bank, uint64_t rank)
     {
-        return !( (*pred)( bank, rank ) );
+        return !( (*pred)( row, bank, rank ) );
     }
 };
 
@@ -130,10 +132,17 @@ class MemoryController : public NVMObject
     unsigned int starvationThreshold;
 
     NVMainRequest *MakeActivateRequest( NVMainRequest *triggerRequest );
+    NVMainRequest *MakeActivateRequest( const uint64_t, const uint64_t, 
+                                        const uint64_t, const uint64_t );
     NVMainRequest *MakeImplicitPrechargeRequest( NVMainRequest *triggerRequest );
     NVMainRequest *MakePrechargeRequest( NVMainRequest *triggerRequest );
+    NVMainRequest *MakePrechargeRequest( const uint64_t, const uint64_t, 
+                                         const uint64_t, const uint64_t );
     NVMainRequest *MakePrechargeAllRequest( NVMainRequest *triggerRequest );
-    NVMainRequest *MakeRefreshRequest( );
+    NVMainRequest *MakePrechargeAllRequest( const uint64_t, const uint64_t, 
+                                            const uint64_t, const uint64_t );
+    NVMainRequest *MakeRefreshRequest( const uint64_t, const uint64_t, 
+                                       const uint64_t, const uint64_t );
 
     bool FindStarvedRequest( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **starvedRequest );
     bool FindRowBufferHit( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **hitRequest );
@@ -196,7 +205,7 @@ class MemoryController : public NVMObject
     class DummyPredicate : public SchedulingPredicate
     {
       public:
-        bool operator() (uint64_t, uint64_t);
+        bool operator() (uint64_t, uint64_t, uint64_t);
     };
 
     unsigned int id;
