@@ -63,7 +63,7 @@ Bank::Bank( )
 
     subArrays = NULL;
     subArrayNum = 0;
-    activeSubArray.clear();
+    activeSubArrayQueue.clear();
 
     /* a MAT is 512x512 by default */
     MATWidth = 512;
@@ -236,15 +236,23 @@ bool Bank::PowerUp()
             && ( state == BANK_PDPF || state == BANK_PDPS || state == BANK_PDA ) )
     {
         /* Update timing constraints */
-        nextPowerDown = MAX( nextPowerDown, GetEventQueue()->GetCurrentCycle() + p->tXP );
-        nextActivate = MAX( nextActivate, GetEventQueue()->GetCurrentCycle() + p->tXP );
-        nextPrecharge = MAX( nextPrecharge, GetEventQueue()->GetCurrentCycle() + p->tXP );
-        nextWrite = MAX( nextWrite, GetEventQueue()->GetCurrentCycle() + p->tXP );
+        nextPowerDown = MAX( nextPowerDown, 
+                             GetEventQueue()->GetCurrentCycle() + p->tXP );
+
+        nextActivate = MAX( nextActivate, 
+                            GetEventQueue()->GetCurrentCycle() + p->tXP );
+
+        nextPrecharge = MAX( nextPrecharge, 
+                             GetEventQueue()->GetCurrentCycle() + p->tXP );
+        nextWrite = MAX( nextWrite, 
+                         GetEventQueue()->GetCurrentCycle() + p->tXP );
 
         if( state == BANK_PDPS )
-            nextRead = MAX( nextRead, GetEventQueue()->GetCurrentCycle() + p->tXPDLL );
+            nextRead = MAX( nextRead, 
+                            GetEventQueue()->GetCurrentCycle() + p->tXPDLL );
         else
-            nextRead = MAX( nextRead, GetEventQueue()->GetCurrentCycle() + p->tXP );
+            nextRead = MAX( nextRead, 
+                            GetEventQueue()->GetCurrentCycle() + p->tXP );
 
         /*
          *  While technically the bank is being "powered up" we will just reset
@@ -295,8 +303,9 @@ bool Bank::Activate( NVMainRequest *request )
          * constraint like a subarray does
          */
         if( ( p->SALP == 0 )
-            || ( p->SALP == 1 && activeSubArray.empty( ) ) 
-            || ( p->SALP == 1 && activateSubArray != activeSubArray.front( ) ) )
+            || ( p->SALP == 1 && activeSubArrayQueue.empty( ) ) 
+            || ( p->SALP == 1 
+                && activateSubArray == activeSubArrayQueue.front( ) ) )
         {
             std::cerr << "NVMain Error: try to open a bank that is not idle!"
                 << std::endl;
@@ -307,58 +316,37 @@ bool Bank::Activate( NVMainRequest *request )
     /* update the timing constraints */
     if( p->SALP == 0 || p-> SALP == 1 )
     {
-        nextActivate = MAX( nextActivate, GetEventQueue()->GetCurrentCycle() 
-                                            + MAX( p->tRCD, p->tRAS ) );
+        nextActivate = MAX( nextActivate, 
+                            GetEventQueue()->GetCurrentCycle() 
+                                + MAX( p->tRCD, p->tRAS ) );
 
-        nextPrecharge = MAX( nextPrecharge, GetEventQueue()->GetCurrentCycle() 
-                                            + MAX( p->tRCD, p->tRAS ) );
+        nextPrecharge = MAX( nextPrecharge, 
+                             GetEventQueue()->GetCurrentCycle() 
+                                 + MAX( p->tRCD, p->tRAS ) );
 
-        nextRead = MAX( nextRead, GetEventQueue()->GetCurrentCycle() 
-                                    + p->tRCD - p->tAL );
+        nextRead = MAX( nextRead, 
+                        GetEventQueue()->GetCurrentCycle() 
+                            + p->tRCD - p->tAL );
 
-        nextWrite = MAX( nextWrite, GetEventQueue()->GetCurrentCycle() 
-                                    + p->tRCD - p->tAL );
+        nextWrite = MAX( nextWrite, 
+                         GetEventQueue()->GetCurrentCycle() 
+                             + p->tRCD - p->tAL );
     }
 
-    nextPowerDown = MAX( nextPowerDown, GetEventQueue()->GetCurrentCycle() + p->tRCD );
+    nextPowerDown = MAX( nextPowerDown, 
+                         GetEventQueue()->GetCurrentCycle() + p->tRCD );
 
     if( p->SALP == 0 )
-        assert( activeSubArray.empty() );
+        assert( activeSubArrayQueue.empty() );
 
-    if( p->SALP == 1 )
-    {
-        assert( activeSubArray.size() <= 1 );
-
-        /* if there is already a open row, close it */
-        if( activeSubArray.empty( ) == false )
-        {
-            ncounter_t openedSubArray = activeSubArray.front( );
-            NVMainRequest* dummyPrecharge = new NVMainRequest;
-            dummyPrecharge->type = PRECHARGE;
-            dummyPrecharge->owner = this;
-            bool success = subArrays[openedSubArray]->IssueCommand( dummyPrecharge );
-
-            if( success )
-            {
-                activeSubArray.pop_back( );
-                //precharges++;
-            }
-            else
-            {
-                std::cerr << "NVMain Error: bank " << bankId << " try to close a subarray "
-                    << "that cannot be closed!" << std::endl;
-                return false;
-            }
-        }
-    }
-        
     /* bank-level update */
     openRow = activateRow;
     state = BANK_OPEN;
 
     /* issue ACTIVATE to the target subarray */
     subArrays[activateSubArray]->IssueCommand( request );
-    activeSubArray.push_back( activateSubArray );
+
+    activeSubArrayQueue.push_back( activateSubArray );
             
     activates++;
 
@@ -408,28 +396,31 @@ bool Bank::Read( NVMainRequest *request )
             nextRead = MAX( nextRead, GetEventQueue()->GetCurrentCycle() 
                                         + MAX( p->tBURST, p->tCCD ) );
 
-            nextWrite = MAX( nextWrite, GetEventQueue()->GetCurrentCycle() 
-                                        + p->tCAS + p->tBURST + p->tRTRS - p->tCWD );
+            nextWrite = MAX( nextWrite, 
+                             GetEventQueue()->GetCurrentCycle() 
+                                + p->tCAS + p->tBURST + p->tRTRS - p->tCWD );
 
-            nextPowerDown = MAX( nextPowerDown, GetEventQueue()->GetCurrentCycle() 
-                                                + p->tRDPDEN );
+            nextPowerDown = MAX( nextPowerDown, 
+                                 GetEventQueue()->GetCurrentCycle() 
+                                     + p->tRDPDEN );
         }
 
         precharges++;
 
-        /* update the activeSubArray list */
-        std::list<ncounter_t>::iterator it;
-        for( it = activeSubArray.begin(); it != activeSubArray.end(); ++it )
+        /* update the activeSubArrayQueue list */
+        std::deque<ncounter_t>::iterator it;
+        for( it = activeSubArrayQueue.begin(); 
+                it != activeSubArrayQueue.end(); ++it )
         {
             if( (*it) == opSubArray )
             {
                 /* delete the item in the active subarray list */
-                activeSubArray.erase( it );
+                activeSubArrayQueue.erase( it );
                 break;
             }
         }
 
-        if( activeSubArray.empty() )
+        if( activeSubArrayQueue.empty() )
             state = BANK_CLOSED;
     }
     else
@@ -514,19 +505,20 @@ bool Bank::Write( NVMainRequest *request )
 
         precharges++;
 
-        /* update the activeSubArray list */
-        std::list<ncounter_t>::iterator it;
-        for( it = activeSubArray.begin(); it != activeSubArray.end(); ++it )
+        /* update the activeSubArrayQueue list */
+        std::deque<ncounter_t>::iterator it;
+        for( it = activeSubArrayQueue.begin(); 
+                it != activeSubArrayQueue.end(); ++it )
         {
             if( (*it) == opSubArray )
             {
                 /* delete the item in the active subarray list */
-                activeSubArray.erase( it );
+                activeSubArrayQueue.erase( it );
                 break;
             }
         }
 
-        if( activeSubArray.empty() )
+        if( activeSubArrayQueue.empty() )
             state = BANK_CLOSED;
     }
     /* else, no implicit precharge is enabled, simply update the timing */
@@ -597,24 +589,24 @@ bool Bank::Precharge( NVMainRequest *request )
     nextPowerDown = MAX( nextPowerDown, GetEventQueue()->GetCurrentCycle() 
                                         + p->tRP );
 
-    if( p->SALP == 0 || p->SALP == 1 ) 
+    if( p->SALP == 0 ) 
     {
 
         /* PRECHARGE or PRECHARGE_ALL is the same when SALP = 0/1 */
-        assert( activeSubArray.size() <= 1 );
+        assert( activeSubArrayQueue.size() <= 1 );
 
         /* issue PRECHARGE/PRECHARGE_ALL to the subarray */
         bool success = subArrays[preSubArray]->IssueCommand( request );
         if( success )
         {
-            if( activeSubArray.empty( ) == false 
-                    && preSubArray == activeSubArray.front( ) )
+            if( activeSubArrayQueue.empty( ) == false 
+                    && preSubArray == activeSubArrayQueue.front( ) )
             {
                 /* erase the subarray from active list */
-                activeSubArray.pop_back( );
+                activeSubArrayQueue.pop_front( );
 
                 /* there should be no active subarray in the list */
-                assert( activeSubArray.empty( ) );
+                assert( activeSubArrayQueue.empty( ) );
 
                 /* bank is closed */
                 state = BANK_CLOSED;
@@ -626,38 +618,25 @@ bool Bank::Precharge( NVMainRequest *request )
                 << "precharge the subarray " << preSubArray << std::endl;
             return false;
         }
-    } // if( p->SALP == 0 || p->SALP == 1 )
+    } // if( p->SALP == 0 )
     else 
     {
-        if( request->type == PRECHARGE_ALL )
+        if( p->SALP == 1 || request->type == PRECHARGE_ALL )
         {
-            if( activeSubArray.empty( ) == false )
+            if( activeSubArrayQueue.empty( ) == false )
             {
-                NVMainRequest* copyPrecharge = new NVMainRequest;
-                (*copyPrecharge) = (*request);
-
-                bool foundActive = false;
                 /* close all subarrays */
-                while( activeSubArray.empty( ) == false )
+                while( activeSubArrayQueue.size( ) > 1 )
                 {
                     bool success;
-                    ncounter_t openedSubArray = activeSubArray.front( );
-                    activeSubArray.pop_front( );
+                    ncounter_t openedSubArray = activeSubArrayQueue.front( );
+                    activeSubArrayQueue.pop_front( );
 
-                    if( openedSubArray == preSubArray )
-                    {
-                        success = 
-                            subArrays[openedSubArray]->IssueCommand( request ); 
-                        foundActive = true;
-                    }
-                    else
-                    {
-                        NVMainRequest* dummyPrecharge = new NVMainRequest;
-                        (*dummyPrecharge) = (*copyPrecharge);
-                        dummyPrecharge->owner = this;
-                        success = 
-                            subArrays[openedSubArray]->IssueCommand( dummyPrecharge ); 
-                    }
+                    NVMainRequest* dummyPrecharge = new NVMainRequest;
+                    (*dummyPrecharge) = (*request);
+                    dummyPrecharge->owner = this;
+                    success = 
+                        subArrays[openedSubArray]->IssueCommand( dummyPrecharge ); 
 
                     if( success == false )
                     {
@@ -665,15 +644,27 @@ bool Bank::Precharge( NVMainRequest *request )
                             << "precharge the subarray " << openedSubArray << std::endl;
                         return false;
                     }
+
                 }
 
-                delete copyPrecharge;
+                bool success;
+                ncounter_t openedSubArray = activeSubArrayQueue.front( );
+                activeSubArrayQueue.pop_front( );
+                success = 
+                    subArrays[openedSubArray]->IssueCommand( request ); 
 
-                assert( foundActive );
+                if( success == false )
+                {
+                    std::cerr << "NVMain Error: Bank " << bankId << " failed to "
+                        << "issue " << request->type << " to subarray" 
+                        << openedSubArray << std::endl;
+                    return false;
+                }
 
+                assert( activeSubArrayQueue.empty( ) );
                 /* bank is closed */
                 state = BANK_CLOSED;
-            } // if( activeSubArray.empty( ) == false )
+            } // if( activeSubArrayQueue.empty( ) == false )
             else
                 state = BANK_CLOSED;
         } // if( request->type == PRECHARGE_ALL )
@@ -685,32 +676,34 @@ bool Bank::Precharge( NVMainRequest *request )
             if( success )
             {
                 /* if there are any active subarrays */
-                if( activeSubArray.empty( ) == false )
+                if( activeSubArrayQueue.empty( ) == false )
                 {
-                    std::list<ncounter_t>::iterator it;
+                    std::deque<ncounter_t>::iterator it;
 
                     /* erase the subarray from the active list */
-                    for( it = activeSubArray.begin(); it != activeSubArray.end(); ++it )
+                    for( it = activeSubArrayQueue.begin(); 
+                            it != activeSubArrayQueue.end(); ++it )
                     {
                         if( (*it) == preSubArray )
                         {
                             /* delete the item in the active subarray list */
-                            activeSubArray.erase( it );
+                            activeSubArrayQueue.erase( it );
                             break;
                         }
                     }
 
                     /* if all subarrays are idle, the bank is closed */
-                    if( activeSubArray.empty( ) )
+                    if( activeSubArrayQueue.empty( ) )
                         state = BANK_CLOSED;
-                } // if( activeSubArray.empty( ) == false )
+                } // if( activeSubArrayQueue.empty( ) == false )
                 else
                     state = BANK_CLOSED;
             }
             else
             {
                 std::cerr << "NVMain Error: Bank " << bankId << " failed to "
-                    << "precharge the subarray " << preSubArray << std::endl;
+                    << "precharge the subarray " << preSubArray 
+                    << " by command " << request->type << std::endl;
                 return false;
             }
         } // if( request->type == PRECHARGE )
@@ -797,7 +790,8 @@ bool Bank::IsIssuable( NVMainRequest *req, FailReason *reason )
          * cannot issue
          */
         else if( ( p->SALP == 0 && state != BANK_CLOSED )
-            || ( p->SALP == 1 && activeSubArray.empty( ) && state != BANK_CLOSED ) )
+                    || ( p->SALP == 1 && activeSubArrayQueue.empty( ) 
+                            && state != BANK_CLOSED ) )
         {
             rv = false;
             if( reason )
@@ -808,9 +802,9 @@ bool Bank::IsIssuable( NVMainRequest *req, FailReason *reason )
          * coming activation references to the same subarray. if so, cannot
          * issue
          */
-        else if( p->SALP == 1 && activeSubArray.empty( ) == false )
+        else if( p->SALP == 1 && activeSubArrayQueue.empty( ) == false )
         {
-            ncounter_t openedSubArray = activeSubArray.front( );
+            ncounter_t openedSubArray = activeSubArrayQueue.front( );
             if( openedSubArray == opSubArray )
             {
                 rv = false;
@@ -858,9 +852,10 @@ bool Bank::IsIssuable( NVMainRequest *req, FailReason *reason )
         else
             if( req->type == PRECHARGE_ALL )
             {
-                std::list<ncounter_t>::iterator it;
+                std::deque<ncounter_t>::iterator it;
 
-                for( it = activeSubArray.begin(); it != activeSubArray.end(); ++it )
+                for( it = activeSubArrayQueue.begin(); 
+                        it != activeSubArrayQueue.end(); ++it )
                 {
                     rv = subArrays[(*it)]->IsIssuable( req, reason );
 
@@ -1062,19 +1057,29 @@ void Bank::PrintStats( )
 
     if( p->EnergyModel_set && p->EnergyModel == "current" )
     {
-        std::cout << "i" << psInterval << "." << statName << ".current " << bankEnergy << "\t; mA" << std::endl;
-        std::cout << "i" << psInterval << "." << statName << ".current.background " << backgroundEnergy << "\t; mA" << std::endl;
-        std::cout << "i" << psInterval << "." << statName << ".current.active " << activeEnergy << "\t; mA" << std::endl;
-        std::cout << "i" << psInterval << "." << statName << ".current.burst " << burstEnergy << "\t; mA" << std::endl;
-        std::cout << "i" << psInterval << "." << statName << ".current.refresh " << refreshEnergy << "\t; mA" << std::endl;
+        std::cout << "i" << psInterval << "." << statName 
+            << ".current " << bankEnergy << "\t; mA" << std::endl;
+        std::cout << "i" << psInterval << "." << statName 
+            << ".current.background " << backgroundEnergy << "\t; mA" << std::endl;
+        std::cout << "i" << psInterval << "." << statName 
+            << ".current.active " << activeEnergy << "\t; mA" << std::endl;
+        std::cout << "i" << psInterval << "." << statName 
+            << ".current.burst " << burstEnergy << "\t; mA" << std::endl;
+        std::cout << "i" << psInterval << "." << statName 
+            << ".current.refresh " << refreshEnergy << "\t; mA" << std::endl;
     }
     else
     {
-        std::cout << "i" << psInterval << "." << statName << ".energy " << bankEnergy << "\t; nJ" << std::endl; 
-        std::cout << "i" << psInterval << "." << statName << ".energy.background " << backgroundEnergy << "\t; nJ" << std::endl;
-        std::cout << "i" << psInterval << "." << statName << ".energy.active " << activeEnergy << "\t; nJ" << std::endl;
-        std::cout << "i" << psInterval << "." << statName << ".energy.burst " << burstEnergy << "\t; nJ" << std::endl;
-        std::cout << "i" << psInterval << "." << statName << ".energy.refresh " << refreshEnergy << "\t; nJ" << std::endl;
+        std::cout << "i" << psInterval << "." << statName 
+            << ".energy " << bankEnergy << "\t; nJ" << std::endl; 
+        std::cout << "i" << psInterval << "." << statName 
+            << ".energy.background " << backgroundEnergy << "\t; nJ" << std::endl;
+        std::cout << "i" << psInterval << "." << statName 
+            << ".energy.active " << activeEnergy << "\t; nJ" << std::endl;
+        std::cout << "i" << psInterval << "." << statName 
+            << ".energy.burst " << burstEnergy << "\t; nJ" << std::endl;
+        std::cout << "i" << psInterval << "." << statName 
+            << ".energy.refresh " << refreshEnergy << "\t; nJ" << std::endl;
     }
     
     std::cout << "i" << psInterval << "." << statName << ".power " 
@@ -1088,25 +1093,40 @@ void Bank::PrintStats( )
               << "i" << psInterval << "." << statName << ".power.refresh " 
               << refreshPower << "\t; W per bank per device" << std::endl;
 
-    std::cout << "i" << psInterval << "." << statName << ".bandwidth " << (utilization * idealBandwidth) << "\t; MB/s " << std::endl
+    std::cout << "i" << psInterval << "." << statName << ".bandwidth " 
+              << (utilization * idealBandwidth) << "\t; MB/s " << std::endl
               << "i" << psInterval << "." << statName << "(" << dataCycles << " data cycles in " 
               << (activeCycles + standbyCycles) << " cycles)" << std::endl
-              << "i" << psInterval << "." << statName << ".utilization " << utilization << std::endl;
-    std::cout << "i" << psInterval << "." << statName << ".reads " << reads << std::endl
-              << "i" << psInterval << "." << statName << ".writes " << writes << std::endl
-              << "i" << psInterval << "." << statName << ".activates " << activates << std::endl
-              << "i" << psInterval << "." << statName << ".precharges " << precharges << std::endl
-              << "i" << psInterval << "." << statName << ".refreshes " << refreshes << std::endl;
-    std::cout << "i" << psInterval << "." << statName << ".activeCycles " << activeCycles << std::endl
-              << "i" << psInterval << "." << statName << ".standbyCycles " << standbyCycles << std::endl
-              << "i" << psInterval << "." << statName << ".fastExitCycles " << feCycles << std::endl
-              << "i" << psInterval << "." << statName << ".slowExitCycles " << seCycles << std::endl;
+              << "i" << psInterval << "." << statName << ".utilization " 
+              << utilization << std::endl;
+
+    std::cout << "i" << psInterval << "." << statName 
+              << ".reads " << reads << std::endl
+              << "i" << psInterval << "." << statName 
+              << ".writes " << writes << std::endl
+              << "i" << psInterval << "." << statName 
+              << ".activates " << activates << std::endl
+              << "i" << psInterval << "." << statName 
+              << ".precharges " << precharges << std::endl
+              << "i" << psInterval << "." << statName 
+              << ".refreshes " << refreshes << std::endl;
+
+    std::cout << "i" << psInterval << "." << statName 
+              << ".activeCycles " << activeCycles << std::endl
+              << "i" << psInterval << "." << statName 
+              << ".standbyCycles " << standbyCycles << std::endl
+              << "i" << psInterval << "." << statName 
+              << ".fastExitCycles " << feCycles << std::endl
+              << "i" << psInterval << "." << statName 
+              << ".slowExitCycles " << seCycles << std::endl;
 
     if( endrModel )
     {
         if( endrModel->GetWorstLife( ) == std::numeric_limits< uint64_t >::max( ) )
-          std::cout << "i" << psInterval << "." << statName << ".worstCaseEndurance N/A" << std::endl
-                    << "i" << psInterval << "." << statName << ".averageEndurance N/A" << std::endl;
+          std::cout << "i" << psInterval << "." << statName 
+                    << ".worstCaseEndurance N/A" << std::endl
+                    << "i" << psInterval << "." << statName 
+                    << ".averageEndurance N/A" << std::endl;
         else
           std::cout << "i" << psInterval << "." << statName << ".worstCaseEndurance " 
                     << (endrModel->GetWorstLife( )) << std::endl
@@ -1116,8 +1136,10 @@ void Bank::PrintStats( )
         endrModel->PrintStats( );
     }
 
-    std::cout << "i" << psInterval << "." << statName << ".actWaits " << actWaits << std::endl
-              << "i" << psInterval << "." << statName << ".actWaits.totalTime " << actWaitTime << std::endl
+    std::cout << "i" << psInterval << "." << statName 
+              << ".actWaits " << actWaits << std::endl
+              << "i" << psInterval << "." << statName 
+              << ".actWaits.totalTime " << actWaitTime << std::endl
               << "i" << psInterval << "." << statName << ".actWaits.averageTime " 
               << (double)((double)actWaitTime / (double)actWaits) << std::endl;
 

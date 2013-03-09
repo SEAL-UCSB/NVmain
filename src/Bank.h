@@ -130,7 +130,7 @@ class Bank : public NVMObject
     ncounter_t psInterval;
 
     SubArray **subArrays;
-    std::list<ncounter_t> activeSubArray;
+    std::deque<ncounter_t> activeSubArrayQueue;
     ncounter_t MATWidth;
     ncounter_t MATHeight;
     ncounter_t subArrayNum;
