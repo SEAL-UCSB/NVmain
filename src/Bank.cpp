@@ -183,7 +183,7 @@ bool Bank::PowerDown( OpType pdOp )
     bool returnValue = false;
 
     if( nextPowerDown <= GetEventQueue()->GetCurrentCycle() 
-            && ( state == BANK_OPEN || state == BANK_CLOSED ) )
+        && ( state == BANK_OPEN || state == BANK_CLOSED ) )
     {
         /* Update timing constraints */
         /*
@@ -233,7 +233,7 @@ bool Bank::PowerUp()
     bool returnValue = false;
 
     if( nextPowerUp <= GetEventQueue()->GetCurrentCycle() 
-            && ( state == BANK_PDPF || state == BANK_PDPS || state == BANK_PDA ) )
+        && ( state == BANK_PDPF || state == BANK_PDPS || state == BANK_PDA ) )
     {
         /* Update timing constraints */
         nextPowerDown = MAX( nextPowerDown, 
@@ -425,20 +425,33 @@ bool Bank::Read( NVMainRequest *request )
     }
     else
     {
-        /* if SALP is disabled, the bank-level nextPrecharge should be updated */
+        /* 
+         * if SALP is disabled, the bank-level nextPrecharge should be updated 
+         * Note that we update nextActivate since another activation is
+         * prohibited even if SALP = 1 
+         */
         if( p->SALP == 0 || p->SALP == 1 )
-            nextPrecharge = MAX( nextPrecharge, GetEventQueue()->GetCurrentCycle() 
-                                                + p->tAL + p->tBURST + p->tRTP 
-                                                - p->tCCD ); 
+        {
+            nextActivate = MAX( nextActivate, 
+                                GetEventQueue()->GetCurrentCycle() 
+                                    + p->tAL + p->tBURST + p->tRTP - p->tCCD );
 
-        nextRead = MAX( nextRead, GetEventQueue()->GetCurrentCycle() 
-                                    + MAX( p->tBURST, p->tCCD ) );
+            nextPrecharge = MAX( nextPrecharge, 
+                                 GetEventQueue()->GetCurrentCycle() 
+                                     + p->tAL + p->tBURST + p->tRTP - p->tCCD );
+        }
 
-        nextWrite = MAX( nextWrite, GetEventQueue()->GetCurrentCycle() 
-                                    + p->tCAS + p->tBURST + p->tRTRS - p->tCWD );
+        nextRead = MAX( nextRead, 
+                        GetEventQueue()->GetCurrentCycle() 
+                            + MAX( p->tBURST, p->tCCD ) );
 
-        nextPowerDown = MAX( nextPowerDown, GetEventQueue()->GetCurrentCycle() 
-                                            + p->tRDPDEN );
+        nextWrite = MAX( nextWrite, 
+                         GetEventQueue()->GetCurrentCycle() 
+                             + p->tCAS + p->tBURST + p->tRTRS - p->tCWD );
+
+        nextPowerDown = MAX( nextPowerDown, 
+                             GetEventQueue()->GetCurrentCycle() 
+                                 + p->tRDPDEN );
     }
 
     dataCycles += p->tBURST;
@@ -483,9 +496,10 @@ bool Bank::Write( NVMainRequest *request )
     {
         if( p->SALP == 0 || p->SALP == 1 )
         {
-            nextActivate = MAX( nextActivate, GetEventQueue()->GetCurrentCycle()
-                                                + p->tAL + p->tCWD + p->tBURST 
-                                                + p->tWR + p->tRP );
+            nextActivate = MAX( nextActivate, 
+                                GetEventQueue()->GetCurrentCycle()
+                                    + p->tAL + p->tCWD + p->tBURST + p->tWR 
+                                    + p->tRP );
             nextPrecharge = MAX( nextPrecharge, nextActivate );
             nextRead = MAX( nextRead, nextActivate );
             nextWrite = MAX( nextWrite, nextActivate );
@@ -493,14 +507,17 @@ bool Bank::Write( NVMainRequest *request )
         }
         else
         {
-            nextRead = MAX( nextRead, GetEventQueue()->GetCurrentCycle() 
-                                        + p->tCWD + p->tBURST + p->tWTR );
+            nextRead = MAX( nextRead, 
+                            GetEventQueue()->GetCurrentCycle() 
+                                + p->tCWD + p->tBURST + p->tWTR );
 
-            nextWrite = MAX( nextWrite, GetEventQueue()->GetCurrentCycle() 
-                                        + MAX( p->tBURST, p->tCCD ) );
+            nextWrite = MAX( nextWrite, 
+                             GetEventQueue()->GetCurrentCycle() 
+                                 + MAX( p->tBURST, p->tCCD ) );
 
-            nextPowerDown = MAX( nextPowerDown, GetEventQueue()->GetCurrentCycle() 
-                                                + p->tWRPDEN );
+            nextPowerDown = MAX( nextPowerDown, 
+                                 GetEventQueue()->GetCurrentCycle() 
+                                     + p->tWRPDEN );
         }
 
         precharges++;
@@ -525,18 +542,27 @@ bool Bank::Write( NVMainRequest *request )
     else
     {
         if( p->SALP == 0 || p->SALP == 1 )
-            nextPrecharge = MAX( nextPrecharge, GetEventQueue()->GetCurrentCycle() 
-                                                + p->tAL + p->tCWD + p->tBURST 
-                                                + p->tWR );
+        {
+            nextActivate = MAX( nextActivate, 
+                                GetEventQueue()->GetCurrentCycle() 
+                                    + p->tAL + p->tCWD + p->tBURST + p->tWR );
 
-        nextRead = MAX( nextRead, GetEventQueue()->GetCurrentCycle() 
-                                    + p->tCWD + p->tBURST + p->tWTR );
+            nextPrecharge = MAX( nextPrecharge, 
+                                 GetEventQueue()->GetCurrentCycle() 
+                                     + p->tAL + p->tCWD + p->tBURST + p->tWR );
+        }
 
-        nextWrite = MAX( nextWrite, GetEventQueue()->GetCurrentCycle() 
-                                    + MAX( p->tBURST, p->tCCD ) );
+        nextRead = MAX( nextRead, 
+                        GetEventQueue()->GetCurrentCycle() 
+                            + p->tCWD + p->tBURST + p->tWTR );
 
-        nextPowerDown = MAX( nextPowerDown, GetEventQueue()->GetCurrentCycle() 
-                                        + p->tWRPDEN );
+        nextWrite = MAX( nextWrite, 
+                         GetEventQueue()->GetCurrentCycle() 
+                             + MAX( p->tBURST, p->tCCD ) );
+
+        nextPowerDown = MAX( nextPowerDown, 
+                             GetEventQueue()->GetCurrentCycle() 
+                                 + p->tWRPDEN );
     }
 
     dataCycles += p->tBURST;
@@ -740,11 +766,11 @@ bool Bank::Refresh( )
     openRow = p->ROWS;
 
     /* Update timing constraints */
-    nextActivate = MAX( nextActivate, GetEventQueue()->GetCurrentCycle() 
-                                        + p->tRFC );
+    nextActivate = MAX( nextActivate, 
+                        GetEventQueue()->GetCurrentCycle() + p->tRFC );
 
-    nextPowerDown = MAX( nextPowerDown, GetEventQueue()->GetCurrentCycle() 
-                                        + p->tRFC );
+    nextPowerDown = MAX( nextPowerDown, 
+                         GetEventQueue()->GetCurrentCycle() + p->tRFC );
 
     refreshRowIndex = (refreshRowIndex + refreshRows) % p->ROWS;
 
