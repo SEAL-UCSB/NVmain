@@ -299,13 +299,12 @@ bool Bank::Activate( NVMainRequest *request )
     else if( state != BANK_CLOSED )
     {
         /*
-         * if subarray-level parallelism is disabled, just update the time
-         * constraint like a subarray does
+         * it means no subarray is active when activeSubArrayQueue is empty.
+         * therefore, the bank state must be idle rather than active. Actually,
+         * there are other conditions that the ACTIVATE cannot be issued. But 
+         * we leave the work for subarray so that we don't check here.
          */
-        if( ( p->SALP == 0 )
-            || ( p->SALP == 1 && activeSubArrayQueue.empty( ) ) 
-            || ( p->SALP == 1 
-                && activateSubArray == activeSubArrayQueue.front( ) ) )
+        if( activeSubArrayQueue.empty( ) )
         {
             std::cerr << "NVMain Error: try to open a bank that is not idle!"
                 << std::endl;
@@ -316,6 +315,11 @@ bool Bank::Activate( NVMainRequest *request )
     /* update the timing constraints */
     if( p->SALP == 0 || p-> SALP == 1 )
     {
+        /* 
+         * when SALP = 0, it is unnecessary to update nextActivate. However,
+         * it doesn't affect the correctness if we update it. Since
+         * nextActivate must be updated as SALP = 1, we combine them.
+         */
         nextActivate = MAX( nextActivate, 
                             GetEventQueue()->GetCurrentCycle() 
                                 + MAX( p->tRCD, p->tRAS ) );
@@ -336,21 +340,28 @@ bool Bank::Activate( NVMainRequest *request )
     nextPowerDown = MAX( nextPowerDown, 
                          GetEventQueue()->GetCurrentCycle() + p->tRCD );
 
+    /* if SALP = 0, no active subarray is allowed before we open a row */
     if( p->SALP == 0 )
         assert( activeSubArrayQueue.empty() );
 
-    /* bank-level update */
-    openRow = activateRow;
-    state = BANK_OPEN;
-
     /* issue ACTIVATE to the target subarray */
-    subArrays[activateSubArray]->IssueCommand( request );
+    bool success = subArrays[activateSubArray]->IssueCommand( request );
 
-    activeSubArrayQueue.push_back( activateSubArray );
-            
-    activates++;
+    if( success )
+    {
+        /* bank-level update */
+        openRow = activateRow;
+        state = BANK_OPEN;
+        activeSubArrayQueue.push_back( activateSubArray );
+        activates++;
+    }
+    else
+    {
+        std::cerr << "NVMain Error: Bank " << bankId << " failed to "
+            << "activate the subarray " << activateSubArray << std::endl;
+    }
 
-    return true;
+    return success;
 }
 
 /*
@@ -391,6 +402,11 @@ bool Bank::Read( NVMainRequest *request )
             nextWrite = MAX( nextWrite, nextActivate );
             nextPowerDown = MAX( nextPowerDown, nextActivate );
         }
+        /* 
+         * when SALP = 2, only the target subarray is precharged. other active
+         * subarrays are not affected. Therefore, it doesn't need to update
+         * nextActivate and nextPrecharge at bank-level.
+         */
         else
         {
             nextRead = MAX( nextRead, GetEventQueue()->GetCurrentCycle() 
@@ -405,30 +421,13 @@ bool Bank::Read( NVMainRequest *request )
                                      + p->tRDPDEN );
         }
 
-        precharges++;
-
-        /* update the activeSubArrayQueue list */
-        std::deque<ncounter_t>::iterator it;
-        for( it = activeSubArrayQueue.begin(); 
-                it != activeSubArrayQueue.end(); ++it )
-        {
-            if( (*it) == opSubArray )
-            {
-                /* delete the item in the active subarray list */
-                activeSubArrayQueue.erase( it );
-                break;
-            }
-        }
-
-        if( activeSubArrayQueue.empty() )
-            state = BANK_CLOSED;
     }
     else
     {
         /* 
          * if SALP is disabled, the bank-level nextPrecharge should be updated 
          * Note that we update nextActivate since another activation is
-         * prohibited even if SALP = 1 
+         * prohibited for a while even if SALP = 1 
          */
         if( p->SALP == 0 || p->SALP == 1 )
         {
@@ -454,14 +453,47 @@ bool Bank::Read( NVMainRequest *request )
                                  + p->tRDPDEN );
     }
 
-    dataCycles += p->tBURST;
-
     /* issue READ/READ_RECHARGE to the target subarray */
-    subArrays[opSubArray]->IssueCommand( request );
+    bool success = subArrays[opSubArray]->IssueCommand( request );
 
-    reads++;
-    
-    return true;
+    if( success )
+    {
+        if( request->type == READ_PRECHARGE )
+        {
+            precharges++;
+
+            /* update the activeSubArrayQueue list */
+            if( p->SALP == 0 || p->SALP == 1 )
+                activeSubArrayQueue.clear( );
+            else
+            {
+                std::deque<ncounter_t>::iterator it;
+                for( it = activeSubArrayQueue.begin(); 
+                        it != activeSubArrayQueue.end(); ++it )
+                {
+                    if( (*it) == opSubArray )
+                    {
+                        /* delete the item in the active subarray list */
+                        activeSubArrayQueue.erase( it );
+                        break;
+                    }
+                }
+            }
+
+            if( activeSubArrayQueue.empty() )
+                state = BANK_CLOSED;
+        } // if( request->type == READ_PRECHARGE )
+
+        dataCycles += p->tBURST;
+        reads++;
+    } // if( succsss )
+    else
+    {
+        std::cerr << "NVMain Error: Bank " << bankId << " failed to "
+            << "read the subarray " << opSubArray << std::endl;
+    }
+
+    return success;
 }
 
 /*
@@ -520,23 +552,6 @@ bool Bank::Write( NVMainRequest *request )
                                      + p->tWRPDEN );
         }
 
-        precharges++;
-
-        /* update the activeSubArrayQueue list */
-        std::deque<ncounter_t>::iterator it;
-        for( it = activeSubArrayQueue.begin(); 
-                it != activeSubArrayQueue.end(); ++it )
-        {
-            if( (*it) == opSubArray )
-            {
-                /* delete the item in the active subarray list */
-                activeSubArrayQueue.erase( it );
-                break;
-            }
-        }
-
-        if( activeSubArrayQueue.empty() )
-            state = BANK_CLOSED;
     }
     /* else, no implicit precharge is enabled, simply update the timing */
     else
@@ -565,15 +580,48 @@ bool Bank::Write( NVMainRequest *request )
                                  + p->tWRPDEN );
     }
 
-    dataCycles += p->tBURST;
-
     /* issue WRITE/WRITE_PRECHARGE to the target subarray */
-    subArrays[opSubArray]->IssueCommand( request );
+    bool success = subArrays[opSubArray]->IssueCommand( request );
 
-    writeCycle = true;
-    writes++;
-    
-    return true;
+    if( success )
+    {
+        dataCycles += p->tBURST;
+        writeCycle = true;
+        writes++;
+
+        if( request->type == WRITE_PRECHARGE )
+        {
+            precharges++;
+
+            /* update the activeSubArrayQueue list */
+            if( p->SALP == 0 || p->SALP == 1 )
+                activeSubArrayQueue.clear( );
+            else
+            {
+                std::deque<ncounter_t>::iterator it;
+                for( it = activeSubArrayQueue.begin( ); 
+                        it != activeSubArrayQueue.end( ); ++it )
+                {
+                    if( (*it) == opSubArray )
+                    {
+                        /* delete the item in the active subarray list */
+                        activeSubArrayQueue.erase( it );
+                        break;
+                    }
+                }
+            }
+
+            if( activeSubArrayQueue.empty( ) )
+                state = BANK_CLOSED;
+        }
+    }
+    else
+    {
+        std::cerr << "NVMain Error: Bank " << bankId << " failed to "
+            << "write the subarray " << opSubArray << std::endl;
+    }
+
+    return success;
 }
 
 /*
@@ -606,19 +654,19 @@ bool Bank::Precharge( NVMainRequest *request )
 
     /* if SALP is disabled, the bank-level nextPrecharge should be updated */
     if( p->SALP == 0 || p->SALP == 1 )
-        nextActivate = MAX( nextActivate, GetEventQueue()->GetCurrentCycle() 
-                                            + p->tRP );
+        nextActivate = MAX( nextActivate, 
+                            GetEventQueue()->GetCurrentCycle() + p->tRP );
     /* 
      * even though tPRPDEN = 1, the IDD spec in powerdown mode is only applied 
      * after the completion of precharge
      */
-    nextPowerDown = MAX( nextPowerDown, GetEventQueue()->GetCurrentCycle() 
-                                        + p->tRP );
+    nextPowerDown = MAX( nextPowerDown, 
+                         GetEventQueue()->GetCurrentCycle() + p->tRP );
 
     if( p->SALP == 0 ) 
     {
 
-        /* PRECHARGE or PRECHARGE_ALL is the same when SALP = 0/1 */
+        /* PRECHARGE or PRECHARGE_ALL is the same when SALP = 0 */
         assert( activeSubArrayQueue.size() <= 1 );
 
         /* issue PRECHARGE/PRECHARGE_ALL to the subarray */
@@ -641,7 +689,8 @@ bool Bank::Precharge( NVMainRequest *request )
         else
         {
             std::cerr << "NVMain Error: Bank " << bankId << " failed to "
-                << "precharge the subarray " << preSubArray << std::endl;
+                << "precharge the subarray " << preSubArray << " as SALP = " 
+                << p->SALP << std::endl;
             return false;
         }
     } // if( p->SALP == 0 )
@@ -654,36 +703,36 @@ bool Bank::Precharge( NVMainRequest *request )
                 /* close all subarrays */
                 while( activeSubArrayQueue.size( ) > 1 )
                 {
-                    bool success;
                     ncounter_t openedSubArray = activeSubArrayQueue.front( );
                     activeSubArrayQueue.pop_front( );
 
                     NVMainRequest* dummyPrecharge = new NVMainRequest;
                     (*dummyPrecharge) = (*request);
                     dummyPrecharge->owner = this;
-                    success = 
+                    bool success = 
                         subArrays[openedSubArray]->IssueCommand( dummyPrecharge ); 
 
                     if( success == false )
                     {
                         std::cerr << "NVMain Error: Bank " << bankId << " failed to "
-                            << "precharge the subarray " << openedSubArray << std::endl;
+                            << "precharge the subarray " << openedSubArray 
+                            << " as SALP = " << p->SALP << std::endl;
                         return false;
                     }
 
                 }
 
-                bool success;
                 ncounter_t openedSubArray = activeSubArrayQueue.front( );
                 activeSubArrayQueue.pop_front( );
-                success = 
+                bool success = 
                     subArrays[openedSubArray]->IssueCommand( request ); 
 
                 if( success == false )
                 {
                     std::cerr << "NVMain Error: Bank " << bankId << " failed to "
                         << "issue " << request->type << " to subarray" 
-                        << openedSubArray << std::endl;
+                        << openedSubArray << " as SALP = " << p->SALP 
+                        << std::endl;
                     return false;
                 }
 
@@ -693,7 +742,7 @@ bool Bank::Precharge( NVMainRequest *request )
             } // if( activeSubArrayQueue.empty( ) == false )
             else
                 state = BANK_CLOSED;
-        } // if( request->type == PRECHARGE_ALL )
+        } // if( p->SALP == 1 || request->type == PRECHARGE_ALL )
         else
         {
             /* issue PRECHARGE to the subarray */
@@ -733,7 +782,7 @@ bool Bank::Precharge( NVMainRequest *request )
                 return false;
             }
         } // if( request->type == PRECHARGE )
-    } // if( p->SALP == 2 )
+    } // if( p->SALP == 1 || p->SALP == 2 )
 
     precharges++;
 
@@ -812,31 +861,15 @@ bool Bank::IsIssuable( NVMainRequest *req, FailReason *reason )
         }
         /* 
          * else, if SALP = 0 and the bank is not idle, cannot issue 
-         * or, if SALP = 1, no active subarrays and the bank is not idle,
+         * or, if SALP = 1/2, no active subarrays and the bank is not idle,
          * cannot issue
          */
         else if( ( p->SALP == 0 && state != BANK_CLOSED )
-                    || ( p->SALP == 1 && activeSubArrayQueue.empty( ) 
-                            && state != BANK_CLOSED ) )
+                   || ( activeSubArrayQueue.empty( ) && state != BANK_CLOSED ) )
         {
             rv = false;
             if( reason )
                 reason->reason = BANK_TIMING;
-        }
-        /* 
-         * else, if SALP = 1 and there is a active subarray, check whether the
-         * coming activation references to the same subarray. if so, cannot
-         * issue
-         */
-        else if( p->SALP == 1 && activeSubArrayQueue.empty( ) == false )
-        {
-            ncounter_t openedSubArray = activeSubArrayQueue.front( );
-            if( openedSubArray == opSubArray )
-            {
-                rv = false;
-                if( reason )
-                    reason->reason = BANK_TIMING;
-            }
         }
         /* finally, see whether the command can be accepted by subarray */
         else
@@ -857,7 +890,7 @@ bool Bank::IsIssuable( NVMainRequest *req, FailReason *reason )
     else if( req->type == WRITE || req->type == WRITE_PRECHARGE )
     {
         if( nextWrite > (GetEventQueue()->GetCurrentCycle()) 
-                || state != BANK_OPEN )
+            || state != BANK_OPEN )
         {
             rv = false;
             if( reason ) 
@@ -869,14 +902,14 @@ bool Bank::IsIssuable( NVMainRequest *req, FailReason *reason )
     else if( req->type == PRECHARGE || req->type == PRECHARGE_ALL )
     {
         if( nextPrecharge > (GetEventQueue()->GetCurrentCycle()) 
-                || ( state != BANK_CLOSED && state != BANK_OPEN ) )
+            || ( state != BANK_CLOSED && state != BANK_OPEN ) )
         {
             rv = false;
             if( reason ) 
                 reason->reason = BANK_TIMING;
         }
         else
-            if( req->type == PRECHARGE_ALL )
+            if( p->SALP == 1 || req->type == PRECHARGE_ALL )
             {
                 std::deque<ncounter_t>::iterator it;
 
