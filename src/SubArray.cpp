@@ -137,13 +137,17 @@ bool SubArray::Activate( NVMainRequest *request )
     }
 
     /* Update timing constraints */
-    nextPrecharge = MAX( nextPrecharge, GetEventQueue()->GetCurrentCycle() 
-                                        + MAX( p->tRCD, p->tRAS ) );
+    nextPrecharge = MAX( nextPrecharge, 
+                         GetEventQueue()->GetCurrentCycle() 
+                             + MAX( p->tRCD, p->tRAS ) );
 
-    nextRead = MAX( nextRead, GetEventQueue()->GetCurrentCycle() 
-                                + p->tRCD - p->tAL );
-    nextWrite = MAX( nextWrite, GetEventQueue()->GetCurrentCycle() 
-                                + p->tRCD - p->tAL );
+    nextRead = MAX( nextRead, 
+                    GetEventQueue()->GetCurrentCycle() 
+                        + p->tRCD - p->tAL );
+
+    nextWrite = MAX( nextWrite, 
+                     GetEventQueue()->GetCurrentCycle() 
+                         + p->tRCD - p->tAL );
 
     GetEventQueue( )->InsertEvent( EventResponse, this, request, 
                     GetEventQueue()->GetCurrentCycle() + p->tRCD );
@@ -218,28 +222,33 @@ bool SubArray::Read( NVMainRequest *request )
     /* Update timing constraints */
     if( request->type == READ_PRECHARGE )
     {
-        nextActivate = MAX( nextActivate, GetEventQueue()->GetCurrentCycle()
-                                            + p->tAL + p->tRTP + p->tRP );
+        nextActivate = MAX( nextActivate, 
+                            GetEventQueue()->GetCurrentCycle()
+                                + p->tAL + p->tRTP + p->tRP );
 
         nextPrecharge = MAX( nextPrecharge, nextActivate );
         nextRead = MAX( nextRead, nextActivate );
         nextWrite = MAX( nextWrite, nextActivate );
 
+        /* close the subarray */
         state = SUBARRAY_CLOSED;
+        openRow = p->ROWS;
 
         precharges++;
     }
     else
     {
-        nextPrecharge = MAX( nextPrecharge, GetEventQueue()->GetCurrentCycle() 
-                                            + p->tAL + p->tBURST + p->tRTP 
-                                            - p->tCCD );
+        nextPrecharge = MAX( nextPrecharge, 
+                             GetEventQueue()->GetCurrentCycle() 
+                                 + p->tAL + p->tBURST + p->tRTP - p->tCCD );
 
-        nextRead = MAX( nextRead, GetEventQueue()->GetCurrentCycle() 
-                                    + MAX( p->tBURST, p->tCCD ) );
+        nextRead = MAX( nextRead, 
+                        GetEventQueue()->GetCurrentCycle() 
+                            + MAX( p->tBURST, p->tCCD ) );
 
-        nextWrite = MAX( nextWrite, GetEventQueue()->GetCurrentCycle() 
-                                + p->tCAS + p->tBURST + p->tRTRS - p->tCWD );
+        nextWrite = MAX( nextWrite, 
+                         GetEventQueue()->GetCurrentCycle() 
+                             + p->tCAS + p->tBURST + p->tRTRS - p->tCWD );
     }
 
     /*
@@ -252,13 +261,12 @@ bool SubArray::Read( NVMainRequest *request )
     NVMainRequest *busReq = new NVMainRequest( );
     *busReq = *request;
     busReq->type = BUS_WRITE;
-    
-    /* busReq can not hold the same owner as request! */
     busReq->owner = this;
 
     GetEventQueue( )->InsertEvent( EventResponse, this, busReq, 
             GetEventQueue()->GetCurrentCycle() + p->tCAS );
 
+    /* Notify owner of read completion as well */
     GetEventQueue( )->InsertEvent( EventResponse, this, request, 
             GetEventQueue()->GetCurrentCycle() + p->tCAS + p->tBURST );
 
@@ -345,37 +353,42 @@ bool SubArray::Write( NVMainRequest *request )
     /* Update timing constraints */
     if( request->type == WRITE_PRECHARGE )
     {
-        nextActivate = MAX( nextActivate, GetEventQueue()->GetCurrentCycle()
-                                            + p->tAL + p->tCWD + p->tBURST 
-                                            + p->tWR + p->tRP );
+        nextActivate = MAX( nextActivate, 
+                            GetEventQueue()->GetCurrentCycle()
+                                + p->tAL + p->tCWD + p->tBURST 
+                                + p->tWR + p->tRP );
 
         nextPrecharge = MAX( nextPrecharge, nextActivate );
         nextRead = MAX( nextRead, nextActivate );
         nextWrite = MAX( nextWrite, nextActivate );
 
+        /* close the subarray */
         state = SUBARRAY_CLOSED;
+        openRow = p->ROWS;
 
         precharges++;
     }
     else
     {
-        nextPrecharge = MAX( nextPrecharge, GetEventQueue()->GetCurrentCycle() 
-                                            + p->tAL + p->tCWD + p->tBURST 
-                                            + p->tWR );
+        nextPrecharge = MAX( nextPrecharge, 
+                             GetEventQueue()->GetCurrentCycle() 
+                                 + p->tAL + p->tCWD + p->tBURST + p->tWR );
 
-        nextRead = MAX( nextRead, GetEventQueue()->GetCurrentCycle() 
-                                    + p->tCWD + p->tBURST + p->tWTR );
+        nextRead = MAX( nextRead, 
+                        GetEventQueue()->GetCurrentCycle() 
+                            + p->tCWD + p->tBURST + p->tWTR );
 
-        nextWrite = MAX( nextWrite, GetEventQueue()->GetCurrentCycle() 
-                                    + MAX( p->tBURST, p->tCCD ) );
+        nextWrite = MAX( nextWrite, 
+                         GetEventQueue()->GetCurrentCycle() 
+                             + MAX( p->tBURST, p->tCCD ) );
     }
 
     /* Issue a bus burst request when the burst starts. */
     NVMainRequest *busReq = new NVMainRequest( );
     *busReq = *request;
     busReq->type = BUS_READ;
-
     busReq->owner = this;
+
     GetEventQueue( )->InsertEvent( EventResponse, this, busReq, 
             GetEventQueue()->GetCurrentCycle() + p->tCAS );
 
@@ -477,12 +490,15 @@ bool SubArray::Precharge( NVMainRequest *request )
     }
 
     /* Update timing constraints */
-    nextActivate = MAX( nextActivate, GetEventQueue()->GetCurrentCycle() + p->tRP );
+    nextActivate = MAX( nextActivate, 
+                        GetEventQueue()->GetCurrentCycle() + p->tRP );
 
     GetEventQueue( )->InsertEvent( EventResponse, this, request, 
               GetEventQueue()->GetCurrentCycle() + p->tRP );
 
+    /* close the subarray */
     state = SUBARRAY_CLOSED;
+    openRow = p->ROWS;
 
     precharges++;
 
@@ -490,9 +506,8 @@ bool SubArray::Precharge( NVMainRequest *request )
 }
 
 /* 
- * Refresh() can still be issued even the subarray is open (SUBARRAY_OPEN) or 
- * subarray is powerdown (!=SUBARRAY_CLOSED). Extra latency is added so that 
- * we don't have protocol violation in terms of timing
+ * Refresh() is treated as an ACT and can only be issued when the subarray 
+ * is idle 
  */
 bool SubArray::Refresh( )
 {
@@ -511,11 +526,13 @@ bool SubArray::Refresh( )
         return false;
     }
 
+    /* Update timing constraints */
+    nextActivate = MAX( nextActivate, 
+                        GetEventQueue()->GetCurrentCycle() + p->tRFC );
+
+    /* the subarray is still idle */
     state = SUBARRAY_CLOSED;
     openRow = p->ROWS;
-
-    /* Update timing constraints */
-    nextActivate = MAX( nextActivate, GetEventQueue()->GetCurrentCycle() + p->tRFC );
 
     if( p->EnergyModel_set && p->EnergyModel == "current" )
     {
@@ -551,8 +568,8 @@ bool SubArray::IsIssuable( NVMainRequest *req, FailReason *reason )
 
     if( req->type == ACTIVATE )
     {
-        if( nextActivate > (GetEventQueue()->GetCurrentCycle()) 
-                || state != SUBARRAY_CLOSED )
+        if( nextActivate > (GetEventQueue()->GetCurrentCycle()) /* if it is too early to open */
+            || state != SUBARRAY_CLOSED )   /* or, the subarray is not idle */
         {
             rv = false;
             if( reason ) 
@@ -561,6 +578,7 @@ bool SubArray::IsIssuable( NVMainRequest *req, FailReason *reason )
 
         if( rv == false )
         {
+            /* if it is too early to open the subarray */
             if( nextActivate > (GetEventQueue()->GetCurrentCycle()) )
             {
                 actWaits++;
@@ -570,8 +588,9 @@ bool SubArray::IsIssuable( NVMainRequest *req, FailReason *reason )
     }
     else if( req->type == READ || req->type == READ_PRECHARGE )
     {
-        if( nextRead > (GetEventQueue()->GetCurrentCycle()) 
-                || state != SUBARRAY_OPEN || opRow != openRow )
+        if( nextRead > (GetEventQueue()->GetCurrentCycle()) /* if it is too early to read */
+            || state != SUBARRAY_OPEN  /* or, the subarray is not active */
+            || opRow != openRow )      /* or, the target row is not the open row */
         {
             rv = false;
             if( reason ) 
@@ -580,8 +599,9 @@ bool SubArray::IsIssuable( NVMainRequest *req, FailReason *reason )
     }
     else if( req->type == WRITE || req->type == WRITE_PRECHARGE )
     {
-        if( nextWrite > (GetEventQueue()->GetCurrentCycle()) 
-                || state != SUBARRAY_OPEN || opRow != openRow )
+        if( nextWrite > (GetEventQueue()->GetCurrentCycle()) /* if it is too early to write */
+            || state != SUBARRAY_OPEN  /* or, the subarray is not active */          
+            || opRow != openRow )      /* or, the target row is not the open row */
         {
             rv = false;
             if( reason ) 
@@ -590,8 +610,9 @@ bool SubArray::IsIssuable( NVMainRequest *req, FailReason *reason )
     }
     else if( req->type == PRECHARGE || req->type == PRECHARGE_ALL )
     {
-        if( nextPrecharge > (GetEventQueue()->GetCurrentCycle()) 
-                || ( state != SUBARRAY_OPEN && state != SUBARRAY_CLOSED ) )
+        if( nextPrecharge > (GetEventQueue()->GetCurrentCycle()) /* if it is too early to precharge */ 
+            || ( state != SUBARRAY_OPEN           /* or the subbary is neither active nor idle */
+                 && state != SUBARRAY_CLOSED ) )
         {
             rv = false;
             if( reason ) 
@@ -600,12 +621,10 @@ bool SubArray::IsIssuable( NVMainRequest *req, FailReason *reason )
     }
     else if( req->type == REFRESH )
     {
-        if( nextActivate > ( GetEventQueue()->GetCurrentCycle() ) 
-                || state != SUBARRAY_CLOSED )
-            rv = false;
-
-        if( rv == false )
+        if( nextActivate > ( GetEventQueue()->GetCurrentCycle() ) /* if it is too early to refresh */ 
+            || state != SUBARRAY_CLOSED ) /* or, the subarray is not idle */
         {
+            rv = false;
             if( reason )
               reason->reason = SUBARRAY_TIMING;
         }
