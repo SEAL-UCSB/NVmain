@@ -1085,7 +1085,7 @@ void Bank::SetName( std::string )
  * if this bank logically spans multiple devices, the id corresponds to the device, 
  * NOT the logical bank id within a single device.
  */
-void Bank::SetId( int id )
+void Bank::SetId( ncounter_t id )
 {
     bankId = id;
 }
@@ -1096,7 +1096,7 @@ std::string Bank::GetName( )
 }
 
 
-int Bank::GetId( )
+ncounter_t Bank::GetId( )
 {
     return bankId;
 }

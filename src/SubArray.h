@@ -110,11 +110,11 @@ class SubArray : public NVMObject
     uint64_t GetOpenRow( ) { return openRow; }
 
     void SetName( std::string );
-    void SetId( int );
+    void SetId( ncounter_t );
     void PrintStats( );
     void StatName( std::string name ) { statName = name; }
 
-    int GetId( );
+    ncounter_t GetId( );
     std::string GetName( );
 
     void Cycle( ncycle_t );
@@ -160,7 +160,7 @@ class SubArray : public NVMObject
 
     EnduranceModel *endrModel;
 
-    int subArrayId;
+    ncounter_t subArrayId;
  
     Params *p;
 };
