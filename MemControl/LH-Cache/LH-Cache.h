@@ -84,7 +84,7 @@ class LH_Cache : public AbstractDRAMCache
         BankLocked( LH_Cache &_memoryController ) 
             : memoryController(_memoryController) { }
 
-        bool operator() (uint64_t, uint64_t);
+        bool operator() (uint64_t, uint64_t, uint64_t);
     };
 
     /* Predicate to determine if fill queue is full. */
@@ -100,7 +100,7 @@ class LH_Cache : public AbstractDRAMCache
         FillQueueFull( LH_Cache &_memoryController ) 
             : memoryController(_memoryController), draining(false) { }
 
-        bool operator() (uint64_t, uint64_t);
+        bool operator() (uint64_t, uint64_t, uint64_t);
     };
 
     /* Predicate to determine if fill queue is full. */
@@ -115,7 +115,7 @@ class LH_Cache : public AbstractDRAMCache
         NoWriteBuffering( LH_Cache &_memoryController ) 
             : memoryController(_memoryController) { }
 
-        bool operator() (uint64_t, uint64_t);
+        bool operator() (uint64_t, uint64_t, uint64_t);
     };
 
     bool IssueDRCCommands( NVMainRequest *req );
