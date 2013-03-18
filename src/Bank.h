@@ -115,11 +115,11 @@ class Bank : public NVMObject
     uint64_t GetOpenRow( ) { return openRow; }
 
     void SetName( std::string );
-    void SetId( int );
+    void SetId( ncounter_t );
     void PrintStats( );
     void StatName( std::string name ) { statName = name; }
 
-    int GetId( );
+    ncounter_t GetId( );
     std::string GetName( );
 
     void Cycle( ncycle_t steps );
@@ -182,7 +182,7 @@ class Bank : public NVMObject
 
     EnduranceModel *endrModel;
 
-    int bankId;
+    ncounter_t bankId;
  
     Params *p;
 };

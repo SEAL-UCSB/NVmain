@@ -771,7 +771,7 @@ void SubArray::SetName( std::string )
 /* 
  * Corresponds to physical subarray id 
  */
-void SubArray::SetId( int id )
+void SubArray::SetId( ncounter_t id )
 {
     subArrayId = id;
 }
@@ -782,7 +782,7 @@ std::string SubArray::GetName( )
 }
 
 
-int SubArray::GetId( )
+ncounter_t SubArray::GetId( )
 {
     return subArrayId;
 }

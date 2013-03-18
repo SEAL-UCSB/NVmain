@@ -60,7 +60,7 @@ class SchedulingPredicate
     SchedulingPredicate( ) { }
     ~SchedulingPredicate( ) { }
 
-    virtual bool operator() (uint64_t row, uint64_t bank, uint64_t rank) { return true; }
+    virtual bool operator() (uint64_t /*row*/, uint64_t /*bank*/, uint64_t /*rank*/) { return true; }
 };
 
 
