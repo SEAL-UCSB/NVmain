@@ -355,7 +355,7 @@ bool LH_Cache::RequestComplete( NVMainRequest *req )
     return rv;
 }
 
-bool LH_Cache::FillQueueFull::operator() (uint64_t, uint64_t)
+bool LH_Cache::FillQueueFull::operator() (uint64_t, uint64_t, uint64_t)
 {
     if( memoryController.useWriteBuffer && draining == false
         && memoryController.fillQueue->size() >= memoryController.fillQueueSize )
@@ -371,18 +371,18 @@ bool LH_Cache::FillQueueFull::operator() (uint64_t, uint64_t)
     return draining;
 }
 
-bool LH_Cache::BankLocked::operator() (uint64_t rank, uint64_t bank)
+bool LH_Cache::BankLocked::operator() (uint64_t row, uint64_t rank, uint64_t bank)
 {
     bool rv = false;
 
     if( memoryController.bankLocked[rank][bank] == false
-        && !memoryController.FQF(rank, bank) )
+        && !memoryController.FQF(row, rank, bank) )
         rv = true;
 
     return rv;
 }
 
-bool LH_Cache::NoWriteBuffering::operator() (uint64_t, uint64_t)
+bool LH_Cache::NoWriteBuffering::operator() (uint64_t, uint64_t, uint64_t)
 {
     return !memoryController.useWriteBuffer;
 }
