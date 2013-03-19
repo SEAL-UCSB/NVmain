@@ -153,3 +153,63 @@ void DRCDecoder::Translate( uint64_t address, uint64_t *row, uint64_t *col,
     *row = workingAddr % (1 << rowBits);
     workingAddr = workingAddr >> rowBits;
 }
+
+uint64_t DRCDecoder::ReverseTranslate( const uint64_t& row, 
+                                       const uint64_t& col, 
+                                       const uint64_t& bank,
+				                       const uint64_t& rank, 
+                                       const uint64_t& channel )
+{
+    uint64_t unitAddr = 1;
+    uint64_t phyAddr = 0;
+    MemoryPartition part;
+
+    if( GetTranslationMethod( ) == NULL )
+    {
+        std::cerr << "Divider Translator: Translation method not specified!" << std::endl;
+        exit(1);
+    }
+    
+    uint64_t rowNum, colNum, bankNum, rankNum, channelNum;
+
+    GetTranslationMethod( )->GetCount( &rowNum, &colNum, &bankNum, &rankNum, &channelNum );
+    
+    for( int i = 0; i < 5 ; i++ )
+    {
+        /* 0->4, low to high, FindOrder() will find the correct one */
+        FindOrder( i, &part );
+
+        switch( part )
+        {
+            case MEM_ROW:
+                  phyAddr += ( row * unitAddr ); 
+                  unitAddr *= rowNum;
+                  break;
+
+            case MEM_COL:
+                  phyAddr += ( col * unitAddr ); 
+                  unitAddr *= cachelineSize;
+                  break;
+
+            case MEM_BANK:
+                  phyAddr += ( bank * unitAddr ); 
+                  unitAddr *= bankNum;
+                  break;
+
+            case MEM_RANK:
+                  phyAddr += ( rank * unitAddr ); 
+                  unitAddr *= rankNum;
+                  break;
+
+            case MEM_CHANNEL:
+                  phyAddr += ( channel * unitAddr ); 
+                  unitAddr *= channelNum;
+                  break;
+
+            default:
+                  break;
+        }
+    }
+
+    return phyAddr;
+} 
