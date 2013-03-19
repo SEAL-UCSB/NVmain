@@ -56,6 +56,8 @@ Params::Params( )
     EchoPreTrace = false;
 
     StaggerRefresh = false;
+
+    SALP = 0;
 }
 
 Params::~Params( )
