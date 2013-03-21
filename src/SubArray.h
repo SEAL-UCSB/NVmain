@@ -49,7 +49,7 @@
 namespace NVM {
 
 /*
- *  We only use three subarray states because we use distributed timing control
+ *  We only use four subarray states because we use distributed timing control
  *  No PowerDown state is implemented since it does not make sense to apply 
  *  PowerDown to a subarray. As a result, PowerDown is management by Bank
  *
@@ -60,10 +60,11 @@ namespace NVM {
  */
 enum SubArrayState 
 { 
-    SUBARRAY_UNKNOWN,  /* Unknown state. Uh oh. */
-    SUBARRAY_OPEN,     /* SubArray has a row open */
-    SUBARRAY_CLOSED,   /* SubArray is idle. */
-    SUBARRAY_REFRESHING/* SubArray is refreshing and return to SUBARRAY_CLOSED */
+    SUBARRAY_UNKNOWN,     /* Unknown state. Uh oh. */
+    SUBARRAY_OPEN,        /* SubArray has an open row */
+    SUBARRAY_CLOSED,      /* SubArray is idle. */
+    SUBARRAY_PRECHARGING, /* SubArray is precharging and return to SUBARRAY_CLOSED */
+    SUBARRAY_REFRESHING   /* SubArray is refreshing and return to SUBARRAY_CLOSED */
 };
 
 enum WriteMode 
@@ -83,11 +84,12 @@ class SubArray : public NVMObject
     bool Read( NVMainRequest *request );
     bool Write( NVMainRequest *request );
     bool Precharge( NVMainRequest *request );
-    bool Refresh( );
+    bool Refresh( NVMainRequest *request );
 
     bool WouldConflict( uint64_t checkRow );
     bool IsIssuable( NVMainRequest *req, FailReason *reason = NULL );
     bool IssueCommand( NVMainRequest *req );
+    bool RequestComplete( NVMainRequest *req );
 
     void SetConfig( Config *c );
     void SetParams( Params *params ) { p = params; }

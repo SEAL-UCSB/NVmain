@@ -378,14 +378,7 @@ bool MemoryController::HandleRefresh( )
                     continue;
                 }
 
-                /* 
-                 * send the refresh command to the rank
-                 * Note: some banks may be still open or powerdown. but we
-                 * can send the REFRESH command since the extra POWERUP
-                 * or PRECHARGE latency or even both have been counted
-                 * in Bank.cc. See this file for the details.  
-                 * Note: the cmdRefresh will be deleted in Rank.cpp
-                 */
+                /* send the refresh command to the rank */
                 cmdRefresh->issueCycle = GetEventQueue()->GetCurrentCycle();
                 GetChild( )->IssueCommand( cmdRefresh );
 

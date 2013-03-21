@@ -213,8 +213,10 @@ bool FRFCFS_WQF::RequestComplete( NVMainRequest * request )
      * Only reads and writes are sent back to NVMain and checked for in the 
      * transaction queue 
      */
-    if( request->type == READ || request->type == READ_PRECHARGE 
-            || request->type == WRITE || request->type == WRITE_PRECHARGE )
+    if( request->type == READ 
+        || request->type == READ_PRECHARGE 
+        || request->type == WRITE 
+        || request->type == WRITE_PRECHARGE )
     {
         /* this isn't really used anymore, but doesn't hurt */
         request->status = MEM_REQUEST_COMPLETE; 

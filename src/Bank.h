@@ -52,7 +52,7 @@
 namespace NVM {
 
 /*
- *  We only use six bank states because our timing and energy parameters
+ *  We only use five bank states because our timing and energy parameters
  *  only tell us the delay of the entire read/write cycle to one bank.
  *  Even though all banks should be powered down in lockstep, we use three
  *  bank states to indicate different PowerDown modes. In addition, as all
@@ -65,12 +65,11 @@ namespace NVM {
  *  written back to the row.
  */
 enum BankState { BANK_UNKNOWN,  /***< Unknown state. Uh oh. */
-                 BANK_OPEN,     /***< Bank has a row open */
+                 BANK_OPEN,     /***< Bank has an active subarray  */
                  BANK_CLOSED,   /***< Bank is idle. */
                  BANK_PDPF,     /***< Bank is in precharge powered down, fast exit mode */
                  BANK_PDA,      /***< Bank is in active powered down mode */
-                 BANK_PDPS,     /***< Bank is in precharge powered down, slow exit mode */
-                 BANK_REFRESHING/***< Bank is refreshing and will return to BANK_CLOSED state */
+                 BANK_PDPS      /***< Bank is in precharge powered down, slow exit mode */
 };
 
 class Bank : public NVMObject
@@ -83,9 +82,9 @@ class Bank : public NVMObject
     bool Read( NVMainRequest *request );
     bool Write( NVMainRequest *request );
     bool Precharge( NVMainRequest *request );
-    bool Refresh( );
+    bool Refresh( NVMainRequest *request );
     bool PowerUp( );
-    bool PowerDown( OpType pdOp );
+    bool PowerDown( OpType );
 
     bool WouldConflict( uint64_t checkRow );
     bool IsIssuable( NVMainRequest *req, FailReason *reason = NULL );
@@ -103,8 +102,6 @@ class Bank : public NVMObject
     float GetEnergy( ); 
     ncounter_t GetReads( ) { return reads; }
     ncounter_t GetWrites( ) { return writes; }
-
-    void SetRefreshRows( ncounter_t numRows ) { refreshRows = numRows; }
 
     ncycle_t GetNextActivate( ) { return nextActivate; }
     ncycle_t GetNextRead( ) { return nextRead; }
@@ -138,9 +135,6 @@ class Bank : public NVMObject
     BankState state;
     BulkCommand nextCommand;
     NVMainRequest lastOperation;
-    bool refreshUsed;
-    ncounter_t refreshRows;
-    ncounter_t refreshRowIndex;
 
     ncycle_t dataCycles;
     ncycle_t activeCycles;

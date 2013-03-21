@@ -106,7 +106,7 @@ class Rank : public NVMObject
     bool Precharge( NVMainRequest *request );
     bool Refresh( NVMainRequest *request );
     bool PowerDown( NVMainRequest *request );
-    bool PowerUp( NVMainRequest *request );
+    bool PowerUp( );
     bool CanPowerDown( OpType pdOp );
     bool CanPowerUp();
 
