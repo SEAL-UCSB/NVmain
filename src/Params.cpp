@@ -56,8 +56,6 @@ Params::Params( )
     EchoPreTrace = false;
 
     StaggerRefresh = false;
-
-    SALP = 0;
 }
 
 Params::~Params( )
@@ -167,6 +165,5 @@ void Params::SetParams( Config *c )
     BanksPerRefresh = c->GetValue ( "BanksPerRefresh" );
     DelayedRefreshThreshold = c->GetValue ( "DelayedRefreshThreshold" );
     AddressMappingScheme = c->GetString ( "AddressMappingScheme" );
-    SALP = c->GetValue( "SALP" );
 }
 
