@@ -149,8 +149,10 @@ bool SubArray::Activate( NVMainRequest *request )
                      GetEventQueue()->GetCurrentCycle() 
                          + p->tRCD - p->tAL );
 
+    /* the request is deleted by RequestComplete() */
+    request->owner = this;
     GetEventQueue( )->InsertEvent( EventResponse, this, request, 
-                    GetEventQueue()->GetCurrentCycle() + p->tRCD );
+                    GetEventQueue()->GetCurrentCycle() + MAX( p->tRCD, p->tRAS ) );
 
     /* 
      * We simplify the row record here. The absolute row number is record
@@ -167,7 +169,7 @@ bool SubArray::Activate( NVMainRequest *request )
     if( p->EnergyModel_set && p->EnergyModel == "current" )
     {
         /* DRAM Model */
-        uint64_t tRC = p->tRAS + p->tRCD;
+        uint64_t tRC = p->tRAS + p->tRP;
 
         subArrayEnergy += ( (float)((p->EIDD0 * (float)tRC) 
                     - ((p->EIDD3N * (float)p->tRAS)
@@ -230,11 +232,13 @@ bool SubArray::Read( NVMainRequest *request )
         nextRead = MAX( nextRead, nextActivate );
         nextWrite = MAX( nextWrite, nextActivate );
 
-        /* close the subarray */
-        state = SUBARRAY_CLOSED;
-        openRow = p->ROWS;
+        NVMainRequest *preReq = new NVMainRequest( );
+        *preReq = *request;
+        preReq->owner = this;
 
-        precharges++;
+        /* insert the event to issue the implicit precharge */ 
+        GetEventQueue( )->InsertEvent( EventResponse, this, preReq, 
+            GetEventQueue()->GetCurrentCycle() + p->tAL + p->tRTP );
     }
     else
     {
@@ -363,10 +367,14 @@ bool SubArray::Write( NVMainRequest *request )
         nextWrite = MAX( nextWrite, nextActivate );
 
         /* close the subarray */
-        state = SUBARRAY_CLOSED;
-        openRow = p->ROWS;
+        NVMainRequest *preReq = new NVMainRequest( );
+        *preReq = *request;
+        preReq->owner = this;
 
-        precharges++;
+        /* insert the event to issue the implicit precharge */ 
+        GetEventQueue( )->InsertEvent( EventResponse, this, preReq, 
+            GetEventQueue()->GetCurrentCycle() 
+            + p->tAL + p->tCWD + p->tBURST + p->tWR );
     }
     else
     {
@@ -493,14 +501,13 @@ bool SubArray::Precharge( NVMainRequest *request )
     nextActivate = MAX( nextActivate, 
                         GetEventQueue()->GetCurrentCycle() + p->tRP );
 
+    /* the request is deleted by RequestComplete() */
+    request->owner = this;
     GetEventQueue( )->InsertEvent( EventResponse, this, request, 
               GetEventQueue()->GetCurrentCycle() + p->tRP );
 
-    /* close the subarray */
-    state = SUBARRAY_CLOSED;
-    openRow = p->ROWS;
-
-    precharges++;
+    /* set the subarray under precharging */
+    state = SUBARRAY_PRECHARGING;
 
     return true;
 }
@@ -509,7 +516,7 @@ bool SubArray::Precharge( NVMainRequest *request )
  * Refresh() is treated as an ACT and can only be issued when the subarray 
  * is idle 
  */
-bool SubArray::Refresh( )
+bool SubArray::Refresh( NVMainRequest* request )
 {
     /* TODO: Can we remove this sanity check and totally trust IsIssuable()? */
     /* sanity check */
@@ -530,9 +537,12 @@ bool SubArray::Refresh( )
     nextActivate = MAX( nextActivate, 
                         GetEventQueue()->GetCurrentCycle() + p->tRFC );
 
-    /* the subarray is still idle */
-    state = SUBARRAY_CLOSED;
-    openRow = p->ROWS;
+    request->owner = this;
+    GetEventQueue( )->InsertEvent( EventResponse, this, request, 
+              GetEventQueue()->GetCurrentCycle() + p->tRFC );
+
+    /* set the subarray under refreshing */
+    state = SUBARRAY_REFRESHING;
 
     if( p->EnergyModel_set && p->EnergyModel == "current" )
     {
@@ -546,8 +556,6 @@ bool SubArray::Refresh( )
 
         refreshEnergy += p->Eref;
     }
-
-    refreshes++;
 
     return true;
 }
@@ -631,8 +639,8 @@ bool SubArray::IsIssuable( NVMainRequest *req, FailReason *reason )
     }
     else
     {
-        std::cout << "SubArray: IsIssuable: Unknown operation: " << req->type 
-            << std::endl;
+        std::cerr << "NVMain Error: SubArray: IsIssuable: Unknown operation: " 
+            << req->type << std::endl;
 
         rv = false;
         if( reason ) 
@@ -679,6 +687,10 @@ bool SubArray::IssueCommand( NVMainRequest *req )
                 rv = this->Precharge( req );
                 break;
 
+            case REFRESH:
+                rv = this->Refresh( req );
+                break;
+
             default:
                 std::cerr << "NVMain Error : subarray detects unknown operation "
                     << "in command queue! " << req->type << std::endl;
@@ -687,6 +699,57 @@ bool SubArray::IssueCommand( NVMainRequest *req )
     }
 
     return rv;
+}
+
+bool SubArray::RequestComplete( NVMainRequest *req )
+{
+    if( req->owner == this )
+    {
+        switch( req->type )
+        {
+            /* may implement more functions in the future */
+            case ACTIVATE:
+            case READ:
+            case WRITE:
+                delete req;
+                break;
+
+            case READ_PRECHARGE:
+            case WRITE_PRECHARGE:
+                req->type = PRECHARGE;
+                state = SUBARRAY_PRECHARGING;
+
+                /* insert the implicit precharge */
+                GetEventQueue( )->InsertEvent( EventResponse, this, req, 
+                    GetEventQueue()->GetCurrentCycle() + p->tRP );
+                break;
+
+            case PRECHARGE:
+            case PRECHARGE_ALL:
+                /* close the subarray, increment the statistic number */
+                state = SUBARRAY_CLOSED;
+                openRow = p->ROWS;
+                precharges++;
+                delete req;
+                break;
+
+            case REFRESH:
+                /* close the subarray, increment the statistic number */
+                state = SUBARRAY_CLOSED;
+                openRow = p->ROWS;
+                refreshes++;
+                delete req;
+                break;
+
+            default:
+                delete req;
+                break;
+        }
+
+        return true;
+    }
+    else
+        return GetParent( )->RequestComplete( req );
 }
 
 bool SubArray::WouldConflict( uint64_t checkRow )

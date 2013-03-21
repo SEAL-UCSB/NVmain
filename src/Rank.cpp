@@ -320,8 +320,6 @@ bool Rank::PowerDown( NVMainRequest *request )
     for( ncounter_t i = 0; i < bankCount; i++ )
        banks[i]->PowerDown( request->type );
 
-    delete request;
-
     return true;
 }
 
@@ -343,7 +341,7 @@ bool Rank::CanPowerUp()
     return issuable;
 }
 
-bool Rank::PowerUp( NVMainRequest *request )
+bool Rank::PowerUp( )
 {
     /* TODO: use hooker to issue POWERDOWN?? */
     /* 
@@ -352,8 +350,6 @@ bool Rank::PowerUp( NVMainRequest *request )
      */
     for( ncounter_t i = 0; i < bankCount; i++ )
        banks[i]->PowerUp( );
-
-    delete request;
 
     return true;
 }
@@ -365,15 +361,21 @@ bool Rank::PowerUp( NVMainRequest *request )
 bool Rank::Refresh( NVMainRequest *request )
 {
     assert( nextActivate <= ( GetEventQueue()->GetCurrentCycle() ) );
-    uint64_t refreshBankHead, refreshRank;
+    uint64_t refreshBankGroupHead;
     request->address.GetTranslatedAddress( 
-            NULL, NULL, &refreshBankHead, &refreshRank, NULL );
+            NULL, NULL, &refreshBankGroupHead, NULL, NULL );
 
-    assert( (refreshBankHead + banksPerRefresh) <= bankCount );
+    assert( (refreshBankGroupHead + banksPerRefresh) <= bankCount );
 
     /* TODO: use hooker to issue REFRESH?? */
     for( ncounter_t i = 0; i < banksPerRefresh; i++ )
-        banks[refreshBankHead + i]->Refresh( );
+    {
+        NVMainRequest* refReq = new NVMainRequest;
+        *refReq = *request;
+        banks[refreshBankGroupHead + i]->IssueCommand( refReq );
+    }
+
+    delete request;
 
     /*
      * simply treat the REFRESH as an ACTIVATE. For a finer refresh
@@ -383,12 +385,6 @@ bool Rank::Refresh( NVMainRequest *request )
                                         + p->tRRDR );
     FAWindex = (FAWindex + 1) % 4;
     lastActivate[FAWindex] = (ncycles_t)GetEventQueue( )->GetCurrentCycle( );
-
-    /*
-     * since refresh must NOT be returned to memory controller, we can delete
-     * it here
-     */
-    delete request;
 
     return true;
 }
@@ -544,14 +540,11 @@ bool Rank::IsIssuable( NVMainRequest *req, FailReason *reason )
         }
 
         /* REFRESH can only be issued when all banks in the group are issuable */ 
-        uint64_t refreshBankHead, refreshRank;
-        req->address.GetTranslatedAddress( NULL, NULL, &refreshBankHead, 
-                &refreshRank, NULL );
-        assert( (refreshBankHead + banksPerRefresh) <= bankCount );
+        assert( (opBank + banksPerRefresh) <= bankCount );
 
         for( ncounter_t i = 0; i < banksPerRefresh; i++ )
         {
-            rv = banks[refreshBankHead + i]->IsIssuable( req, reason );
+            rv = banks[opBank + i]->IsIssuable( req, reason );
             if( rv == false )
                 return rv;
         }
@@ -605,8 +598,14 @@ bool Rank::IssueCommand( NVMainRequest *req )
                 rv = this->Precharge( req );
                 break;
 
+            case POWERDOWN_PDA:
+            case POWERDOWN_PDPF: 
+            case POWERDOWN_PDPS: 
+                rv = this->PowerDown( req );
+                break;
+
             case POWERUP:
-                rv = this->PowerUp( req );
+                rv = this->PowerUp( );
                 break;
         
             case REFRESH:
