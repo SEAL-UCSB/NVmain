@@ -58,16 +58,9 @@ SubArray::SubArray( )
     openRow = 0;
 
     subArrayEnergy = 0.0f;
-    backgroundEnergy = 0.0f;
     activeEnergy = 0.0f;
     burstEnergy = 0.0f;
     refreshEnergy = 0.0f;
-
-    subArrayPower = 0.0f;
-    backgroundPower = 0.0f;
-    activePower = 0.0f;
-    burstPower = 0.0f;
-    refreshPower = 0.0f;
 
     writeCycle = false;
     writeMode = WRITE_THROUGH;
@@ -767,64 +760,13 @@ SubArrayState SubArray::GetState( )
     return state;
 }
 
-void SubArray::GetEnergy( float& total, float& background, float& active, 
+void SubArray::GetEnergy( float& total, float& active, 
                           float& burst, float& refresh )
 {
     total = subArrayEnergy;
-    background = backgroundEnergy;
     active = activeEnergy;
     burst = burstEnergy;
     refresh = refreshEnergy;
-}
-
-
-void SubArray::GetPower( float& total, float& background, float& active, 
-                          float& burst, float& refresh )
-{
-    CalculatePower( );
-
-    total = subArrayPower;
-    background = backgroundPower;
-    active = activePower;
-    burst = burstPower;
-    refresh = refreshPower;
-}
-
-void SubArray::CalculatePower( )
-{
-    float simulationTime = (float)((float)GetEventQueue()->GetCurrentCycle() 
-                                / ((float)p->CLK * 1000000.0f));
-
-    if( simulationTime == 0.0f )
-    {
-        subArrayPower 
-            = backgroundPower 
-            = activePower 
-            = burstPower 
-            = refreshPower = 0.0f;
-        return;
-    }
-
-    // TODO: Move this somewhere else in case we need other variables
-    backgroundEnergy = p->Eleak * simulationTime;
-
-    backgroundPower = 
-        ((backgroundEnergy / (float)GetEventQueue()->GetCurrentCycle()) 
-        * p->Voltage) / 1000.0f;
-    
-    activePower = 
-        ((activeEnergy / (float)GetEventQueue()->GetCurrentCycle()) 
-        * p->Voltage) / 1000.0f;
-
-    burstPower = 
-        ((burstEnergy / (float)GetEventQueue()->GetCurrentCycle()) 
-        * p->Voltage) / 1000.0f;
-    
-    refreshPower = 
-        ((refreshEnergy / (float)GetEventQueue()->GetCurrentCycle()) 
-        * p->Voltage) / 1000.0f;
-
-    subArrayPower = ( backgroundPower + activePower + burstPower + refreshPower );
 }
 
 void SubArray::SetName( std::string )
@@ -856,12 +798,9 @@ void SubArray::PrintStats( )
 
     idealBandwidth = (float)(p->CLK * p->MULT * p->RATE * p->BPC);
 
-    CalculatePower( );
-
     if( p->EnergyModel_set && p->EnergyModel == "current" )
     {
         std::cout << "i" << psInterval << "." << statName << ".current " << subArrayEnergy << "\t; mA" << std::endl;
-        std::cout << "i" << psInterval << "." << statName << ".current.background " << backgroundEnergy << "\t; mA" << std::endl;
         std::cout << "i" << psInterval << "." << statName << ".current.active " << activeEnergy << "\t; mA" << std::endl;
         std::cout << "i" << psInterval << "." << statName << ".current.burst " << burstEnergy << "\t; mA" << std::endl;
         std::cout << "i" << psInterval << "." << statName << ".current.refresh " << refreshEnergy << "\t; mA" << std::endl;
@@ -869,18 +808,11 @@ void SubArray::PrintStats( )
     else
     {
         std::cout << "i" << psInterval << "." << statName << ".energy " << subArrayEnergy << "\t; nJ" << std::endl; 
-        std::cout << "i" << psInterval << "." << statName << ".energy.background " << backgroundEnergy << "\t; nJ" << std::endl;
         std::cout << "i" << psInterval << "." << statName << ".energy.active " << activeEnergy << "\t; nJ" << std::endl;
         std::cout << "i" << psInterval << "." << statName << ".energy.burst " << burstEnergy << "\t; nJ" << std::endl;
         std::cout << "i" << psInterval << "." << statName << ".energy.refresh " << refreshEnergy << "\t; nJ" << std::endl;
     }
     
-    std::cout << "i" << psInterval << "." << statName << ".power " << subArrayPower << "\t; W " << std::endl
-              << "i" << psInterval << "." << statName << ".power.background " << backgroundPower << "\t; nJ" << std::endl
-              << "i" << psInterval << "." << statName << ".power.active " << activePower << "\t; nJ" << std::endl
-              << "i" << psInterval << "." << statName << ".power.burst " << burstPower << "\t; nJ" << std::endl
-              << "i" << psInterval << "." << statName << ".power.refresh " << refreshPower << "\t; nJ" << std::endl;
-
     std::cout << "i" << psInterval << "." << statName << ".reads " << reads << std::endl
               << "i" << psInterval << "." << statName << ".writes " << writes << std::endl
               << "i" << psInterval << "." << statName << ".activates " << activates << std::endl

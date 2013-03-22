@@ -74,7 +74,10 @@ void Params::SetParams( Config *c )
     CPUFreq = c->GetValue( "CPUFreq" );
 
     EIDD0 = c->GetEnergy( "EIDD0" );
+    EIDD2P0 = c->GetEnergy( "EIDD2P0" );
+    EIDD2P0 = c->GetEnergy( "EIDD2P1" );
     EIDD2N = c->GetEnergy( "EIDD2N" );
+    EIDD3P = c->GetEnergy( "EIDD3P" );
     EIDD3N = c->GetEnergy( "EIDD3N" );
     EIDD4R = c->GetEnergy( "EIDD4R" );
     EIDD4W = c->GetEnergy( "EIDD4W" );
@@ -86,6 +89,9 @@ void Params::SetParams( Config *c )
     Eref = c->GetEnergy( "Eref" );
     Ewr = c->GetEnergy( "Ewr" );
     Eleak = c->GetEnergy( "Eleak" );
+    Epda = c->GetEnergy( "Epda" );
+    Epdpf = c->GetEnergy( "Epdpf" );
+    Epdps = c->GetEnergy( "Epdps" );
     Voltage = c->GetEnergy( "Voltage" );
 
     Rtt_nom = (unsigned int)c->GetValue( "Rtt_nom" );
