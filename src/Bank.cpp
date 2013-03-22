@@ -1062,16 +1062,16 @@ void Bank::Cycle( ncycle_t steps )
         if( p->EnergyModel_set && p->EnergyModel == "current" )
         {
             if( state == BANK_PDA ) /* active powerdown */
-                backgroundEnergy += ( p->EIDD3P * steps );  
+                backgroundEnergy += ( p->EIDD3P * (float)steps );  
             else /* precharge powerdown fast exit */
-                backgroundEnergy += ( p->EIDD2P1 * steps );  
+                backgroundEnergy += ( p->EIDD2P1 * (float)steps );  
         }
         else
         {
             if( state == BANK_PDA ) /* active powerdown */
-                backgroundEnergy += ( p->Epda * steps );  
+                backgroundEnergy += ( p->Epda * (float)steps );  
             else /* precharge powerdown fast exit */
-                backgroundEnergy += ( p->Epdpf * steps );  
+                backgroundEnergy += ( p->Epdpf * (float)steps );  
         }
     }
     /* precharge powerdown slow exit */
@@ -1080,9 +1080,9 @@ void Bank::Cycle( ncycle_t steps )
         seCycles += steps;
 
         if( p->EnergyModel_set && p->EnergyModel == "current" )
-            backgroundEnergy += ( p->EIDD2P0 * steps );  
+            backgroundEnergy += ( p->EIDD2P0 * (float)steps );  
         else
-            backgroundEnergy += ( p->Epdps * steps );  
+            backgroundEnergy += ( p->Epdps * (float)steps );  
     }
     /* active standby */
     else if( state == BANK_OPEN )
@@ -1090,9 +1090,9 @@ void Bank::Cycle( ncycle_t steps )
         activeCycles += steps;
 
         if( p->EnergyModel_set && p->EnergyModel == "current" )
-            backgroundEnergy += ( p->EIDD3N * steps );  
+            backgroundEnergy += ( p->EIDD3N * (float)steps );  
         else
-            backgroundEnergy += ( p->Eleak * steps );  
+            backgroundEnergy += ( p->Eleak * (float)steps );  
     }
     /* precharge standby */
     else if( state == BANK_CLOSED )
@@ -1100,8 +1100,8 @@ void Bank::Cycle( ncycle_t steps )
         standbyCycles += steps;
 
         if( p->EnergyModel_set && p->EnergyModel == "current" )
-            backgroundEnergy += ( p->EIDD2N * steps );  
+            backgroundEnergy += ( p->EIDD2N * (float)steps );  
         else
-            backgroundEnergy += ( p->Eleak * steps );  
+            backgroundEnergy += ( p->Eleak * (float)steps );  
     }
 }

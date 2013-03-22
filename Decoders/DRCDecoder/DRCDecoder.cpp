@@ -34,6 +34,7 @@
 #include "Decoders/DRCDecoder/DRCDecoder.h"
 #include "include/NVMHelpers.h"
 #include <iostream>
+#include <cstdlib>
 
 using namespace NVM;
 
