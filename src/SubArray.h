@@ -98,9 +98,7 @@ class SubArray : public NVMObject
 
     bool Idle( );
     ncycle_t GetDataCycles( ) { return dataCycles; }
-    void CalculatePower( );
-    void GetPower( float&, float&, float&, float&, float& );
-    void GetEnergy( float&, float&, float&, float&, float& );
+    void GetEnergy( float&, float&, float&, float& );
     ncounter_t GetReads( ) { return reads; }
     ncounter_t GetWrites( ) { return writes; }
 
@@ -146,15 +144,10 @@ class SubArray : public NVMObject
     ncounter_t actWaitTime;
 
     float subArrayEnergy;
-    float backgroundEnergy;
     float activeEnergy;
     float burstEnergy;
     float refreshEnergy;
-    float subArrayPower;
-    float backgroundPower;
-    float activePower;
-    float burstPower;
-    float refreshPower;
+
     ncounter_t reads, writes, activates, precharges, refreshes;
     ncounter_t idleTimer;
 

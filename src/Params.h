@@ -58,7 +58,11 @@ class Params
     ncounter_t CPUFreq;
 
     float EIDD0;
+    float EIDD1;
+    float EIDD2P0;
+    float EIDD2P1;
     float EIDD2N;
+    float EIDD3P;
     float EIDD3N;
     float EIDD4R;
     float EIDD4W;
@@ -70,6 +74,9 @@ class Params
     float Eref;
     float Ewr;
     float Eleak;
+    float Epda;
+    float Epdpf;
+    float Epdps;
     float Voltage;
 
     unsigned int Rtt_nom;

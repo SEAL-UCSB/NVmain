@@ -183,7 +183,7 @@ bool Bank::PowerDown( OpType pdType )
          */
         nextPowerUp = MAX( nextPowerUp, GetEventQueue()->GetCurrentCycle() 
                                         + p->tPD );
-        
+
         if( state == BANK_OPEN )
         {
             assert( pdType == POWERDOWN_PDA );
@@ -250,6 +250,7 @@ bool Bank::PowerUp( )
          *  to be consuming background power while powering up/down. Thus, we need
          *  a powerdown wait, but no power up wait.
          */
+
         if( state == BANK_PDA )
             state = BANK_OPEN;
         else
@@ -842,36 +843,40 @@ BankState Bank::GetState( )
 
 void Bank::CalculatePower( )
 {
-    float saPower, bgPower, actPower, bstPower, refPower;
-    float saEnergy, bgEnergy, actEnergy, bstEnergy, refEnergy;
-    
-    /* first reset all counters so that it does not cumulate */
-    bankEnergy = backgroundEnergy = activeEnergy = burstEnergy = refreshEnergy 
-               = 0.0f;
+    float simulationTime = (float)((float)GetEventQueue()->GetCurrentCycle() 
+                                / ((float)p->CLK * 1000000.0f));
 
-    bankPower = backgroundPower = activePower = burstPower = refreshPower 
-              = 0.0f;
-
-    for( unsigned saIdx = 0; saIdx < subArrayNum; saIdx++ )
+    if( simulationTime == 0.0f )
     {
-        subArrays[saIdx]->GetEnergy( saEnergy, bgEnergy, actEnergy, bstEnergy,
-                                     refEnergy );
-
-        bankEnergy += saEnergy;
-        backgroundEnergy += bgEnergy;
-        activeEnergy += actEnergy;
-        burstEnergy += bstEnergy;
-        refreshEnergy += refEnergy;
-
-        subArrays[saIdx]->GetPower( saPower, bgPower, actPower, bstPower, 
-                                    refPower );
-
-        bankPower += saPower;
-        backgroundPower += bgPower;
-        activePower += actPower;
-        burstPower += bstPower;
-        refreshPower += refreshPower;
+        bankPower 
+            = backgroundPower
+            = activePower 
+            = burstPower 
+            = refreshPower = 0.0f;
+        return;
     }
+
+    GetEnergy( );
+
+    bankPower = 
+        ((bankEnergy / (float)GetEventQueue()->GetCurrentCycle()) 
+        * p->Voltage) / 1000.0f;
+
+    backgroundPower = 
+        ((backgroundEnergy / (float)GetEventQueue()->GetCurrentCycle()) 
+        * p->Voltage) / 1000.0f;
+
+    activePower = 
+        ((activeEnergy / (float)GetEventQueue()->GetCurrentCycle()) 
+        * p->Voltage) / 1000.0f;
+
+    burstPower = 
+        ((burstEnergy / (float)GetEventQueue()->GetCurrentCycle()) 
+        * p->Voltage) / 1000.0f;
+    
+    refreshPower = 
+        ((refreshEnergy / (float)GetEventQueue()->GetCurrentCycle()) 
+        * p->Voltage) / 1000.0f;
 }
 
 float Bank::GetPower( )
@@ -883,7 +888,22 @@ float Bank::GetPower( )
 
 float Bank::GetEnergy( )
 {
-    CalculatePower( );
+    float saEnergy, actEnergy, bstEnergy, refEnergy;
+
+    bankEnergy = activeEnergy = burstEnergy = refreshEnergy 
+               = 0.0f;
+
+    bankEnergy += backgroundEnergy;
+    for( unsigned saIdx = 0; saIdx < subArrayNum; saIdx++ )
+    {
+        subArrays[saIdx]->GetEnergy( saEnergy, actEnergy, bstEnergy,
+                                     refEnergy );
+
+        bankEnergy += saEnergy;
+        activeEnergy += actEnergy;
+        burstEnergy += bstEnergy;
+        refreshEnergy += refEnergy;
+    }
 
     return bankEnergy;
 }
@@ -1034,13 +1054,54 @@ bool Bank::Idle( )
 
 void Bank::Cycle( ncycle_t steps )
 {
-    /* Count cycle numbers for each state */
+    /* Count cycle numbers and calculate background energy for each state */
     if( state == BANK_PDPF || state == BANK_PDA )
+    {
         feCycles += steps;
+
+        if( p->EnergyModel_set && p->EnergyModel == "current" )
+        {
+            if( state == BANK_PDA ) /* active powerdown */
+                backgroundEnergy += ( p->EIDD3P * steps );  
+            else /* precharge powerdown fast exit */
+                backgroundEnergy += ( p->EIDD2P1 * steps );  
+        }
+        else
+        {
+            if( state == BANK_PDA ) /* active powerdown */
+                backgroundEnergy += ( p->Epda * steps );  
+            else /* precharge powerdown fast exit */
+                backgroundEnergy += ( p->Epdpf * steps );  
+        }
+    }
+    /* precharge powerdown slow exit */
     else if( state == BANK_PDPS )
+    {
         seCycles += steps;
+
+        if( p->EnergyModel_set && p->EnergyModel == "current" )
+            backgroundEnergy += ( p->EIDD2P0 * steps );  
+        else
+            backgroundEnergy += ( p->Epdps * steps );  
+    }
+    /* active standby */
     else if( state == BANK_OPEN )
+    {
         activeCycles += steps;
+
+        if( p->EnergyModel_set && p->EnergyModel == "current" )
+            backgroundEnergy += ( p->EIDD3N * steps );  
+        else
+            backgroundEnergy += ( p->Eleak * steps );  
+    }
+    /* precharge standby */
     else if( state == BANK_CLOSED )
+    {
         standbyCycles += steps;
+
+        if( p->EnergyModel_set && p->EnergyModel == "current" )
+            backgroundEnergy += ( p->EIDD2N * steps );  
+        else
+            backgroundEnergy += ( p->Eleak * steps );  
+    }
 }
