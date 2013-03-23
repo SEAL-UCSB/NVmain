@@ -539,9 +539,14 @@ bool SubArray::Refresh( NVMainRequest* request )
 
     if( p->EnergyModel_set && p->EnergyModel == "current" )
     {
-        subArrayEnergy += (float)((p->EIDD5B - p->EIDD3N) * (float)p->tRFC ); 
+        /* calibrate the refresh energy since we may have fine-grained refresh */
+        subArrayEnergy += (float)((p->EIDD5B - p->EIDD3N) 
+                                * (float)p->tRFC / (float)p->BANKS ); 
 
-        refreshEnergy += (float)((p->EIDD5B - p->EIDD3N) * (float)p->tRFC ); 
+        refreshEnergy += (float)((p->EIDD5B - p->EIDD3N) 
+                                * (float)p->tRFC / (float)p->BANKS ); 
+
+        
     }
     else
     {
@@ -843,16 +848,7 @@ void SubArray::PrintStats( )
 
 bool SubArray::Idle( )
 {
-    if( nextPrecharge <= GetEventQueue()->GetCurrentCycle() 
-            && nextActivate <= GetEventQueue()->GetCurrentCycle()
-            && nextRead <= GetEventQueue()->GetCurrentCycle() 
-            && nextWrite <= GetEventQueue()->GetCurrentCycle()
-            && ( state == SUBARRAY_CLOSED || state == SUBARRAY_OPEN ) )
-    {
-        return true;
-    }
-
-    return false;
+    return ( state == SUBARRAY_CLOSED );
 }
 
 void SubArray::Cycle( ncycle_t )

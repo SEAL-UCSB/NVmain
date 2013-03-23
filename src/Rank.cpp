@@ -55,6 +55,11 @@ Rank::Rank( )
     lastActivate[2] = -10000;
     lastActivate[3] = -10000;
 
+    activeCycles = 0;
+    standbyCycles = 0;
+    feCycles = 0;
+    seCycles = 0;
+
     FAWindex = 0;
 
     conf = NULL;
@@ -164,6 +169,8 @@ bool Rank::Activate( NVMainRequest *request )
     {
         /* issue ACTIVATE to target bank */
         GetChild( request )->IssueCommand( request );
+
+        state = RANK_OPEN;
 
         FAWindex = (FAWindex + 1) % 4;
         lastActivate[FAWindex] = (ncycles_t)GetEventQueue()->GetCurrentCycle();
@@ -286,6 +293,19 @@ bool Rank::Precharge( NVMainRequest *request )
     /* issue PRECHARGE/PRECHARGE_ALL to the target bank */
     GetChild( request )->IssueCommand( request );
 
+    bool rankIdle = true;
+    for( ncounter_t i = 0; i < bankCount; i++ )
+    {
+        if( banks[i]->Idle( ) == false )
+        {
+            rankIdle = false;
+            break;
+        }
+    }
+
+    if( rankIdle )
+        state = RANK_CLOSED;
+
     return true;
 }
 
@@ -320,6 +340,26 @@ bool Rank::PowerDown( NVMainRequest *request )
     for( ncounter_t i = 0; i < bankCount; i++ )
        banks[i]->PowerDown( request->type );
 
+    switch( request->type )
+    {
+        case POWERDOWN_PDA:
+            state = RANK_PDA;
+            break;
+
+        case POWERDOWN_PDPF:
+            state = RANK_PDPF;
+            break;
+
+        case POWERDOWN_PDPS:
+            state = RANK_PDPS;
+            break;
+
+        default:
+            std::cerr<< "NVMain Error: Unrecognized PowerDown command " 
+                << request->type << " is detected in Rank " << std::endl; 
+            break;
+    }
+    
     return true;
 }
 
@@ -351,6 +391,23 @@ bool Rank::PowerUp( )
     for( ncounter_t i = 0; i < bankCount; i++ )
        banks[i]->PowerUp( );
 
+    switch( state )
+    {
+        case RANK_PDA:
+            state = RANK_OPEN;
+            break;
+
+        case RANK_PDPF:
+        case RANK_PDPS:
+            state = RANK_CLOSED;
+            break;
+
+        default:
+            std::cerr<< "NVMain Error: PowerUp is issued to a Rank that is not " 
+                << "PowerDown before in Rank " << std::endl; 
+            break;
+    }
+    
     return true;
 }
 
@@ -375,7 +432,12 @@ bool Rank::Refresh( NVMainRequest *request )
         banks[refreshBankGroupHead + i]->IssueCommand( refReq );
     }
 
-    delete request;
+    /* rank is tagged open since IDD3N should be used for background energy */
+    state = RANK_OPEN;
+
+    request->owner = this;
+    GetEventQueue( )->InsertEvent( EventResponse, this, request, 
+        GetEventQueue()->GetCurrentCycle() + p->tRFC );
 
     /*
      * simply treat the REFRESH as an ACTIVATE. For a finer refresh
@@ -647,10 +709,92 @@ void Rank::Notify( OpType op )
     }
 }
 
+bool Rank::RequestComplete( NVMainRequest* req )
+{
+    if( req->owner == this )
+    {
+        if( req->type == REFRESH )
+        {
+            /* 
+             * check whether all banks are idle. some banks may be active
+             * due to the possible fine-grained refresh 
+             */
+            bool rankIdle = true;
+            for( ncounter_t i = 0; i < bankCount; i++ )
+            {
+                if( banks[i]->Idle( ) == false )
+                {
+                    rankIdle = false;
+                    break;
+                }
+            }
+
+            if( rankIdle )
+                state = RANK_CLOSED;
+        }
+
+        delete req;
+        return true;
+    }
+    else
+        return GetParent( )->RequestComplete( req );
+}
+
 void Rank::Cycle( ncycle_t steps )
 {
     for( unsigned bankIdx = 0; bankIdx < bankCount; bankIdx++ )
         banks[bankIdx]->Cycle( steps );
+
+    /* Count cycle numbers and calculate background energy for each state */
+    if( state == RANK_PDPF || state == RANK_PDA )
+    {
+        feCycles += steps;
+
+        if( p->EnergyModel_set && p->EnergyModel == "current" )
+        {
+            if( state == RANK_PDA ) /* active powerdown */
+                backgroundEnergy += ( p->EIDD3P * (float)steps );  
+            else /* precharge powerdown fast exit */
+                backgroundEnergy += ( p->EIDD2P1 * (float)steps );  
+        }
+        else
+        {
+            if( state == RANK_PDA ) /* active powerdown */
+                backgroundEnergy += ( p->Epda * (float)steps );  
+            else /* precharge powerdown fast exit */
+                backgroundEnergy += ( p->Epdpf * (float)steps );  
+        }
+    }
+    /* precharge powerdown slow exit */
+    else if( state == RANK_PDPS )
+    {
+        seCycles += steps;
+
+        if( p->EnergyModel_set && p->EnergyModel == "current" )
+            backgroundEnergy += ( p->EIDD2P0 * (float)steps );  
+        else
+            backgroundEnergy += ( p->Epdps * (float)steps );  
+    }
+    /* active standby */
+    else if( state == RANK_OPEN )
+    {
+        activeCycles += steps;
+
+        if( p->EnergyModel_set && p->EnergyModel == "current" )
+            backgroundEnergy += ( p->EIDD3N * (float)steps );  
+        else
+            backgroundEnergy += ( p->Eleak * (float)steps );  
+    }
+    /* precharge standby */
+    else if( state == RANK_CLOSED )
+    {
+        standbyCycles += steps;
+
+        if( p->EnergyModel_set && p->EnergyModel == "current" )
+            backgroundEnergy += ( p->EIDD2N * (float)steps );  
+        else
+            backgroundEnergy += ( p->Eleak * (float)steps );  
+    }
 }
 
 /*
@@ -664,28 +808,96 @@ void Rank::PrintStats( )
 {
     float totalPower = 0.0f;
     float totalEnergy = 0.0f;
+    float bankE, actE, bstE, refE;
+    float bkgEnergy, actEnergy, bstEnergy, refEnergy;
+    float bkgPower, actPower, bstPower, refPower;
     ncounter_t reads, writes;
 
-    reads = 0;
-    writes = 0;
+    bkgEnergy = actEnergy = bstEnergy = refEnergy = 0.0f;
+    bkgPower = actPower = bstPower = refPower = 0.0f;
+    reads = writes = 0;
+
     for( ncounter_t i = 0; i < bankCount; i++ )
     {
-        totalEnergy += banks[i]->GetEnergy( );
-        totalPower += banks[i]->GetPower( );
+        banks[i]->GetEnergy( bankE, actE, bstE, refE );
+
+        totalEnergy += bankE;
+        actEnergy += actE;
+        bstEnergy += bstE;
+        refEnergy += refE;
 
         reads += banks[i]->GetReads( );
         writes += banks[i]->GetWrites( );
     }
 
-    totalEnergy *= (float)deviceCount;
-    totalPower *= (float)deviceCount;
-
+    /* add up the background energy */
     totalEnergy += backgroundEnergy;
-    totalPower += (((backgroundEnergy / (float)GetEventQueue()->GetCurrentCycle()) * p->Voltage) / 1000.0f) * (float)deviceCount;
+    bkgEnergy = backgroundEnergy;
 
-    std::cout << "i" << psInterval << "." << statName << ".power " << totalPower << std::endl;
-    std::cout << "i" << psInterval << "." << statName << ".energy " << totalEnergy << std::endl;
-    std::cout << "i" << psInterval << "." << statName << ".backgroundEnergy " << backgroundEnergy << std::endl;
+    float simulationTime = (float)GetEventQueue()->GetCurrentCycle();
+
+    if( simulationTime != 0.0f )
+    {
+        /* power in mW */
+        totalPower = ( totalEnergy * p->Voltage ) / simulationTime / 1000.0f;
+        bkgPower = ( bkgEnergy * p->Voltage ) / simulationTime / 1000.0f; 
+        actPower = ( actEnergy * p->Voltage ) / simulationTime / 1000.0f; 
+        bstPower = ( bstEnergy * p->Voltage ) / simulationTime / 1000.0f; 
+        refPower = ( refEnergy * p->Voltage ) / simulationTime / 1000.0f; 
+    }
+
+    /* energy breakdown. device is in lockstep within a rank */
+    totalEnergy *= (float)deviceCount;
+    bkgEnergy *= (float)deviceCount;
+    actEnergy *= (float)deviceCount;
+    bstEnergy *= (float)deviceCount;
+    refEnergy *= (float)deviceCount;
+
+    /* power breakdown. device is in lockstep within a rank */
+    totalPower *= (float)deviceCount;
+    bkgPower *= (float)deviceCount;
+    actPower *= (float)deviceCount;
+    bstPower *= (float)deviceCount;
+    refPower *= (float)deviceCount;
+
+    if( p->EnergyModel_set && p->EnergyModel == "current" )
+    {
+        std::cout << "i" << psInterval << "." << statName 
+            << ".current " << totalEnergy << "\t; mA" << std::endl;
+        std::cout << "i" << psInterval << "." << statName 
+            << ".current.active " << bkgEnergy << "\t; mA" << std::endl;
+        std::cout << "i" << psInterval << "." << statName 
+            << ".current.active " << actEnergy << "\t; mA" << std::endl;
+        std::cout << "i" << psInterval << "." << statName 
+            << ".current.burst " << bstEnergy << "\t; mA" << std::endl;
+        std::cout << "i" << psInterval << "." << statName 
+            << ".current.refresh " << refEnergy << "\t; mA" << std::endl;
+    }
+    else
+    {
+        std::cout << "i" << psInterval << "." << statName 
+            << ".energy " << totalEnergy << "\t; nJ" << std::endl; 
+        std::cout << "i" << psInterval << "." << statName 
+            << ".energy.active " << bkgEnergy << "\t; nJ" << std::endl;
+        std::cout << "i" << psInterval << "." << statName 
+            << ".energy.active " << actEnergy << "\t; nJ" << std::endl;
+        std::cout << "i" << psInterval << "." << statName 
+            << ".energy.burst " << bstEnergy << "\t; nJ" << std::endl;
+        std::cout << "i" << psInterval << "." << statName 
+            << ".energy.refresh " << refEnergy << "\t; nJ" << std::endl;
+    }
+    
+    std::cout << "i" << psInterval << "." << statName << ".power " 
+              << totalPower << "\t; W " << std::endl
+              << "i" << psInterval << "." << statName << ".power.background " 
+              << bkgPower << "\t; W " << std::endl
+              << "i" << psInterval << "." << statName << ".power.active " 
+              << actPower << "\t; W " << std::endl
+              << "i" << psInterval << "." << statName << ".power.burst " 
+              << bstPower << "\t; W " << std::endl
+              << "i" << psInterval << "." << statName << ".power.refresh " 
+              << refPower << "\t; W " << std::endl;
+
     std::cout << "i" << psInterval << "." << statName << ".reads " << reads << std::endl;
     std::cout << "i" << psInterval << "." << statName << ".writes " << writes << std::endl;
 
