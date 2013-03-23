@@ -64,12 +64,14 @@ namespace NVM {
  *  data is not destroyed during read, and thus does not need to be
  *  written back to the row.
  */
-enum BankState { BANK_UNKNOWN,  /***< Unknown state. Uh oh. */
-                 BANK_OPEN,     /***< Bank has an active subarray  */
-                 BANK_CLOSED,   /***< Bank is idle. */
-                 BANK_PDPF,     /***< Bank is in precharge powered down, fast exit mode */
-                 BANK_PDA,      /***< Bank is in active powered down mode */
-                 BANK_PDPS      /***< Bank is in precharge powered down, slow exit mode */
+enum BankState 
+{ 
+    BANK_UNKNOWN,  /***< Unknown state. Uh oh. */
+    BANK_OPEN,     /***< Bank has an active subarray  */
+    BANK_CLOSED,   /***< Bank is idle. */
+    BANK_PDPF,     /***< Bank is in precharge powered down, fast exit mode */
+    BANK_PDA,      /***< Bank is in active powered down mode */
+    BANK_PDPS      /***< Bank is in precharge powered down, slow exit mode */
 };
 
 class Bank : public NVMObject
@@ -99,7 +101,7 @@ class Bank : public NVMObject
     ncycle_t GetDataCycles( ) { return dataCycles; }
     void CalculatePower( );
     float GetPower( ); 
-    float GetEnergy( ); 
+    void GetEnergy( float& , float& , float&, float& ); 
     ncounter_t GetReads( ) { return reads; }
     ncounter_t GetWrites( ) { return writes; }
 
@@ -136,11 +138,11 @@ class Bank : public NVMObject
     BulkCommand nextCommand;
     NVMainRequest lastOperation;
 
-    ncycle_t dataCycles;
-    ncycle_t activeCycles;
-    ncycle_t standbyCycles;
-    ncycle_t feCycles;
-    ncycle_t seCycles;
+    ncounter_t dataCycles;
+    ncounter_t activeCycles;
+    ncounter_t standbyCycles;
+    ncounter_t feCycles;
+    ncounter_t seCycles;
 
     ncycle_t lastActivate;
     ncycle_t nextActivate;
@@ -159,16 +161,16 @@ class Bank : public NVMObject
     ncounter_t actWaitTime;
 
     float bankEnergy;
-    float backgroundEnergy;
     float activeEnergy;
     float burstEnergy;
     float refreshEnergy;
     float bankPower;
-    float backgroundPower;
     float activePower;
     float burstPower;
     float refreshPower;
+
     float utilization;
+
     ncounter_t reads, writes, activates, precharges, refreshes;
     ncounter_t idleTimer;
 

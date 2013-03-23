@@ -74,13 +74,11 @@ Bank::Bank( )
     openRow = 0;
 
     bankEnergy = 0.0f;
-    backgroundEnergy = 0.0f;
     activeEnergy = 0.0f;
     burstEnergy = 0.0f;
     refreshEnergy = 0.0f;
 
     bankPower = 0.0f;
-    backgroundPower = 0.0f;
     activePower = 0.0f;
     burstPower = 0.0f;
     refreshPower = 0.0f;
@@ -843,40 +841,24 @@ BankState Bank::GetState( )
 
 void Bank::CalculatePower( )
 {
-    float simulationTime = (float)((float)GetEventQueue()->GetCurrentCycle() 
-                                / ((float)p->CLK * 1000000.0f));
+    float simulationTime = (float)GetEventQueue()->GetCurrentCycle();
 
     if( simulationTime == 0.0f )
     {
         bankPower 
-            = backgroundPower
             = activePower 
             = burstPower 
             = refreshPower = 0.0f;
         return;
     }
 
-    GetEnergy( );
+    bankPower = ( bankEnergy * p->Voltage ) / simulationTime / 1000.0f; 
 
-    bankPower = 
-        ((bankEnergy / (float)GetEventQueue()->GetCurrentCycle()) 
-        * p->Voltage) / 1000.0f;
+    activePower = ( activeEnergy * p->Voltage ) / simulationTime / 1000.0f; 
 
-    backgroundPower = 
-        ((backgroundEnergy / (float)GetEventQueue()->GetCurrentCycle()) 
-        * p->Voltage) / 1000.0f;
-
-    activePower = 
-        ((activeEnergy / (float)GetEventQueue()->GetCurrentCycle()) 
-        * p->Voltage) / 1000.0f;
-
-    burstPower = 
-        ((burstEnergy / (float)GetEventQueue()->GetCurrentCycle()) 
-        * p->Voltage) / 1000.0f;
+    burstPower = ( burstEnergy * p->Voltage ) / simulationTime / 1000.0f; 
     
-    refreshPower = 
-        ((refreshEnergy / (float)GetEventQueue()->GetCurrentCycle()) 
-        * p->Voltage) / 1000.0f;
+    refreshPower = ( refreshEnergy * p->Voltage ) / simulationTime / 1000.0f; 
 }
 
 float Bank::GetPower( )
@@ -886,14 +868,14 @@ float Bank::GetPower( )
     return bankPower;
 }
 
-float Bank::GetEnergy( )
+void Bank::GetEnergy( float& bk, float& act, 
+                       float& bst, float& ref)
 {
     float saEnergy, actEnergy, bstEnergy, refEnergy;
 
     bankEnergy = activeEnergy = burstEnergy = refreshEnergy 
                = 0.0f;
 
-    bankEnergy += backgroundEnergy;
     for( unsigned saIdx = 0; saIdx < subArrayNum; saIdx++ )
     {
         subArrays[saIdx]->GetEnergy( saEnergy, actEnergy, bstEnergy,
@@ -905,7 +887,10 @@ float Bank::GetEnergy( )
         refreshEnergy += refEnergy;
     }
 
-    return bankEnergy;
+    bk = bankEnergy;
+    act = activeEnergy;
+    bst = burstEnergy;
+    ref = refreshEnergy;
 }
 
 void Bank::SetName( std::string )
@@ -951,8 +936,6 @@ void Bank::PrintStats( )
         std::cout << "i" << psInterval << "." << statName 
             << ".current " << bankEnergy << "\t; mA" << std::endl;
         std::cout << "i" << psInterval << "." << statName 
-            << ".current.background " << backgroundEnergy << "\t; mA" << std::endl;
-        std::cout << "i" << psInterval << "." << statName 
             << ".current.active " << activeEnergy << "\t; mA" << std::endl;
         std::cout << "i" << psInterval << "." << statName 
             << ".current.burst " << burstEnergy << "\t; mA" << std::endl;
@@ -964,8 +947,6 @@ void Bank::PrintStats( )
         std::cout << "i" << psInterval << "." << statName 
             << ".energy " << bankEnergy << "\t; nJ" << std::endl; 
         std::cout << "i" << psInterval << "." << statName 
-            << ".energy.background " << backgroundEnergy << "\t; nJ" << std::endl;
-        std::cout << "i" << psInterval << "." << statName 
             << ".energy.active " << activeEnergy << "\t; nJ" << std::endl;
         std::cout << "i" << psInterval << "." << statName 
             << ".energy.burst " << burstEnergy << "\t; nJ" << std::endl;
@@ -975,8 +956,6 @@ void Bank::PrintStats( )
     
     std::cout << "i" << psInterval << "." << statName << ".power " 
               << bankPower << "\t; W per bank per device" << std::endl
-              << "i" << psInterval << "." << statName << ".power.background " 
-              << backgroundPower << "\t; W per bank per device" << std::endl
               << "i" << psInterval << "." << statName << ".power.active " 
               << activePower << "\t; W per bank per device" << std::endl
               << "i" << psInterval << "." << statName << ".power.burst " 
@@ -1040,68 +1019,21 @@ void Bank::PrintStats( )
 
 bool Bank::Idle( )
 {
-    if( nextPrecharge <= GetEventQueue()->GetCurrentCycle() 
-            && nextActivate <= GetEventQueue()->GetCurrentCycle()
-            && nextRead <= GetEventQueue()->GetCurrentCycle() 
-            && nextWrite <= GetEventQueue()->GetCurrentCycle()
-            && ( state == BANK_CLOSED || state == BANK_OPEN ) )
-    {
-        return true;
-    }
-
-    return false;
+    return ( state == BANK_CLOSED );
 }
 
 void Bank::Cycle( ncycle_t steps )
 {
-    /* Count cycle numbers and calculate background energy for each state */
+    /* Count cycle numbers for each state */
     if( state == BANK_PDPF || state == BANK_PDA )
-    {
         feCycles += steps;
-
-        if( p->EnergyModel_set && p->EnergyModel == "current" )
-        {
-            if( state == BANK_PDA ) /* active powerdown */
-                backgroundEnergy += ( p->EIDD3P * (float)steps );  
-            else /* precharge powerdown fast exit */
-                backgroundEnergy += ( p->EIDD2P1 * (float)steps );  
-        }
-        else
-        {
-            if( state == BANK_PDA ) /* active powerdown */
-                backgroundEnergy += ( p->Epda * (float)steps );  
-            else /* precharge powerdown fast exit */
-                backgroundEnergy += ( p->Epdpf * (float)steps );  
-        }
-    }
     /* precharge powerdown slow exit */
     else if( state == BANK_PDPS )
-    {
         seCycles += steps;
-
-        if( p->EnergyModel_set && p->EnergyModel == "current" )
-            backgroundEnergy += ( p->EIDD2P0 * (float)steps );  
-        else
-            backgroundEnergy += ( p->Epdps * (float)steps );  
-    }
     /* active standby */
     else if( state == BANK_OPEN )
-    {
         activeCycles += steps;
-
-        if( p->EnergyModel_set && p->EnergyModel == "current" )
-            backgroundEnergy += ( p->EIDD3N * (float)steps );  
-        else
-            backgroundEnergy += ( p->Eleak * (float)steps );  
-    }
     /* precharge standby */
     else if( state == BANK_CLOSED )
-    {
         standbyCycles += steps;
-
-        if( p->EnergyModel_set && p->EnergyModel == "current" )
-            backgroundEnergy += ( p->EIDD2N * (float)steps );  
-        else
-            backgroundEnergy += ( p->Eleak * (float)steps );  
-    }
 }

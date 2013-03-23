@@ -46,6 +46,29 @@
 
 namespace NVM {
 
+/*
+ *  We use five rank states because our timing and energy parameters
+ *  only tell us the delay of the entire read/write cycle to one bank.
+ *  Even though all banks should be powered down in lockstep, we use three
+ *  bank states to indicate different PowerDown modes. In addition, as all
+ *  banks are powered up, some banks may be active directly according to
+ *  different PowerDown states.
+ *
+ *  In the case of non-volatile memory, consecutive reads and writes do
+ *  not need to consider the case when reads occur before tRAS, since
+ *  data is not destroyed during read, and thus does not need to be
+ *  written back to the row.
+ */
+enum RankState 
+{ 
+    RANK_UNKNOWN,  /***< Unknown state. Uh oh. */
+    RANK_OPEN,     /***< Rank has at least one open bank  */
+    RANK_CLOSED,   /***< all banks in the rank are closed (standby) */
+    RANK_PDPF,     /***< Rank is in precharge powered down, fast exit mode */
+    RANK_PDA,      /***< Rank is in active powered down mode */
+    RANK_PDPS      /***< Rank is in precharge powered down, slow exit mode */
+};
+
 class Rank : public NVMObject
 {
   public:
@@ -58,6 +81,7 @@ class Rank : public NVMObject
     bool IssueCommand( NVMainRequest *mop );
     bool IsIssuable( NVMainRequest *mop, FailReason *reason = NULL );
     void Notify( OpType op );
+    bool RequestComplete( NVMainRequest* );
 
     void SetName( std::string name );
     void PrintStats( );
@@ -76,6 +100,7 @@ class Rank : public NVMObject
     ncounter_t stateTimeout;
     std::string statName;
     uint64_t psInterval;
+    RankState state;
 
     Bank **banks;
     ncounter_t bankCount;
@@ -90,6 +115,11 @@ class Rank : public NVMObject
     ncycle_t nextWrite;
     ncycle_t nextActivate;
     ncycle_t nextPrecharge;
+
+    ncounter_t activeCycles;
+    ncounter_t standbyCycles;
+    ncounter_t feCycles;
+    ncounter_t seCycles;
 
     ncounter_t rrdWaits;
     ncounter_t rrdWaitTime;
