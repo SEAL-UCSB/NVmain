@@ -746,54 +746,59 @@ void Rank::Cycle( ncycle_t steps )
         banks[bankIdx]->Cycle( steps );
 
     /* Count cycle numbers and calculate background energy for each state */
-    if( state == RANK_PDPF || state == RANK_PDA )
+    switch( state )
     {
-        feCycles += steps;
-
-        if( p->EnergyModel_set && p->EnergyModel == "current" )
-        {
-            if( state == RANK_PDA ) /* active powerdown */
+        /* active powerdown */
+        case RANK_PDA:
+            feCycles += steps;
+            if( p->EnergyModel_set && p->EnergyModel == "current" )
                 backgroundEnergy += ( p->EIDD3P * (float)steps );  
-            else /* precharge powerdown fast exit */
-                backgroundEnergy += ( p->EIDD2P1 * (float)steps );  
-        }
-        else
-        {
-            if( state == RANK_PDA ) /* active powerdown */
+            else
                 backgroundEnergy += ( p->Epda * (float)steps );  
-            else /* precharge powerdown fast exit */
+            break;
+
+        /* precharge powerdown fast exit */
+        case RANK_PDPF:
+            feCycles += steps;
+            if( p->EnergyModel_set && p->EnergyModel == "current" )
+                backgroundEnergy += ( p->EIDD2P1 * (float)steps );  
+            else 
                 backgroundEnergy += ( p->Epdpf * (float)steps );  
-        }
-    }
-    /* precharge powerdown slow exit */
-    else if( state == RANK_PDPS )
-    {
-        seCycles += steps;
+            break;
 
-        if( p->EnergyModel_set && p->EnergyModel == "current" )
-            backgroundEnergy += ( p->EIDD2P0 * (float)steps );  
-        else
-            backgroundEnergy += ( p->Epdps * (float)steps );  
-    }
-    /* active standby */
-    else if( state == RANK_OPEN )
-    {
-        activeCycles += steps;
+        /* precharge powerdown slow exit */
+        case RANK_PDPS:
+            seCycles += steps;
+            if( p->EnergyModel_set && p->EnergyModel == "current" )
+                backgroundEnergy += ( p->EIDD2P0 * (float)steps );  
+            else 
+                backgroundEnergy += ( p->Epdps * (float)steps );  
+            break;
 
-        if( p->EnergyModel_set && p->EnergyModel == "current" )
-            backgroundEnergy += ( p->EIDD3N * (float)steps );  
-        else
-            backgroundEnergy += ( p->Eleak * (float)steps );  
-    }
-    /* precharge standby */
-    else if( state == RANK_CLOSED )
-    {
-        standbyCycles += steps;
+        /* active standby */
+        case RANK_OPEN:
+            activeCycles += steps;
+            if( p->EnergyModel_set && p->EnergyModel == "current" )
+                backgroundEnergy += ( p->EIDD3N * (float)steps );  
+            else
+                backgroundEnergy += ( p->Eleak * (float)steps );  
+            break;
 
-        if( p->EnergyModel_set && p->EnergyModel == "current" )
-            backgroundEnergy += ( p->EIDD2N * (float)steps );  
-        else
-            backgroundEnergy += ( p->Eleak * (float)steps );  
+        /* precharge standby */
+        case RANK_CLOSED:
+            standbyCycles += steps;
+            if( p->EnergyModel_set && p->EnergyModel == "current" )
+                backgroundEnergy += ( p->EIDD2N * (float)steps );  
+            else
+                backgroundEnergy += ( p->Eleak * (float)steps );  
+            break;
+
+        default:
+            if( p->EnergyModel_set && p->EnergyModel == "current" )
+                backgroundEnergy += ( p->EIDD2N * (float)steps );  
+            else
+                backgroundEnergy += ( p->Eleak * (float)steps );  
+            break;
     }
 }
 
@@ -865,7 +870,7 @@ void Rank::PrintStats( )
         std::cout << "i" << psInterval << "." << statName 
             << ".current " << totalEnergy << "\t; mA" << std::endl;
         std::cout << "i" << psInterval << "." << statName 
-            << ".current.active " << bkgEnergy << "\t; mA" << std::endl;
+            << ".current.background " << bkgEnergy << "\t; mA" << std::endl;
         std::cout << "i" << psInterval << "." << statName 
             << ".current.active " << actEnergy << "\t; mA" << std::endl;
         std::cout << "i" << psInterval << "." << statName 
@@ -878,7 +883,7 @@ void Rank::PrintStats( )
         std::cout << "i" << psInterval << "." << statName 
             << ".energy " << totalEnergy << "\t; nJ" << std::endl; 
         std::cout << "i" << psInterval << "." << statName 
-            << ".energy.active " << bkgEnergy << "\t; nJ" << std::endl;
+            << ".energy.background " << bkgEnergy << "\t; nJ" << std::endl;
         std::cout << "i" << psInterval << "." << statName 
             << ".energy.active " << actEnergy << "\t; nJ" << std::endl;
         std::cout << "i" << psInterval << "." << statName 
@@ -900,6 +905,15 @@ void Rank::PrintStats( )
 
     std::cout << "i" << psInterval << "." << statName << ".reads " << reads << std::endl;
     std::cout << "i" << psInterval << "." << statName << ".writes " << writes << std::endl;
+
+    std::cout << "i" << psInterval << "." << statName 
+              << ".activeCycles " << activeCycles << std::endl
+              << "i" << psInterval << "." << statName 
+              << ".standbyCycles " << standbyCycles << std::endl
+              << "i" << psInterval << "." << statName 
+              << ".fastExitCycles " << feCycles << std::endl
+              << "i" << psInterval << "." << statName 
+              << ".slowExitCycles " << seCycles << std::endl;
 
     std::cout << "i" << psInterval << "." << statName << ".actWaits " << actWaits << std::endl;
     std::cout << "i" << psInterval << "." << statName << ".actWaits.totalTime " << actWaitTime << std::endl;
