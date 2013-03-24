@@ -106,7 +106,7 @@ class CacheBank : public NVMObject
     uint64_t GetAssociativity( );
     uint64_t GetCachelineSize( );
     uint64_t GetSetCount( );
-    float GetCacheOccupancy( );
+    double GetCacheOccupancy( );
 
     bool IsIssuable( NVMainRequest *req, FailReason *reason );
     bool IssueCommand( NVMainRequest *req );

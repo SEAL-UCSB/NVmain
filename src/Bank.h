@@ -100,8 +100,8 @@ class Bank : public NVMObject
     bool Idle( );
     ncycle_t GetDataCycles( ) { return dataCycles; }
     void CalculatePower( );
-    float GetPower( ); 
-    void GetEnergy( float& , float& , float&, float& ); 
+    double GetPower( ); 
+    void GetEnergy( double& , double& , double&, double& ); 
     ncounter_t GetReads( ) { return reads; }
     ncounter_t GetWrites( ) { return writes; }
 
@@ -160,16 +160,16 @@ class Bank : public NVMObject
     ncounter_t actWaits;
     ncounter_t actWaitTime;
 
-    float bankEnergy;
-    float activeEnergy;
-    float burstEnergy;
-    float refreshEnergy;
-    float bankPower;
-    float activePower;
-    float burstPower;
-    float refreshPower;
+    double bankEnergy;
+    double activeEnergy;
+    double burstEnergy;
+    double refreshEnergy;
+    double bankPower;
+    double activePower;
+    double burstPower;
+    double refreshPower;
 
-    float utilization;
+    double utilization;
 
     ncounter_t reads, writes, activates, precharges, refreshes;
     ncounter_t idleTimer;

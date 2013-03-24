@@ -55,7 +55,7 @@ class Config
     int  GetValue( std::string key );
     void SetValue( std::string key, std::string value );
 
-    float GetEnergy( std::string key );
+    double GetEnergy( std::string key );
     void  SetEnergy( std::string key, std::string energy );
 
     std::string GetString( std::string key );

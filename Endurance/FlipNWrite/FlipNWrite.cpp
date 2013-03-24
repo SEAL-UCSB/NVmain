@@ -322,11 +322,11 @@ bool FlipNWrite::Write( NVMAddress address, NVMDataBlock oldData,
 void FlipNWrite::PrintStats( )
 {
     uint64_t totalMod;
-    float reduction;
+    double reduction;
 
     totalMod = flipNWriteModify + flipBitsWritten;
     if( bitCompareModify != 0 )
-        reduction = (((float)totalMod / (float)bitCompareModify)*100.0f);
+        reduction = (((double)totalMod / (double)bitCompareModify)*100.0f);
     else
         reduction = 100.0f;
 

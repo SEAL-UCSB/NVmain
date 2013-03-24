@@ -128,7 +128,7 @@ class Rank : public NVMObject
     ncounter_t actWaits;
     ncounter_t actWaitTime;
 
-    float backgroundEnergy;
+    double backgroundEnergy;
 
     bool Activate( NVMainRequest *request );
     bool Read( NVMainRequest *request );

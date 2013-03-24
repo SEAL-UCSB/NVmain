@@ -841,9 +841,9 @@ BankState Bank::GetState( )
 
 void Bank::CalculatePower( )
 {
-    float simulationTime = (float)GetEventQueue()->GetCurrentCycle();
+    ncycle_t simulationTime = GetEventQueue()->GetCurrentCycle();
 
-    if( simulationTime == 0.0f )
+    if( simulationTime == 0 )
     {
         bankPower 
             = activePower 
@@ -852,26 +852,26 @@ void Bank::CalculatePower( )
         return;
     }
 
-    bankPower = ( bankEnergy * p->Voltage ) / simulationTime / 1000.0f; 
+    bankPower = ( bankEnergy * p->Voltage ) / (double)simulationTime / 1000.0f; 
 
-    activePower = ( activeEnergy * p->Voltage ) / simulationTime / 1000.0f; 
+    activePower = ( activeEnergy * p->Voltage ) / (double)simulationTime / 1000.0f; 
 
-    burstPower = ( burstEnergy * p->Voltage ) / simulationTime / 1000.0f; 
+    burstPower = ( burstEnergy * p->Voltage ) / (double)simulationTime / 1000.0f; 
     
-    refreshPower = ( refreshEnergy * p->Voltage ) / simulationTime / 1000.0f; 
+    refreshPower = ( refreshEnergy * p->Voltage ) / (double)simulationTime / 1000.0f; 
 }
 
-float Bank::GetPower( )
+double Bank::GetPower( )
 {
     CalculatePower( );
 
     return bankPower;
 }
 
-void Bank::GetEnergy( float& bk, float& act, 
-                       float& bst, float& ref)
+void Bank::GetEnergy( double& bk, double& act, 
+                       double& bst, double& ref)
 {
-    float saEnergy, actEnergy, bstEnergy, refEnergy;
+    double saEnergy, actEnergy, bstEnergy, refEnergy;
 
     bankEnergy = activeEnergy = burstEnergy = refreshEnergy 
                = 0.0f;
@@ -920,12 +920,12 @@ ncounter_t Bank::GetId( )
 
 void Bank::PrintStats( )
 {
-    float idealBandwidth;
+    double idealBandwidth;
 
-    idealBandwidth = (float)(p->CLK * p->MULT * p->RATE * p->BPC);
+    idealBandwidth = (double)(p->CLK * p->MULT * p->RATE * p->BPC);
 
     if( activeCycles != 0 )
-        utilization = (float)((float)dataCycles / (float)(activeCycles + standbyCycles) );
+        utilization = (double)((double)dataCycles / (double)(activeCycles + standbyCycles) );
     else
         utilization = 0.0f;
 

@@ -77,7 +77,7 @@ class FRFCFS_WQF : public MemoryController
 
     /* Stats */
     uint64_t measuredLatencies, measuredQueueLatencies;
-    float    averageLatency, averageQueueLatency;
+    double   averageLatency, averageQueueLatency;
     uint64_t mem_reads, mem_writes;
     uint64_t starvation_precharges;
     uint64_t rq_rb_hits;

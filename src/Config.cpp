@@ -142,7 +142,7 @@ void Config::Read( std::string filename )
             
             tokens = strtok( NULL, " " );
             
-            float dl;
+            double dl;
 
             i = values.find( ty );
             if( i != values.end( ) )
@@ -157,7 +157,7 @@ void Config::Read( std::string filename )
                 }
                 else
                 {
-                    dl = (float)atof( tokens );
+                    dl = (double)atof( tokens );
                     values.insert( std::pair<std::string, 
                             std::string>( ty, tokens ) );
                 }
@@ -266,10 +266,10 @@ void Config::SetValue( std::string key, std::string value )
     values.insert( std::pair<std::string, std::string>( key, value ) );
 }
 
-float Config::GetEnergy( std::string key )
+double Config::GetEnergy( std::string key )
 {
     std::map<std::string, std::string>::iterator i;
-    float value;
+    double value;
 
     if( values.empty( ) )
     {
@@ -287,9 +287,9 @@ float Config::GetEnergy( std::string key )
      *  If the key is found, return the second element (the key value).
      */
     if( i == values.end( ) )
-        value = -1;
+        value = -1.0;
     else
-        value = (float)atof( i->second.c_str( ) );
+        value = (double)atof( i->second.c_str( ) );
 
     return value;
 }

@@ -121,18 +121,18 @@ class LH_Cache : public AbstractDRAMCache
     bool IssueDRCCommands( NVMainRequest *req );
     bool IssueFillCommands( NVMainRequest *req );
 
-    void CalculateLatency( NVMainRequest *req, float *average, 
+    void CalculateLatency( NVMainRequest *req, double *average, 
             uint64_t *measured );
-    void CalculateQueueLatency( NVMainRequest *req, float *average, 
+    void CalculateQueueLatency( NVMainRequest *req, double *average, 
             uint64_t *measured );
 
     NVMTransactionQueue *drcQueue;
     NVMTransactionQueue *fillQueue;
 
-    float averageHitLatency, averageHitQueueLatency;
-    float averageMissLatency, averageMissQueueLatency;
-    float averageMMLatency, averageMMQueueLatency;
-    float averageFillLatency, averageFillQueueLatency;
+    double averageHitLatency, averageHitQueueLatency;
+    double averageMissLatency, averageMissQueueLatency;
+    double averageMMLatency, averageMMQueueLatency;
+    double averageFillLatency, averageFillQueueLatency;
     
     uint64_t measuredHitLatencies, measuredHitQueueLatencies;
     uint64_t measuredMissLatencies, measuredMissQueueLatencies;

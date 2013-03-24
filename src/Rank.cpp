@@ -752,52 +752,52 @@ void Rank::Cycle( ncycle_t steps )
         case RANK_PDA:
             feCycles += steps;
             if( p->EnergyModel_set && p->EnergyModel == "current" )
-                backgroundEnergy += ( p->EIDD3P * (float)steps );  
+                backgroundEnergy += ( p->EIDD3P * (double)steps );  
             else
-                backgroundEnergy += ( p->Epda * (float)steps );  
+                backgroundEnergy += ( p->Epda * (double)steps );  
             break;
 
         /* precharge powerdown fast exit */
         case RANK_PDPF:
             feCycles += steps;
             if( p->EnergyModel_set && p->EnergyModel == "current" )
-                backgroundEnergy += ( p->EIDD2P1 * (float)steps );  
+                backgroundEnergy += ( p->EIDD2P1 * (double)steps );  
             else 
-                backgroundEnergy += ( p->Epdpf * (float)steps );  
+                backgroundEnergy += ( p->Epdpf * (double)steps );  
             break;
 
         /* precharge powerdown slow exit */
         case RANK_PDPS:
             seCycles += steps;
             if( p->EnergyModel_set && p->EnergyModel == "current" )
-                backgroundEnergy += ( p->EIDD2P0 * (float)steps );  
+                backgroundEnergy += ( p->EIDD2P0 * (double)steps );  
             else 
-                backgroundEnergy += ( p->Epdps * (float)steps );  
+                backgroundEnergy += ( p->Epdps * (double)steps );  
             break;
 
         /* active standby */
         case RANK_OPEN:
             activeCycles += steps;
             if( p->EnergyModel_set && p->EnergyModel == "current" )
-                backgroundEnergy += ( p->EIDD3N * (float)steps );  
+                backgroundEnergy += ( p->EIDD3N * (double)steps );  
             else
-                backgroundEnergy += ( p->Eleak * (float)steps );  
+                backgroundEnergy += ( p->Eleak * (double)steps );  
             break;
 
         /* precharge standby */
         case RANK_CLOSED:
             standbyCycles += steps;
             if( p->EnergyModel_set && p->EnergyModel == "current" )
-                backgroundEnergy += ( p->EIDD2N * (float)steps );  
+                backgroundEnergy += ( p->EIDD2N * (double)steps );  
             else
-                backgroundEnergy += ( p->Eleak * (float)steps );  
+                backgroundEnergy += ( p->Eleak * (double)steps );  
             break;
 
         default:
             if( p->EnergyModel_set && p->EnergyModel == "current" )
-                backgroundEnergy += ( p->EIDD2N * (float)steps );  
+                backgroundEnergy += ( p->EIDD2N * (double)steps );  
             else
-                backgroundEnergy += ( p->Eleak * (float)steps );  
+                backgroundEnergy += ( p->Eleak * (double)steps );  
             break;
     }
 }
@@ -811,11 +811,11 @@ void Rank::SetName( std::string )
 
 void Rank::PrintStats( )
 {
-    float totalPower = 0.0f;
-    float totalEnergy = 0.0f;
-    float bankE, actE, bstE, refE;
-    float bkgEnergy, actEnergy, bstEnergy, refEnergy;
-    float bkgPower, actPower, bstPower, refPower;
+    double totalPower = 0.0f;
+    double totalEnergy = 0.0f;
+    double bankE, actE, bstE, refE;
+    double bkgEnergy, actEnergy, bstEnergy, refEnergy;
+    double bkgPower, actPower, bstPower, refPower;
     ncounter_t reads, writes;
 
     bkgEnergy = actEnergy = bstEnergy = refEnergy = 0.0f;
@@ -839,31 +839,31 @@ void Rank::PrintStats( )
     totalEnergy += backgroundEnergy;
     bkgEnergy = backgroundEnergy;
 
-    float simulationTime = (float)GetEventQueue()->GetCurrentCycle();
+    ncycle_t simulationTime = GetEventQueue()->GetCurrentCycle();
 
-    if( simulationTime != 0.0f )
+    if( simulationTime != 0 )
     {
         /* power in mW */
-        totalPower = ( totalEnergy * p->Voltage ) / simulationTime / 1000.0f;
-        bkgPower = ( bkgEnergy * p->Voltage ) / simulationTime / 1000.0f; 
-        actPower = ( actEnergy * p->Voltage ) / simulationTime / 1000.0f; 
-        bstPower = ( bstEnergy * p->Voltage ) / simulationTime / 1000.0f; 
-        refPower = ( refEnergy * p->Voltage ) / simulationTime / 1000.0f; 
+        totalPower = ( totalEnergy * p->Voltage ) / (double)simulationTime / 1000.0f;
+        bkgPower = ( bkgEnergy * p->Voltage ) / (double)simulationTime / 1000.0f; 
+        actPower = ( actEnergy * p->Voltage ) / (double)simulationTime / 1000.0f; 
+        bstPower = ( bstEnergy * p->Voltage ) / (double)simulationTime / 1000.0f; 
+        refPower = ( refEnergy * p->Voltage ) / (double)simulationTime / 1000.0f; 
     }
 
     /* energy breakdown. device is in lockstep within a rank */
-    totalEnergy *= (float)deviceCount;
-    bkgEnergy *= (float)deviceCount;
-    actEnergy *= (float)deviceCount;
-    bstEnergy *= (float)deviceCount;
-    refEnergy *= (float)deviceCount;
+    totalEnergy *= (double)deviceCount;
+    bkgEnergy *= (double)deviceCount;
+    actEnergy *= (double)deviceCount;
+    bstEnergy *= (double)deviceCount;
+    refEnergy *= (double)deviceCount;
 
     /* power breakdown. device is in lockstep within a rank */
-    totalPower *= (float)deviceCount;
-    bkgPower *= (float)deviceCount;
-    actPower *= (float)deviceCount;
-    bstPower *= (float)deviceCount;
-    refPower *= (float)deviceCount;
+    totalPower *= (double)deviceCount;
+    bkgPower *= (double)deviceCount;
+    actPower *= (double)deviceCount;
+    bstPower *= (double)deviceCount;
+    refPower *= (double)deviceCount;
 
     if( p->EnergyModel_set && p->EnergyModel == "current" )
     {

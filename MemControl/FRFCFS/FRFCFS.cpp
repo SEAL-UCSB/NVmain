@@ -150,16 +150,16 @@ bool FRFCFS::RequestComplete( NVMainRequest * request )
         request->completionCycle = GetEventQueue()->GetCurrentCycle();
 
         /* Update the average latencies based on this request for READ/WRITE only. */
-        averageLatency = ((averageLatency * static_cast<float>(measuredLatencies))
-                           + static_cast<float>(request->completionCycle)
-                           - static_cast<float>(request->issueCycle))
-                       / static_cast<float>(measuredLatencies+1);
+        averageLatency = ((averageLatency * static_cast<double>(measuredLatencies))
+                           + static_cast<double>(request->completionCycle)
+                           - static_cast<double>(request->issueCycle))
+                       / static_cast<double>(measuredLatencies+1);
         measuredLatencies += 1;
 
-        averageQueueLatency = ((averageQueueLatency * static_cast<float>(measuredQueueLatencies))
-                                + static_cast<float>(request->issueCycle)
-                                - static_cast<float>(request->arrivalCycle))
-                            / static_cast<float>(measuredQueueLatencies+1);
+        averageQueueLatency = ((averageQueueLatency * static_cast<double>(measuredQueueLatencies))
+                                + static_cast<double>(request->issueCycle)
+                                - static_cast<double>(request->arrivalCycle))
+                            / static_cast<double>(measuredQueueLatencies+1);
         measuredQueueLatencies += 1;
     }
 

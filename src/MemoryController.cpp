@@ -1147,6 +1147,8 @@ void MemoryController::MoveRankBank( )
 
 void MemoryController::PrintStats( )
 {
+    std::cout << "i" << psInterval << "." << statName << ".simulation cycles " 
+        << GetEventQueue()->GetCurrentCycle() << std::endl;
     memory->PrintStats( );
     translator->PrintStats( );
 }

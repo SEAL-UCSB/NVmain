@@ -68,7 +68,7 @@ class OnChipBus : public Interconnect
  private:
     bool configSet;
     ncounter_t numRanks;
-    float syncValue;
+    double syncValue;
 
     Config *conf;
     Rank **ranks;

@@ -70,12 +70,12 @@ class OffChipBus : public Interconnect
     bool configSet;
     ncounter_t numRanks;
     ncycle_t offChipDelay;
-    float syncValue;
+    double syncValue;
 
     Config *conf;
     Rank **ranks;
 
-    float CalculateIOPower( bool isRead, unsigned int bitValue );
+    double CalculateIOPower( bool isRead, unsigned int bitValue );
 
     Params *p;
 };
