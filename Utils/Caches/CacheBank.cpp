@@ -372,9 +372,9 @@ uint64_t CacheBank::GetSetCount( )
     return numSets;
 }
 
-float CacheBank::GetCacheOccupancy( )
+double CacheBank::GetCacheOccupancy( )
 {
-    float occupancy;
+    double occupancy;
     uint64_t valid, total;
 
     valid = 0;
@@ -391,7 +391,7 @@ float CacheBank::GetCacheOccupancy( )
         }
     }
 
-    occupancy = static_cast<float>(valid) / static_cast<float>(total);
+    occupancy = static_cast<double>(valid) / static_cast<double>(total);
 
     return occupancy;
 }

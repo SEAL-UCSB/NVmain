@@ -354,7 +354,7 @@ void LO_Cache::PrintStats( )
     std::cout << "i" << psInterval << "." << statName << id << ".drc_miss " << drc_miss << std::endl;
     if( drc_hits+drc_miss > 0 )
     {
-        std::cout << "i" << psInterval << "." << statName << id << ".drc_hitrate " << static_cast<float>(drc_hits/(drc_miss+drc_hits)) << std::endl;
+        std::cout << "i" << psInterval << "." << statName << id << ".drc_hitrate " << static_cast<double>(drc_hits/(drc_miss+drc_hits)) << std::endl;
     }
     else
     {

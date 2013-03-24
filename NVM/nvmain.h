@@ -79,7 +79,7 @@ class NVMain : public NVMObject
     SimInterface *simInterface;
 
     unsigned int numChannels;
-    float syncValue;
+    double syncValue;
 
     std::ofstream pretraceOutput;
 

@@ -748,7 +748,7 @@ diff -r 50ac1ccf8444 src/mem/nvmain_mem.hh
 +
 +    bool m_nacked_requests;
 +    bool m_slot_available;
-+    float m_avgAtomicLatency;
++    double m_avgAtomicLatency;
 +    uint64_t m_numAtomicAccesses;
 +
 +    Tick clock;

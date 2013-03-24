@@ -164,13 +164,13 @@ bool SubArray::Activate( NVMainRequest *request )
         /* DRAM Model */
         uint64_t tRC = p->tRAS + p->tRP;
 
-        subArrayEnergy += ( (float)((p->EIDD0 * (float)tRC) 
-                    - ((p->EIDD3N * (float)p->tRAS)
-                    +  (p->EIDD2N * (float)p->tRP))) );
+        subArrayEnergy += ( (double)((p->EIDD0 * (double)tRC) 
+                    - ((p->EIDD3N * (double)p->tRAS)
+                    +  (p->EIDD2N * (double)p->tRP))) );
 
-        activeEnergy += ( (float)((p->EIDD0 * (float)tRC) 
-                      - ((p->EIDD3N * (float)p->tRAS)
-                      +  (p->EIDD2N * (float)p->tRP) )) );
+        activeEnergy += ( (double)((p->EIDD0 * (double)tRC) 
+                      - ((p->EIDD3N * (double)p->tRAS)
+                      +  (p->EIDD2N * (double)p->tRP) )) );
     }
     else
     {
@@ -272,9 +272,9 @@ bool SubArray::Read( NVMainRequest *request )
     if( p->EnergyModel_set && p->EnergyModel == "current" )
     {
         /* DRAM Model */
-        subArrayEnergy += (float)((p->EIDD4R - p->EIDD3N) * (float)p->tBURST);
+        subArrayEnergy += (double)((p->EIDD4R - p->EIDD3N) * (double)p->tBURST);
 
-        burstEnergy += (float)((p->EIDD4R - p->EIDD3N) * (float)p->tBURST);
+        burstEnergy += (double)((p->EIDD4R - p->EIDD3N) * (double)p->tBURST);
     }
     else
     {
@@ -401,9 +401,9 @@ bool SubArray::Write( NVMainRequest *request )
     if( p->EnergyModel_set && p->EnergyModel == "current" )
     {
         /* DRAM Model. */
-        subArrayEnergy += (float)((p->EIDD4W - p->EIDD3N) * (float)p->tBURST);
+        subArrayEnergy += (double)((p->EIDD4W - p->EIDD3N) * (double)p->tBURST);
 
-        burstEnergy += (float)((p->EIDD4W - p->EIDD3N) * (float)p->tBURST);
+        burstEnergy += (double)((p->EIDD4W - p->EIDD3N) * (double)p->tBURST);
     }
     else
     {
@@ -540,11 +540,11 @@ bool SubArray::Refresh( NVMainRequest* request )
     if( p->EnergyModel_set && p->EnergyModel == "current" )
     {
         /* calibrate the refresh energy since we may have fine-grained refresh */
-        subArrayEnergy += (float)((p->EIDD5B - p->EIDD3N) 
-                                * (float)p->tRFC / (float)p->BANKS ); 
+        subArrayEnergy += (double)((p->EIDD5B - p->EIDD3N) 
+                                * (double)p->tRFC / (double)p->BANKS ); 
 
-        refreshEnergy += (float)((p->EIDD5B - p->EIDD3N) 
-                                * (float)p->tRFC / (float)p->BANKS ); 
+        refreshEnergy += (double)((p->EIDD5B - p->EIDD3N) 
+                                * (double)p->tRFC / (double)p->BANKS ); 
 
         
     }
@@ -765,8 +765,8 @@ SubArrayState SubArray::GetState( )
     return state;
 }
 
-void SubArray::GetEnergy( float& total, float& active, 
-                          float& burst, float& refresh )
+void SubArray::GetEnergy( double& total, double& active, 
+                          double& burst, double& refresh )
 {
     total = subArrayEnergy;
     active = activeEnergy;
@@ -799,9 +799,9 @@ ncounter_t SubArray::GetId( )
 
 void SubArray::PrintStats( )
 {
-    float idealBandwidth;
+    double idealBandwidth;
 
-    idealBandwidth = (float)(p->CLK * p->MULT * p->RATE * p->BPC);
+    idealBandwidth = (double)(p->CLK * p->MULT * p->RATE * p->BPC);
 
     if( p->EnergyModel_set && p->EnergyModel == "current" )
     {

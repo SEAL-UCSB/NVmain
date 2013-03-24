@@ -154,7 +154,7 @@ bool STeMS::NotifyAccess( NVMainRequest *accessOp,
                 if( rps->used[i] ) numSuccess++;
             }
 
-            if( ((float)(numSuccess) / (float)(rps->size)) >= 0.6 )
+            if( ((double)(numSuccess) / (double)(rps->size)) >= 0.6f )
             {
                 PatternSequence *ps = NULL;
                 std::map<uint64_t, PatternSequence*>::iterator it;

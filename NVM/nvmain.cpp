@@ -394,10 +394,10 @@ void NVMain::Cycle( ncycle_t )
       return;
 
     /* Sync the memory clock with the cpu clock. */
-    float cpuFreq = static_cast<float>(p->CPUFreq);
-    float busFreq = static_cast<float>(p->CLK);
+    double cpuFreq = static_cast<double>(p->CPUFreq);
+    double busFreq = static_cast<double>(p->CLK);
 
-    syncValue += static_cast<float>( busFreq / cpuFreq );
+    syncValue += static_cast<double>( busFreq / cpuFreq );
 
     if( syncValue >= 1.0f )
     {

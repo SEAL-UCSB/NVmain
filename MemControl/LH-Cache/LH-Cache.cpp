@@ -155,23 +155,23 @@ void LH_Cache::SetMainMemory( NVMain *mm )
     mainMemory = mm;
 }
 
-void LH_Cache::CalculateLatency( NVMainRequest *req, float *average, 
+void LH_Cache::CalculateLatency( NVMainRequest *req, double *average, 
         uint64_t *measured )
 {
-    (*average) = (( (*average) * static_cast<float>(*measured))
-                    + static_cast<float>(req->completionCycle)
-                    - static_cast<float>(req->issueCycle))
-                 / static_cast<float>((*measured)+1);
+    (*average) = (( (*average) * static_cast<double>(*measured))
+                    + static_cast<double>(req->completionCycle)
+                    - static_cast<double>(req->issueCycle))
+                 / static_cast<double>((*measured)+1);
     (*measured) += 1;
 }
 
-void LH_Cache::CalculateQueueLatency( NVMainRequest *req, float *average, 
+void LH_Cache::CalculateQueueLatency( NVMainRequest *req, double *average, 
         uint64_t *measured )
 {
-    (*average) = (( (*average) * static_cast<float>(*measured))
-                    + static_cast<float>(req->issueCycle)
-                    - static_cast<float>(req->arrivalCycle))
-                 / static_cast<float>((*measured)+1);
+    (*average) = (( (*average) * static_cast<double>(*measured))
+                    + static_cast<double>(req->issueCycle)
+                    - static_cast<double>(req->arrivalCycle))
+                 / static_cast<double>((*measured)+1);
     (*measured) += 1;
 }
 

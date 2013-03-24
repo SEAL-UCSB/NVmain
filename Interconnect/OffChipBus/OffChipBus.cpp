@@ -220,12 +220,12 @@ void OffChipBus::Cycle( ncycle_t steps )
         ranks[rankIdx]->Cycle( steps );
 }
 
-float OffChipBus::CalculateIOPower( bool isRead, unsigned int bitValue )
+double OffChipBus::CalculateIOPower( bool isRead, unsigned int bitValue )
 {
     unsigned int Rtt_nom, Rtt_wr, Rtt_cont;
-    float VDDQ, VSSQ;
+    double VDDQ, VSSQ;
     unsigned int ranksPerDimm;
-    float Pdq; 
+    double Pdq; 
 
     Pdq = 0.0f;
 
@@ -279,26 +279,26 @@ float OffChipBus::CalculateIOPower( bool isRead, unsigned int bitValue )
              * Simple resistor network. Calculate the bus voltage, then current, 
              * and finally power. 
              */
-            float Rttpu, Rttpd, Rdevice, Rs, Ron;
-            float Vread;
+            double Rttpu, Rttpd, Rdevice, Rs, Ron;
+            double Vread;
 
             Rs = 15.0;  /* Series resistance of device. */
             Ron = 34.0; /* Resistance of device output driver. */
 
-            Rttpu = static_cast<float>(Rtt_nom * 2.0);
-            Rttpd = static_cast<float>(Rtt_nom * 2.0);
+            Rttpu = static_cast<double>(Rtt_nom * 2.0);
+            Rttpd = static_cast<double>(Rtt_nom * 2.0);
             Rdevice = Rs + Ron;
 
             Vread = (bitValue == 0) ? VSSQ : VDDQ;
 
             /* Bus voltage equation */
-            float Vbus;
+            double Vbus;
 
             Vbus = ( (VDDQ / Rttpu) + (VSSQ / Rttpd) + (Vread / Rdevice) ) 
                 / ( (1.0f / Rttpu) + (1.0f / Rttpd) + (1.0f / Rdevice) );
 
             /* Bus current equation. */
-            float Ibus, Ipu, Ipd;
+            double Ibus, Ipu, Ipd;
 
             Ipu = (VDDQ - Vbus) / Rttpu; /* Current through controller pull up */
             Ipd = (Vbus - VSSQ) / Rttpd; /* Current through controller pull down */
@@ -309,26 +309,26 @@ float OffChipBus::CalculateIOPower( bool isRead, unsigned int bitValue )
         }
         else
         {
-            float Rttpu, Rttpd, Rdevice, Rs, Ron;
-            float Vwrite;
+            double Rttpu, Rttpd, Rdevice, Rs, Ron;
+            double Vwrite;
 
             Rs = 15.0;  /* Series resistance of device. */
             Ron = 34.0; /* Resistance of device output driver. */
 
-            Rttpu = static_cast<float>(Rtt_wr * 2.0);
-            Rttpd = static_cast<float>(Rtt_wr * 2.0);
+            Rttpu = static_cast<double>(Rtt_wr * 2.0);
+            Rttpd = static_cast<double>(Rtt_wr * 2.0);
             Rdevice = Rs + Ron;
 
             Vwrite = (bitValue == 0) ? VSSQ : VDDQ;
 
             /* Bus voltage equation. */
-            float Vbus;
+            double Vbus;
 
             Vbus = ( (VDDQ / Rttpu) + (VSSQ / Rttpd) + (Vwrite / Rdevice) ) 
                 / ( (1.0f / Rttpu) + (1.0f / Rttpd) + (1.0f / Rdevice) );
 
             /* Bus current equation. */
-            float Ibus, Ipu, Ipd;
+            double Ibus, Ipu, Ipd;
 
             Ipu = (VDDQ - Vbus) / Rttpu;
             Ipd = (Vbus - VSSQ) / Rttpd;
@@ -350,8 +350,8 @@ float OffChipBus::CalculateIOPower( bool isRead, unsigned int bitValue )
              * Calculate using delta-wye transformation and then solving for 
              * bus and terminated rank voltages, followed by currents and power. 
              */
-            float R1, R2, R3, R4, R5;
-            float Rttpu, Rttpd, Rothpu, Rothpd, Rdevice, Rs, Ron;
+            double R1, R2, R3, R4, R5;
+            double Rttpu, Rttpd, Rothpu, Rothpd, Rdevice, Rs, Ron;
 
             Rs = 15.0f;  /* Series resistance of device. */
             Ron = 34.0f; /* Resistance of device output driver. */
@@ -359,12 +359,12 @@ float OffChipBus::CalculateIOPower( bool isRead, unsigned int bitValue )
             Rdevice = Rs + Ron;
 
             /* Pull-up/Pull-down at controller. */
-            Rttpu = static_cast<float>(Rtt_cont) * 2.0f;
-            Rttpd = static_cast<float>(Rtt_cont) * 2.0f;
+            Rttpu = static_cast<double>(Rtt_cont) * 2.0f;
+            Rttpd = static_cast<double>(Rtt_cont) * 2.0f;
 
             /* Pull-up/Pull-down at terminated rank. */
-            Rothpu = static_cast<float>(Rtt_nom) * 2.0f;
-            Rothpd = static_cast<float>(Rtt_nom) * 2.0f;
+            Rothpu = static_cast<double>(Rtt_nom) * 2.0f;
+            Rothpd = static_cast<double>(Rtt_nom) * 2.0f;
 
             if( bitValue == 0 )
             {
@@ -384,31 +384,31 @@ float OffChipBus::CalculateIOPower( bool isRead, unsigned int bitValue )
             R5 = Rothpd;
 
             /* Delta-wye transformation */
-            float RP, RA, RB, RC;
+            double RP, RA, RB, RC;
             RP = R3*R4 + R4*R5 + R5*R3;
             RA = RP / R3;
             RB = RP / R5;
             RC = RP / R4;
 
             /* Combine parallel resistors. */
-            float RX, RY;
+            double RX, RY;
             RX = 1.0f / ( (1.0f / R1) + (1.0f / RB) );
             RY = 1.0f / ( (1.0f / R2) + (1.0f / RC) );
 
             /* Bus voltage calculation. */
-            float Vbus, Ibus;
+            double Vbus, Ibus;
 
             Ibus = (VDDQ - VSSQ) / (RX + RY);
             Vbus = VSSQ + Ibus * RY;
 
             /* Voltage at terminated rank. */
-            float Vterm;
+            double Vterm;
 
             Vterm = -1.0f * R3 * ( ((VDDQ - Vbus) / R1) 
                     - ((Vbus - VSSQ) / R2) ) + Vbus;
 
             /* Current through each resistor. */
-            float I1, I2, I3, I4, I5;
+            double I1, I2, I3, I4, I5;
 
             I1 = (VDDQ - Vbus) / R1;
             I2 = (Vbus - VSSQ) / R2;
@@ -426,13 +426,13 @@ float OffChipBus::CalculateIOPower( bool isRead, unsigned int bitValue )
              * Calculate using two delta-wye transformations and then solving 
              * for bus and termated rank voltages, followed by currents and power 
              */
-            float Rothpu, Rothpd, Rttpu, Rttpd, Rs, Ron;
-            float Vwrite;
+            double Rothpu, Rothpd, Rttpu, Rttpd, Rs, Ron;
+            double Vwrite;
 
-            Rttpu = static_cast<float>(Rtt_wr) * 2.0f;
-            Rttpd = static_cast<float>(Rtt_wr) * 2.0f;
-            Rothpu = static_cast<float>(Rtt_nom) * 2.0f;
-            Rothpd = static_cast<float>(Rtt_nom) * 2.0f;
+            Rttpu = static_cast<double>(Rtt_wr) * 2.0f;
+            Rttpd = static_cast<double>(Rtt_wr) * 2.0f;
+            Rothpu = static_cast<double>(Rtt_nom) * 2.0f;
+            Rothpd = static_cast<double>(Rtt_nom) * 2.0f;
 
             Rs = 15.0f;  /* Series resistance of DRAM device. */
             Ron = 34.0f; /* Controller output driver resistance. */
@@ -440,8 +440,8 @@ float OffChipBus::CalculateIOPower( bool isRead, unsigned int bitValue )
             Vwrite = (bitValue == 0) ? VSSQ : VDDQ;
 
             /* Do delta-wye transforms. */
-            float RAL, RBL, RCL, RAR, RBR, RCR;
-            float RPL, RPR;
+            double RAL, RBL, RCL, RAR, RBR, RCR;
+            double RPL, RPR;
 
             RPL = Rothpu*Rothpd + Rothpd*Rs + Rs*Rothpu;
             RAL = RPL / Rothpd;
@@ -454,14 +454,14 @@ float OffChipBus::CalculateIOPower( bool isRead, unsigned int bitValue )
             RCR = RPR / Rs;
 
             /* Calculate bus voltage. */
-            float Vbus;
+            double Vbus;
 
             Vbus = ( (VSSQ / RBL) + (VSSQ / RBR) + (VDDQ / RAL) + (VDDQ / RAR) 
                     + (Vwrite / Ron) ) / ( (1.0f / RBL) + (1.0f / RBR) + (1.0f / RAL) 
                     + (1.0f / RAR) + (1.0f / Ron) );
 
             /* Calculate terminated node voltages. */
-            float Vterm, Voterm;
+            double Vterm, Voterm;
 
             Vterm  = ( (VDDQ / Rttpu) + (VSSQ / Rttpd) + (Vbus / Rs) ) 
                 / ( (1.0f / Rttpu) + (1.0f / Rttpd) + (1.0f / Rs) );
@@ -469,7 +469,7 @@ float OffChipBus::CalculateIOPower( bool isRead, unsigned int bitValue )
                 / ( (1.0f / Rothpu) + (1.0f / Rothpd) + (1.0f / Rs) );
 
             /* Calculate resistor currents. */
-            float Ittpu, Ittpd, Irs1, Irs2, Iothpu, Iothpd, Ibus;
+            double Ittpu, Ittpd, Irs1, Irs2, Iothpu, Iothpd, Ibus;
 
             Ittpu = (VDDQ - Vterm) / Rttpu;
             Ittpd = (Vterm - VSSQ) / Rttpd;
