@@ -122,6 +122,7 @@ class Params
     ncounter_t CHANNELS;
     ncounter_t RANKS;
     ncounter_t BANKS;
+    ncounter_t RAW;
 
     ncycle_t tAL;
     ncycle_t tBURST;
@@ -129,7 +130,7 @@ class Params
     ncycle_t tCCD;
     ncycle_t tCMD;
     ncycle_t tCWD;
-    ncycle_t tFAW;
+    ncycle_t tRAW;
     ncycle_t tOST;
     ncycle_t tPD;
     ncycle_t tRAS;

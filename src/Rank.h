@@ -107,9 +107,10 @@ class Rank : public NVMObject
     ncounter_t deviceWidth;
     ncounter_t deviceCount;
     ncounter_t busWidth;
-    ncycles_t lastActivate[4];
-    ncounter_t FAWindex;
-    unsigned banksPerRefresh;
+    ncycles_t* lastActivate;
+    ncounter_t RAWindex;
+    ncounter_t rawNum;
+    ncounter_t banksPerRefresh;
 
     ncycle_t nextRead;
     ncycle_t nextWrite;

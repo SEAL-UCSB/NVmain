@@ -46,21 +46,13 @@ std::string GetFilePath( std::string file );
 
 Rank::Rank( )
 {
-    /* 
-     * Make sure this doesn't cause unnecessary tRRD delays at start 
-     * TODO: have Activate check currentCycle < tRRD/tFAW maybe?
-     */
-    lastActivate[0] = -10000;
-    lastActivate[1] = -10000;
-    lastActivate[2] = -10000;
-    lastActivate[3] = -10000;
-
     activeCycles = 0;
     standbyCycles = 0;
     feCycles = 0;
     seCycles = 0;
 
-    FAWindex = 0;
+    lastActivate = NULL;
+    RAWindex = 0;
 
     conf = NULL;
 
@@ -75,6 +67,8 @@ Rank::~Rank( )
         delete banks[i];
 
     delete [] banks;
+
+    delete [] lastActivate;
 }
 
 void Rank::SetConfig( Config *c )
@@ -90,6 +84,17 @@ void Rank::SetConfig( Config *c )
     busWidth = p->BusWidth;
 
     banksPerRefresh = p->BanksPerRefresh;
+
+    if( conf->GetValue( "RAW" ) == -1 )
+    {
+        std::cout << "NVMain Warning: RAW (Row Activation Window) is not "
+            << "specified. Has set it to 4 (FAW)" << std::endl;
+        rawNum = 4;
+    }
+    else
+        rawNum = p->RAW;
+
+    assert( rawNum != 0 );
 
     /* Calculate the number of devices needed. */
     deviceCount = busWidth / deviceWidth;
@@ -123,6 +128,14 @@ void Rank::SetConfig( Config *c )
         /* SetConfig recursively. */
         banks[i]->SetConfig( c );
     }
+
+    /* 
+     * Make sure this doesn't cause unnecessary tRRD delays at start 
+     * TODO: have Activate check currentCycle < tRRD/tRAW maybe?
+     */
+    lastActivate = new ncycles_t[rawNum];
+    for( ncounter_t i = 0; i < rawNum; i++ )
+        lastActivate[i] = -10000;
 
     /* When selecting a child, use the rank field from the decoder. */
     AddressTranslator *rankAT = DecoderFactory::CreateDecoderNoWarn( conf->GetString( "Decoder" ) );
@@ -162,9 +175,9 @@ bool Rank::Activate( NVMainRequest *request )
      *  power consumption.
      */
     if( nextActivate <= GetEventQueue()->GetCurrentCycle() 
-        && (ncycles_t)lastActivate[FAWindex] + (ncycles_t)p->tRRDR 
+        && (ncycles_t)lastActivate[RAWindex] + (ncycles_t)p->tRRDR 
             <= (ncycles_t)GetEventQueue()->GetCurrentCycle()
-        && (ncycles_t)lastActivate[(FAWindex + 1)%4] + (ncycles_t)p->tFAW 
+        && (ncycles_t)lastActivate[(RAWindex + 1)%rawNum] + (ncycles_t)p->tRAW 
             <= (ncycles_t)GetEventQueue()->GetCurrentCycle() )
     {
         /* issue ACTIVATE to target bank */
@@ -172,8 +185,8 @@ bool Rank::Activate( NVMainRequest *request )
 
         state = RANK_OPEN;
 
-        FAWindex = (FAWindex + 1) % 4;
-        lastActivate[FAWindex] = (ncycles_t)GetEventQueue()->GetCurrentCycle();
+        RAWindex = (RAWindex + 1) % rawNum;
+        lastActivate[RAWindex] = (ncycles_t)GetEventQueue()->GetCurrentCycle();
         nextActivate = MAX( nextActivate, GetEventQueue()->GetCurrentCycle() 
                                             + p->tRRDR );
     }
@@ -445,8 +458,8 @@ bool Rank::Refresh( NVMainRequest *request )
      */
     nextActivate = MAX( nextActivate, GetEventQueue( )->GetCurrentCycle( ) 
                                         + p->tRRDR );
-    FAWindex = (FAWindex + 1) % 4;
-    lastActivate[FAWindex] = (ncycles_t)GetEventQueue( )->GetCurrentCycle( );
+    RAWindex = (RAWindex + 1) % rawNum;
+    lastActivate[RAWindex] = (ncycles_t)GetEventQueue( )->GetCurrentCycle( );
 
     return true;
 }
@@ -455,8 +468,8 @@ ncycle_t Rank::GetNextActivate( uint64_t bank )
 {
     return MAX( 
             MAX( nextActivate, banks[bank]->GetNextActivate( ) ),
-            MAX( lastActivate[FAWindex] + p->tRRDR, 
-                lastActivate[(FAWindex + 1)%4] + p->tFAW ) 
+            MAX( lastActivate[RAWindex] + p->tRRDR, 
+                lastActivate[(RAWindex + 1)%rawNum] + p->tRAW ) 
            );
 }
 
@@ -494,9 +507,9 @@ bool Rank::IsIssuable( NVMainRequest *req, FailReason *reason )
     if( req->type == ACTIVATE )
     {
         if( nextActivate > (GetEventQueue()->GetCurrentCycle()) 
-            || ( lastActivate[FAWindex] + static_cast<ncycles_t>(p->tRRDR) 
+            || ( lastActivate[RAWindex] + static_cast<ncycles_t>(p->tRRDR) 
                 > static_cast<ncycles_t>(GetEventQueue()->GetCurrentCycle()) )
-            || ( lastActivate[(FAWindex + 1)%4] + static_cast<ncycles_t>(p->tFAW) 
+            || ( lastActivate[(RAWindex + 1)%rawNum] + static_cast<ncycles_t>(p->tRAW) 
                 > static_cast<ncycles_t>(GetEventQueue()->GetCurrentCycle()) ) )
         {
             rv = false;
@@ -515,19 +528,19 @@ bool Rank::IsIssuable( NVMainRequest *req, FailReason *reason )
                 actWaitTime += nextActivate - (GetEventQueue()->GetCurrentCycle());
             }
 
-            if( lastActivate[FAWindex] + static_cast<ncycles_t>(p->tRRDR) 
+            if( lastActivate[RAWindex] + static_cast<ncycles_t>(p->tRRDR) 
                     > static_cast<ncycles_t>(GetEventQueue()->GetCurrentCycle()) )
             {
                 rrdWaits++;
-                rrdWaitTime += ( lastActivate[FAWindex] + 
+                rrdWaitTime += ( lastActivate[RAWindex] + 
                         p->tRRDR - (GetEventQueue()->GetCurrentCycle()) );
             }
-            if( lastActivate[(FAWindex + 1)%4] + static_cast<ncycles_t>(p->tFAW) 
+            if( lastActivate[(RAWindex + 1)%rawNum] + static_cast<ncycles_t>(p->tRAW) 
                     > static_cast<ncycles_t>(GetEventQueue()->GetCurrentCycle()) )
             {
                 fawWaits++;
-                fawWaitTime += lastActivate[(FAWindex +1)%4] + 
-                    p->tFAW - (GetEventQueue()->GetCurrentCycle());
+                fawWaitTime += lastActivate[(RAWindex +1)%rawNum] + 
+                    p->tRAW - (GetEventQueue()->GetCurrentCycle());
             }
         }
     }
@@ -589,9 +602,9 @@ bool Rank::IsIssuable( NVMainRequest *req, FailReason *reason )
     {
         /* firstly, check whether REFRESH can be issued to a rank */
         if( nextActivate > GetEventQueue()->GetCurrentCycle() 
-            || ( lastActivate[FAWindex] + static_cast<ncycles_t>(p->tRRDR) 
+            || ( lastActivate[RAWindex] + static_cast<ncycles_t>(p->tRRDR) 
                 > static_cast<ncycles_t>(GetEventQueue()->GetCurrentCycle()) )
-            || ( lastActivate[(FAWindex + 1)%4] + static_cast<ncycles_t>(p->tFAW) 
+            || ( lastActivate[(RAWindex + 1)%rawNum] + static_cast<ncycles_t>(p->tRAW) 
                 > static_cast<ncycles_t>(GetEventQueue()->GetCurrentCycle()) ) )
         {
             rv = false;
