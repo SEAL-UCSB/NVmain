@@ -137,6 +137,7 @@ void Params::SetParams( Config *c )
     CHANNELS = c->GetValue( "CHANNELS" );
     RANKS = c->GetValue( "RANKS" );
     BANKS = c->GetValue( "BANKS" );
+    RAW = c->GetValue( "RAW" );
 
     tAL = c->GetValue( "tAL" );
     tBURST = c->GetValue( "tBURST" );
@@ -144,7 +145,7 @@ void Params::SetParams( Config *c )
     tCCD = c->GetValue( "tCCD" );
     tCMD = c->GetValue( "tCMD" );
     tCWD = c->GetValue( "tCWD" );
-    tFAW = c->GetValue( "tFAW" );
+    tRAW = c->GetValue( "tRAW" );
     tOST = c->GetValue( "tOST" );
     tPD = c->GetValue( "tPD" );
     tRAS = c->GetValue( "tRAS" );
