@@ -226,7 +226,7 @@ void MemoryController::SetConfig( Config *conf )
         m_refreshBankNum = p->BANKS / p->BanksPerRefresh;
         
         /* first, calculate the tREFI */
-        m_tREFI = p->tRFI / (p->ROWS / p->RefreshRows );
+        m_tREFI = p->tREFW / (p->ROWS / p->RefreshRows );
 
         /* then, calculate the time interval between two refreshes */
         ncycle_t m_refreshSlice = m_tREFI / ( p->RANKS * m_refreshBankNum );
