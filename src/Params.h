@@ -134,7 +134,7 @@ class Params
     ncycle_t tPD;
     ncycle_t tRAS;
     ncycle_t tRCD;
-    ncycle_t tRFI;
+    ncycle_t tREFW;
     ncycle_t tRFC;
     ncycle_t tRP;
     ncycle_t tRRDR;
