@@ -162,15 +162,15 @@ bool SubArray::Activate( NVMainRequest *request )
     if( p->EnergyModel_set && p->EnergyModel == "current" )
     {
         /* DRAM Model */
-        uint64_t tRC = p->tRAS + p->tRP;
+        ncycle_t tRC = p->tRAS + p->tRP;
 
-        subArrayEnergy += ( (double)((p->EIDD0 * (double)tRC) 
-                    - ((p->EIDD3N * (double)p->tRAS)
-                    +  (p->EIDD2N * (double)p->tRP))) );
+        subArrayEnergy += ( ( p->EIDD0 * (double)tRC ) 
+                    - ( ( p->EIDD3N * (double)(p->tRAS) )
+                    +  ( p->EIDD2N * (double)(p->tRP) ) ) ) ;
 
-        activeEnergy += ( (double)((p->EIDD0 * (double)tRC) 
-                      - ((p->EIDD3N * (double)p->tRAS)
-                      +  (p->EIDD2N * (double)p->tRP) )) );
+        activeEnergy += ( ( p->EIDD0 * (double)tRC ) 
+                      - ( ( p->EIDD3N * (double)(p->tRAS) )
+                      +  ( p->EIDD2N * (double)(p->tRP) ) ) ) ;
     }
     else
     {
@@ -272,9 +272,9 @@ bool SubArray::Read( NVMainRequest *request )
     if( p->EnergyModel_set && p->EnergyModel == "current" )
     {
         /* DRAM Model */
-        subArrayEnergy += (double)((p->EIDD4R - p->EIDD3N) * (double)p->tBURST);
+        subArrayEnergy += ( ( p->EIDD4R - p->EIDD3N ) * (double)(p->tBURST) );
 
-        burstEnergy += (double)((p->EIDD4R - p->EIDD3N) * (double)p->tBURST);
+        burstEnergy += ( ( p->EIDD4R - p->EIDD3N ) * (double)(p->tBURST) );
     }
     else
     {
@@ -401,9 +401,9 @@ bool SubArray::Write( NVMainRequest *request )
     if( p->EnergyModel_set && p->EnergyModel == "current" )
     {
         /* DRAM Model. */
-        subArrayEnergy += (double)((p->EIDD4W - p->EIDD3N) * (double)p->tBURST);
+        subArrayEnergy += ( ( p->EIDD4W - p->EIDD3N ) * (double)(p->tBURST) );
 
-        burstEnergy += (double)((p->EIDD4W - p->EIDD3N) * (double)p->tBURST);
+        burstEnergy += ( ( p->EIDD4W - p->EIDD3N ) * (double)(p->tBURST) );
     }
     else
     {
@@ -540,11 +540,11 @@ bool SubArray::Refresh( NVMainRequest* request )
     if( p->EnergyModel_set && p->EnergyModel == "current" )
     {
         /* calibrate the refresh energy since we may have fine-grained refresh */
-        subArrayEnergy += (double)((p->EIDD5B - p->EIDD3N) 
-                                * (double)p->tRFC / (double)p->BANKS ); 
+        subArrayEnergy += ( ( p->EIDD5B - p->EIDD3N ) 
+                                * (double)(p->tRFC) / (double)(p->BANKS) ); 
 
-        refreshEnergy += (double)((p->EIDD5B - p->EIDD3N) 
-                                * (double)p->tRFC / (double)p->BANKS ); 
+        refreshEnergy += ( ( p->EIDD5B - p->EIDD3N ) 
+                                * (double)p->tRFC / (double)(p->BANKS) ); 
 
         
     }
@@ -848,7 +848,7 @@ void SubArray::PrintStats( )
 
 bool SubArray::Idle( )
 {
-    return ( state == SUBARRAY_CLOSED );
+    return ( state == SUBARRAY_CLOSED || state == SUBARRAY_PRECHARGING );
 }
 
 void SubArray::Cycle( ncycle_t )
