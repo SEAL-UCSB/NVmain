@@ -1019,7 +1019,17 @@ void Bank::PrintStats( )
 
 bool Bank::Idle( )
 {
-    return ( state == BANK_CLOSED );
+    bool bankIdle = true;
+
+    for( ncounter_t i = 0; i < subArrayNum; i++ )
+    {
+        if( subArrays[i]->Idle( ) == false )
+        {
+            bankIdle = false;
+            break;
+        }
+    }
+    return bankIdle;
 }
 
 void Bank::Cycle( ncycle_t steps )

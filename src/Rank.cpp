@@ -133,9 +133,9 @@ void Rank::SetConfig( Config *c )
      * Make sure this doesn't cause unnecessary tRRD delays at start 
      * TODO: have Activate check currentCycle < tRRD/tRAW maybe?
      */
-    lastActivate = new ncycles_t[rawNum];
+    lastActivate = new ncycle_t[rawNum];
     for( ncounter_t i = 0; i < rawNum; i++ )
-        lastActivate[i] = -10000;
+        lastActivate[i] = 0;
 
     /* When selecting a child, use the rank field from the decoder. */
     AddressTranslator *rankAT = DecoderFactory::CreateDecoderNoWarn( conf->GetString( "Decoder" ) );
@@ -175,20 +175,19 @@ bool Rank::Activate( NVMainRequest *request )
      *  power consumption.
      */
     if( nextActivate <= GetEventQueue()->GetCurrentCycle() 
-        && (ncycles_t)lastActivate[RAWindex] + (ncycles_t)p->tRRDR 
-            <= (ncycles_t)GetEventQueue()->GetCurrentCycle()
-        && (ncycles_t)lastActivate[(RAWindex + 1)%rawNum] + (ncycles_t)p->tRAW 
-            <= (ncycles_t)GetEventQueue()->GetCurrentCycle() )
+        && lastActivate[( RAWindex + 1 ) % rawNum] + p->tRAW 
+            <= GetEventQueue( )->GetCurrentCycle( ) )
     {
         /* issue ACTIVATE to target bank */
         GetChild( request )->IssueCommand( request );
 
         state = RANK_OPEN;
 
+        /* move to the next counter */
         RAWindex = (RAWindex + 1) % rawNum;
-        lastActivate[RAWindex] = (ncycles_t)GetEventQueue()->GetCurrentCycle();
-        nextActivate = MAX( nextActivate, GetEventQueue()->GetCurrentCycle() 
-                                            + p->tRRDR );
+        lastActivate[RAWindex] = GetEventQueue()->GetCurrentCycle();
+        nextActivate = MAX( nextActivate, 
+                            GetEventQueue()->GetCurrentCycle() + p->tRRDR );
     }
     else
     {
@@ -219,29 +218,36 @@ bool Rank::Read( NVMainRequest *request )
         return false;
     }
 
-    /*
-     *  We need to check for bank conflicts. If there are no conflicts, we can issue the 
-     *  command as long as the bus will be ready and the column can decode that fast. The
-     *  bank code ensures the second criteria.
-     */
-    if( !banks[readBank]->WouldConflict( readRow ) )
+    /* issue READ or READ_PRECHARGE to target bank */
+    bool success = GetChild( request )->IssueCommand( request );
+
+    /* Even though the command may be READ_PRECHARGE, it still works */
+    nextRead = MAX( nextRead, 
+                    GetEventQueue()->GetCurrentCycle() 
+                        + MAX( p->tBURST, p->tCCD ) );
+
+    nextWrite = MAX( nextWrite, 
+                     GetEventQueue()->GetCurrentCycle() 
+                         + p->tCAS + p->tBURST + p->tRTRS - p->tCWD ); 
+
+    /* if it has implicit precharge, insert the precharge to close the rank */ 
+    if( request->type == READ_PRECHARGE )
     {
-        /* issue READ or READ_PRECHARGE to target bank */
-        GetChild( request )->IssueCommand( request );
+        NVMainRequest* dupPRE = new NVMainRequest;
+        dupPRE->type = PRECHARGE;
+        dupPRE->owner = this;
 
-        /* Even though the command may be READ_PRECHARGE, it still works */
-        nextRead = MAX( nextRead, GetEventQueue()->GetCurrentCycle() 
-                                    + MAX( p->tBURST, p->tCCD ) );
-
-        nextWrite = MAX( nextWrite, GetEventQueue()->GetCurrentCycle() 
-                                    + p->tCAS + p->tBURST + p->tRTRS - p->tCWD ); 
+        GetEventQueue( )->InsertEvent( EventResponse, this, dupPRE, 
+            GetEventQueue( )->GetCurrentCycle( ) + p->tAL + p->tRTP );
     }
-    else
+
+    if( success == false )
     {
-        std::cerr << "NVMain Error: Rank Read FAILED! Did you check IsIssuable?" << std::endl;
+        std::cerr << "NVMain Error: Rank Read FAILED! Did you check IsIssuable?" 
+            << std::endl;
     }
 
-    return true;
+    return success;
 }
 
 
@@ -265,25 +271,37 @@ bool Rank::Write( NVMainRequest *request )
         return false;
     }
 
-    if( !banks[writeBank]->WouldConflict( writeRow ) )
+    /* issue WRITE or WRITE_PRECHARGE to the target bank */
+    bool success = GetChild( request )->IssueCommand( request );
+
+    /* Even though the command may be WRITE_PRECHARGE, it still works */
+    nextRead = MAX( nextRead, 
+                    GetEventQueue()->GetCurrentCycle() 
+                        + p->tCWD + p->tBURST + p->tWTR );
+
+    nextWrite = MAX( nextWrite, 
+                     GetEventQueue()->GetCurrentCycle() 
+                         + MAX( p->tBURST, p->tCCD ) );
+
+    /* if it has implicit precharge, insert the precharge to close the rank */ 
+    if( request->type == WRITE_PRECHARGE )
     {
-        /* issue WRITE or WRITE_PRECHARGE to the target bank */
-        GetChild( request )->IssueCommand( request );
+        NVMainRequest* dupPRE = new NVMainRequest;
+        dupPRE->type = PRECHARGE;
+        dupPRE->owner = this;
 
-        /* Even though the command may be WRITE_PRECHARGE, it still works */
-        nextRead = MAX( nextRead, GetEventQueue()->GetCurrentCycle() 
-                                    + p->tCWD + p->tBURST + p->tWTR );
-
-        nextWrite = MAX( nextWrite, GetEventQueue()->GetCurrentCycle() 
-                                    + MAX( p->tBURST, p->tCCD ) );
+        GetEventQueue( )->InsertEvent( EventResponse, this, dupPRE, 
+            GetEventQueue( )->GetCurrentCycle( ) 
+                + p->tAL + p->tCWD + p->tBURST + p->tWR );
     }
-    else
+
+    if( success == false )
     {
         std::cerr << "NVMain Error: Rank Write FAILED! Did you check IsIssuable?" 
             << std::endl;
     }
 
-    return true;
+    return success;
 }
 
 bool Rank::Precharge( NVMainRequest *request )
@@ -304,7 +322,7 @@ bool Rank::Precharge( NVMainRequest *request )
      *  was met we can send the command to the bank.
      */
     /* issue PRECHARGE/PRECHARGE_ALL to the target bank */
-    GetChild( request )->IssueCommand( request );
+    bool success = GetChild( request )->IssueCommand( request );
 
     bool rankIdle = true;
     for( ncounter_t i = 0; i < bankCount; i++ )
@@ -319,7 +337,13 @@ bool Rank::Precharge( NVMainRequest *request )
     if( rankIdle )
         state = RANK_CLOSED;
 
-    return true;
+    if( success == false )
+    {
+        std::cerr << "NVMain Error: Rank Precharge FAILED! Did you check IsIssuable?" 
+            << std::endl;
+    }
+
+    return success;
 }
 
 bool Rank::CanPowerDown( OpType pdOp )
@@ -459,7 +483,7 @@ bool Rank::Refresh( NVMainRequest *request )
     nextActivate = MAX( nextActivate, GetEventQueue( )->GetCurrentCycle( ) 
                                         + p->tRRDR );
     RAWindex = (RAWindex + 1) % rawNum;
-    lastActivate[RAWindex] = (ncycles_t)GetEventQueue( )->GetCurrentCycle( );
+    lastActivate[RAWindex] = GetEventQueue( )->GetCurrentCycle( );
 
     return true;
 }
@@ -467,10 +491,9 @@ bool Rank::Refresh( NVMainRequest *request )
 ncycle_t Rank::GetNextActivate( uint64_t bank )
 {
     return MAX( 
-            MAX( nextActivate, banks[bank]->GetNextActivate( ) ),
-            MAX( lastActivate[RAWindex] + p->tRRDR, 
-                lastActivate[(RAWindex + 1)%rawNum] + p->tRAW ) 
-           );
+                MAX( nextActivate, banks[bank]->GetNextActivate( ) ),
+                lastActivate[( RAWindex + 1 ) % rawNum] + p->tRAW 
+              );
 }
 
 ncycle_t Rank::GetNextRead( uint64_t bank )
@@ -506,11 +529,9 @@ bool Rank::IsIssuable( NVMainRequest *req, FailReason *reason )
 
     if( req->type == ACTIVATE )
     {
-        if( nextActivate > (GetEventQueue()->GetCurrentCycle()) 
-            || ( lastActivate[RAWindex] + static_cast<ncycles_t>(p->tRRDR) 
-                > static_cast<ncycles_t>(GetEventQueue()->GetCurrentCycle()) )
-            || ( lastActivate[(RAWindex + 1)%rawNum] + static_cast<ncycles_t>(p->tRAW) 
-                > static_cast<ncycles_t>(GetEventQueue()->GetCurrentCycle()) ) )
+        if( nextActivate > GetEventQueue( )->GetCurrentCycle( ) 
+            || ( lastActivate[(RAWindex + 1) % rawNum] + p->tRAW ) 
+                > GetEventQueue()->GetCurrentCycle() )  
         {
             rv = false;
 
@@ -522,32 +543,31 @@ bool Rank::IsIssuable( NVMainRequest *req, FailReason *reason )
 
         if( rv == false )
         {
-            if( nextActivate > (GetEventQueue()->GetCurrentCycle()) )
+            if( nextActivate > GetEventQueue( )->GetCurrentCycle( ) )
             {
                 actWaits++;
-                actWaitTime += nextActivate - (GetEventQueue()->GetCurrentCycle());
+                actWaitTime += nextActivate - GetEventQueue( )->GetCurrentCycle( );
             }
 
-            if( lastActivate[RAWindex] + static_cast<ncycles_t>(p->tRRDR) 
-                    > static_cast<ncycles_t>(GetEventQueue()->GetCurrentCycle()) )
+            if( ( lastActivate[RAWindex] + p->tRRDR )
+                    > GetEventQueue( )->GetCurrentCycle( ) ) 
             {
                 rrdWaits++;
                 rrdWaitTime += ( lastActivate[RAWindex] + 
                         p->tRRDR - (GetEventQueue()->GetCurrentCycle()) );
             }
-            if( lastActivate[(RAWindex + 1)%rawNum] + static_cast<ncycles_t>(p->tRAW) 
-                    > static_cast<ncycles_t>(GetEventQueue()->GetCurrentCycle()) )
+            if( ( lastActivate[( RAWindex + 1 ) % rawNum] + p->tRAW )
+                    > GetEventQueue( )->GetCurrentCycle( ) ) 
             {
                 fawWaits++;
-                fawWaitTime += lastActivate[(RAWindex +1)%rawNum] + 
-                    p->tRAW - (GetEventQueue()->GetCurrentCycle());
+                fawWaitTime += ( lastActivate[( RAWindex + 1 ) % rawNum] + 
+                    p->tRAW - GetEventQueue( )->GetCurrentCycle( ) );
             }
         }
     }
     else if( req->type == READ || req->type == READ_PRECHARGE )
     {
-        if( nextRead > (GetEventQueue()->GetCurrentCycle()) 
-                || banks[opBank]->WouldConflict( opRow ) )
+        if( nextRead > GetEventQueue( )->GetCurrentCycle( ) )
         {
             rv = false;
 
@@ -559,8 +579,7 @@ bool Rank::IsIssuable( NVMainRequest *req, FailReason *reason )
     }
     else if( req->type == WRITE || req->type == WRITE_PRECHARGE )
     {
-        if( nextWrite > (GetEventQueue()->GetCurrentCycle()) 
-                || banks[opBank]->WouldConflict( opRow ) )
+        if( nextWrite > GetEventQueue( )->GetCurrentCycle( ) )
         {
             rv = false;
 
@@ -572,7 +591,7 @@ bool Rank::IsIssuable( NVMainRequest *req, FailReason *reason )
     }
     else if( req->type == PRECHARGE || req->type == PRECHARGE_ALL )
     {
-        if( nextPrecharge > (GetEventQueue()->GetCurrentCycle()) )
+        if( nextPrecharge > GetEventQueue( )->GetCurrentCycle( ) ) 
         {
             rv = false;
 
@@ -602,10 +621,8 @@ bool Rank::IsIssuable( NVMainRequest *req, FailReason *reason )
     {
         /* firstly, check whether REFRESH can be issued to a rank */
         if( nextActivate > GetEventQueue()->GetCurrentCycle() 
-            || ( lastActivate[RAWindex] + static_cast<ncycles_t>(p->tRRDR) 
-                > static_cast<ncycles_t>(GetEventQueue()->GetCurrentCycle()) )
-            || ( lastActivate[(RAWindex + 1)%rawNum] + static_cast<ncycles_t>(p->tRAW) 
-                > static_cast<ncycles_t>(GetEventQueue()->GetCurrentCycle()) ) )
+            || ( lastActivate[( RAWindex + 1 ) % rawNum] + p->tRAW 
+                > GetEventQueue( )->GetCurrentCycle( ) )  )
         {
             rv = false;
             if( reason ) 
@@ -726,24 +743,33 @@ bool Rank::RequestComplete( NVMainRequest* req )
 {
     if( req->owner == this )
     {
-        if( req->type == REFRESH )
+        switch( req->type )
         {
             /* 
              * check whether all banks are idle. some banks may be active
-             * due to the possible fine-grained refresh 
+             * due to the possible fine-grained structure 
              */
-            bool rankIdle = true;
-            for( ncounter_t i = 0; i < bankCount; i++ )
-            {
-                if( banks[i]->Idle( ) == false )
+            case PRECHARGE:
+            case REFRESH:
                 {
-                    rankIdle = false;
+                    bool rankIdle = true;
+                    for( ncounter_t i = 0; i < bankCount; i++ )
+                    {
+                        if( banks[i]->Idle( ) == false )
+                        {
+                            rankIdle = false;
+                            break;
+                        }
+                    }
+
+                    if( rankIdle )
+                        state = RANK_CLOSED;
+
                     break;
                 }
-            }
 
-            if( rankIdle )
-                state = RANK_CLOSED;
+            default:
+                break;
         }
 
         delete req;
@@ -928,18 +954,26 @@ void Rank::PrintStats( )
               << "i" << psInterval << "." << statName 
               << ".slowExitCycles " << seCycles << std::endl;
 
-    std::cout << "i" << psInterval << "." << statName << ".actWaits " << actWaits << std::endl;
-    std::cout << "i" << psInterval << "." << statName << ".actWaits.totalTime " << actWaitTime << std::endl;
-    std::cout << "i" << psInterval << "." << statName << ".actWaits.averageTime " << (double)((double)actWaitTime / (double)actWaits) << std::endl;
+    std::cout << "i" << psInterval << "." << statName << ".actWaits " 
+        << actWaits << std::endl;
+    std::cout << "i" << psInterval << "." << statName << ".actWaits.totalTime " 
+        << actWaitTime << std::endl;
+    std::cout << "i" << psInterval << "." << statName << ".actWaits.averageTime " 
+        << (double)((double)actWaitTime / (double)actWaits) << std::endl;
 
-    std::cout << "i" << psInterval << "." << statName << ".rrdWaits " << rrdWaits << std::endl;
-    std::cout << "i" << psInterval << "." << statName << ".rrdWaits.totalTime " << rrdWaitTime << std::endl;
-    std::cout << "i" << psInterval << "." << statName << ".rrdWaits.averageTime " << (double)((double)rrdWaitTime / (double)rrdWaits) << std::endl;
+    std::cout << "i" << psInterval << "." << statName << ".rrdWaits " 
+        << rrdWaits << std::endl;
+    std::cout << "i" << psInterval << "." << statName << ".rrdWaits.totalTime " 
+        << rrdWaitTime << std::endl;
+    std::cout << "i" << psInterval << "." << statName << ".rrdWaits.averageTime " 
+        << (double)((double)rrdWaitTime / (double)rrdWaits) << std::endl;
 
-    std::cout << "i" << psInterval << "." << statName << ".fawWaits " << fawWaits << std::endl;
-    std::cout << "i" << psInterval << "." << statName << ".fawWaits.totalTime " << fawWaitTime << std::endl;
-    std::cout << "i" << psInterval << "." << statName << ".fawWaits.averageTime " << (double)((double)fawWaitTime / (double)fawWaits) << std::endl;
-
+    std::cout << "i" << psInterval << "." << statName << ".fawWaits " 
+        << fawWaits << std::endl;
+    std::cout << "i" << psInterval << "." << statName << ".fawWaits.totalTime " 
+        << fawWaitTime << std::endl;
+    std::cout << "i" << psInterval << "." << statName << ".fawWaits.averageTime " 
+        << (double)((double)fawWaitTime / (double)fawWaits) << std::endl;
 
     for( ncounter_t i = 0; i < bankCount; i++ )
     {
