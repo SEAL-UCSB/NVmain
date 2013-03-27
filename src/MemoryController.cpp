@@ -574,21 +574,36 @@ bool MemoryController::IsLastRequest( std::list<NVMainRequest *>& transactionQue
        uint64_t mRow, uint64_t mBank, uint64_t mRank )
 {
     bool rv = true;
-    std::list<NVMainRequest *>::iterator it;
 
-    for( it = transactionQueue.begin(); it != transactionQueue.end(); it++ )
+    /* if Open-Page policy is applied, the request is never the last request */
+    if( p->ClosePage == 0 )
+        rv = false;
+    /* 
+     * else if relaxed Close-Page policy is applied, the request is the last
+     * if and only if no row buffer hit can be exploited in the queue
+     */
+    else if( p->ClosePage == 1 )
     {
-        uint64_t rank, bank, row;
+        std::list<NVMainRequest *>::iterator it;
 
-        (*it)->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
-
-        /* if a request that has row buffer hit is found, return false */ 
-        if( rank == mRank && bank == mBank && row == mRow )
+        for( it = transactionQueue.begin(); it != transactionQueue.end(); it++ )
         {
-            rv = false;
-            break;
+            uint64_t rank, bank, row;
+
+            (*it)->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
+
+            /* if a request that has row buffer hit is found, return false */ 
+            if( rank == mRank && bank == mBank && row == mRow )
+            {
+                rv = false;
+                break;
+            }
         }
     }
+    /* 
+     * else, restricted Close-Page policy is applied, the request is always
+     * the last request ( we do nothing )
+     */
 
     return rv;
 }
@@ -623,21 +638,7 @@ bool MemoryController::FindStarvedRequest( std::list<NVMainRequest *>& transacti
             transactionQueue.erase( it );
 
             /* Different row buffer management policy has different behavior */ 
-
-            /* 
-             * if Relaxed Close-Page row buffer management policy is applied,
-             * we check whether there is another request has row buffer hit.
-             * if not, this request is the last request and we can close the
-             * row.
-             */
-            if( p->ClosePage == 1 
-                    && IsLastRequest( transactionQueue, row, bank, rank ) )
-                (*starvedRequest)->tag = NVM_LASTREQUEST;
-            /* 
-             * else, if Restricted Close-Page is applied, the request is
-             * always the last request
-             */
-            else if( p->ClosePage == 2 )
+            if( IsLastRequest( transactionQueue, row, bank, rank ) )
                 (*starvedRequest)->tag = NVM_LASTREQUEST;
 
             rv = true;
@@ -677,21 +678,7 @@ bool MemoryController::FindRowBufferHit( std::list<NVMainRequest *>& transaction
             transactionQueue.erase( it );
 
             /* Different row buffer management policy has different behavior */ 
-
-            /* 
-             * if Relaxed Close-Page row buffer management policy is applied,
-             * we check whether there is another request has row buffer hit.
-             * if not, this request is the last request and we can close the
-             * row.
-             */
-            if( p->ClosePage == 1 
-                    && IsLastRequest( transactionQueue, row, bank, rank ) )
-                (*hitRequest)->tag = NVM_LASTREQUEST;
-            /* 
-             * else, if Restricted Close-Page is applied, the request is
-             * always the last request
-             */
-            else if( p->ClosePage == 2 )
+            if( IsLastRequest( transactionQueue, row, bank, rank ) )
                 (*hitRequest)->tag = NVM_LASTREQUEST;
 
             rv = true;
@@ -732,21 +719,7 @@ bool MemoryController::FindOldestReadyRequest( std::list<NVMainRequest *>& trans
             transactionQueue.erase( it );
             
             /* Different row buffer management policy has different behavior */ 
-
-            /* 
-             * if Relaxed Close-Page row buffer management policy is applied,
-             * we check whether there is another request has row buffer hit.
-             * if not, this request is the last request and we can close the
-             * row.
-             */
-            if( p->ClosePage == 1 
-                    && IsLastRequest( transactionQueue, row, bank, rank ) )
-                (*oldestRequest)->tag = NVM_LASTREQUEST;
-            /* 
-             * else, if Restricted Close-Page is applied, the request is
-             * always the last request
-             */
-            else if( p->ClosePage == 2 )
+            if( IsLastRequest( transactionQueue, row, bank, rank ) )
                 (*oldestRequest)->tag = NVM_LASTREQUEST;
 
             rv = true;
@@ -786,21 +759,7 @@ bool MemoryController::FindClosedBankRequest( std::list<NVMainRequest *>& transa
             transactionQueue.erase( it );
             
             /* Different row buffer management policy has different behavior */ 
-
-            /* 
-             * if Relaxed Close-Page row buffer management policy is applied,
-             * we check whether there is another request has row buffer hit.
-             * if not, this request is the last request and we can close the
-             * row.
-             */
-            if( p->ClosePage == 1 
-                    && IsLastRequest( transactionQueue, row, bank, rank ) )
-                (*closedRequest)->tag = NVM_LASTREQUEST;
-            /* 
-             * else, if Restricted Close-Page is applied, the request is
-             * always the last request
-             */
-            else if( p->ClosePage == 2 )
+            if( IsLastRequest( transactionQueue, row, bank, rank ) )
                 (*closedRequest)->tag = NVM_LASTREQUEST;
 
             rv = true;
