@@ -165,7 +165,7 @@ class MemoryController : public NVMObject
     bool FindOldestReadyRequests( std::list<NVMainRequest *>& transactionQueue, std::vector<NVMainRequest *>& oldestRequests, NVM::SchedulingPredicate& p  );
     bool FindClosedBankRequests( std::list<NVMainRequest *>& transactionQueue, std::vector<NVMainRequest *>& closedRequests, NVM::SchedulingPredicate& p  );
     /* IsLastRequest() tells whether no other request has the row buffer hit in the transaction queue */
-    bool IsLastRequest( std::list<NVMainRequest *>& transactionQueue, uint64_t mRow, uint64_t mBank, uint64_t mRank ); 
+    virtual bool IsLastRequest( std::list<NVMainRequest *>& transactionQueue, uint64_t mRow, uint64_t mBank, uint64_t mRank ); 
     /* curRank and curBank record the starting rank (bank) index for the rank-(bank-) level scheduling */
     ncounter_t curRank, curBank; 
     /* MoveRankBank() increment the curRank and/or curBank according to the scheduling scheme */
