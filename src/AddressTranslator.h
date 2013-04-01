@@ -49,6 +49,8 @@ class AddressTranslator
     AddressTranslator( );
     virtual ~AddressTranslator( );
 
+    void SetBusWidth( int );
+    void SetBurstLength( int );
     void SetTranslationMethod( TranslationMethod *m );
     TranslationMethod *GetTranslationMethod( );
     
@@ -67,6 +69,9 @@ class AddressTranslator
   private:
     TranslationMethod *method;
     TranslationField defaultField;
+    int busWidth;
+    int burstLength;
+    int lowColBits;
 
   protected:
     uint64_t Divide( uint64_t partSize, MemoryPartition partition );

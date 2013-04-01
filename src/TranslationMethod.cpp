@@ -34,6 +34,7 @@
 *******************************************************************************/
 
 #include <iostream>
+#include <cstring>
 #include "src/TranslationMethod.h"
 
 using namespace NVM;
@@ -61,13 +62,7 @@ void TranslationMethod::SetBitWidths( unsigned int rowBits, unsigned int colBits
         std::cout << "NVMain: Column bits must be greater than or equal to the maximum burst length.\n";
 
     bitWidths[MEM_ROW] = rowBits;
-    /*
-     *  We subtract 3 from the column bits since we can only address by byte. When translation
-     *  occurs, we will align to the nearest byte in the currently open row, then N bits will
-     *  be output in a burst, depending on the device with. In the translator you must return
-     *  the bit address, however, so simply shift by 3 to the left to pad with 0s. 
-     */
-    bitWidths[MEM_COL] = colBits - 3;
+    bitWidths[MEM_COL] = colBits;
     bitWidths[MEM_BANK] = bankBits;
     bitWidths[MEM_RANK] = rankBits;
     bitWidths[MEM_CHANNEL] = channelBits;
@@ -135,61 +130,38 @@ void TranslationMethod::GetCount( uint64_t *rows, uint64_t *cols, uint64_t *bank
 void TranslationMethod::SetAddressMappingScheme( std::string scheme )
 {
     /* maximize row buffer hit */
-    if( !scheme.compare( "R:RK:BK:CH:C" ) )
-        SetOrder( 5, 1, 3, 4, 2 );
-    else if( !scheme.compare( "R:BK:RK:CH:C" ) )
-        SetOrder( 5, 1, 4, 3, 2 );
-    else if( !scheme.compare( "R:CH:BK:RK:C" ) )
-        SetOrder( 5, 1, 3, 2, 4 );
-    else if( !scheme.compare( "R:BK:CH:RK:C" ) )
-        SetOrder( 5, 1, 4, 2, 3 );
-    else if( !scheme.compare( "R:CH:RK:BK:C" ) )
-        SetOrder( 5, 1, 2, 3, 4 );
-    else if( !scheme.compare( "R:RK:CH:BK:C" ) )
-        SetOrder( 5, 1, 2, 4, 3 );
-    /* channel interleaving */
-    else if( !scheme.compare( "R:RK:BK:C:CH" ) )
-        SetOrder( 5, 2, 3, 4, 1 );
-    else if( !scheme.compare( "R:BK:RK:C:CH" ) )
-        SetOrder( 5, 2, 4, 3, 1 );
-    else if( !scheme.compare( "R:C:BK:RK:CH" ) )
-        SetOrder( 5, 4, 3, 2, 1 );
-    else if( !scheme.compare( "R:BK:C:RK:CH" ) )
-        SetOrder( 5, 3, 4, 2, 1 );
-    else if( !scheme.compare( "R:C:RK:BK:CH" ) )
-        SetOrder( 5, 4, 2, 3, 1 );
-    else if( !scheme.compare( "R:RK:C:BK:CH" ) )
-        SetOrder( 5, 3, 2, 4, 1 );
-    /* bank interleaving */
-    else if( !scheme.compare( "R:RK:CH:C:BK" ) )
-        SetOrder( 5, 2, 1, 4, 3 );
-    else if( !scheme.compare( "R:CH:RK:C:BK" ) )
-        SetOrder( 5, 2, 1, 3, 4 );
-    else if( !scheme.compare( "R:C:CH:RK:BK" ) )
-        SetOrder( 5, 4, 1, 2, 3 );
-    else if( !scheme.compare( "R:CH:C:RK:BK" ) )
-        SetOrder( 5, 3, 1, 2, 4 );
-    else if( !scheme.compare( "R:C:RK:CH:BK" ) )
-        SetOrder( 5, 4, 1, 3, 2 );
-    else if( !scheme.compare( "R:RK:C:CH:BK" ) )
-        SetOrder( 5, 3, 1, 4, 2 );
-    /* rank interleaving */
-    else if( !scheme.compare( "R:BK:CH:C:RK" ) )
-        SetOrder( 5, 2, 4, 1, 3 );
-    else if( !scheme.compare( "R:CH:BK:C:RK" ) )
-        SetOrder( 5, 2, 3, 1, 4 );
-    else if( !scheme.compare( "R:C:CH:BK:RK" ) )
-        SetOrder( 5, 4, 2, 1, 3 );
-    else if( !scheme.compare( "R:CH:C:BK:RK" ) )
-        SetOrder( 5, 3, 2, 1, 4 );
-    else if( !scheme.compare( "R:C:BK:CH:RK" ) )
-        SetOrder( 5, 4, 3, 1, 2 );
-    else if( !scheme.compare( "R:BK:C:CH:RK" ) )
-        SetOrder( 5, 3, 4, 1, 2 );
-    else
+    char *addrMappingScheme = (char*)scheme.c_str( );
+    char *addrParser, *savePtr;
+
+    int row, col, bank, rank, channel;
+    int currentOrder = 5;
+
+    for( addrParser = strtok_r( addrMappingScheme, ":", &savePtr );
+            addrParser ; addrParser = strtok_r( NULL, ":", &savePtr ) )
     {
-        SetOrder( 5, 1, 3, 4, 2 );
-        std::cout << "NVMain Warning: Unrecognized address mapping scheme."
-            << " Set the default scheme: R:RK:BK:CH:C." << std::endl;
+        if( !strcmp( addrParser, "R" ) )
+            row = currentOrder;
+        else if( !strcmp( addrParser, "C" ) )
+            col = currentOrder;
+        else if( !strcmp( addrParser, "BK" ) )
+            bank = currentOrder;
+        else if( !strcmp( addrParser, "RK" ) )
+            rank = currentOrder;
+        else if( !strcmp( addrParser, "CH" ) )
+            channel = currentOrder;
+
+        /* move to next item */
+        currentOrder--;
+        if( currentOrder < 0 )
+            std::cerr << "NVMain Error: invalid address mapping scheme: " 
+                << scheme << std::endl;
     }
+    
+    SetOrder( row, col, bank, rank, channel );
+    std::cout << "NVMain: the address mapping order is " << std::endl
+        << "\tRow " << row << std::endl
+        << "\tColumn " << col << std::endl
+        << "\tBank " << bank << std::endl
+        << "\tRank " << rank << std::endl
+        << "\tChannel " << channel << std::endl;
 }
