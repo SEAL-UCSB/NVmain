@@ -134,6 +134,7 @@ void TranslationMethod::SetAddressMappingScheme( std::string scheme )
     char *addrParser, *savePtr;
 
     int row, col, bank, rank, channel;
+    row = col = bank = rank = channel = 0;
     int currentOrder = 5;
 
     for( addrParser = strtok_r( addrMappingScheme, ":", &savePtr );
@@ -149,6 +150,9 @@ void TranslationMethod::SetAddressMappingScheme( std::string scheme )
             rank = currentOrder;
         else if( !strcmp( addrParser, "CH" ) )
             channel = currentOrder;
+        else
+            std::cerr << "NVMain Error: unrecognized address mapping scheme: " 
+                << scheme << std::endl;
 
         /* move to next item */
         currentOrder--;
