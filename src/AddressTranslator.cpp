@@ -38,6 +38,7 @@
 
 
 #include "src/AddressTranslator.h"
+#include "include/NVMHelpers.h"
 
 
 using namespace NVM;
@@ -46,6 +47,13 @@ AddressTranslator::AddressTranslator( )
 {
     method = NULL;
     defaultField = NO_FIELD;
+
+    /* the default bus width is 64 to comply with JEDEC-DDR */
+    busWidth = 64; 
+    /* the default burst length is 8 to comply with JEDEC-DDR */
+    burstLength = 8; 
+
+    lowColBits = 0;
 }
 
 
@@ -71,20 +79,30 @@ uint64_t AddressTranslator::ReverseTranslate( const uint64_t& row,
 				              const uint64_t& rank, 
                                               const uint64_t& channel )
 {
-    uint64_t unitAddr = 1;
-    uint64_t phyAddr = 0;
-    MemoryPartition part;
-
     if( GetTranslationMethod( ) == NULL )
     {
         std::cerr << "Divider Translator: Translation method not specified!" << std::endl;
         exit(1);
     }
-    
-    uint64_t rowNum, colNum, bankNum, rankNum, channelNum;
 
-    GetTranslationMethod( )->GetCount( &rowNum, &colNum, &bankNum, &rankNum, &channelNum );
-    
+    uint64_t unitAddr = 1;
+    uint64_t phyAddr = 0;
+    MemoryPartition part;
+
+    int busOffsetBits = mlog2( busWidth / 8 );
+    int burstBits = mlog2( (busWidth * burstLength) / 8 );
+    lowColBits = burstBits - busOffsetBits;
+
+    /* first of all, add the bus width */
+    unitAddr <<= busOffsetBits;
+
+    /* then, add the lowest column bits */
+    unitAddr <<= lowColBits;
+
+    unsigned channelBits, rankBits, bankBits, rowBits, colBits;
+
+    method->GetBitWidths( &rowBits, &colBits, &bankBits, &rankBits, &channelBits );
+
     for( int i = 0; i < 5 ; i++ )
     {
         /* 0->4, low to high, FindOrder() will find the correct one */
@@ -94,27 +112,27 @@ uint64_t AddressTranslator::ReverseTranslate( const uint64_t& row,
         {
             case MEM_ROW:
                   phyAddr += ( row * unitAddr ); 
-                  unitAddr *= rowNum;
+                  unitAddr <<= rowBits;
                   break;
 
             case MEM_COL:
                   phyAddr += ( col * unitAddr ); 
-                  unitAddr *= colNum;
+                  unitAddr <<= ( colBits - lowColBits );
                   break;
 
             case MEM_BANK:
                   phyAddr += ( bank * unitAddr ); 
-                  unitAddr *= bankNum;
+                  unitAddr <<= bankBits;
                   break;
 
             case MEM_RANK:
                   phyAddr += ( rank * unitAddr ); 
-                  unitAddr *= rankNum;
+                  unitAddr <<= rankBits;
                   break;
 
             case MEM_CHANNEL:
                   phyAddr += ( channel * unitAddr ); 
-                  unitAddr *= channelNum;
+                  unitAddr <<= channelBits;
                   break;
 
             default:
@@ -124,6 +142,26 @@ uint64_t AddressTranslator::ReverseTranslate( const uint64_t& row,
 
     return phyAddr;
 } 
+
+/* 
+ * SetBusWidth() provides the interface to set the data bus width. By
+ * default, buswidth = 64, which stands for 64-bit bus. If the bus width
+ * is different from 64-bit, then this function can be called
+ */ 
+void AddressTranslator::SetBusWidth( int bits )
+{
+    busWidth = bits;
+}
+
+/* 
+ * SetburstLength() provides the interface to set the burst length. By
+ * default, burstLength is 8, which comply with JEDEC-DDR. If the burst length
+ * is different from 8, then this function can be called
+ */ 
+void AddressTranslator::SetBurstLength( int beat )
+{
+    burstLength = beat;
+}
 
 /*
  * Translate() translates the physical address and returns the corresponding
@@ -143,50 +181,34 @@ void AddressTranslator::Translate( uint64_t address, uint64_t *row, uint64_t *co
         return;
     }
 
+    int busOffsetBits = mlog2( busWidth / 8 );
+    int burstBits = mlog2( (busWidth * burstLength) / 8 );
+    lowColBits = burstBits - busOffsetBits;
 
-    /* NVMain assumes memory word addresses! */
-    //address = address >> 6; // TODO: make this the config value of cacheline size
-    refAddress = address;
+    /* first of all, truncate the bus offset bits */
+    refAddress = address >> busOffsetBits;
 
+    /* then, truncate the lowest column bits */
+    refAddress >>= lowColBits;
 
-    /* Find the partition that is first in order. */
-    FindOrder( 0, &part );
+    /* 0->4, low to high, FindOrder() will find the correct one */
+    for( int i = 0; i < 5; i++ )
+    {
+        FindOrder( i, &part );
 
-    /* 
-     *  The new memsize does not include this partition, so dividing by the
-     *  new memsize will give us the right channel/rank/bank/whatever.
-     */
-    *partitions[part] = Modulo( refAddress, part );
+        /* 
+         *  The new memsize does not include this partition, so dividing by the
+         *  new memsize will give us the right channel/rank/bank/whatever.
+         */
+        *partitions[part] = Modulo( refAddress, part );
 
-    /*
-     *  "Mask off" the first partition number we got. For example if memsize = 1000
-     *  and the address is 8343, the partition would be 8, and we will look at 343 
-     *  to determine the rest of the address now.
-     */
-    refAddress = Divide( refAddress, part );
-
-
-    /* Next find the 2nd in order, and repeat the process. */
-    FindOrder( 1, &part );
-    *partitions[part] = Modulo( refAddress, part );
-    refAddress = Divide( refAddress, part );
-
-    /* 3rd... */
-    FindOrder( 2, &part );
-    *partitions[part] = Modulo( refAddress, part );
-    refAddress = Divide( refAddress, part );
-
-
-    /* 4th... */
-    FindOrder( 3, &part );
-    *partitions[part] = Modulo( refAddress, part );
-    refAddress = Divide( refAddress, part );
-
-
-    /* and 5th... */
-    FindOrder( 4, &part );
-    *partitions[part] = Modulo( refAddress, part );
-    refAddress = Divide( refAddress, part );
+        /*
+         *  "Mask off" the first partition number we got. For example if memsize = 1000
+         *  and the address is 8343, the partition would be 8, and we will look at 343 
+         *  to determine the rest of the address now.
+         */
+        refAddress = Divide( refAddress, part );
+    }
 } 
 
 uint64_t AddressTranslator::Translate( uint64_t address )
@@ -238,20 +260,20 @@ void AddressTranslator::SetDefaultField( TranslationField f )
 uint64_t AddressTranslator::Divide( uint64_t partSize, MemoryPartition partition )
 {
     uint64_t retSize = partSize;
-    uint64_t numChannels, numRanks, numBanks, numRows, numCols;
+    unsigned channelBits, rankBits, bankBits, rowBits, colBits;
 
-    method->GetCount( &numRows, &numCols, &numBanks, &numRanks, &numChannels );
+    method->GetBitWidths( &rowBits, &colBits, &bankBits, &rankBits, &channelBits );
     
     if( partition == MEM_ROW )
-        retSize /= numRows;
+        retSize >>= rowBits;
     else if( partition == MEM_COL )
-        retSize /= numCols;
+        retSize >>= ( colBits - lowColBits );
     else if( partition == MEM_BANK )
-        retSize /= numBanks;
+        retSize >>= bankBits;
     else if( partition == MEM_RANK )
-        retSize /= numRanks;
+        retSize >>= rankBits;
     else if( partition == MEM_CHANNEL )
-        retSize /= numChannels;
+        retSize >>= channelBits;
     else
         std::cout << "Divider Translator: Warning: Invalid partition " << (int)partition << std::endl;
 
@@ -264,22 +286,26 @@ uint64_t AddressTranslator::Divide( uint64_t partSize, MemoryPartition partition
 uint64_t AddressTranslator::Modulo( uint64_t partialAddr, MemoryPartition partition )
 {
     uint64_t retVal = partialAddr;
-    uint64_t numChannels, numRanks, numBanks, numRows, numCols;
+    unsigned channelBits, rankBits, bankBits, rowBits, colBits;
 
-    method->GetCount( &numRows, &numCols, &numBanks, &numRanks, &numChannels );
-    
+    method->GetBitWidths( &rowBits, &colBits, &bankBits, &rankBits, &channelBits );
+
+    uint64_t moduloSize = 1;
+
     if( partition == MEM_ROW )
-        retVal = partialAddr % numRows;
+        moduloSize <<= rowBits;
     else if( partition == MEM_COL )
-        retVal = partialAddr % numCols;
+        moduloSize <<= ( colBits - lowColBits );
     else if( partition == MEM_BANK )
-        retVal = partialAddr % numBanks;
+        moduloSize <<= bankBits;
     else if( partition == MEM_RANK )
-        retVal = partialAddr % numRanks;
+        moduloSize <<= rankBits;
     else if( partition == MEM_CHANNEL )
-        retVal = partialAddr % numChannels;
+        moduloSize <<= channelBits;
     else
         std::cout << "Modulo Translator: Warning: Invalid partition " << (int)partition << std::endl;
+
+    retVal = partialAddr % moduloSize;
 
     return retVal;
 }
@@ -289,10 +315,8 @@ uint64_t AddressTranslator::Modulo( uint64_t partialAddr, MemoryPartition partit
  */
 void AddressTranslator::FindOrder( int order, MemoryPartition *p )
 {
-    unsigned int rowBits, colBits, bankBits, rankBits, channelBits;
     int rowOrder, colOrder, bankOrder, rankOrder, channelOrder;
 
-    method->GetBitWidths( &rowBits, &colBits, &bankBits, &rankBits, &channelBits );
     method->GetOrder( &rowOrder, &colOrder, &bankOrder, &rankOrder, &channelOrder );
 
     if( rowOrder == order )

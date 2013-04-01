@@ -65,10 +65,6 @@ Bank::Bank( )
     subArrayNum = 0;
     activeSubArrayQueue.clear();
 
-    /* a MAT is 512x512 by default */
-    MATWidth = 512;
-    MATHeight = 512;
-
     state = BANK_CLOSED;
     lastActivate = 0;
     openRow = 0;
@@ -119,17 +115,20 @@ void Bank::SetConfig( Config *c )
 {
     conf = c;
     
-    /* customize MAT size */
-    if( conf->KeyExists( "MATWidth" ) )
-        MATWidth = static_cast<ncounter_t>( conf->GetValue( "MATWidth" ) );
-
-    if( conf->KeyExists( "MATHeight" ) )
-        MATHeight = static_cast<ncounter_t>( conf->GetValue( "MATHeight" ) );
-
-
     Params *params = new Params( );
     params->SetParams( c );
     SetParams( params );
+
+    /* customize MAT size */
+    if( conf->KeyExists( "MATWidth" ) )
+        MATWidth = static_cast<ncounter_t>( conf->GetValue( "MATWidth" ) );
+    else
+        MATWidth = params->COLS;
+
+    if( conf->KeyExists( "MATHeight" ) )
+        MATHeight = static_cast<ncounter_t>( conf->GetValue( "MATHeight" ) );
+    else
+        MATHeight = params->ROWS;
 
     subArrayNum = p->ROWS / MATHeight;
     subArrays = new SubArray*[subArrayNum];
