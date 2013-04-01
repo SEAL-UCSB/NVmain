@@ -130,8 +130,10 @@ void TranslationMethod::GetCount( uint64_t *rows, uint64_t *cols, uint64_t *bank
 void TranslationMethod::SetAddressMappingScheme( std::string scheme )
 {
     /* maximize row buffer hit */
-    char *addrMappingScheme = (char*)scheme.c_str( );
+    char addrMappingScheme[15]; 
     char *addrParser, *savePtr;
+
+    strcpy( addrMappingScheme, (char*)scheme.c_str( ) );
 
     int row, col, bank, rank, channel;
     row = col = bank = rank = channel = 0;
