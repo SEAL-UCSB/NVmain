@@ -259,7 +259,7 @@ void MemoryController::SetConfig( Config *conf )
         }
     }
 
-    this->config->Print();
+    //this->config->Print();
 }
 
 /* 
@@ -639,7 +639,7 @@ bool MemoryController::FindStarvedRequest( std::list<NVMainRequest *>& transacti
 
             /* Different row buffer management policy has different behavior */ 
             if( IsLastRequest( transactionQueue, row, bank, rank ) )
-                (*starvedRequest)->tag = NVM_LASTREQUEST;
+                (*starvedRequest)->flags |= NVMainRequestFlags::FLAG_LAST_REQUEST;
 
             rv = true;
             break;
@@ -679,7 +679,7 @@ bool MemoryController::FindRowBufferHit( std::list<NVMainRequest *>& transaction
 
             /* Different row buffer management policy has different behavior */ 
             if( IsLastRequest( transactionQueue, row, bank, rank ) )
-                (*hitRequest)->tag = NVM_LASTREQUEST;
+                (*hitRequest)->flags |= NVMainRequestFlags::FLAG_LAST_REQUEST;
 
             rv = true;
 
@@ -720,7 +720,7 @@ bool MemoryController::FindOldestReadyRequest( std::list<NVMainRequest *>& trans
             
             /* Different row buffer management policy has different behavior */ 
             if( IsLastRequest( transactionQueue, row, bank, rank ) )
-                (*oldestRequest)->tag = NVM_LASTREQUEST;
+                (*oldestRequest)->flags |= NVMainRequestFlags::FLAG_LAST_REQUEST;
 
             rv = true;
             break;
@@ -760,7 +760,7 @@ bool MemoryController::FindClosedBankRequest( std::list<NVMainRequest *>& transa
             
             /* Different row buffer management policy has different behavior */ 
             if( IsLastRequest( transactionQueue, row, bank, rank ) )
-                (*closedRequest)->tag = NVM_LASTREQUEST;
+                (*closedRequest)->flags |= NVMainRequestFlags::FLAG_LAST_REQUEST;
 
             rv = true;
             break;
@@ -950,8 +950,9 @@ bool MemoryController::IssueMemoryCommands( NVMainRequest *req )
          * 1) ClosePage == 1 and there is no other request having row
          * buffer hit
          * or 2) ClosePage == 2, the request is always the last request
+         * TODO: ClosePage == 3 to speculatively leave the row open.
          */
-        if( req->tag == NVM_LASTREQUEST )
+        if( req->flags & NVMainRequestFlags::FLAG_LAST_REQUEST )
         {
             bankQueues[rank][bank].push_back( MakeImplicitPrechargeRequest( req ) );
             activateQueued[rank][bank] = false;
@@ -993,8 +994,9 @@ bool MemoryController::IssueMemoryCommands( NVMainRequest *req )
          * 1) ClosePage == 1 and there is no other request having row
          * buffer hit
          * or 2) ClosePage == 2, the request is always the last request
+         * TODO: ClosePage == 3 to speculatively leave the row open.
          */
-        if( req->tag == NVM_LASTREQUEST )
+        if( req->flags == NVMainRequestFlags::FLAG_LAST_REQUEST )
         {
             /* if Restricted Close-Page is applied, we should never be here */
             assert( p->ClosePage != 2 );

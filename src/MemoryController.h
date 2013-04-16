@@ -48,7 +48,6 @@
 #include <iostream>
 #include <list>
 
-#define NVM_LASTREQUEST 999
 
 namespace NVM {
 
