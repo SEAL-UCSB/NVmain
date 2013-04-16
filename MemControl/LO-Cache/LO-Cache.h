@@ -81,8 +81,14 @@ class LO_Cache : public AbstractDRAMCache
     ncounter_t drcQueueSize;
 
     ncounter_t drc_hits, drc_miss;
+    ncounter_t drc_evicts, drc_fills;
 
-    std::map<uint64_t, uint64_t> hit_count;
+    bool perfectFills;
+    uint64_t max_addr;
+
+    //uint8_t hit_count[64*1024*1024]; //Assumes 4GB memory size!
+
+    std::map<NVMainRequest *, NVMainRequest *> outstandingFills;
 };
 
 

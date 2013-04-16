@@ -110,6 +110,12 @@ enum BulkCommand
     CMD_PU_ACT_WRITE_PRE,
 };
 
+enum NVMainRequestFlags
+{
+    FLAG_LAST_REQUEST = 1,          // Last request for a row in the transaction queue
+    FLAG_COUNT = 1,
+};
+
 class NVMObject;
 
 class NVMainRequest
@@ -122,6 +128,7 @@ class NVMainRequest
         threadId = 0; 
         tag = 0; 
         reqInfo = NULL; 
+        flags = 0;
         arrivalCycle = 0; 
         issueCycle = 0; 
         queueCycle = 0;
@@ -142,8 +149,9 @@ class NVMainRequest
     NVMDataBlock data;             //< Data to be written, or data that would be read
     MemRequestStatus status;       //< Complete, incomplete, etc.
     NVMAccessType access;          //< User or kernel mode access
-    int tag;                       //< User-defined tag for request
-    void *reqInfo;                 //< User-defined info for request
+    int tag;                       //< User-defined tag for request (frontend only)
+    void *reqInfo;                 //< User-defined info for request (frontend only)
+    uint64_t flags;                //< Flags for NVMain (backend only)
     bool isPrefetch;               //< Whether request is a prefetch or not
     NVMAddress pfTrigger;          //< Address that triggered this prefetch
     uint64_t programCounter;       //< Program counter of CPU issuing request
