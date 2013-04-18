@@ -126,14 +126,7 @@ bool FCFS::RequestComplete( NVMainRequest * request )
 
     }
 
-    if( request->type == REFRESH )
-        ProcessRefreshPulse( request );
-    else if( request->owner == this )
-        delete request;
-    else
-        GetParent( )->RequestComplete( request );
-
-    return true;
+    return MemoryController::RequestComplete( request );
 }
 
 /*

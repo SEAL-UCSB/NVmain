@@ -69,16 +69,16 @@ PerfectMemory::PerfectMemory( Interconnect *memory, AddressTranslator *translato
      *
      *  In this system, the address is broken up as follows:
      *
-     *  ------------------------------------------------------------
-     *  |  CHANNEL   |     ROW     |  RANK  | BANK |    COLUMN     |
-     *  ------------------------------------------------------------
+     *  -------------------------------------------------------------------
+     *  |  CHANNEL   |  SUBARRAY  |   ROW  | RANK  | BANK |    COLUMN     |
+     *  -------------------------------------------------------------------
      *
      *  So the orders are column first, rank second, bank third, row fourth, 
      *  channel fifth.
      *
-     *  void SetOrder( int row, int col, int bank, int rank, int channel );
+     *  void SetOrder( int row, int col, int bank, int rank, int channel, int subarray );
      */
-    translator->GetTranslationMethod( )->SetOrder( 4, 1, 2, 3, 5 );
+    translator->GetTranslationMethod( )->SetOrder( 4, 1, 2, 3, 6, 5 );
 
     /*
      *  We'll need these classes later, so copy them. the "memory" and 

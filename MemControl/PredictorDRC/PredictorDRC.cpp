@@ -43,7 +43,7 @@ using namespace NVM;
 
 PredictorDRC::PredictorDRC( Interconnect *memory, AddressTranslator *translator )
 {
-    translator->GetTranslationMethod( )->SetOrder( 5, 1, 4, 3, 2 );
+    translator->GetTranslationMethod( )->SetOrder( 5, 1, 4, 3, 2, 6 );
 
     SetMemory( memory );
     SetTranslator( translator );

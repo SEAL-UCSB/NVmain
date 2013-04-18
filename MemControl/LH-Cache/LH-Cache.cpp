@@ -45,7 +45,7 @@ using namespace NVM;
 LH_Cache::LH_Cache( Interconnect *memory, AddressTranslator *translator )
     : locks(*this), FQF(*this), NWB(*this)
 {
-    translator->GetTranslationMethod( )->SetOrder( 5, 1, 4, 3, 2 );
+    translator->GetTranslationMethod( )->SetOrder( 5, 1, 4, 3, 2, 6 );
 
     SetMemory( memory );
     SetTranslator( translator );
@@ -177,10 +177,10 @@ void LH_Cache::CalculateQueueLatency( NVMainRequest *req, double *average,
 
 bool LH_Cache::IssueAtomic( NVMainRequest *req )
 {
-    uint64_t rank, bank, row;
+    uint64_t rank, bank;
     NVMDataBlock dummy;
 
-    req->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
+    req->address.GetTranslatedAddress( NULL, NULL, &bank, &rank, NULL, NULL );
 
     if( functionalCache[rank][bank]->SetFull( req->address ) ) 
     {
@@ -200,7 +200,7 @@ bool LH_Cache::IssueFunctional( NVMainRequest *req )
     uint64_t rank, bank;
     NVMDataBlock dummy;
 
-    req->address.GetTranslatedAddress( NULL, NULL, &bank, &rank, NULL );
+    req->address.GetTranslatedAddress( NULL, NULL, &bank, &rank, NULL, NULL );
 
     return functionalCache[rank][bank]->Present( req->address );
 }
@@ -238,10 +238,10 @@ bool LH_Cache::RequestComplete( NVMainRequest *req )
     if( req->tag == DRC_TAGREAD3 )
     {
         bool miss;
-        uint64_t rank, bank, row;
+        uint64_t rank, bank;
         NVMainRequest *originalRequest = static_cast<NVMainRequest *>(req->reqInfo);
 
-        req->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
+        req->address.GetTranslatedAddress( NULL, NULL, &bank, &rank, NULL, NULL );
 
         /*  Check functional cache for hit or miss status here */
         miss = true;
@@ -355,7 +355,7 @@ bool LH_Cache::RequestComplete( NVMainRequest *req )
     return rv;
 }
 
-bool LH_Cache::FillQueueFull::operator() (uint64_t, uint64_t, uint64_t)
+bool LH_Cache::FillQueueFull::operator() ( NVMainRequest *request )
 {
     if( memoryController.useWriteBuffer && draining == false
         && memoryController.fillQueue->size() >= memoryController.fillQueueSize )
@@ -371,18 +371,20 @@ bool LH_Cache::FillQueueFull::operator() (uint64_t, uint64_t, uint64_t)
     return draining;
 }
 
-bool LH_Cache::BankLocked::operator() (uint64_t row, uint64_t rank, uint64_t bank)
+bool LH_Cache::BankLocked::operator() ( NVMainRequest *request )
 {
     bool rv = false;
+    uint64_t bank, rank;
+    request->address.GetTranslatedAddress( NULL, NULL, &bank, &rank, NULL, NULL );
 
     if( memoryController.bankLocked[rank][bank] == false
-        && !memoryController.FQF(row, rank, bank) )
+        && !memoryController.FQF( request ) )
         rv = true;
 
     return rv;
 }
 
-bool LH_Cache::NoWriteBuffering::operator() (uint64_t, uint64_t, uint64_t)
+bool LH_Cache::NoWriteBuffering::operator() ( NVMainRequest *request )
 {
     return !memoryController.useWriteBuffer;
 }
@@ -507,16 +509,16 @@ NVMainRequest *LH_Cache::MakeTagWriteRequest( NVMainRequest *triggerRequest )
 bool LH_Cache::IssueDRCCommands( NVMainRequest *req )
 {
     bool rv = false;
-    uint64_t rank, bank, row;
+    uint64_t rank, bank, row, subarray;
 
-    req->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
+    req->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL, &subarray );
 
     if( !activateQueued[rank][bank] && bankQueues[rank][bank].empty() )
     {
         /* Any activate will request the starvation counter */
         starvationCounter[rank][bank] = 0;
         activateQueued[rank][bank] = true;
-        effectiveRow[rank][bank] = row;
+        effectiveRow[rank][bank][subarray] = row;
 
         req->issueCycle = GetEventQueue()->GetCurrentCycle();
 
@@ -528,12 +530,12 @@ bool LH_Cache::IssueDRCCommands( NVMainRequest *req )
 
         rv = true;
     }
-    else if( activateQueued[rank][bank] && effectiveRow[rank][bank] != row && bankQueues[rank][bank].empty() )
+    else if( activateQueued[rank][bank] && effectiveRow[rank][bank][subarray] != row && bankQueues[rank][bank].empty() )
     {
         /* Any activate will request the starvation counter */
         starvationCounter[rank][bank] = 0;
         activateQueued[rank][bank] = true;
-        effectiveRow[rank][bank] = row;
+        effectiveRow[rank][bank][subarray] = row;
 
         req->issueCycle = GetEventQueue()->GetCurrentCycle();
 
@@ -546,7 +548,7 @@ bool LH_Cache::IssueDRCCommands( NVMainRequest *req )
 
         rv = true;
     }
-    else if( activateQueued[rank][bank] && effectiveRow[rank][bank] == row )
+    else if( activateQueued[rank][bank] && effectiveRow[rank][bank][subarray] == row )
     {
         starvationCounter[rank][bank]++;
 
@@ -570,16 +572,16 @@ bool LH_Cache::IssueDRCCommands( NVMainRequest *req )
 bool LH_Cache::IssueFillCommands( NVMainRequest *req )
 {
     bool rv = false;
-    uint64_t rank, bank, row;
+    uint64_t rank, bank, row, subarray;
 
-    req->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
+    req->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL, &subarray );
 
     if( !activateQueued[rank][bank] && bankQueues[rank][bank].empty() )
     {
         /* Any activate will request the starvation counter */
         starvationCounter[rank][bank] = 0;
         activateQueued[rank][bank] = true;
-        effectiveRow[rank][bank] = row;
+        effectiveRow[rank][bank][subarray] = row;
 
         req->issueCycle = GetEventQueue()->GetCurrentCycle();
 
@@ -589,13 +591,13 @@ bool LH_Cache::IssueFillCommands( NVMainRequest *req )
 
         rv = true;
     }
-    else if( activateQueued[rank][bank] && effectiveRow[rank][bank] != row 
+    else if( activateQueued[rank][bank] && effectiveRow[rank][bank][subarray] != row 
             && bankQueues[rank][bank].empty() )
     {
         /* Any activate will request the starvation counter */
         starvationCounter[rank][bank] = 0;
         activateQueued[rank][bank] = true;
-        effectiveRow[rank][bank] = row;
+        effectiveRow[rank][bank][subarray] = row;
 
         req->issueCycle = GetEventQueue()->GetCurrentCycle();
 
@@ -606,7 +608,7 @@ bool LH_Cache::IssueFillCommands( NVMainRequest *req )
 
         rv = true;
     }
-    else if( activateQueued[rank][bank] && effectiveRow[rank][bank] == row )
+    else if( activateQueued[rank][bank] && effectiveRow[rank][bank][subarray] == row )
     {
         starvationCounter[rank][bank]++;
 
