@@ -51,7 +51,6 @@
 
 namespace NVM {
 
-#define NVM_LASTREQUEST 999
 
 enum ProcessorOp { LOAD, STORE };
 
@@ -61,7 +60,7 @@ class SchedulingPredicate
     SchedulingPredicate( ) { }
     ~SchedulingPredicate( ) { }
 
-    virtual bool operator() (NVMainRequest *request) { return true; }
+    virtual bool operator() (NVMainRequest * /*request*/) { return true; }
 };
 
 
@@ -122,17 +121,17 @@ class MemoryController : public NVMObject
     AddressTranslator *translator;
     Config *config;
     std::string statName;
-    uint64_t psInterval;
+    ncounter_t psInterval;
 
     std::list<NVMainRequest *> *transactionQueues;
     std::deque<NVMainRequest *> **bankQueues;
 
     bool **activateQueued;
-    uint64_t ***effectiveRow;
-    uint64_t ***activeSubArray;
-    unsigned int ***starvationCounter;
-    unsigned int starvationThreshold;
-    unsigned int subArrayNum;
+    ncounter_t ***effectiveRow;
+    ncounter_t ***activeSubArray;
+    ncounter_t ***starvationCounter;
+    ncounter_t starvationThreshold;
+    ncounter_t subArrayNum;
 
     NVMainRequest *MakeActivateRequest( NVMainRequest *triggerRequest );
     NVMainRequest *MakeActivateRequest( const uint64_t, const uint64_t, 
@@ -178,7 +177,7 @@ class MemoryController : public NVMObject
     /* MoveRankBank() increment the curRank and/or curBank according to the scheduling scheme */
     void MoveRankBank(); 
     /* record how many refresh should be handled */
-    unsigned **delayedRefreshCounter; 
+    ncounter_t **delayedRefreshCounter; 
 
     /* indicate whether the bank need to be refreshed immediately */
     bool **bankNeedRefresh;
@@ -215,7 +214,7 @@ class MemoryController : public NVMObject
         bool operator() ( NVMainRequest* request );
     };
 
-    unsigned int id;
+    ncounter_t id;
 
     Params *p;
 };

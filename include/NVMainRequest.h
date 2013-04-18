@@ -110,12 +110,6 @@ enum BulkCommand
     CMD_PU_ACT_WRITE_PRE,
 };
 
-enum NVMainRequestFlags
-{
-    FLAG_LAST_REQUEST = 1,          // Last request for a row in the transaction queue
-    FLAG_COUNT = 1,
-};
-
 class NVMObject;
 
 class NVMainRequest
@@ -164,6 +158,15 @@ class NVMainRequest
 
     const NVMainRequest& operator=( const NVMainRequest& );
     bool operator<( NVMainRequest m ) const;
+
+    enum NVMainRequestFlags
+    {
+        FLAG_LAST_REQUEST = 1,          // Last request for a row in the transaction queue
+        FLAG_IS_READ = 2,               // Is a read (i.e., READ or READ_PRE, etc.)
+        FLAG_IS_WRITE = 4,              // Is a write (i.e., WRITE or WRITE_PRE, etc.)
+        FLAG_COUNT = 1,
+    };
+
 };
 
 inline

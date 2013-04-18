@@ -101,6 +101,7 @@ class Params
     bool PrintGraphs;
     bool PrintAllDevices;
     bool PrintAllDevices_set;
+    bool PrintConfig;
 
     bool PrintPreTrace;
     bool EchoPreTrace;

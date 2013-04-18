@@ -355,7 +355,7 @@ bool LH_Cache::RequestComplete( NVMainRequest *req )
     return rv;
 }
 
-bool LH_Cache::FillQueueFull::operator() ( NVMainRequest *request )
+bool LH_Cache::FillQueueFull::operator() ( NVMainRequest * /*request*/ )
 {
     if( memoryController.useWriteBuffer && draining == false
         && memoryController.fillQueue->size() >= memoryController.fillQueueSize )
@@ -371,7 +371,7 @@ bool LH_Cache::FillQueueFull::operator() ( NVMainRequest *request )
     return draining;
 }
 
-bool LH_Cache::BankLocked::operator() ( NVMainRequest *request )
+bool LH_Cache::BankLocked::operator() ( NVMainRequest * request )
 {
     bool rv = false;
     uint64_t bank, rank;
@@ -384,7 +384,7 @@ bool LH_Cache::BankLocked::operator() ( NVMainRequest *request )
     return rv;
 }
 
-bool LH_Cache::NoWriteBuffering::operator() ( NVMainRequest *request )
+bool LH_Cache::NoWriteBuffering::operator() ( NVMainRequest * /*request*/ )
 {
     return !memoryController.useWriteBuffer;
 }
