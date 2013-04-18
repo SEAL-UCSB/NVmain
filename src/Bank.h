@@ -88,7 +88,7 @@ class Bank : public NVMObject
     bool PowerUp( );
     bool PowerDown( OpType );
 
-    bool WouldConflict( uint64_t checkRow );
+    bool WouldConflict( uint64_t checkRow, uint64_t checkSA );
     bool IsIssuable( NVMainRequest *req, FailReason *reason = NULL );
     bool IssueCommand( NVMainRequest *req );
 
@@ -112,6 +112,7 @@ class Bank : public NVMObject
     ncycle_t GetNextRefresh( ) { return nextRefresh; }
     ncycle_t GetNextPowerDown( ) { return nextPowerDown; }
     uint64_t GetOpenRow( ) { return openRow; }
+    std::deque<ncounter_t>& GetOpenSubArray( ) { return activeSubArrayQueue; }
 
     void SetName( std::string );
     void SetId( ncounter_t );

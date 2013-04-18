@@ -59,7 +59,7 @@ class SchedulingPredicate
     SchedulingPredicate( ) { }
     ~SchedulingPredicate( ) { }
 
-    virtual bool operator() (uint64_t /*row*/, uint64_t /*bank*/, uint64_t /*rank*/) { return true; }
+    virtual bool operator() (NVMainRequest *request) { return true; }
 };
 
 
@@ -75,9 +75,9 @@ class ComplementPredicate : public SchedulingPredicate
     explicit ComplementPredicate( SchedulingPredicate *_pred ) : pred(_pred) { }
     ~ComplementPredicate( ) { }
 
-    bool operator() (uint64_t row, uint64_t bank, uint64_t rank)
+    bool operator() (NVMainRequest *request)
     {
-        return !( (*pred)( row, bank, rank ) );
+        return !( (*pred)( request ) );
     }
 };
 
@@ -126,22 +126,28 @@ class MemoryController : public NVMObject
     std::deque<NVMainRequest *> **bankQueues;
 
     bool **activateQueued;
-    uint64_t **effectiveRow;
-    unsigned int **starvationCounter;
+    uint64_t ***effectiveRow;
+    uint64_t ***activeSubArray;
+    unsigned int ***starvationCounter;
     unsigned int starvationThreshold;
+    unsigned int subArrayNum;
 
     NVMainRequest *MakeActivateRequest( NVMainRequest *triggerRequest );
     NVMainRequest *MakeActivateRequest( const uint64_t, const uint64_t, 
-                                        const uint64_t, const uint64_t );
+                                        const uint64_t, const uint64_t, 
+                                        const uint64_t );
     NVMainRequest *MakeImplicitPrechargeRequest( NVMainRequest *triggerRequest );
     NVMainRequest *MakePrechargeRequest( NVMainRequest *triggerRequest );
     NVMainRequest *MakePrechargeRequest( const uint64_t, const uint64_t, 
-                                         const uint64_t, const uint64_t );
+                                         const uint64_t, const uint64_t, 
+                                         const uint64_t );
     NVMainRequest *MakePrechargeAllRequest( NVMainRequest *triggerRequest );
     NVMainRequest *MakePrechargeAllRequest( const uint64_t, const uint64_t, 
-                                            const uint64_t, const uint64_t );
+                                            const uint64_t, const uint64_t,
+                                            const uint64_t );
     NVMainRequest *MakeRefreshRequest( const uint64_t, const uint64_t, 
-                                       const uint64_t, const uint64_t );
+                                       const uint64_t, const uint64_t, 
+                                       const uint64_t );
 
     bool FindStarvedRequest( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **starvedRequest );
     bool FindRowBufferHit( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **hitRequest );
@@ -164,7 +170,7 @@ class MemoryController : public NVMObject
     bool FindOldestReadyRequests( std::list<NVMainRequest *>& transactionQueue, std::vector<NVMainRequest *>& oldestRequests, NVM::SchedulingPredicate& p  );
     bool FindClosedBankRequests( std::list<NVMainRequest *>& transactionQueue, std::vector<NVMainRequest *>& closedRequests, NVM::SchedulingPredicate& p  );
     /* IsLastRequest() tells whether no other request has the row buffer hit in the transaction queue */
-    virtual bool IsLastRequest( std::list<NVMainRequest *>& transactionQueue, uint64_t mRow, uint64_t mBank, uint64_t mRank ); 
+    virtual bool IsLastRequest( std::list<NVMainRequest *>& transactionQueue, NVMainRequest *request); 
     /* curRank and curBank record the starting rank (bank) index for the rank-(bank-) level scheduling */
     ncounter_t curRank, curBank; 
     /* MoveRankBank() increment the curRank and/or curBank according to the scheduling scheme */
@@ -204,7 +210,7 @@ class MemoryController : public NVMObject
     class DummyPredicate : public SchedulingPredicate
     {
       public:
-        bool operator() (uint64_t, uint64_t, uint64_t);
+        bool operator() ( NVMainRequest* request );
     };
 
     unsigned int id;

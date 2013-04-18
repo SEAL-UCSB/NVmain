@@ -69,14 +69,15 @@ bool RowModel::Write( NVMAddress address, NVMDataBlock /*oldData*/,
      *  You may map row and col to this map_key however you want.
      *  It is up to you to ensure there are no collisions here.
      */
-    uint64_t row;
+    uint64_t row, subarray, MATHeight;
     bool rv = true;
     NVMAddress faultAddr;
 
+    MATHeight = GetConfig( )->GetValue( "COLS" );
     /*
      *  For our simple row model, we just set the key equal to the row.
      */
-    address.GetTranslatedAddress( &row, NULL, NULL, NULL, NULL );
+    address.GetTranslatedAddress( &row, NULL, NULL, NULL, NULL, &subarray );
     faultAddr = address;
     
     /*
@@ -85,7 +86,7 @@ bool RowModel::Write( NVMAddress address, NVMDataBlock /*oldData*/,
      *  the life value is decremented (write count incremented). Otherwise 
      *  the map_key is inserted with a write count of 1.
      */
-    if( !DecrementLife( row, faultAddr ) )
+    if( !DecrementLife( ( row + MATHeight * subarray ), faultAddr ) )
         rv = false;
 
     return rv;

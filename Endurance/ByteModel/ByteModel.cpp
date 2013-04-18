@@ -65,7 +65,7 @@ bool ByteModel::Write( NVMAddress address, NVMDataBlock oldData,
      *  You may map row and col to this map_key however you want.
      *  It is up to you to ensure there are no collisions here.
      */
-    uint64_t row;
+    uint64_t row, subarray, MATHeight;
     uint64_t col;
     bool rv = true;
     NVMAddress faultAddr;
@@ -73,7 +73,7 @@ bool ByteModel::Write( NVMAddress address, NVMDataBlock oldData,
     /*
      *  For our simple row model, we just set the key equal to the row.
      */
-    address.GetTranslatedAddress( &row, &col, NULL, NULL, NULL );
+    address.GetTranslatedAddress( &row, &col, NULL, NULL, NULL, &subarray );
     faultAddr = address;
     
     /*
@@ -86,6 +86,8 @@ bool ByteModel::Write( NVMAddress address, NVMDataBlock oldData,
     uint64_t rowSize;
     uint64_t wordSize;
     uint64_t partitionCount;
+
+    MATHeight = GetConfig( )->GetValue( "MATHeight" );
 
     /* Size of a row in bytes */
     rowSize = GetConfig( )->GetValue( "COLS" );
@@ -118,7 +120,7 @@ bool ByteModel::Write( NVMAddress address, NVMDataBlock oldData,
          */
         partitionCount = ( rowSize / 8 );
 
-        wordkey = row * partitionCount 
+        wordkey = ( row + MATHeight * subarray )  * partitionCount 
             + (int)(address.GetPhysicalAddress( ) / 8) + i;
       
         faultAddr.SetPhysicalAddress( address.GetPhysicalAddress( ) + i );

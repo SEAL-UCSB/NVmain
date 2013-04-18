@@ -57,10 +57,10 @@ void DRCDecoder::SetCachelineSize( uint64_t lineSize )
 }
 
 void DRCDecoder::Translate( uint64_t address, uint64_t *row, uint64_t *col, 
-                            uint64_t *bank, uint64_t *rank, uint64_t *channel )
+                            uint64_t *bank, uint64_t *rank, uint64_t *channel, uint64_t *subarray )
 {
-    int rowOrder, colOrder, bankOrder, rankOrder, channelOrder;
-    unsigned int rowBits, colBits, bankBits, rankBits, channelBits;
+    int rowOrder, colOrder, bankOrder, rankOrder, channelOrder, subarrayOrder;
+    unsigned int rowBits, colBits, bankBits, rankBits, channelBits, subarrayBits;
     uint64_t workingAddr;
 
     /* 
@@ -68,9 +68,9 @@ void DRCDecoder::Translate( uint64_t address, uint64_t *row, uint64_t *col,
      *  the user wants for bank/rank/channel ordering.
      */
     GetTranslationMethod( )->GetBitWidths( &rowBits, &colBits, &bankBits, 
-            &rankBits, &channelBits );
+            &rankBits, &channelBits, &subarrayBits );
     GetTranslationMethod( )->GetOrder( &rowOrder, &colOrder, &bankOrder, 
-            &rankOrder, &channelOrder );
+            &rankOrder, &channelOrder, &subarrayOrder );
 
     /* Chop off the cacheline length and ignore bits first */
     workingAddr = address;
@@ -158,8 +158,9 @@ void DRCDecoder::Translate( uint64_t address, uint64_t *row, uint64_t *col,
 uint64_t DRCDecoder::ReverseTranslate( const uint64_t& row, 
                                        const uint64_t& col, 
                                        const uint64_t& bank,
-				                       const uint64_t& rank, 
-                                       const uint64_t& channel )
+				       const uint64_t& rank, 
+                                       const uint64_t& channel,
+                                       const uint64_t& subarray)
 {
     uint64_t unitAddr = 1;
     uint64_t phyAddr = 0;
@@ -171,11 +172,12 @@ uint64_t DRCDecoder::ReverseTranslate( const uint64_t& row,
         exit(1);
     }
     
-    uint64_t rowNum, colNum, bankNum, rankNum, channelNum;
+    uint64_t rowNum, colNum, bankNum, rankNum, channelNum, subarrayNum;
 
-    GetTranslationMethod( )->GetCount( &rowNum, &colNum, &bankNum, &rankNum, &channelNum );
+    GetTranslationMethod( )->GetCount( &rowNum, &colNum, &bankNum, 
+                                       &rankNum, &channelNum, &subarrayNum );
     
-    for( int i = 0; i < 5 ; i++ )
+    for( int i = 0; i < 6 ; i++ )
     {
         /* 0->4, low to high, FindOrder() will find the correct one */
         FindOrder( i, &part );
@@ -205,6 +207,11 @@ uint64_t DRCDecoder::ReverseTranslate( const uint64_t& row,
             case MEM_CHANNEL:
                   phyAddr += ( channel * unitAddr ); 
                   unitAddr *= channelNum;
+                  break;
+
+            case MEM_SUBARRAY:
+                  phyAddr += ( subarray * unitAddr ); 
+                  unitAddr *= subarrayNum;
                   break;
 
             default:

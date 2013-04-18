@@ -104,7 +104,8 @@ void Rank::SetConfig( Config *c )
         deviceCount++;
     }
 
-    std::cout << "Creating " << bankCount << " banks in all " << deviceCount << " devices.\n";
+    std::cout << "Creating " << bankCount << " banks in all " 
+        << deviceCount << " devices.\n";
 
     banks = new Bank*[bankCount];
     
@@ -162,7 +163,7 @@ bool Rank::Activate( NVMainRequest *request )
 {
     uint64_t activateBank;
 
-    request->address.GetTranslatedAddress( NULL, NULL, &activateBank, NULL, NULL );
+    request->address.GetTranslatedAddress( NULL, NULL, &activateBank, NULL, NULL, NULL );
 
     if( activateBank >= bankCount )
     {
@@ -200,9 +201,9 @@ bool Rank::Activate( NVMainRequest *request )
 
 bool Rank::Read( NVMainRequest *request )
 {
-    uint64_t readRow, readBank;
+    uint64_t readBank;
 
-    request->address.GetTranslatedAddress( &readRow, NULL, &readBank, NULL, NULL );
+    request->address.GetTranslatedAddress( NULL, NULL, &readBank, NULL, NULL, NULL );
 
     if( readBank >= bankCount )
     {
@@ -253,9 +254,9 @@ bool Rank::Read( NVMainRequest *request )
 
 bool Rank::Write( NVMainRequest *request )
 {
-    uint64_t writeRow, writeBank;
+    uint64_t writeBank;
 
-    request->address.GetTranslatedAddress( &writeRow, NULL, &writeBank, NULL, NULL );
+    request->address.GetTranslatedAddress( NULL, NULL, &writeBank, NULL, NULL, NULL );
 
     if( writeBank >= bankCount )
     {
@@ -308,7 +309,7 @@ bool Rank::Precharge( NVMainRequest *request )
 {
     uint64_t preBank;
 
-    request->address.GetTranslatedAddress( NULL, NULL, &preBank, NULL, NULL );
+    request->address.GetTranslatedAddress( NULL, NULL, &preBank, NULL, NULL, NULL );
 
     if( preBank >= bankCount )
     {
@@ -354,7 +355,7 @@ bool Rank::CanPowerDown( OpType pdOp )
 
     /* Create a dummy operation to determine if we can issue */
     req.type = pdOp;
-    req.address.SetTranslatedAddress( 0, 0, 0, 0, 0 );
+    req.address.SetTranslatedAddress( 0, 0, 0, 0, 0, 0 );
     req.address.SetPhysicalAddress( 0 );
 
     for( ncounter_t i = 0; i < bankCount; i++ )
@@ -408,7 +409,7 @@ bool Rank::CanPowerUp()
 
     /* Create a dummy operation to determine if we can issue */
     req.type = POWERUP;
-    req.address.SetTranslatedAddress( 0, 0, 0, 0, 0 );
+    req.address.SetTranslatedAddress( 0, 0, 0, 0, 0, 0 );
     req.address.SetPhysicalAddress( 0 );
 
     /* since all banks are powered down, check the first bank is enough */
@@ -457,7 +458,7 @@ bool Rank::Refresh( NVMainRequest *request )
     assert( nextActivate <= ( GetEventQueue()->GetCurrentCycle() ) );
     uint64_t refreshBankGroupHead;
     request->address.GetTranslatedAddress( 
-            NULL, NULL, &refreshBankGroupHead, NULL, NULL );
+            NULL, NULL, &refreshBankGroupHead, NULL, NULL, NULL );
 
     assert( (refreshBankGroupHead + banksPerRefresh) <= bankCount );
 
@@ -519,11 +520,9 @@ ncycle_t Rank::GetNextRefresh( uint64_t bank )
 bool Rank::IsIssuable( NVMainRequest *req, FailReason *reason )
 {
     uint64_t opBank;
-    uint64_t opRow;
-    uint64_t opCol;
     bool rv;
     
-    req->address.GetTranslatedAddress( &opRow, &opCol, &opBank, NULL, NULL );
+    req->address.GetTranslatedAddress( NULL, NULL, &opBank, NULL, NULL, NULL );
 
     rv = true;
 
@@ -660,7 +659,7 @@ bool Rank::IssueCommand( NVMainRequest *req )
     if( !IsIssuable( req ) )
     {
         uint64_t bank, rank, channel;
-        req->address.GetTranslatedAddress( NULL, NULL, &bank, &rank, &channel );
+        req->address.GetTranslatedAddress( NULL, NULL, &bank, &rank, &channel, NULL );
         std::cout << "NVMain: Rank: Warning: Command " << req->type 
             << " @ Bank " << bank << " Rank " << rank << " Channel " << channel 
             << " can not be issued!\n" << std::endl;

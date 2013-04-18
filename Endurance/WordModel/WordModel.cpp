@@ -70,7 +70,7 @@ bool WordModel::Write( NVMAddress address, NVMDataBlock /*oldData*/,
      *  You may map row and col to this map_key however you want.
      *  It is up to you to ensure there are no collisions here.
      */
-    uint64_t row;
+    uint64_t row, subarray;
     uint64_t col;
     bool rv = true;
     NVMAddress faultAddr;
@@ -78,7 +78,7 @@ bool WordModel::Write( NVMAddress address, NVMDataBlock /*oldData*/,
     /*
      *  For our simple row model, we just set the key equal to the row.
      */
-    address.GetTranslatedAddress( &row, &col, NULL, NULL, NULL );
+    address.GetTranslatedAddress( &row, &col, NULL, NULL, NULL, &subarray );
     faultAddr = address;
 
     /*
@@ -91,9 +91,11 @@ bool WordModel::Write( NVMAddress address, NVMDataBlock /*oldData*/,
     uint64_t rowSize;
     uint64_t wordSize;
     uint64_t partitionCount;
+    uint64_t MATHeight;
 
     rowSize = GetConfig( )->GetValue( "COLS" );
     wordSize = GetConfig( )->GetValue( "BusWidth" );
+    MATHeight = GetConfig( )->GetValue( "MATHeight" );
 
     /*
      *  Think of each row being partitioned into 64-bit divisions (or
@@ -104,7 +106,7 @@ bool WordModel::Write( NVMAddress address, NVMDataBlock /*oldData*/,
      */
     partitionCount = rowSize / wordSize;
 
-    wordkey = row * partitionCount + (col % wordSize);
+    wordkey = ( row + subarray * MATHeight ) * partitionCount + (col % wordSize);
 
     /* 
      *  The faultAddress is aligned to the cacheline. Since this model

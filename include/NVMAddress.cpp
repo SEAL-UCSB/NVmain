@@ -38,21 +38,22 @@ using namespace NVM;
 NVMAddress::NVMAddress( )
 {
     physicalAddress = 0;
-    row = col = bank = rank = channel = 0;
+    subarray = row = col = bank = rank = channel = 0;
 }
 
 NVMAddress::~NVMAddress( )
 {
 }
 
-void NVMAddress::SetTranslatedAddress( uint64_t addrRow, uint64_t addrCol, 
-        uint64_t addrBank, uint64_t addrRank, uint64_t addrChannel )
+void NVMAddress::SetTranslatedAddress( uint64_t addrRow, uint64_t addrCol, uint64_t addrBank, 
+                                       uint64_t addrRank, uint64_t addrChannel, uint64_t addrSA )
 {
     row = addrRow;
     col = addrCol;
     bank = addrBank;
     rank = addrRank;
     channel = addrChannel;
+    subarray = addrSA;
 }
 
 void NVMAddress::SetPhysicalAddress( uint64_t pAddress )
@@ -65,14 +66,15 @@ void NVMAddress::SetBitAddress( uint8_t bitAddr )
     bit = bitAddr;
 }
 
-void NVMAddress::GetTranslatedAddress( uint64_t *addrRow, uint64_t *addrCol, 
-        uint64_t *addrBank, uint64_t *addrRank, uint64_t *addrChannel )
+void NVMAddress::GetTranslatedAddress( uint64_t *addrRow, uint64_t *addrCol, uint64_t *addrBank, 
+                                       uint64_t *addrRank, uint64_t *addrChannel, uint64_t *addrSA )
 {
     if( addrRow ) *addrRow = row;
     if( addrCol ) *addrCol = col;
     if( addrBank ) *addrBank = bank;
     if( addrRank ) *addrRank = rank;
     if( addrChannel ) *addrChannel = channel;
+    if( addrSA ) *addrSA = subarray;
 }
 
 uint64_t NVMAddress::GetPhysicalAddress( )
@@ -93,6 +95,7 @@ NVMAddress& NVMAddress::operator=( const NVMAddress& m )
     bank = m.bank;
     rank = m.rank;
     channel = m.channel;
+    subarray = m.subarray;
     bit = m.bit;
 
     return *this;

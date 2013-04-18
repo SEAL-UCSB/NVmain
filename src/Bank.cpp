@@ -65,6 +65,10 @@ Bank::Bank( )
     subArrayNum = 0;
     activeSubArrayQueue.clear();
 
+    /* a MAT is 512x512 by default */
+    MATWidth = 512;
+    MATHeight = 512;
+
     state = BANK_CLOSED;
     lastActivate = 0;
     openRow = 0;
@@ -115,20 +119,15 @@ void Bank::SetConfig( Config *c )
 {
     conf = c;
     
+    /* customize MAT size */
+    if( conf->KeyExists( "MATWidth" ) )
+        MATWidth = static_cast<ncounter_t>( conf->GetValue( "MATWidth" ) );
+
     Params *params = new Params( );
     params->SetParams( c );
     SetParams( params );
 
-    /* customize MAT size */
-    if( conf->KeyExists( "MATWidth" ) )
-        MATWidth = static_cast<ncounter_t>( conf->GetValue( "MATWidth" ) );
-    else
-        MATWidth = params->COLS;
-
-    if( conf->KeyExists( "MATHeight" ) )
-        MATHeight = static_cast<ncounter_t>( conf->GetValue( "MATHeight" ) );
-    else
-        MATHeight = params->ROWS;
+    MATHeight = p->MATHeight;
 
     subArrayNum = p->ROWS / MATHeight;
     subArrays = new SubArray*[subArrayNum];
@@ -288,10 +287,8 @@ bool Bank::Activate( NVMainRequest *request )
         }
     }
 
-    ncounter_t activateRow;
-    request->address.GetTranslatedAddress( &activateRow, NULL, NULL, NULL, NULL );
-
-    ncounter_t activateSubArray = activateRow / MATHeight;
+    ncounter_t activateRow, activateSubArray;
+    request->address.GetTranslatedAddress( &activateRow, NULL, NULL, NULL, NULL, &activateSubArray );
 
     /* update the timing constraints */
     nextPowerDown = MAX( nextPowerDown, 
@@ -305,7 +302,7 @@ bool Bank::Activate( NVMainRequest *request )
         /* bank-level update */
         openRow = activateRow;
         state = BANK_OPEN;
-        activeSubArrayQueue.push_back( activateSubArray );
+        activeSubArrayQueue.push_front( activateSubArray );
         activates++;
     }
     else
@@ -337,10 +334,8 @@ bool Bank::Read( NVMainRequest *request )
         return false;
     }
 
-    uint64_t readRow, readCol;
-    request->address.GetTranslatedAddress( &readRow, &readCol, NULL, NULL, NULL );
-
-    ncounter_t opSubArray = readRow / MATHeight;
+    uint64_t readRow, readSubArray;
+    request->address.GetTranslatedAddress( &readRow, NULL, NULL, NULL, NULL, &readSubArray );
 
     /* Update timing constraints */
     if( request->type == READ_PRECHARGE )
@@ -360,7 +355,7 @@ bool Bank::Read( NVMainRequest *request )
                          + p->tCAS + p->tBURST + p->tRTRS - p->tCWD );
 
     /* issue READ/READ_RECHARGE to the target subarray */
-    bool success = subArrays[opSubArray]->IssueCommand( request );
+    bool success = subArrays[readSubArray]->IssueCommand( request );
 
     if( success )
     {
@@ -372,7 +367,7 @@ bool Bank::Read( NVMainRequest *request )
             for( it = activeSubArrayQueue.begin(); 
                     it != activeSubArrayQueue.end(); ++it )
             {
-                if( (*it) == opSubArray )
+                if( (*it) == readSubArray )
                 {
                     /* delete the item in the active subarray list */
                     activeSubArrayQueue.erase( it );
@@ -390,7 +385,7 @@ bool Bank::Read( NVMainRequest *request )
     else
     {
         std::cerr << "NVMain Error: Bank " << bankId << " failed to "
-            << "read the subarray " << opSubArray << std::endl;
+            << "read the subarray " << readSubArray << std::endl;
     }
 
     return success;
@@ -416,9 +411,8 @@ bool Bank::Write( NVMainRequest *request )
         return false;
     }
 
-    uint64_t writeRow, writeCol;
-    request->address.GetTranslatedAddress( &writeRow, &writeCol, NULL, NULL, NULL );
-    ncounter_t opSubArray = writeRow / MATHeight;
+    uint64_t writeRow, writeSubArray;
+    request->address.GetTranslatedAddress( &writeRow, NULL, NULL, NULL, NULL, &writeSubArray );
 
     /* Update timing constraints */
     /* if implicit precharge is enabled, do the precharge */
@@ -442,7 +436,7 @@ bool Bank::Write( NVMainRequest *request )
                          + MAX( p->tBURST, p->tCCD ) );
 
     /* issue WRITE/WRITE_PRECHARGE to the target subarray */
-    bool success = subArrays[opSubArray]->IssueCommand( request );
+    bool success = subArrays[writeSubArray]->IssueCommand( request );
 
     if( success )
     {
@@ -459,7 +453,7 @@ bool Bank::Write( NVMainRequest *request )
             for( it = activeSubArrayQueue.begin( ); 
                     it != activeSubArrayQueue.end( ); ++it )
             {
-                if( (*it) == opSubArray )
+                if( (*it) == writeSubArray )
                 {
                     /* delete the item in the active subarray list */
                     activeSubArrayQueue.erase( it );
@@ -474,7 +468,7 @@ bool Bank::Write( NVMainRequest *request )
     else
     {
         std::cerr << "NVMain Error: Bank " << bankId << " failed to "
-            << "write the subarray " << opSubArray << std::endl;
+            << "write the subarray " << writeSubArray << std::endl;
     }
 
     return success;
@@ -500,13 +494,10 @@ bool Bank::Precharge( NVMainRequest *request )
         return false;
     }
 
-    uint64_t preRow;
-    request->address.GetTranslatedAddress( &preRow, NULL, NULL, NULL, NULL );
-
-    ncounter_t preSubArray = preRow / MATHeight;
+    uint64_t preRow, preSubArray;
+    request->address.GetTranslatedAddress( &preRow, NULL, NULL, NULL, NULL, &preSubArray );
 
     /* Update timing constraints */
-
     /* 
      * even though tPRPDEN = 1, the IDD spec in powerdown mode is only applied 
      * after the completion of precharge
@@ -564,7 +555,7 @@ bool Bank::Precharge( NVMainRequest *request )
                     return false;
                 }
 
-                precharges++;
+                //precharges++;
             }
 
             ncounter_t openedSubArray = activeSubArrayQueue.front( );
@@ -613,11 +604,9 @@ bool Bank::Refresh( NVMainRequest *request )
         return false;
     }
 
-    uint64_t refRow;
+    uint64_t refRow, refSubArray;
 
-    request->address.GetTranslatedAddress( &refRow, NULL, NULL, NULL, NULL );
-
-    ncounter_t refSubArray = refRow / MATHeight;
+    request->address.GetTranslatedAddress( &refRow, NULL, NULL, NULL, NULL, &refSubArray );
 
     /* Update timing constraints */
     /* 
@@ -651,14 +640,10 @@ bool Bank::Refresh( NVMainRequest *request )
  */
 bool Bank::IsIssuable( NVMainRequest *req, FailReason *reason )
 {
-    uint64_t opRank;
-    uint64_t opBank;
-    uint64_t opRow;
-    uint64_t opCol;
     bool rv = true;
 
-    req->address.GetTranslatedAddress( &opRow, &opCol, &opBank, &opRank, NULL );
-    uint64_t opSubArray = opRow / MATHeight;
+    uint64_t opRank, opBank, opRow, opSubArray;
+    req->address.GetTranslatedAddress( &opRow, NULL, &opBank, &opRank, NULL, &opSubArray );
 
     if( nextCommand != CMD_NOP )
         return false;
@@ -826,11 +811,9 @@ bool Bank::IssueCommand( NVMainRequest *req )
     return rv;
 }
 
-bool Bank::WouldConflict( uint64_t checkRow )
+bool Bank::WouldConflict( uint64_t checkRow, uint64_t checkSA )
 {
-    uint64_t opSubArray = checkRow / MATHeight;
-
-    return subArrays[opSubArray]->WouldConflict( checkRow );
+    return subArrays[checkSA]->WouldConflict( checkRow );
 }
 
 BankState Bank::GetState( ) 

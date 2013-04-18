@@ -138,6 +138,7 @@ void Params::SetParams( Config *c )
     RANKS = c->GetValue( "RANKS" );
     BANKS = c->GetValue( "BANKS" );
     RAW = c->GetValue( "RAW" );
+    MATHeight = c->GetValue( "MATHeight" );
 
     tAL = c->GetValue( "tAL" );
     tBURST = c->GetValue( "tBURST" );

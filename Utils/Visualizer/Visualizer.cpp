@@ -115,7 +115,7 @@ bool Visualizer::IssueCommand( NVMainRequest *req )
     uint64_t bank, rank;
     ncounter_t graphId;
 
-    req->address.GetTranslatedAddress( NULL, NULL, &bank, &rank, NULL ); 
+    req->address.GetTranslatedAddress( NULL, NULL, &bank, &rank, NULL, NULL ); 
 
     /*
      *  Filter out everything but rank and bank issues here.
@@ -201,7 +201,7 @@ bool Visualizer::RequestComplete( NVMainRequest *req )
     uint64_t bank, rank;
     ncounter_t graphId;
 
-    req->address.GetTranslatedAddress( NULL, NULL, &bank, &rank, NULL ); 
+    req->address.GetTranslatedAddress( NULL, NULL, &bank, &rank, NULL, NULL ); 
 
     if( NVMObjectType == NVMClass(Bank) )
     {

@@ -77,7 +77,8 @@ uint64_t AddressTranslator::ReverseTranslate( const uint64_t& row,
                                               const uint64_t& col, 
                                               const uint64_t& bank,
 				              const uint64_t& rank, 
-                                              const uint64_t& channel )
+                                              const uint64_t& channel,
+                                              const uint64_t& subarray )
 {
     if( GetTranslationMethod( ) == NULL )
     {
@@ -99,11 +100,12 @@ uint64_t AddressTranslator::ReverseTranslate( const uint64_t& row,
     /* then, add the lowest column bits */
     unitAddr <<= lowColBits;
 
-    unsigned channelBits, rankBits, bankBits, rowBits, colBits;
+    unsigned channelBits, rankBits, bankBits, rowBits, colBits, subarrayBits;
 
-    method->GetBitWidths( &rowBits, &colBits, &bankBits, &rankBits, &channelBits );
+    method->GetBitWidths( &rowBits, &colBits, &bankBits, 
+                          &rankBits, &channelBits, &subarrayBits );
 
-    for( int i = 0; i < 5 ; i++ )
+    for( int i = 0; i < 6 ; i++ )
     {
         /* 0->4, low to high, FindOrder() will find the correct one */
         FindOrder( i, &part );
@@ -133,6 +135,11 @@ uint64_t AddressTranslator::ReverseTranslate( const uint64_t& row,
             case MEM_CHANNEL:
                   phyAddr += ( channel * unitAddr ); 
                   unitAddr <<= channelBits;
+                  break;
+
+            case MEM_SUBARRAY:
+                  phyAddr += ( subarray * unitAddr ); 
+                  unitAddr <<= subarrayBits;
                   break;
 
             default:
@@ -168,12 +175,12 @@ void AddressTranslator::SetBurstLength( int beat )
  * values of each memory domain 
  */
 void AddressTranslator::Translate( uint64_t address, uint64_t *row, uint64_t *col, uint64_t *bank,
-				   uint64_t *rank, uint64_t *channel )
+				   uint64_t *rank, uint64_t *channel, uint64_t *subarray )
 {
     uint64_t refAddress;
     MemoryPartition part;
 
-    uint64_t *partitions[5] = { row, col, bank, rank, channel };
+    uint64_t *partitions[6] = { row, col, bank, rank, channel, subarray };
 
     if( GetTranslationMethod( ) == NULL )
     {
@@ -192,7 +199,7 @@ void AddressTranslator::Translate( uint64_t address, uint64_t *row, uint64_t *co
     refAddress >>= lowColBits;
 
     /* 0->4, low to high, FindOrder() will find the correct one */
-    for( int i = 0; i < 5; i++ )
+    for( int i = 0; i < 6; i++ )
     {
         FindOrder( i, &part );
 
@@ -213,10 +220,10 @@ void AddressTranslator::Translate( uint64_t address, uint64_t *row, uint64_t *co
 
 uint64_t AddressTranslator::Translate( uint64_t address )
 {
-    uint64_t row, col, bank, rank, channel;
+    uint64_t row, col, bank, rank, channel, subarray;
     uint64_t rv;
 
-    Translate( address, &row, &col, &bank, &rank, &channel );
+    Translate( address, &row, &col, &bank, &rank, &channel, &subarray );
 
     switch( defaultField )
     {
@@ -240,6 +247,10 @@ uint64_t AddressTranslator::Translate( uint64_t address )
             rv = channel;
             break;
 
+        case SUBARRAY_FIELD:
+            rv = subarray;
+            break;
+
         case NO_FIELD:
         default:
             rv = 0;
@@ -260,9 +271,10 @@ void AddressTranslator::SetDefaultField( TranslationField f )
 uint64_t AddressTranslator::Divide( uint64_t partSize, MemoryPartition partition )
 {
     uint64_t retSize = partSize;
-    unsigned channelBits, rankBits, bankBits, rowBits, colBits;
+    unsigned channelBits, rankBits, bankBits, rowBits, colBits, subarrayBits;
 
-    method->GetBitWidths( &rowBits, &colBits, &bankBits, &rankBits, &channelBits );
+    method->GetBitWidths( &rowBits, &colBits, &bankBits, 
+                          &rankBits, &channelBits, &subarrayBits );
     
     if( partition == MEM_ROW )
         retSize >>= rowBits;
@@ -274,6 +286,8 @@ uint64_t AddressTranslator::Divide( uint64_t partSize, MemoryPartition partition
         retSize >>= rankBits;
     else if( partition == MEM_CHANNEL )
         retSize >>= channelBits;
+    else if( partition == MEM_SUBARRAY )
+        retSize >>= subarrayBits;
     else
         std::cout << "Divider Translator: Warning: Invalid partition " << (int)partition << std::endl;
 
@@ -286,9 +300,10 @@ uint64_t AddressTranslator::Divide( uint64_t partSize, MemoryPartition partition
 uint64_t AddressTranslator::Modulo( uint64_t partialAddr, MemoryPartition partition )
 {
     uint64_t retVal = partialAddr;
-    unsigned channelBits, rankBits, bankBits, rowBits, colBits;
+    unsigned channelBits, rankBits, bankBits, rowBits, colBits, subarrayBits;
 
-    method->GetBitWidths( &rowBits, &colBits, &bankBits, &rankBits, &channelBits );
+    method->GetBitWidths( &rowBits, &colBits, &bankBits, 
+                          &rankBits, &channelBits, &subarrayBits );
 
     uint64_t moduloSize = 1;
 
@@ -302,6 +317,8 @@ uint64_t AddressTranslator::Modulo( uint64_t partialAddr, MemoryPartition partit
         moduloSize <<= rankBits;
     else if( partition == MEM_CHANNEL )
         moduloSize <<= channelBits;
+    else if( partition == MEM_SUBARRAY )
+        moduloSize <<= subarrayBits;
     else
         std::cout << "Modulo Translator: Warning: Invalid partition " << (int)partition << std::endl;
 
@@ -315,9 +332,10 @@ uint64_t AddressTranslator::Modulo( uint64_t partialAddr, MemoryPartition partit
  */
 void AddressTranslator::FindOrder( int order, MemoryPartition *p )
 {
-    int rowOrder, colOrder, bankOrder, rankOrder, channelOrder;
+    int rowOrder, colOrder, bankOrder, rankOrder, channelOrder, subarrayOrder;
 
-    method->GetOrder( &rowOrder, &colOrder, &bankOrder, &rankOrder, &channelOrder );
+    method->GetOrder( &rowOrder, &colOrder, &bankOrder, 
+                      &rankOrder, &channelOrder, &subarrayOrder );
 
     if( rowOrder == order )
         *p = MEM_ROW;
@@ -329,8 +347,10 @@ void AddressTranslator::FindOrder( int order, MemoryPartition *p )
         *p = MEM_RANK;
     else if( channelOrder == order )
         *p = MEM_CHANNEL;
+    else if( subarrayOrder == order )
+        *p = MEM_SUBARRAY;
     else
         std::cerr << "Address Translator: No order " << order << std::endl << "Row = " << rowOrder
-	      << " Col = " << colOrder << " Bank = " << bankOrder << " Rank = " << rankOrder
-	      << " Chan = " << channelOrder << std::endl;
+	      << " Column = " << colOrder << " Bank = " << bankOrder << " Rank = " << rankOrder
+	      << " Channel = " << channelOrder << " SubArray = " << subarrayOrder << std::endl;
 }

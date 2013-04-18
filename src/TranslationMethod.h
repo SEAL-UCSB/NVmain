@@ -41,11 +41,15 @@
 
 namespace NVM {
 
-enum MemoryPartition { MEM_ROW = 0, 
-		       MEM_COL = 1, 
-		       MEM_BANK = 2, 
-		       MEM_RANK = 3, 
-		       MEM_CHANNEL = 4 };
+enum MemoryPartition 
+{ 
+    MEM_ROW = 0, 
+    MEM_COL = 1, 
+    MEM_BANK = 2, 
+    MEM_RANK = 3, 
+    MEM_CHANNEL = 4,
+    MEM_SUBARRAY = 5 
+};
 
 class TranslationMethod
 {
@@ -55,21 +59,21 @@ class TranslationMethod
 
     void SetAddressMappingScheme( std::string scheme );
     void SetBitWidths( unsigned int rowBits, unsigned int colBits, unsigned int bankBits, 
-          	     unsigned int rankBits, unsigned int channelBits );
-    void SetOrder( int row, int col, int bank, int rank, int channel );
+          	     unsigned int rankBits, unsigned int channelBits, unsigned int subarrayBits );
+    void SetOrder( int row, int col, int bank, int rank, int channel, int subarray );
     void SetCount( uint64_t rows, uint64_t cols, uint64_t banks, 
-                   uint64_t ranks, uint64_t channels );
+                   uint64_t ranks, uint64_t channels, uint64_t subarrays );
 
     void GetBitWidths( unsigned int *rowBits, unsigned int *colBits, unsigned int *bankBits,
-          	     unsigned int *rankBits, unsigned int *channelBits );
-    void GetOrder( int *row, int *col, int *bank, int *rank, int *channel );
+          	     unsigned int *rankBits, unsigned int *channelBits, unsigned int *subarrayBits );
+    void GetOrder( int *row, int *col, int *bank, int *rank, int *channel, int *subarrayBits );
     void GetCount( uint64_t *rows, uint64_t *cols, uint64_t *banks, 
-                   uint64_t *ranks, uint64_t *channels );
+                   uint64_t *ranks, uint64_t *channels, uint64_t *subarrays );
 
   private:
-    unsigned int bitWidths[5];
-    uint64_t count[5];
-    int order[5];
+    unsigned int bitWidths[6];
+    uint64_t count[6];
+    int order[6];
 };
 
 };
