@@ -44,11 +44,13 @@ class NVMAddress
     NVMAddress( );
     ~NVMAddress( );
     
-    void SetTranslatedAddress( uint64_t addrRow, uint64_t addrCol, uint64_t addrBank, uint64_t addrRank, uint64_t addrChannel );
+    void SetTranslatedAddress( uint64_t addrRow, uint64_t addrCol, uint64_t addrBank, 
+                               uint64_t addrRank, uint64_t addrChannel, uint64_t addrSA );
     void SetPhysicalAddress( uint64_t physicalAddress );
     void SetBitAddress( uint8_t bitAddr );
     
-    void GetTranslatedAddress( uint64_t *addrRow, uint64_t *addrCol, uint64_t *addrBank, uint64_t *addrRank, uint64_t *addrChannel );
+    void GetTranslatedAddress( uint64_t *addrRow, uint64_t *addrCol, uint64_t *addrBank, 
+                               uint64_t *addrRank, uint64_t *addrChannel, uint64_t *addrSA );
     uint64_t GetPhysicalAddress( );
     uint8_t GetBitAddress( );
 
@@ -56,6 +58,7 @@ class NVMAddress
   
  private:
     uint64_t physicalAddress;
+    uint64_t subarray;
     uint64_t row;
     uint64_t col;
     uint64_t bank;

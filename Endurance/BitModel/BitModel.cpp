@@ -65,13 +65,13 @@ bool BitModel::Write( NVMAddress address, NVMDataBlock oldData,
      *  You may map row and col to this map_key however you want.
      *  It is up to you to ensure there are no collisions here.
      */
-    uint64_t row;
+    uint64_t row, subarray, MATHeight;
     uint64_t col;
     bool rv = true;
     NVMAddress faultAddr;
 
     /* For our simple row model, we just set the key equal to the row */
-    address.GetTranslatedAddress( &row, &col, NULL, NULL, NULL );
+    address.GetTranslatedAddress( &row, &col, NULL, NULL, NULL, &subarray );
     faultAddr = address;
     
     /*
@@ -84,6 +84,8 @@ bool BitModel::Write( NVMAddress address, NVMDataBlock oldData,
     uint64_t rowSize;
     uint64_t wordSize;
     uint64_t partitionCount;
+
+    MATHeight = GetConfig( )->GetValue( "MATHeight" );
 
     rowSize = GetConfig( )->GetValue( "COLS" );
     
@@ -131,7 +133,8 @@ bool BitModel::Write( NVMAddress address, NVMDataBlock oldData,
              */
             partitionCount = rowSize * 8;
             
-            wordkey = row * partitionCount + (col * wordSize * 8) + i * 8 + j;
+            wordkey = ( row + MATHeight * subarray ) * partitionCount 
+                             + (col * wordSize * 8) + i * 8 + j;
 
             std::cout << "Key is " << wordkey << std::endl;
 

@@ -40,8 +40,16 @@
 
 namespace NVM {
 
-typedef enum { NO_FIELD, ROW_FIELD, COL_FIELD, BANK_FIELD, 
-                RANK_FIELD, CHANNEL_FIELD } TranslationField;
+typedef enum 
+{ 
+    NO_FIELD, 
+    ROW_FIELD, 
+    COL_FIELD, 
+    BANK_FIELD, 
+    RANK_FIELD, 
+    CHANNEL_FIELD,
+    SUBARRAY_FIELD,
+} TranslationField;
 
 class AddressTranslator
 {
@@ -54,12 +62,12 @@ class AddressTranslator
     void SetTranslationMethod( TranslationMethod *m );
     TranslationMethod *GetTranslationMethod( );
     
-    virtual void Translate( uint64_t address, uint64_t *row, uint64_t *col, 
-                            uint64_t *bank, uint64_t *rank, uint64_t *channel );
+    virtual void Translate( uint64_t address, uint64_t *row, uint64_t *col, uint64_t *bank, 
+                            uint64_t *rank, uint64_t *channel, uint64_t *subarray );
 
     virtual uint64_t ReverseTranslate( const uint64_t& row, const uint64_t& col, 
                                        const uint64_t& bank, const uint64_t& rank, 
-                                       const uint64_t& channel );
+                                       const uint64_t& channel, const uint64_t& subarray );
 
     virtual uint64_t Translate( uint64_t address );
     virtual void SetDefaultField( TranslationField f ); 

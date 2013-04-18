@@ -50,9 +50,11 @@ MemoryController::MemoryController( )
     translator = NULL;
 
     starvationThreshold = 4;
+    subArrayNum = 1;
     starvationCounter = NULL;
     activateQueued = NULL;
     effectiveRow = NULL;
+    activeSubArray = NULL;
 
     delayedRefreshCounter = NULL;
     
@@ -65,19 +67,29 @@ MemoryController::MemoryController( )
 MemoryController::~MemoryController( )
 {
 
+    
     for( ncounter_t i = 0; i < p->RANKS; i++ )
     {
         delete [] bankQueues[i];
-        delete [] starvationCounter[i];
         delete [] activateQueued[i];
-        delete [] effectiveRow[i];
         delete [] bankNeedRefresh[i];
+
+        for( ncounter_t j = 0; j < p->BANKS; j++ )
+        {
+            delete [] starvationCounter[i][j];
+            delete [] effectiveRow[i][j];
+            delete [] activeSubArray[i][j];
+        }
+        delete [] starvationCounter[i];
+        delete [] effectiveRow[i];
+        delete [] activeSubArray[i];
     }
 
     delete [] bankQueues;
     delete [] starvationCounter;
     delete [] activateQueued;
     delete [] effectiveRow;
+    delete [] activeSubArray;
     delete [] bankNeedRefresh;
     
     if( p->UseRefresh )
@@ -136,7 +148,7 @@ bool MemoryController::RequestComplete( NVMainRequest *request )
     }
     else
     {
-        GetParent( )->RequestComplete( request );
+        return GetParent( )->RequestComplete( request );
     }
 
     return true;
@@ -177,26 +189,38 @@ void MemoryController::SetConfig( Config *conf )
     
     translator->GetTranslationMethod( )->SetAddressMappingScheme( 
             p->AddressMappingScheme );
+
+    subArrayNum = p->ROWS / p->MATHeight;
     
     bankQueues = new std::deque<NVMainRequest *> * [p->RANKS];
-    starvationCounter = new unsigned int * [p->RANKS];
     activateQueued = new bool * [p->RANKS];
-    effectiveRow = new uint64_t * [p->RANKS];
+    starvationCounter = new unsigned int ** [p->RANKS];
+    effectiveRow = new uint64_t ** [p->RANKS];
+    activeSubArray = new uint64_t ** [p->RANKS];
 
     for( ncounter_t i = 0; i < p->RANKS; i++ )
     {
         bankQueues[i] = new std::deque<NVMainRequest *> [p->BANKS];
-        starvationCounter[i] = new unsigned int[p->BANKS];
         activateQueued[i] = new bool[p->BANKS];
-        effectiveRow[i] = new uint64_t[p->BANKS];
-
+        activeSubArray[i] = new uint64_t * [p->BANKS];
+        effectiveRow[i] = new uint64_t * [p->BANKS];
+        starvationCounter[i] = new unsigned int * [p->BANKS];
 
         for( ncounter_t j = 0; j < p->BANKS; j++ )
         {
-            starvationCounter[i][j] = 0;
             activateQueued[i][j] = false;
-            /* set the initial effective row as invalid */
-            effectiveRow[i][j] = p->ROWS;
+
+            starvationCounter[i][j] = new unsigned int [subArrayNum];
+            effectiveRow[i][j] = new uint64_t [subArrayNum];
+            activeSubArray[i][j] = new uint64_t [subArrayNum];
+
+            for( ncounter_t m = 0; m < subArrayNum; m++ )
+            {
+                starvationCounter[i][j][m] = 0;
+                activeSubArray[i][j][m] = false;
+                /* set the initial effective row as invalid */
+                effectiveRow[i][j][m] = p->ROWS;
+            }
         }
     }
 
@@ -244,7 +268,7 @@ void MemoryController::SetConfig( Config *conf )
 
                 /* create first refresh pulse to start the refresh countdown */ 
                 NVMainRequest* refreshPulse = MakeRefreshRequest( 
-                                                0, 0, refreshBankHead, i );
+                                                0, 0, refreshBankHead, i, 0 );
 
                 /* stagger the refresh */
                 ncycle_t offset = (i * m_refreshBankNum + j ) * m_refreshSlice; 
@@ -259,7 +283,7 @@ void MemoryController::SetConfig( Config *conf )
         }
     }
 
-    //this->config->Print();
+    this->config->Print();
 }
 
 /* 
@@ -346,7 +370,7 @@ bool MemoryController::HandleRefresh( )
             if( NeedRefresh( j, i ) && IsRefreshBankQueueEmpty( j , i ) )
             {
                 /* create a refresh command that will be sent to ranks */
-                NVMainRequest* cmdRefresh = MakeRefreshRequest( 0, 0, j, i );
+                NVMainRequest* cmdRefresh = MakeRefreshRequest( 0, 0, j, i, 0 );
 
                 if( !memory->IsIssuable( cmdRefresh, &fail ) )
                 {
@@ -357,10 +381,10 @@ bool MemoryController::HandleRefresh( )
                         {
                             /* issue a PRECHARGE_ALL command to close all subarrays */
                             bankQueues[i][tmpBank].push_back( 
-                                    MakePrechargeAllRequest( 0, 0, tmpBank, i ) );
+                                    MakePrechargeAllRequest( 0, 0, tmpBank, i, 0 ) );
 
                             activateQueued[i][tmpBank] = false;
-                            effectiveRow[i][tmpBank] = p->ROWS;
+                            effectiveRow[i][tmpBank][0] = p->ROWS;
                         }
                         else
                         {
@@ -417,7 +441,7 @@ void MemoryController::ProcessRefreshPulse( NVMainRequest* refresh )
     assert( refresh->type == REFRESH );
 
     uint64_t rank, bank;
-    refresh->address.GetTranslatedAddress( NULL, NULL, &bank, &rank, NULL );
+    refresh->address.GetTranslatedAddress( NULL, NULL, &bank, &rank, NULL, NULL );
 
     IncrementRefreshCounter( bank, rank );
 
@@ -469,14 +493,15 @@ NVMainRequest *MemoryController::MakeActivateRequest( NVMainRequest *triggerRequ
 NVMainRequest *MemoryController::MakeActivateRequest( const uint64_t row,
                                                       const uint64_t col,
                                                       const uint64_t bank,
-                                                      const uint64_t rank )
+                                                      const uint64_t rank,
+                                                      const uint64_t subarray )
 {
     NVMainRequest *activateRequest = new NVMainRequest( );
 
     activateRequest->type = ACTIVATE;
-    uint64_t actAddr = translator->ReverseTranslate( row, col, bank, rank, 0 );
+    uint64_t actAddr = translator->ReverseTranslate( row, col, bank, rank, 0, subarray );
     activateRequest->address.SetPhysicalAddress( actAddr );
-    activateRequest->address.SetTranslatedAddress( row, col, bank, rank, 0 );
+    activateRequest->address.SetTranslatedAddress( row, col, bank, rank, 0, subarray );
     activateRequest->issueCycle = GetEventQueue()->GetCurrentCycle();
     activateRequest->owner = this;
 
@@ -498,14 +523,15 @@ NVMainRequest *MemoryController::MakePrechargeRequest( NVMainRequest *triggerReq
 NVMainRequest *MemoryController::MakePrechargeRequest( const uint64_t row,
                                                        const uint64_t col,
                                                        const uint64_t bank,
-                                                       const uint64_t rank )
+                                                       const uint64_t rank,
+                                                       const uint64_t subarray )
 {
     NVMainRequest *prechargeRequest = new NVMainRequest( );
 
     prechargeRequest->type = PRECHARGE;
-    uint64_t preAddr = translator->ReverseTranslate( row, col, bank, rank, 0 );
+    uint64_t preAddr = translator->ReverseTranslate( row, col, bank, rank, 0, subarray );
     prechargeRequest->address.SetPhysicalAddress( preAddr );
-    prechargeRequest->address.SetTranslatedAddress( row, col, bank, rank, 0 );
+    prechargeRequest->address.SetTranslatedAddress( row, col, bank, rank, 0, subarray );
     prechargeRequest->issueCycle = GetEventQueue()->GetCurrentCycle();
     prechargeRequest->owner = this;
 
@@ -527,14 +553,15 @@ NVMainRequest *MemoryController::MakePrechargeAllRequest( NVMainRequest *trigger
 NVMainRequest *MemoryController::MakePrechargeAllRequest( const uint64_t row,
                                                           const uint64_t col,
                                                           const uint64_t bank,
-                                                          const uint64_t rank )
+                                                          const uint64_t rank,
+                                                          const uint64_t subarray )
 {
     NVMainRequest *prechargeAllRequest = new NVMainRequest( );
 
     prechargeAllRequest->type = PRECHARGE_ALL;
-    uint64_t preAddr = translator->ReverseTranslate( row, col, bank, rank, 0 );
+    uint64_t preAddr = translator->ReverseTranslate( row, col, bank, rank, 0, subarray );
     prechargeAllRequest->address.SetPhysicalAddress( preAddr );
-    prechargeAllRequest->address.SetTranslatedAddress( row, col, bank, rank, 0 );
+    prechargeAllRequest->address.SetTranslatedAddress( row, col, bank, rank, 0, subarray );
     prechargeAllRequest->issueCycle = GetEventQueue()->GetCurrentCycle();
     prechargeAllRequest->owner = this;
 
@@ -556,14 +583,15 @@ NVMainRequest *MemoryController::MakeImplicitPrechargeRequest( NVMainRequest *tr
 NVMainRequest *MemoryController::MakeRefreshRequest( const uint64_t row,
                                                      const uint64_t col,
                                                      const uint64_t bank,
-                                                     const uint64_t rank )
+                                                     const uint64_t rank,
+                                                     const uint64_t subarray )
 {
     NVMainRequest *refreshRequest = new NVMainRequest( );
 
     refreshRequest->type = REFRESH;
-    uint64_t preAddr = translator->ReverseTranslate( row, col, bank, rank, 0 );
+    uint64_t preAddr = translator->ReverseTranslate( row, col, bank, rank, 0, subarray );
     refreshRequest->address.SetPhysicalAddress( preAddr );
-    refreshRequest->address.SetTranslatedAddress( row, col, bank, rank, 0 );
+    refreshRequest->address.SetTranslatedAddress( row, col, bank, rank, 0, subarray );
     refreshRequest->issueCycle = GetEventQueue()->GetCurrentCycle();
     refreshRequest->owner = this;
 
@@ -571,45 +599,40 @@ NVMainRequest *MemoryController::MakeRefreshRequest( const uint64_t row,
 }
 
 bool MemoryController::IsLastRequest( std::list<NVMainRequest *>& transactionQueue,
-       uint64_t mRow, uint64_t mBank, uint64_t mRank )
+                                      NVMainRequest *request )
 {
     bool rv = true;
+    
+    if( p->ClosePage == 2 )
+        return rv;
 
-    /* if Open-Page policy is applied, the request is never the last request */
-    if( p->ClosePage == 0 )
-        rv = false;
-    /* 
-     * else if relaxed Close-Page policy is applied, the request is the last
-     * if and only if no row buffer hit can be exploited in the queue
-     */
-    else if( p->ClosePage == 1 )
+    uint64_t mRank, mBank, mRow, mSubArray;
+    request->address.GetTranslatedAddress( &mRow, NULL, &mBank, &mRank, NULL, &mSubArray );
+
+    if( p->ClosePage == 1 )
     {
         std::list<NVMainRequest *>::iterator it;
 
         for( it = transactionQueue.begin(); it != transactionQueue.end(); it++ )
         {
-            uint64_t rank, bank, row;
+            uint64_t rank, bank, row, subarray;
 
-            (*it)->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
+            (*it)->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL, &subarray );
 
             /* if a request that has row buffer hit is found, return false */ 
-            if( rank == mRank && bank == mBank && row == mRow )
+            if( rank == mRank && bank == mBank && row == mRow && subarray == mSubArray )
             {
                 rv = false;
                 break;
             }
         }
     }
-    /* 
-     * else, restricted Close-Page policy is applied, the request is always
-     * the last request ( we do nothing )
-     */
 
     return rv;
 }
 
 bool MemoryController::FindStarvedRequest( std::list<NVMainRequest *>& transactionQueue, 
-        NVMainRequest **starvedRequest )
+                                           NVMainRequest **starvedRequest )
 {
     DummyPredicate pred;
 
@@ -617,29 +640,39 @@ bool MemoryController::FindStarvedRequest( std::list<NVMainRequest *>& transacti
 }
 
 bool MemoryController::FindStarvedRequest( std::list<NVMainRequest *>& transactionQueue, 
-        NVMainRequest **starvedRequest, SchedulingPredicate& pred )
+                                           NVMainRequest **starvedRequest, 
+                                           SchedulingPredicate& pred )
 {
     bool rv = false;
     std::list<NVMainRequest *>::iterator it;
 
     for( it = transactionQueue.begin(); it != transactionQueue.end(); it++ )
     {
-        uint64_t rank, bank, row;
+        uint64_t rank, bank, row, subarray;
 
-        (*it)->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
+        (*it)->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL, &subarray );
 
-        if( activateQueued[rank][bank] && effectiveRow[rank][bank] != row    /* The effective row is not the row of this request. */
-            && !bankNeedRefresh[rank][bank]                                  /* request is blocked when refresh is needed */
-            && starvationCounter[rank][bank] >= starvationThreshold          /* This bank has reached it's starvation threshold. */
-            && bankQueues[rank][bank].empty()                                /* No requests are currently issued to this bank. */
-            && pred( row, bank, rank ) )                                     /* User-defined predicate is true. */
+        if( activateQueued[rank][bank] 
+            && ( !activeSubArray[rank][bank][subarray]    /* if the subarray is idle */
+                || effectiveRow[rank][bank][subarray] != row )    /* or the effective row is not the row of this request. */
+            && !bankNeedRefresh[rank][bank]       /* request is blocked when refresh is needed */
+            && starvationCounter[rank][bank][subarray] >= starvationThreshold   /* This bank has reached it's starvation threshold. */
+            && bankQueues[rank][bank].empty()     /* No requests are currently issued to this bank. */
+            && pred( (*it) ) )                    /* User-defined predicate is true. */
         {
             *starvedRequest = (*it);
             transactionQueue.erase( it );
 
             /* Different row buffer management policy has different behavior */ 
-            if( IsLastRequest( transactionQueue, row, bank, rank ) )
-                (*starvedRequest)->flags |= NVMainRequestFlags::FLAG_LAST_REQUEST;
+
+            /* 
+             * if Relaxed Close-Page row buffer management policy is applied,
+             * we check whether there is another request has row buffer hit.
+             * if not, this request is the last request and we can close the
+             * row.
+             */
+            if(  IsLastRequest( transactionQueue, (*starvedRequest) ) )
+                (*starvedRequest)->tag = NVM_LASTREQUEST;
 
             rv = true;
             break;
@@ -650,7 +683,7 @@ bool MemoryController::FindStarvedRequest( std::list<NVMainRequest *>& transacti
 }
 
 bool MemoryController::FindRowBufferHit( std::list<NVMainRequest *>& transactionQueue, 
-        NVMainRequest **hitRequest )
+                                         NVMainRequest **hitRequest )
 {
     DummyPredicate pred;
 
@@ -658,28 +691,37 @@ bool MemoryController::FindRowBufferHit( std::list<NVMainRequest *>& transaction
 }
 
 bool MemoryController::FindRowBufferHit( std::list<NVMainRequest *>& transactionQueue, 
-        NVMainRequest **hitRequest, SchedulingPredicate& pred )
+                                         NVMainRequest **hitRequest, SchedulingPredicate& pred )
 {
     bool rv = false;
     std::list<NVMainRequest *>::iterator it;
 
     for( it = transactionQueue.begin(); it != transactionQueue.end(); it++ )
     {
-        uint64_t rank, bank, row;
+        uint64_t rank, bank, row, subarray;
 
-        (*it)->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
+        (*it)->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL, &subarray );
 
-        if( activateQueued[rank][bank] && effectiveRow[rank][bank] == row    /* The effective row is the row of this request. */
-            && !bankNeedRefresh[rank][bank]                                  /* request is blocked when refresh is needed */
-            && bankQueues[rank][bank].empty()                                /* No requests are currently issued to this bank. */
-            && pred( row, bank, rank ) )                                     /* User-defined predicate is true. */
+        if( activateQueued[rank][bank] 
+            && activeSubArray[rank][bank][subarray]    /* The subarray is open */
+            && effectiveRow[rank][bank][subarray] == row  /* The effective row is the row of this request. */ 
+            && !bankNeedRefresh[rank][bank]     /* request is blocked when refresh is needed */
+            && bankQueues[rank][bank].empty( ) /* the request is empty */
+            && pred( (*it) ) )        /* User-defined predicate is true. */
         {
             *hitRequest = (*it);
             transactionQueue.erase( it );
 
             /* Different row buffer management policy has different behavior */ 
-            if( IsLastRequest( transactionQueue, row, bank, rank ) )
-                (*hitRequest)->flags |= NVMainRequestFlags::FLAG_LAST_REQUEST;
+
+            /* 
+             * if Relaxed Close-Page row buffer management policy is applied,
+             * we check whether there is another request has row buffer hit.
+             * if not, this request is the last request and we can close the
+             * row.
+             */
+            if( IsLastRequest( transactionQueue, (*hitRequest) ) )
+                (*hitRequest)->tag = NVM_LASTREQUEST;
 
             rv = true;
 
@@ -691,7 +733,7 @@ bool MemoryController::FindRowBufferHit( std::list<NVMainRequest *>& transaction
 }
 
 bool MemoryController::FindOldestReadyRequest( std::list<NVMainRequest *>& transactionQueue, 
-        NVMainRequest **oldestRequest )
+                                               NVMainRequest **oldestRequest )
 {
     DummyPredicate pred;
 
@@ -699,28 +741,36 @@ bool MemoryController::FindOldestReadyRequest( std::list<NVMainRequest *>& trans
 }
 
 bool MemoryController::FindOldestReadyRequest( std::list<NVMainRequest *>& transactionQueue, 
-        NVMainRequest **oldestRequest, SchedulingPredicate& pred )
+                                               NVMainRequest **oldestRequest, 
+                                               SchedulingPredicate& pred )
 {
     bool rv = false;
     std::list<NVMainRequest *>::iterator it;
 
     for( it = transactionQueue.begin(); it != transactionQueue.end(); it++ )
     {
-        uint64_t rank, bank, row;
+        uint64_t rank, bank;
 
-        (*it)->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
+        (*it)->address.GetTranslatedAddress( NULL, NULL, &bank, &rank, NULL, NULL );
 
         if( activateQueued[rank][bank] 
             && !bankNeedRefresh[rank][bank]    /* request is blocked when refresh is needed */
             && bankQueues[rank][bank].empty()  /* No requests are currently issued to this bank (Ready). */
-            && pred( row, bank, rank ) )       /* User-defined predicate is true. */
+            && pred( (*it) ) )                 /* User-defined predicate is true. */
         {
             *oldestRequest = (*it);
             transactionQueue.erase( it );
             
             /* Different row buffer management policy has different behavior */ 
-            if( IsLastRequest( transactionQueue, row, bank, rank ) )
-                (*oldestRequest)->flags |= NVMainRequestFlags::FLAG_LAST_REQUEST;
+
+            /* 
+             * if Relaxed Close-Page row buffer management policy is applied,
+             * we check whether there is another request has row buffer hit.
+             * if not, this request is the last request and we can close the
+             * row.
+             */
+            if( IsLastRequest( transactionQueue, (*oldestRequest) ) )
+                (*oldestRequest)->tag = NVM_LASTREQUEST;
 
             rv = true;
             break;
@@ -731,7 +781,7 @@ bool MemoryController::FindOldestReadyRequest( std::list<NVMainRequest *>& trans
 }
 
 bool MemoryController::FindClosedBankRequest( std::list<NVMainRequest *>& transactionQueue, 
-        NVMainRequest **closedRequest )
+                                              NVMainRequest **closedRequest )
 {
     DummyPredicate pred;
 
@@ -739,28 +789,36 @@ bool MemoryController::FindClosedBankRequest( std::list<NVMainRequest *>& transa
 }
 
 bool MemoryController::FindClosedBankRequest( std::list<NVMainRequest *>& transactionQueue, 
-        NVMainRequest **closedRequest, SchedulingPredicate& pred )
+                                              NVMainRequest **closedRequest, 
+                                              SchedulingPredicate& pred )
 {
     bool rv = false;
     std::list<NVMainRequest *>::iterator it;
 
     for( it = transactionQueue.begin(); it != transactionQueue.end(); it++ )
     {
-        uint64_t rank, bank, row;
+        uint64_t rank, bank;
 
-        (*it)->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
+        (*it)->address.GetTranslatedAddress( NULL, NULL, &bank, &rank, NULL, NULL );
 
         if( !activateQueued[rank][bank]          /* This bank is closed, anyone can issue. */
             && !bankNeedRefresh[rank][bank]      /* request is blocked when refresh is needed */
             && bankQueues[rank][bank].empty()    /* No requests are currently issued to this bank (Ready). */
-            && pred( row, bank, rank ) )         /* User defined predicate is true. */
+            && pred( (*it) ) )         /* User defined predicate is true. */
         {
             *closedRequest = (*it);
             transactionQueue.erase( it );
             
             /* Different row buffer management policy has different behavior */ 
-            if( IsLastRequest( transactionQueue, row, bank, rank ) )
-                (*closedRequest)->flags |= NVMainRequestFlags::FLAG_LAST_REQUEST;
+
+            /* 
+             * if Relaxed Close-Page row buffer management policy is applied,
+             * we check whether there is another request has row buffer hit.
+             * if not, this request is the last request and we can close the
+             * row.
+             */
+            if( IsLastRequest( transactionQueue, (*closedRequest) ) )
+                (*closedRequest)->tag = NVM_LASTREQUEST;
 
             rv = true;
             break;
@@ -775,7 +833,7 @@ bool MemoryController::FindClosedBankRequest( std::list<NVMainRequest *>& transa
  *  of just a single request
  */
 bool MemoryController::FindStarvedRequests( std::list<NVMainRequest *>& transactionQueue, 
-        std::vector<NVMainRequest *>& starvedRequests )
+                                            std::vector<NVMainRequest *>& starvedRequests )
 {
     DummyPredicate pred;
 
@@ -783,22 +841,25 @@ bool MemoryController::FindStarvedRequests( std::list<NVMainRequest *>& transact
 }
 
 bool MemoryController::FindStarvedRequests( std::list<NVMainRequest *>& transactionQueue, 
-        std::vector<NVMainRequest *>& starvedRequests, SchedulingPredicate& pred )
+                                            std::vector<NVMainRequest *>& starvedRequests, 
+                                            SchedulingPredicate& pred )
 {
     bool rv = false;
     std::list<NVMainRequest *>::iterator it;
 
     for( it = transactionQueue.begin(); it != transactionQueue.end(); it++ )
     {
-        uint64_t rank, bank, row;
+        uint64_t rank, bank, row, subarray;
 
-        (*it)->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
+        (*it)->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL, &subarray );
 
-        if( activateQueued[rank][bank] && effectiveRow[rank][bank] != row    /* The effective row is not the row of this request. */
-            && !bankNeedRefresh[rank][bank]                                  /* request is blocked when refresh is needed */
-            && starvationCounter[rank][bank] >= starvationThreshold          /* This bank has reached it's starvation threshold. */
-            && bankQueues[rank][bank].empty()                                /* No requests are currently issued to this bank. */
-            && pred( row, bank, rank ) )                                     /* User-defined predicate is true. */
+        if( activateQueued[rank][bank] 
+            && ( !activeSubArray[rank][bank][subarray] 
+                || effectiveRow[rank][bank][subarray] != row )   /* The effective row is not the row of this request. */
+            && !bankNeedRefresh[rank][bank]    /* request is blocked when refresh is needed */
+            && starvationCounter[rank][bank][subarray] >= starvationThreshold   /* This bank has reached it's starvation threshold. */
+            && bankQueues[rank][bank].empty()    /* No requests are currently issued to this bank. */
+            && pred( (*it) ) )    /* User-defined predicate is true. */
         {
             starvedRequests.push_back( (*it) );
             transactionQueue.erase( it );
@@ -811,7 +872,7 @@ bool MemoryController::FindStarvedRequests( std::list<NVMainRequest *>& transact
 }
 
 bool MemoryController::FindRowBufferHits( std::list<NVMainRequest *>& transactionQueue, 
-        std::vector<NVMainRequest *>& hitRequests )
+                                          std::vector<NVMainRequest *>& hitRequests )
 {
     DummyPredicate pred;
 
@@ -819,21 +880,24 @@ bool MemoryController::FindRowBufferHits( std::list<NVMainRequest *>& transactio
 }
 
 bool MemoryController::FindRowBufferHits( std::list<NVMainRequest *>& transactionQueue, 
-        std::vector<NVMainRequest* >& hitRequests, SchedulingPredicate& pred )
+                                          std::vector<NVMainRequest* >& hitRequests, 
+                                          SchedulingPredicate& pred )
 {
     bool rv = false;
     std::list<NVMainRequest *>::iterator it;
 
     for( it = transactionQueue.begin(); it != transactionQueue.end(); it++ )
     {
-        uint64_t rank, bank, row;
+        uint64_t rank, bank, row, subarray;
 
-        (*it)->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
+        (*it)->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL, &subarray );
 
-        if( activateQueued[rank][bank] && effectiveRow[rank][bank] == row    /* The effective row is the row of this request. */
-            && !bankNeedRefresh[rank][bank]                                  /* request is blocked when refresh is needed */
-            && bankQueues[rank][bank].empty()                                /* No requests are currently issued to this bank. */
-            && pred( row, bank, rank ) )                                     /* User-defined predicate is true. */
+        if( activateQueued[rank][bank] 
+            && activeSubArray[rank][bank][subarray] == row  /* The subarray is open */
+            && effectiveRow[rank][bank][subarray] == row    /* The effective row is the row of this request. */
+            && !bankNeedRefresh[rank][bank]       /* request is blocked when refresh is needed */
+            && bankQueues[rank][bank].empty( )    /* the request is empty */
+            && pred( (*it) ) )          /* User-defined predicate is true. */
         {
             hitRequests.push_back( (*it) );
             transactionQueue.erase( it );
@@ -846,7 +910,7 @@ bool MemoryController::FindRowBufferHits( std::list<NVMainRequest *>& transactio
 }
 
 bool MemoryController::FindOldestReadyRequests( std::list<NVMainRequest *>& transactionQueue, 
-        std::vector<NVMainRequest *> &oldestRequests )
+                                                std::vector<NVMainRequest *> &oldestRequests )
 {
     DummyPredicate pred;
 
@@ -854,21 +918,22 @@ bool MemoryController::FindOldestReadyRequests( std::list<NVMainRequest *>& tran
 }
 
 bool MemoryController::FindOldestReadyRequests( std::list<NVMainRequest *>& transactionQueue, 
-        std::vector<NVMainRequest *>& oldestRequests, SchedulingPredicate& pred )
+                                                std::vector<NVMainRequest *>& oldestRequests, 
+                                                SchedulingPredicate& pred )
 {
     bool rv = false;
     std::list<NVMainRequest *>::iterator it;
 
     for( it = transactionQueue.begin(); it != transactionQueue.end(); it++ )
     {
-        uint64_t rank, bank, row;
+        uint64_t rank, bank;
 
-        (*it)->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
+        (*it)->address.GetTranslatedAddress( NULL, NULL, &bank, &rank, NULL, NULL );
 
         if( activateQueued[rank][bank] 
             && !bankNeedRefresh[rank][bank]    /* request is blocked when refresh is needed */
             && bankQueues[rank][bank].empty()  /* No requests are currently issued to this bank (Ready). */
-            && pred( row, bank, rank ) )       /* User-defined predicate is true. */
+            && pred( (*it) ) )       /* User-defined predicate is true. */
         {
             oldestRequests.push_back( (*it) );
             transactionQueue.erase( it );
@@ -881,7 +946,7 @@ bool MemoryController::FindOldestReadyRequests( std::list<NVMainRequest *>& tran
 }
 
 bool MemoryController::FindClosedBankRequests( std::list<NVMainRequest *>& transactionQueue, 
-        std::vector<NVMainRequest *> &closedRequests )
+                                               std::vector<NVMainRequest *> &closedRequests )
 {
     DummyPredicate pred;
 
@@ -896,14 +961,14 @@ bool MemoryController::FindClosedBankRequests( std::list<NVMainRequest *>& trans
 
     for( it = transactionQueue.begin(); it != transactionQueue.end(); it++ )
     {
-        uint64_t rank, bank, row;
+        uint64_t rank, bank;
 
-        (*it)->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
+        (*it)->address.GetTranslatedAddress( NULL, NULL, &bank, &rank, NULL, NULL );
 
         if( !activateQueued[rank][bank]        /* This bank is closed, anyone can issue. */
             && !bankNeedRefresh[rank][bank]    /* request is blocked when refresh is needed */
             && bankQueues[rank][bank].empty()  /* No requests are currently issued to this bank (Ready). */
-            && pred( row, bank, rank ) )       /* User defined predicate is true. */
+            && pred( (*it) ) )       /* User defined predicate is true. */
         {
             closedRequests.push_back( (*it ) );
             transactionQueue.erase( it );
@@ -915,7 +980,7 @@ bool MemoryController::FindClosedBankRequests( std::list<NVMainRequest *>& trans
     return rv;
 }
 
-bool MemoryController::DummyPredicate::operator() (uint64_t, uint64_t, uint64_t)
+bool MemoryController::DummyPredicate::operator() ( NVMainRequest* request )
 {
     return true;
 }
@@ -924,9 +989,9 @@ bool MemoryController::DummyPredicate::operator() (uint64_t, uint64_t, uint64_t)
 bool MemoryController::IssueMemoryCommands( NVMainRequest *req )
 {
     bool rv = false;
-    uint64_t rank, bank, row;
+    uint64_t rank, bank, row, subarray;
 
-    req->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
+    req->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL, &subarray );
 
     /*
      *  This function assumes the memory controller uses any predicates when
@@ -936,9 +1001,10 @@ bool MemoryController::IssueMemoryCommands( NVMainRequest *req )
     if( !activateQueued[rank][bank] && bankQueues[rank][bank].empty() )
     {
         /* Any activate will request the starvation counter */
-        starvationCounter[rank][bank] = 0;
         activateQueued[rank][bank] = true;
-        effectiveRow[rank][bank] = row;
+        activeSubArray[rank][bank][subarray] = true;
+        effectiveRow[rank][bank][subarray] = row;
+        starvationCounter[rank][bank][subarray] = 0;
 
         req->issueCycle = GetEventQueue()->GetCurrentCycle();
 
@@ -950,13 +1016,13 @@ bool MemoryController::IssueMemoryCommands( NVMainRequest *req )
          * 1) ClosePage == 1 and there is no other request having row
          * buffer hit
          * or 2) ClosePage == 2, the request is always the last request
-         * TODO: ClosePage == 3 to speculatively leave the row open.
          */
-        if( req->flags & NVMainRequestFlags::FLAG_LAST_REQUEST )
+        if( req->tag == NVM_LASTREQUEST )
         {
             bankQueues[rank][bank].push_back( MakeImplicitPrechargeRequest( req ) );
+            activeSubArray[rank][bank][subarray] = false;
+            effectiveRow[rank][bank][subarray] = p->ROWS;
             activateQueued[rank][bank] = false;
-            effectiveRow[rank][bank] = p->ROWS;
         }
         else
             bankQueues[rank][bank].push_back( req );
@@ -964,27 +1030,34 @@ bool MemoryController::IssueMemoryCommands( NVMainRequest *req )
         rv = true;
     }
     else if( activateQueued[rank][bank] 
-            && effectiveRow[rank][bank] != row 
+            && ( !activeSubArray[rank][bank][subarray] 
+                || effectiveRow[rank][bank][subarray] != row )
             && bankQueues[rank][bank].empty() )
     {
         /* Any activate will request the starvation counter */
-        starvationCounter[rank][bank] = 0;
+        starvationCounter[rank][bank][subarray] = 0;
         activateQueued[rank][bank] = true;
 
         req->issueCycle = GetEventQueue()->GetCurrentCycle();
 
-        bankQueues[rank][bank].push_back( 
-                MakePrechargeRequest( effectiveRow[rank][bank], 0, bank, rank ) );
+        if( activeSubArray[rank][bank][subarray] )
+        {
+            bankQueues[rank][bank].push_back( 
+                    MakePrechargeRequest( effectiveRow[rank][bank][subarray], 0, bank, rank, subarray ) );
+        }
 
-        effectiveRow[rank][bank] = row;
         bankQueues[rank][bank].push_back( MakeActivateRequest( req ) );
         bankQueues[rank][bank].push_back( req );
+        activeSubArray[rank][bank][subarray] = true;
+        effectiveRow[rank][bank][subarray] = row;
 
         rv = true;
     }
-    else if( activateQueued[rank][bank] && effectiveRow[rank][bank] == row )
+    else if( activateQueued[rank][bank] 
+            && activeSubArray[rank][bank][subarray]
+            && effectiveRow[rank][bank][subarray] == row )
     {
-        starvationCounter[rank][bank]++;
+        starvationCounter[rank][bank][subarray]++;
 
         req->issueCycle = GetEventQueue()->GetCurrentCycle();
 
@@ -994,16 +1067,28 @@ bool MemoryController::IssueMemoryCommands( NVMainRequest *req )
          * 1) ClosePage == 1 and there is no other request having row
          * buffer hit
          * or 2) ClosePage == 2, the request is always the last request
-         * TODO: ClosePage == 3 to speculatively leave the row open.
          */
-        if( req->flags == NVMainRequestFlags::FLAG_LAST_REQUEST )
+        if( req->tag == NVM_LASTREQUEST )
         {
             /* if Restricted Close-Page is applied, we should never be here */
             assert( p->ClosePage != 2 );
 
             bankQueues[rank][bank].push_back( MakeImplicitPrechargeRequest( req ) );
-            activateQueued[rank][bank] = false;
-            effectiveRow[rank][bank] = p->ROWS;
+            activeSubArray[rank][bank][subarray] = false;
+            effectiveRow[rank][bank][subarray] = p->ROWS;
+
+            bool idle = true;
+            for( int i = 0; i < subArrayNum; i++ )
+            {
+                if( activeSubArray[rank][bank][i] == true )
+                {
+                    idle = false;
+                    break;
+                }
+            }
+
+            if( idle )
+                activateQueued[rank][bank] = false;
         }
         else
             bankQueues[rank][bank].push_back( req );
@@ -1053,13 +1138,14 @@ void MemoryController::CycleCommandQueues( )
 
                 if( ( GetEventQueue()->GetCurrentCycle() - queueHead->issueCycle ) > 1000000 )
                 {
-                    uint64_t bank, rank, channel;
-                    queueHead->address.GetTranslatedAddress( NULL, NULL, &bank, &rank, &channel );
+                    uint64_t row, col, bank, rank, channel, subarray;
+                    queueHead->address.GetTranslatedAddress( &row, &col, &bank, &rank, &channel, &subarray );
                     std::cout << "NVMain Warning: Operation could not be sent to memory after a very long time: "
                               << std::endl; 
                     std::cout << "         Address: 0x" << std::hex 
                               << queueHead->address.GetPhysicalAddress( )
                               << std::dec << " @ Bank " << bank << ", Rank " << rank << ", Channel " << channel
+                              << " Subarray " << subarray << " Row " << row << " Column " << col
                               << ". Queued time: " << queueHead->arrivalCycle
                               << ". Current time: " << GetEventQueue()->GetCurrentCycle() << ". Type: " 
                               << queueHead->type << std::endl;

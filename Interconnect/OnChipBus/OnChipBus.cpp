@@ -101,9 +101,6 @@ void OnChipBus::SetConfig( Config *c )
 bool OnChipBus::IssueCommand( NVMainRequest *req )
 {
     uint64_t opRank;
-    uint64_t opBank;
-    uint64_t opRow;
-    uint64_t opCol;
     bool success = false;
 
     if( !configSet || numRanks == 0 )
@@ -112,7 +109,7 @@ bool OnChipBus::IssueCommand( NVMainRequest *req )
         return false;
     }
 
-    req->address.GetTranslatedAddress( &opCol, &opRow, &opBank, &opRank, NULL );
+    req->address.GetTranslatedAddress( NULL, NULL, NULL, &opRank, NULL, NULL );
 
     if( ranks[opRank]->IsIssuable( req ) )
     {
@@ -142,11 +139,8 @@ bool OnChipBus::IssueCommand( NVMainRequest *req )
 bool OnChipBus::IsIssuable( NVMainRequest *req, FailReason *reason )
 {
     uint64_t opRank;
-    uint64_t opBank;
-    uint64_t opRow;
-    uint64_t opCol;
 
-    req->address.GetTranslatedAddress( &opCol, &opRow, &opBank, &opRank, NULL );
+    req->address.GetTranslatedAddress( NULL, NULL, NULL, &opRank, NULL, NULL );
     
     return ranks[opRank]->IsIssuable( req, reason );
 }

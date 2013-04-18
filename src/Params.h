@@ -123,6 +123,7 @@ class Params
     ncounter_t RANKS;
     ncounter_t BANKS;
     ncounter_t RAW;
+    ncounter_t MATHeight;
 
     ncycle_t tAL;
     ncycle_t tBURST;

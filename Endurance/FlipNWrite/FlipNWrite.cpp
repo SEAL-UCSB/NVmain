@@ -114,14 +114,14 @@ bool FlipNWrite::Write( NVMAddress address, NVMDataBlock oldData,
      *  You may map row and col to this map_key however you want.
      *  It is up to you to ensure there are no collisions here.
      */
-    uint64_t row;
+    uint64_t row, subarray, MATHeight;
     uint64_t col;
     bool rv = true;
 
     /*
      *  For our simple row model, we just set the key equal to the row.
      */
-    address.GetTranslatedAddress( &row, &col, NULL, NULL, NULL );
+    address.GetTranslatedAddress( &row, &col, NULL, NULL, NULL, &subarray );
 
     /*
      *  If using the default life map, we can call the DecrementLife
@@ -143,6 +143,7 @@ bool FlipNWrite::Write( NVMAddress address, NVMDataBlock oldData,
     std::vector< NVMAddress > *nonInvertedFaultAddr;
     std::vector< NVMAddress > *invertedFaultAddr;
 
+    MATHeight = GetConfig( )->GetValue( "MATHeight" );
     rowSize = GetConfig( )->GetValue( "COLS" );
     
     wordSize = GetConfig( )->GetValue( "BusWidth" );
@@ -222,7 +223,7 @@ bool FlipNWrite::Write( NVMAddress address, NVMDataBlock oldData,
              */
             partitionCount = rowSize * 8;
             
-            wordkey = row * partitionCount + (col * wordSize * 8) + i * 8 + j;
+            wordkey = ( row + MATHeight * subarray ) * partitionCount + (col * wordSize * 8) + i * 8 + j;
       
             faultAddr = address;
             faultAddr.SetBitAddress( static_cast<uint8_t>(j) );

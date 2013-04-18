@@ -124,7 +124,7 @@ bool OffChipBus::IssueCommand( NVMainRequest *req )
         return false;
     }
 
-    req->address.GetTranslatedAddress( NULL, NULL, NULL, &opRank, NULL );
+    req->address.GetTranslatedAddress( NULL, NULL, NULL, &opRank, NULL, NULL );
 
     if( ranks[opRank]->IsIssuable( req ) )
     {
@@ -155,7 +155,7 @@ bool OffChipBus::IsIssuable( NVMainRequest *req, FailReason *reason )
 {
     uint64_t opRank;
 
-    req->address.GetTranslatedAddress( NULL, NULL, NULL, &opRank, NULL );
+    req->address.GetTranslatedAddress( NULL, NULL, NULL, &opRank, NULL, NULL );
 
     return ranks[opRank]->IsIssuable( req, reason );
 }
@@ -204,8 +204,8 @@ void OffChipBus::PrintStats( )
 {
     if( !configSet || numRanks == 0 )
     {
-        std::cerr << "Error: No statistics to print. Memory system was not configured!"
-                  << std::endl;
+        std::cerr << "NVMain Error: No statistics to print." 
+           << " Memory system was not configured!" << std::endl;
     }
 
     for( ncounter_t i = 0; i < numRanks; i++ )
