@@ -201,7 +201,7 @@ bool LO_Cache::IssueCommand( NVMainRequest *req )
         uint64_t rank, bank;
         NVMDataBlock dummy;
 
-        req->address.GetTranslatedAddress( NULL, NULL, &bank, &rank, NULL );
+        req->address.GetTranslatedAddress( NULL, NULL, &bank, &rank, NULL, NULL );
 
         if( functionalCache[rank][bank]->SetFull( req->address ) )
         {
