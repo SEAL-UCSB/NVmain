@@ -47,7 +47,7 @@ using namespace NVM;
 
 LO_Cache::LO_Cache( Interconnect *memory, AddressTranslator *decoder )
 {
-    decoder->GetTranslationMethod( )->SetOrder( 5, 1, 4, 3, 2 );
+    decoder->GetTranslationMethod( )->SetOrder( 5, 1, 4, 3, 2, 6 );
 
     SetMemory( memory );
     SetTranslator( decoder );
@@ -103,7 +103,7 @@ void LO_Cache::SetConfig( Config *conf )
 
     ranks = static_cast<ncounter_t>( conf->GetValue( "RANKS" ) );
     banks = static_cast<ncounter_t>( conf->GetValue( "BANKS" ) );
-    rows  = static_cast<ncounter_t>( conf->GetValue( "ROWS" ) );
+    rows  = static_cast<ncounter_t>( conf->GetValue( "MATHeight" ) );
 
 
     functionalCache = new CacheBank**[ranks];
@@ -133,9 +133,9 @@ void LO_Cache::SetMainMemory( NVMain *mm )
 
 bool LO_Cache::IssueAtomic( NVMainRequest *req )
 {
-    uint64_t row, bank, rank;
+    uint64_t row, bank, rank, subarray;
 
-    req->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL );
+    req->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL, &subarray );
 
     if( req->address.GetPhysicalAddress() > max_addr ) max_addr = req->address.GetPhysicalAddress( );
 
@@ -185,7 +185,7 @@ bool LO_Cache::IssueFunctional( NVMainRequest *req )
 {
     uint64_t bank, rank;
 
-    req->address.GetTranslatedAddress( NULL, NULL, &bank, &rank, NULL );
+    req->address.GetTranslatedAddress( NULL, NULL, &bank, &rank, NULL, NULL );
 
     return functionalCache[rank][bank]->Present( req->address );
 }
@@ -244,7 +244,7 @@ bool LO_Cache::RequestComplete( NVMainRequest *req )
             uint64_t rank, bank;
             NVMDataBlock dummy;
 
-            req->address.GetTranslatedAddress( NULL, NULL, &bank, &rank, NULL );
+            req->address.GetTranslatedAddress( NULL, NULL, &bank, &rank, NULL, NULL );
 
             if( functionalCache[rank][bank]->SetFull( req->address ) )
             {
@@ -304,7 +304,7 @@ bool LO_Cache::RequestComplete( NVMainRequest *req )
     {
         uint64_t rank, bank;
 
-        req->address.GetTranslatedAddress( NULL, NULL, &bank, &rank, NULL );
+        req->address.GetTranslatedAddress( NULL, NULL, &bank, &rank, NULL, NULL );
 
         if( req->type == WRITE || req->type == WRITE_PRECHARGE )
         {
@@ -337,7 +337,7 @@ bool LO_Cache::RequestComplete( NVMainRequest *req )
         {
             uint64_t rank, bank;
 
-            req->address.GetTranslatedAddress( NULL, NULL, &bank, &rank, NULL );
+            req->address.GetTranslatedAddress( NULL, NULL, &bank, &rank, NULL, NULL );
 
             /* Check for a hit. */
             bool hit = functionalCache[rank][bank]->Present( req->address );

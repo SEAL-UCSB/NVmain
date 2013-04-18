@@ -273,7 +273,7 @@ bool MissMap::RequestComplete( NVMainRequest *req )
                     uint64_t chan;
 
                     cacheReq->originalRequest->address.GetTranslatedAddress( 
-                            NULL, NULL, NULL, NULL, &chan );
+                            NULL, NULL, NULL, NULL, &chan, NULL );
 
                     assert( chan < numChannels );
 
@@ -302,7 +302,7 @@ bool MissMap::RequestComplete( NVMainRequest *req )
                         uint64_t chan;
 
                         cacheReq->originalRequest->address.GetTranslatedAddress( 
-                                NULL, NULL, NULL, NULL, &chan );
+                                NULL, NULL, NULL, NULL, &chan, NULL );
 
                         drcChannels[chan]->IssueCommand( cacheReq->originalRequest );
                     }
@@ -357,7 +357,7 @@ bool MissMap::RequestComplete( NVMainRequest *req )
                     uint64_t chan;
 
                     cacheReq->originalRequest->address.GetTranslatedAddress( 
-                            NULL, NULL, NULL, NULL, &chan );
+                            NULL, NULL, NULL, NULL, &chan, NULL );
 
                     drcChannels[chan]->IssueCommand( cacheReq->originalRequest );
                 }
@@ -416,7 +416,7 @@ bool MissMap::RequestComplete( NVMainRequest *req )
                 /* Ensure consistency in DRC by evicting any cachelines in this miss map entry. */
                 uint64_t chan;
 
-                req->address.GetTranslatedAddress( NULL, NULL, NULL, NULL, &chan );
+                req->address.GetTranslatedAddress( NULL, NULL, NULL, NULL, &chan, NULL );
                 assert( chan < numChannels );
 
                 NVMainRequest *evictReq = new NVMainRequest( );
@@ -466,7 +466,7 @@ bool MissMap::RequestComplete( NVMainRequest *req )
     {
         uint64_t chan;
 
-        req->address.GetTranslatedAddress( NULL, NULL, NULL, NULL, &chan );
+        req->address.GetTranslatedAddress( NULL, NULL, NULL, NULL, &chan, NULL );
 
         // This is now a fill request.
         req->type = WRITE;

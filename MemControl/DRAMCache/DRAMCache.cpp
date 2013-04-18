@@ -47,7 +47,7 @@ using namespace NVM;
 
 DRAMCache::DRAMCache( Interconnect *memory, AddressTranslator *translator )
 {
-    translator->GetTranslationMethod( )->SetOrder( 5, 1, 4, 3, 2 );
+    translator->GetTranslationMethod( )->SetOrder( 5, 1, 4, 3, 2, 6 );
 
     SetMemory( memory );
     SetTranslator( translator );
@@ -104,19 +104,24 @@ void DRAMCache::SetConfig( Config *conf )
         formatter << this->statName << ".drcChannel" << i;
         channelMemory->StatName( formatter.str() );
 
+        int channels, ranks, banks, rows, cols, subarrays;
+        
+        rows = conf->GetValue( "MATHeight" );
+        cols = conf->GetValue( "COLS" );
+        banks = conf->GetValue( "BANKS" );
+        ranks = conf->GetValue( "RANKS" );
+        channels = conf->GetValue( "DRC_CHANNELS" );
+        subarrays = conf->GetValue( "ROWS" ) / conf->GetValue( "MATHeight" );
+
         TranslationMethod *drcMethod = new TranslationMethod();
-        drcMethod->SetBitWidths( NVM::mlog2( conf->GetValue( "ROWS" ) ),
-                                 NVM::mlog2( conf->GetValue( "COLS" ) ),
-                                 NVM::mlog2( conf->GetValue( "BANKS" ) ),
-                                 NVM::mlog2( conf->GetValue( "RANKS" ) ),
-                                 NVM::mlog2( conf->GetValue( "DRC_CHANNELS" ) )
+        drcMethod->SetBitWidths( NVM::mlog2( rows ),
+                                 NVM::mlog2( cols ),
+                                 NVM::mlog2( banks ),
+                                 NVM::mlog2( ranks ),
+                                 NVM::mlog2( channels ),
+                                 NVM::mlog2( subarrays )
                                  );
-        drcMethod->SetCount( conf->GetValue( "ROWS" ),
-                             conf->GetValue( "COLS" ),
-                             conf->GetValue( "BANKS" ),
-                             conf->GetValue( "RANKS" ),
-                             conf->GetValue( "DRC_CHANNELS" )
-                             );
+        drcMethod->SetCount( rows, cols, banks, ranks, channels, subarrays );
         
         DRCDecoder *drcDecoder = new DRCDecoder( );
         DRCDecoder *intDecoder = new DRCDecoder( );
@@ -154,17 +159,17 @@ void DRAMCache::SetConfig( Config *conf )
 
 void DRAMCache::Retranslate( NVMainRequest *req )
 {
-    uint64_t col, row, bank, rank, chan;
+    uint64_t col, row, bank, rank, chan, subarray;
 
-    GetDecoder()->Translate( req->address.GetPhysicalAddress(), &row, &col, &bank, &rank, &chan );
-    req->address.SetTranslatedAddress( row, col, bank, rank, chan );
+    GetDecoder()->Translate( req->address.GetPhysicalAddress(), &row, &col, &bank, &rank, &chan, &subarray );
+    req->address.SetTranslatedAddress( row, col, bank, rank, chan, subarray );
 }
 
 bool DRAMCache::IssueAtomic( NVMainRequest *req )
 {
     uint64_t chan;
 
-    req->address.GetTranslatedAddress( NULL, NULL, NULL, NULL, &chan );
+    req->address.GetTranslatedAddress( NULL, NULL, NULL, NULL, &chan, NULL );
 
     assert( chan < numChannels );
 
@@ -176,7 +181,7 @@ bool DRAMCache::IssueCommand( NVMainRequest *req )
     uint64_t chan;
 
     Retranslate( req );
-    req->address.GetTranslatedAddress( NULL, NULL, NULL, NULL, &chan );
+    req->address.GetTranslatedAddress( NULL, NULL, NULL, NULL, &chan, NULL );
     assert( chan < numChannels );
     assert( GetChild(req)->GetTrampoline() == drcChannels[chan] );
 
@@ -187,7 +192,7 @@ bool DRAMCache::IssueFunctional( NVMainRequest *req )
 {
     uint64_t chan;
 
-    req->address.GetTranslatedAddress( NULL, NULL, NULL, NULL, &chan );
+    req->address.GetTranslatedAddress( NULL, NULL, NULL, NULL, &chan, NULL );
 
     assert( chan < numChannels );
 
@@ -227,7 +232,7 @@ bool DRAMCache::RequestComplete( NVMainRequest *req )
         {
             uint64_t chan;
 
-            req->address.GetTranslatedAddress( NULL, NULL, NULL, NULL, &chan );
+            req->address.GetTranslatedAddress( NULL, NULL, NULL, NULL, &chan, NULL );
 
             rv = drcChannels[chan]->RequestComplete( req );
         }
