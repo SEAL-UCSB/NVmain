@@ -57,7 +57,7 @@ void DRCDecoder::SetCachelineSize( uint64_t lineSize )
 }
 
 void DRCDecoder::Translate( uint64_t address, uint64_t *row, uint64_t *col, 
-                            uint64_t *bank, uint64_t *rank, uint64_t *channel, uint64_t *subarray )
+                            uint64_t *bank, uint64_t *rank, uint64_t *channel, uint64_t * /*subarray*/ )
 {
     int rowOrder, colOrder, bankOrder, rankOrder, channelOrder, subarrayOrder;
     unsigned int rowBits, colBits, bankBits, rankBits, channelBits, subarrayBits;

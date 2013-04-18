@@ -194,25 +194,25 @@ void MemoryController::SetConfig( Config *conf )
     
     bankQueues = new std::deque<NVMainRequest *> * [p->RANKS];
     activateQueued = new bool * [p->RANKS];
-    starvationCounter = new unsigned int ** [p->RANKS];
-    effectiveRow = new uint64_t ** [p->RANKS];
-    activeSubArray = new uint64_t ** [p->RANKS];
+    starvationCounter = new ncounter_t ** [p->RANKS];
+    effectiveRow = new ncounter_t ** [p->RANKS];
+    activeSubArray = new ncounter_t ** [p->RANKS];
 
     for( ncounter_t i = 0; i < p->RANKS; i++ )
     {
         bankQueues[i] = new std::deque<NVMainRequest *> [p->BANKS];
         activateQueued[i] = new bool[p->BANKS];
-        activeSubArray[i] = new uint64_t * [p->BANKS];
-        effectiveRow[i] = new uint64_t * [p->BANKS];
-        starvationCounter[i] = new unsigned int * [p->BANKS];
+        activeSubArray[i] = new ncounter_t * [p->BANKS];
+        effectiveRow[i] = new ncounter_t * [p->BANKS];
+        starvationCounter[i] = new ncounter_t * [p->BANKS];
 
         for( ncounter_t j = 0; j < p->BANKS; j++ )
         {
             activateQueued[i][j] = false;
 
-            starvationCounter[i][j] = new unsigned int [subArrayNum];
-            effectiveRow[i][j] = new uint64_t [subArrayNum];
-            activeSubArray[i][j] = new uint64_t [subArrayNum];
+            starvationCounter[i][j] = new ncounter_t [subArrayNum];
+            effectiveRow[i][j] = new ncounter_t [subArrayNum];
+            activeSubArray[i][j] = new ncounter_t [subArrayNum];
 
             for( ncounter_t m = 0; m < subArrayNum; m++ )
             {
@@ -234,7 +234,7 @@ void MemoryController::SetConfig( Config *conf )
         }
     }
         
-    delayedRefreshCounter = new unsigned * [p->RANKS];
+    delayedRefreshCounter = new ncounter_t * [p->RANKS];
 
     if( p->UseRefresh )
     {
@@ -257,7 +257,7 @@ void MemoryController::SetConfig( Config *conf )
 
         for( ncounter_t i = 0; i < p->RANKS; i++ )
         {
-            delayedRefreshCounter[i] = new unsigned[m_refreshBankNum];
+            delayedRefreshCounter[i] = new ncounter_t [m_refreshBankNum];
             
             /* initialize the counter to 0 */
             for( ncounter_t j = 0; j < m_refreshBankNum; j++ )
@@ -283,7 +283,10 @@ void MemoryController::SetConfig( Config *conf )
         }
     }
 
-    this->config->Print();
+    if( p->PrintConfig )
+    {
+        this->config->Print();
+    }
 }
 
 /* 
@@ -672,7 +675,7 @@ bool MemoryController::FindStarvedRequest( std::list<NVMainRequest *>& transacti
              * row.
              */
             if(  IsLastRequest( transactionQueue, (*starvedRequest) ) )
-                (*starvedRequest)->tag = NVM_LASTREQUEST;
+                (*starvedRequest)->flags |= NVMainRequest::FLAG_LAST_REQUEST;
 
             rv = true;
             break;
@@ -721,7 +724,7 @@ bool MemoryController::FindRowBufferHit( std::list<NVMainRequest *>& transaction
              * row.
              */
             if( IsLastRequest( transactionQueue, (*hitRequest) ) )
-                (*hitRequest)->tag = NVM_LASTREQUEST;
+                (*hitRequest)->flags |= NVMainRequest::FLAG_LAST_REQUEST;
 
             rv = true;
 
@@ -770,7 +773,7 @@ bool MemoryController::FindOldestReadyRequest( std::list<NVMainRequest *>& trans
              * row.
              */
             if( IsLastRequest( transactionQueue, (*oldestRequest) ) )
-                (*oldestRequest)->tag = NVM_LASTREQUEST;
+                (*oldestRequest)->flags |= NVMainRequest::FLAG_LAST_REQUEST;
 
             rv = true;
             break;
@@ -818,7 +821,7 @@ bool MemoryController::FindClosedBankRequest( std::list<NVMainRequest *>& transa
              * row.
              */
             if( IsLastRequest( transactionQueue, (*closedRequest) ) )
-                (*closedRequest)->tag = NVM_LASTREQUEST;
+                (*closedRequest)->flags |= NVMainRequest::FLAG_LAST_REQUEST;
 
             rv = true;
             break;
@@ -980,7 +983,7 @@ bool MemoryController::FindClosedBankRequests( std::list<NVMainRequest *>& trans
     return rv;
 }
 
-bool MemoryController::DummyPredicate::operator() ( NVMainRequest* request )
+bool MemoryController::DummyPredicate::operator() ( NVMainRequest* /*request*/ )
 {
     return true;
 }
@@ -1017,7 +1020,7 @@ bool MemoryController::IssueMemoryCommands( NVMainRequest *req )
          * buffer hit
          * or 2) ClosePage == 2, the request is always the last request
          */
-        if( req->tag == NVM_LASTREQUEST )
+        if( req->flags & NVMainRequest::FLAG_LAST_REQUEST )
         {
             bankQueues[rank][bank].push_back( MakeImplicitPrechargeRequest( req ) );
             activeSubArray[rank][bank][subarray] = false;
@@ -1068,7 +1071,7 @@ bool MemoryController::IssueMemoryCommands( NVMainRequest *req )
          * buffer hit
          * or 2) ClosePage == 2, the request is always the last request
          */
-        if( req->tag == NVM_LASTREQUEST )
+        if( req->flags & NVMainRequest::FLAG_LAST_REQUEST )
         {
             /* if Restricted Close-Page is applied, we should never be here */
             assert( p->ClosePage != 2 );
@@ -1078,7 +1081,7 @@ bool MemoryController::IssueMemoryCommands( NVMainRequest *req )
             effectiveRow[rank][bank][subarray] = p->ROWS;
 
             bool idle = true;
-            for( int i = 0; i < subArrayNum; i++ )
+            for( ncounter_t i = 0; i < subArrayNum; i++ )
             {
                 if( activeSubArray[rank][bank][i] == true )
                 {

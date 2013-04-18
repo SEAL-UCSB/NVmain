@@ -54,6 +54,7 @@ Params::Params( )
     /* Defaults */
     PrintPreTrace = false;
     EchoPreTrace = false;
+    PrintConfig = false;
 
     StaggerRefresh = false;
 }
@@ -116,6 +117,7 @@ void Params::SetParams( Config *c )
     PrintGraphs = ( c->GetString( "PrintGraphs" ) == "true" );
     PrintAllDevices = ( c->GetString( "PrintAllDevices" ) == "true" );
     PrintAllDevices_set = c->KeyExists( "PrintAllDevices" );
+    PrintConfig = ( c->GetString( "PrintConfig" ) == "true" );
 
     PrintPreTrace = ( c->GetString( "PrintPreTrace" ) == "true" );
     EchoPreTrace = ( c->GetString( "EchoPreTrace" ) == "true" );
