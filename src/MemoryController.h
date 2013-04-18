@@ -51,6 +51,8 @@
 
 namespace NVM {
 
+#define NVM_LASTREQUEST 999
+
 enum ProcessorOp { LOAD, STORE };
 
 class SchedulingPredicate
