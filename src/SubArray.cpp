@@ -88,16 +88,14 @@ void SubArray::SetConfig( Config *c )
 {
     conf = c;
 
-    /* customize MAT size */
-    if( conf->KeyExists( "MATWidth" ) )
-        MATWidth = static_cast<ncounter_t>( conf->GetValue( "MATWidth" ) );
-
-    if( conf->KeyExists( "MATHeight" ) )
-        MATHeight = static_cast<ncounter_t>( conf->GetValue( "MATHeight" ) );
-
     Params *params = new Params( );
     params->SetParams( c );
     SetParams( params );
+
+    MATHeight = p->MATHeight;
+    /* customize MAT size */
+    if( conf->KeyExists( "MATWidth" ) )
+        MATWidth = static_cast<ncounter_t>( conf->GetValue( "MATWidth" ) );
 
     /* We need to create an endurance model at a sub-array level */
     endrModel = EnduranceModelFactory::CreateEnduranceModel( p->EnduranceModel );
@@ -112,7 +110,7 @@ bool SubArray::Activate( NVMainRequest *request )
 {
     uint64_t activateRow;
 
-    request->address.GetTranslatedAddress( &activateRow, NULL, NULL, NULL, NULL );
+    request->address.GetTranslatedAddress( &activateRow, NULL, NULL, NULL, NULL, NULL );
 
     /* TODO: Can we remove this sanity check and totally trust IsIssuable()? */
     /* sanity check */
@@ -148,8 +146,8 @@ bool SubArray::Activate( NVMainRequest *request )
                     GetEventQueue()->GetCurrentCycle() + MAX( p->tRCD, p->tRAS ) );
 
     /* 
-     * We simplify the row record here. The absolute row number is record
-     * rather than the relative row number within the subarray
+     * The relative row number is record rather than the absolute row number 
+     * within the subarray
      */
     openRow = activateRow;
 
@@ -189,9 +187,9 @@ bool SubArray::Activate( NVMainRequest *request )
  */
 bool SubArray::Read( NVMainRequest *request )
 {
-    uint64_t readRow, readCol;
+    uint64_t readRow;
 
-    request->address.GetTranslatedAddress( &readRow, &readCol, NULL, NULL, NULL );
+    request->address.GetTranslatedAddress( &readRow, NULL, NULL, NULL, NULL, NULL );
 
     /* TODO: Can we remove this sanity check and totally trust IsIssuable()? */
     /* sanity check */
@@ -322,9 +320,9 @@ bool SubArray::Read( NVMainRequest *request )
  */
 bool SubArray::Write( NVMainRequest *request )
 {
-    uint64_t writeRow, writeCol;
+    uint64_t writeRow;
 
-    request->address.GetTranslatedAddress( &writeRow, &writeCol, NULL, NULL, NULL );
+    request->address.GetTranslatedAddress( &writeRow, NULL, NULL, NULL, NULL, NULL );
 
     /* TODO: Can we remove this sanity check and totally trust IsIssuable()? */
     /* sanity check */
@@ -566,11 +564,10 @@ bool SubArray::IsIssuable( NVMainRequest *req, FailReason *reason )
     uint64_t opRow;
     bool rv = true;
 
-    req->address.GetTranslatedAddress( &opRow, NULL, NULL, NULL, NULL );
+    req->address.GetTranslatedAddress( &opRow, NULL, NULL, NULL, NULL, NULL );
 
     if( nextCommand != CMD_NOP )
         return false;
-      
 
     if( req->type == ACTIVATE )
     {

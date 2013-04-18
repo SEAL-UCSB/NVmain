@@ -107,7 +107,7 @@ Config *NVMain::GetConfig( )
 void NVMain::SetConfig( Config *conf, std::string memoryName )
 {
     TranslationMethod *method;
-    int channels, ranks, banks, rows, cols;
+    int channels, ranks, banks, rows, cols, subarrays;
 
     Params *params = new Params( );
     params->SetParams( conf );
@@ -119,11 +119,12 @@ void NVMain::SetConfig( Config *conf, std::string memoryName )
     else
       std::cout << "Warning: Sim Interface should be allocated before configuration!" << std::endl;
 
-    rows = (int)p->ROWS;
+    rows = (int)p->MATHeight;
     cols = (int)p->COLS;
     banks = (int)p->BANKS;
     ranks = (int)p->RANKS;
     channels = (int)p->CHANNELS;
+    subarrays = (int)( p->ROWS / p->MATHeight );
 
     if( config->KeyExists( "Decoder" ) )
         translator = DecoderFactory::CreateNewDecoder( config->GetString( "Decoder" ) );
@@ -136,9 +137,10 @@ void NVMain::SetConfig( Config *conf, std::string memoryName )
           		NVM::mlog2( cols ), 
           		NVM::mlog2( banks ), 
           		NVM::mlog2( ranks ), 
-          		NVM::mlog2( channels ) 
+          		NVM::mlog2( channels ), 
+                        NVM::mlog2( subarrays )
           		);
-    method->SetCount( rows, cols, banks, ranks, channels );
+    method->SetCount( rows, cols, banks, ranks, channels, subarrays );
     translator->SetTranslationMethod( method );
     translator->SetDefaultField( CHANNEL_FIELD );
 
@@ -216,7 +218,8 @@ void NVMain::SetConfig( Config *conf, std::string memoryName )
                 channelConfig[i]->GetString( "MEM_CTL" ), memory[i], translator );
 
         confString.str( "" );
-        confString << memoryName << ".channel" << i << "." << channelConfig[i]->GetString( "MEM_CTL" ); 
+        confString << memoryName << ".channel" << i << "." 
+            << channelConfig[i]->GetString( "MEM_CTL" ); 
         memoryControllers[i]->StatName( confString.str( ) );
         memoryControllers[i]->SetID( i );
 
@@ -250,19 +253,21 @@ void NVMain::SetConfig( Config *conf, std::string memoryName )
         pretraceOutput.open( pretraceFile.c_str( ) );
 
         if( !pretraceOutput.is_open( ) )
-              std::cout << "Warning: Could not open pretrace file " << config->GetString( "PreTraceFile" )
-          	          << ". Output will be suppressed." << std::endl;
+              std::cout << "Warning: Could not open pretrace file " 
+                  << config->GetString( "PreTraceFile" )
+          	  << ". Output will be suppressed." << std::endl;
     }
 }
 
 bool NVMain::IsIssuable( NVMainRequest *request, FailReason * /*reason*/ )
 {
-    uint64_t channel, rank, bank, row, col;
+    uint64_t channel, rank, bank, row, col, subarray;
     bool rv;
 
     if( request != NULL )
     {
-        translator->Translate( request->address.GetPhysicalAddress( ), &row, &col, &rank, &bank, &channel );
+        translator->Translate( request->address.GetPhysicalAddress( ), 
+                               &row, &col, &rank, &bank, &channel, &subarray );
 
         rv = !memoryControllers[channel]->QueueFull( request );
     }
@@ -305,7 +310,8 @@ void NVMain::PrintPreTrace( NVMainRequest *request )
                 std::cout << "W ";
 
             /* Output Address */
-            std::cout << std::hex << "0x" << (request->address.GetPhysicalAddress( )) << std::dec << " ";
+            std::cout << std::hex << "0x" 
+                << (request->address.GetPhysicalAddress( )) << std::dec << " ";
             
             /* Output Data */
             std::cout << request->data << " ";
@@ -326,7 +332,8 @@ void NVMain::PrintPreTrace( NVMainRequest *request )
               pretraceOutput << "W ";
             
             /* Output Address */
-            pretraceOutput << std::hex << "0x" << (request->address.GetPhysicalAddress( )) << std::dec << " ";
+            pretraceOutput << std::hex << "0x" 
+                << (request->address.GetPhysicalAddress( )) << std::dec << " ";
             
             /* Output Data */
             pretraceOutput << request->data << " ";
@@ -339,7 +346,7 @@ void NVMain::PrintPreTrace( NVMainRequest *request )
 
 bool NVMain::IssueCommand( NVMainRequest *request )
 {
-    uint64_t channel, rank, bank, row, col;
+    uint64_t channel, rank, bank, row, col, subarray;
     int mc_rv;
 
     if( !config )
@@ -349,8 +356,9 @@ bool NVMain::IssueCommand( NVMainRequest *request )
     }
 
     /* Translate the address, then copy to the address struct, and copy to request. */
-    translator->Translate( request->address.GetPhysicalAddress( ), &row, &col, &bank, &rank, &channel );
-    request->address.SetTranslatedAddress( row, col, bank, rank, channel );
+    translator->Translate( request->address.GetPhysicalAddress( ), 
+                           &row, &col, &bank, &rank, &channel, &subarray );
+    request->address.SetTranslatedAddress( row, col, bank, rank, channel, subarray );
     request->bulkCmd = CMD_NOP;
 
     assert( GetChild( request )->GetTrampoline( ) == memoryControllers[channel] );
@@ -363,7 +371,7 @@ bool NVMain::IssueCommand( NVMainRequest *request )
 
 bool NVMain::IssueAtomic( NVMainRequest *request )
 {
-    uint64_t channel, rank, bank, row, col;
+    uint64_t channel, rank, bank, row, col, subarray;
     int mc_rv;
 
     if( !config )
@@ -373,8 +381,9 @@ bool NVMain::IssueAtomic( NVMainRequest *request )
     }
 
     /* Translate the address, then copy to the address struct, and copy to request. */
-    translator->Translate( request->address.GetPhysicalAddress( ), &row, &col, &bank, &rank, &channel );
-    request->address.SetTranslatedAddress( row, col, bank, rank, channel );
+    translator->Translate( request->address.GetPhysicalAddress( ), 
+                           &row, &col, &bank, &rank, &channel, &subarray );
+    request->address.SetTranslatedAddress( row, col, bank, rank, channel, subarray );
     request->bulkCmd = CMD_NOP;
 
     mc_rv = memoryControllers[channel]->IssueAtomic( request );
