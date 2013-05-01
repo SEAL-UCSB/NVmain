@@ -159,6 +159,21 @@ void Rank::SetConfig( Config *c )
     actWaitTime = 0;
 }
 
+bool Rank::Idle( )
+{
+    bool rankIdle = true;
+    for( ncounter_t i = 0; i < bankCount; i++ )
+    {
+        if( banks[i]->Idle( ) == false )
+        {
+            rankIdle = false;
+            break;
+        }
+    }
+
+    return rankIdle;
+}
+
 bool Rank::Activate( NVMainRequest *request )
 {
     uint64_t activateBank;
@@ -182,7 +197,8 @@ bool Rank::Activate( NVMainRequest *request )
         /* issue ACTIVATE to target bank */
         GetChild( request )->IssueCommand( request );
 
-        state = RANK_OPEN;
+        if( state == RANK_CLOSED )
+            state = RANK_OPEN;
 
         /* move to the next counter */
         RAWindex = (RAWindex + 1) % rawNum;
@@ -325,17 +341,7 @@ bool Rank::Precharge( NVMainRequest *request )
     /* issue PRECHARGE/PRECHARGE_ALL to the target bank */
     bool success = GetChild( request )->IssueCommand( request );
 
-    bool rankIdle = true;
-    for( ncounter_t i = 0; i < bankCount; i++ )
-    {
-        if( banks[i]->Idle( ) == false )
-        {
-            rankIdle = false;
-            break;
-        }
-    }
-
-    if( rankIdle )
+    if( Idle( ) )
         state = RANK_CLOSED;
 
     if( success == false )
@@ -347,11 +353,14 @@ bool Rank::Precharge( NVMainRequest *request )
     return success;
 }
 
-bool Rank::CanPowerDown( OpType pdOp )
+bool Rank::CanPowerDown( const OpType& pdOp )
 {
     bool issuable = true;
     NVMainRequest req;
     NVMAddress address;
+
+    if( state == RANK_REFRESHING )
+        return false;
 
     /* Create a dummy operation to determine if we can issue */
     req.type = pdOp;
@@ -359,16 +368,18 @@ bool Rank::CanPowerDown( OpType pdOp )
     req.address.SetPhysicalAddress( 0 );
 
     for( ncounter_t i = 0; i < bankCount; i++ )
-        if( !banks[i]->IsIssuable( &req ) )
+    {
+        if( banks[i]->IsIssuable( &req ) == false )
         {
             issuable = false;
             break;
         }
+    }
 
     return issuable;
 }
 
-bool Rank::PowerDown( NVMainRequest *request )
+bool Rank::PowerDown( const OpType& pdOp )
 {
     /* TODO: use hooker to issue POWERDOWN?? */
     /* 
@@ -376,9 +387,9 @@ bool Rank::PowerDown( NVMainRequest *request )
      * incorrect. Therefore, call CanPowerDown() first before every PowerDown
      */
     for( ncounter_t i = 0; i < bankCount; i++ )
-       banks[i]->PowerDown( request->type );
+       banks[i]->PowerDown( pdOp );
 
-    switch( request->type )
+    switch( pdOp )
     {
         case POWERDOWN_PDA:
             state = RANK_PDA;
@@ -394,7 +405,7 @@ bool Rank::PowerDown( NVMainRequest *request )
 
         default:
             std::cerr<< "NVMain Error: Unrecognized PowerDown command " 
-                << request->type << " is detected in Rank " << std::endl; 
+                << pdOp << " is detected in Rank " << std::endl; 
             break;
     }
     
@@ -413,7 +424,7 @@ bool Rank::CanPowerUp()
     req.address.SetPhysicalAddress( 0 );
 
     /* since all banks are powered down, check the first bank is enough */
-    if( !banks[0]->IsIssuable( &req ) )
+    if( banks[0]->IsIssuable( &req ) == false )
         issuable = false;
 
     return issuable;
@@ -442,7 +453,8 @@ bool Rank::PowerUp( )
 
         default:
             std::cerr<< "NVMain Error: PowerUp is issued to a Rank that is not " 
-                << "PowerDown before in Rank " << std::endl; 
+                << "PowerDown before. The current rank state is " << state 
+                << std::endl; 
             break;
     }
     
@@ -470,8 +482,7 @@ bool Rank::Refresh( NVMainRequest *request )
         banks[refreshBankGroupHead + i]->IssueCommand( refReq );
     }
 
-    /* rank is tagged open since IDD3N should be used for background energy */
-    state = RANK_OPEN;
+    state = RANK_REFRESHING;
 
     request->owner = this;
     GetEventQueue( )->InsertEvent( EventResponse, this, request, 
@@ -611,7 +622,7 @@ bool Rank::IsIssuable( NVMainRequest *req, FailReason *reason )
     }
     else if( req->type == POWERUP )
     {
-        rv = CanPowerUp();
+        rv = CanPowerUp( );
 
         if( reason ) 
             reason->reason = RANK_TIMING;
@@ -692,7 +703,7 @@ bool Rank::IssueCommand( NVMainRequest *req )
             case POWERDOWN_PDA:
             case POWERDOWN_PDPF: 
             case POWERDOWN_PDPS: 
-                rv = this->PowerDown( req );
+                rv = this->PowerDown( req->type );
                 break;
 
             case POWERUP:
@@ -751,17 +762,7 @@ bool Rank::RequestComplete( NVMainRequest* req )
             case PRECHARGE:
             case REFRESH:
                 {
-                    bool rankIdle = true;
-                    for( ncounter_t i = 0; i < bankCount; i++ )
-                    {
-                        if( banks[i]->Idle( ) == false )
-                        {
-                            rankIdle = false;
-                            break;
-                        }
-                    }
-
-                    if( rankIdle )
+                    if( Idle( ) )
                         state = RANK_CLOSED;
 
                     break;
@@ -814,6 +815,7 @@ void Rank::Cycle( ncycle_t steps )
             break;
 
         /* active standby */
+        case RANK_REFRESHING:
         case RANK_OPEN:
             activeCycles += steps;
             if( p->EnergyModel_set && p->EnergyModel == "current" )

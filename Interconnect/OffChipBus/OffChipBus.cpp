@@ -103,6 +103,31 @@ void OffChipBus::SetConfig( Config *c )
     }
 }
 
+bool OffChipBus::CanPowerDown( const OpType& pdOp, const ncounter_t& rankId )
+{
+    return ranks[rankId]->CanPowerDown( pdOp );
+}
+
+bool OffChipBus::PowerDown( const OpType& pdOp, const ncounter_t& rankId )
+{
+    return ranks[rankId]->PowerDown( pdOp );
+}
+
+bool OffChipBus::CanPowerUp( const ncounter_t& rankId )
+{
+    return ranks[rankId]->CanPowerUp( );
+}
+
+bool OffChipBus::PowerUp( const ncounter_t& rankId )
+{
+    return ranks[rankId]->PowerUp( );
+}
+
+bool OffChipBus::IsRankIdle( const ncounter_t& rankId )
+{
+    return ranks[rankId]->Idle( );
+}
+
 bool OffChipBus::RequestComplete( NVMainRequest *request )
 {
     GetEventQueue( )->InsertEvent( EventResponse, GetParent( ), 
@@ -113,7 +138,7 @@ bool OffChipBus::RequestComplete( NVMainRequest *request )
 
 bool OffChipBus::IssueCommand( NVMainRequest *req )
 {
-    uint64_t opRank;
+    ncounter_t opRank;
 
     bool success = false;
 
@@ -143,7 +168,7 @@ bool OffChipBus::IssueCommand( NVMainRequest *req )
         if( success )
         {
             for( ncounter_t i = 0; i < numRanks; i++ )
-              if( (uint64_t)(i) != opRank )
+              if( (ncounter_t)(i) != opRank )
                 ranks[i]->Notify( req->type );
         }
     }
@@ -153,14 +178,14 @@ bool OffChipBus::IssueCommand( NVMainRequest *req )
 
 bool OffChipBus::IsIssuable( NVMainRequest *req, FailReason *reason )
 {
-    uint64_t opRank;
+    ncounter_t opRank;
 
     req->address.GetTranslatedAddress( NULL, NULL, NULL, &opRank, NULL, NULL );
 
     return ranks[opRank]->IsIssuable( req, reason );
 }
 
-ncycle_t OffChipBus::GetNextActivate( uint64_t rank, uint64_t bank )
+ncycle_t OffChipBus::GetNextActivate( ncounter_t rank, ncounter_t bank )
 {
     if( rank < numRanks )
         return ranks[rank]->GetNextActivate( bank );
@@ -168,7 +193,7 @@ ncycle_t OffChipBus::GetNextActivate( uint64_t rank, uint64_t bank )
     return 0;
 }
 
-ncycle_t OffChipBus::GetNextRead( uint64_t rank, uint64_t bank )
+ncycle_t OffChipBus::GetNextRead( ncounter_t rank, ncounter_t bank )
 {
     if( rank < numRanks )
         return ranks[rank]->GetNextRead( bank );
@@ -176,7 +201,7 @@ ncycle_t OffChipBus::GetNextRead( uint64_t rank, uint64_t bank )
     return 0;
 }
 
-ncycle_t OffChipBus::GetNextWrite( uint64_t rank, uint64_t bank )
+ncycle_t OffChipBus::GetNextWrite( ncounter_t rank, ncounter_t bank )
 {
     if( rank < numRanks )
         return ranks[rank]->GetNextWrite( bank );
@@ -184,7 +209,7 @@ ncycle_t OffChipBus::GetNextWrite( uint64_t rank, uint64_t bank )
     return 0;
 }
 
-ncycle_t OffChipBus::GetNextPrecharge( uint64_t rank, uint64_t bank )
+ncycle_t OffChipBus::GetNextPrecharge( ncounter_t rank, ncounter_t bank )
 {
     if( rank < numRanks )
         return ranks[rank]->GetNextPrecharge( bank );
@@ -192,7 +217,7 @@ ncycle_t OffChipBus::GetNextPrecharge( uint64_t rank, uint64_t bank )
     return 0;
 }
 
-ncycle_t OffChipBus::GetNextRefresh( uint64_t rank, uint64_t bank )
+ncycle_t OffChipBus::GetNextRefresh( ncounter_t rank, ncounter_t bank )
 {
     if( rank < numRanks )
         return ranks[rank]->GetNextRefresh( bank );

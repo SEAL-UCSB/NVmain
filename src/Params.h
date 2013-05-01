@@ -97,7 +97,10 @@ class Params
     std::string EnergyModel;
     bool EnergyModel_set;
 
+    bool UseLowPower;
+    std::string PowerDownMode;
     bool InitPD;
+
     bool PrintGraphs;
     bool PrintAllDevices;
     bool PrintAllDevices_set;
