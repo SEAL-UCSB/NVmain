@@ -47,7 +47,7 @@
 namespace NVM {
 
 /*
- *  We use five rank states because our timing and energy parameters
+ *  We use six rank states because our timing and energy parameters
  *  only tell us the delay of the entire read/write cycle to one bank.
  *  Even though all banks should be powered down in lockstep, we use three
  *  bank states to indicate different PowerDown modes. In addition, as all
@@ -61,12 +61,13 @@ namespace NVM {
  */
 enum RankState 
 { 
-    RANK_UNKNOWN,  /***< Unknown state. Uh oh. */
-    RANK_OPEN,     /***< Rank has at least one open bank  */
-    RANK_CLOSED,   /***< all banks in the rank are closed (standby) */
-    RANK_PDPF,     /***< Rank is in precharge powered down, fast exit mode */
-    RANK_PDA,      /***< Rank is in active powered down mode */
-    RANK_PDPS      /***< Rank is in precharge powered down, slow exit mode */
+    RANK_UNKNOWN,   /***< Unknown state. Uh oh. */
+    RANK_OPEN,      /***< Rank has at least one open bank  */
+    RANK_CLOSED,    /***< all banks in the rank are closed (standby) */
+    RANK_REFRESHING,/***< some banks in the rank are refreshing */
+    RANK_PDPF,      /***< Rank is in precharge powered down, fast exit mode */
+    RANK_PDA,       /***< Rank is in active powered down mode */
+    RANK_PDPS       /***< Rank is in precharge powered down, slow exit mode */
 };
 
 class Rank : public NVMObject
@@ -86,6 +87,13 @@ class Rank : public NVMObject
     void SetName( std::string name );
     void PrintStats( );
     void StatName( std::string name ) { statName = name; }
+
+    bool PowerDown( const OpType& pdOp );
+    bool PowerUp( );
+    bool CanPowerDown( const OpType& pdOp );
+    bool CanPowerUp( );
+
+    bool Idle( );
 
     ncycle_t GetNextActivate( uint64_t bank );
     ncycle_t GetNextRead( uint64_t bank );
@@ -136,11 +144,6 @@ class Rank : public NVMObject
     bool Write( NVMainRequest *request );
     bool Precharge( NVMainRequest *request );
     bool Refresh( NVMainRequest *request );
-    bool PowerDown( NVMainRequest *request );
-    bool PowerUp( );
-    bool CanPowerDown( OpType pdOp );
-    bool CanPowerUp();
-
     Params *p;
 };
 

@@ -113,7 +113,10 @@ void Params::SetParams( Config *c )
     EnergyModel = c->GetString( "EnergyModel" );
     EnergyModel_set = c->KeyExists( "EnergyModel" );
 
+    UseLowPower = ( c->GetString( "UseLowPower" ) == "true" );
+    PowerDownMode = c->GetString( "PowerDownMode" );
     InitPD = ( c->GetString( "InitPD" ) == "true" );
+
     PrintGraphs = ( c->GetString( "PrintGraphs" ) == "true" );
     PrintAllDevices = ( c->GetString( "PrintAllDevices" ) == "true" );
     PrintAllDevices_set = c->KeyExists( "PrintAllDevices" );

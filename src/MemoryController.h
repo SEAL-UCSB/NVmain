@@ -133,22 +133,24 @@ class MemoryController : public NVMObject
     ncounter_t starvationThreshold;
     ncounter_t subArrayNum;
 
+    bool *rankPowerDown;
+
     NVMainRequest *MakeActivateRequest( NVMainRequest *triggerRequest );
-    NVMainRequest *MakeActivateRequest( const uint64_t, const uint64_t, 
-                                        const uint64_t, const uint64_t, 
-                                        const uint64_t );
+    NVMainRequest *MakeActivateRequest( const ncounter_t, const ncounter_t, 
+                                        const ncounter_t, const ncounter_t, 
+                                        const ncounter_t );
     NVMainRequest *MakeImplicitPrechargeRequest( NVMainRequest *triggerRequest );
     NVMainRequest *MakePrechargeRequest( NVMainRequest *triggerRequest );
-    NVMainRequest *MakePrechargeRequest( const uint64_t, const uint64_t, 
-                                         const uint64_t, const uint64_t, 
-                                         const uint64_t );
+    NVMainRequest *MakePrechargeRequest( const ncounter_t, const ncounter_t, 
+                                         const ncounter_t, const ncounter_t, 
+                                         const ncounter_t );
     NVMainRequest *MakePrechargeAllRequest( NVMainRequest *triggerRequest );
-    NVMainRequest *MakePrechargeAllRequest( const uint64_t, const uint64_t, 
-                                            const uint64_t, const uint64_t,
-                                            const uint64_t );
-    NVMainRequest *MakeRefreshRequest( const uint64_t, const uint64_t, 
-                                       const uint64_t, const uint64_t, 
-                                       const uint64_t );
+    NVMainRequest *MakePrechargeAllRequest( const ncounter_t, const ncounter_t, 
+                                            const ncounter_t, const ncounter_t,
+                                            const ncounter_t );
+    NVMainRequest *MakeRefreshRequest( const ncounter_t, const ncounter_t, 
+                                       const ncounter_t, const ncounter_t, 
+                                       const ncounter_t );
 
     bool FindStarvedRequest( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **starvedRequest );
     bool FindRowBufferHit( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **hitRequest );
@@ -187,26 +189,33 @@ class MemoryController : public NVMObject
     /* indicate the number of bank groups for refresh */
     ncounter_t m_refreshBankNum; 
     /* return true if the delayed refresh in the corresponding bank reach the threshold */
-    bool NeedRefresh(const uint64_t, const uint64_t); 
+    bool NeedRefresh(const ncounter_t, const ncounter_t); 
     /* basically, it increment the delayedRefreshCounter and generate the next refresh pulse */
     void ProcessRefreshPulse( NVMainRequest* ); 
     /* return true if ALL command queues in the bank group are empty */
-    bool IsRefreshBankQueueEmpty(const uint64_t, const uint64_t); 
+    bool IsRefreshBankQueueEmpty(const ncounter_t, const ncounter_t); 
 
     /* set the refresh flag for a given bank group */
-    void SetRefresh(const uint64_t, const uint64_t); 
+    void SetRefresh(const ncounter_t, const ncounter_t); 
     /* reset the refresh flag for a given bank group */
-    void ResetRefresh(const uint64_t, const uint64_t); 
+    void ResetRefresh(const ncounter_t, const ncounter_t); 
     
     /* increment the delayedRefreshCounter in a given bank group */
-    void IncrementRefreshCounter(const uint64_t, const uint64_t); 
+    void IncrementRefreshCounter(const ncounter_t, const ncounter_t); 
     /* decrement the delayedRefreshCounter in a given bank group */
-    void DecrementRefreshCounter(const uint64_t, const uint64_t); 
+    void DecrementRefreshCounter(const ncounter_t, const ncounter_t); 
     
     /* next Refresh rank and bank */
     ncounter_t nextRefreshRank, nextRefreshBank; 
     /* issue REFRESH command if necessary; otherwise do nothing */
-    bool HandleRefresh(); 
+    virtual bool HandleRefresh( ); 
+
+    /* check whether any all command queues in the rank are empty */
+    bool RankQueueEmpty( const ncounter_t& );
+
+    void PowerDown( const ncounter_t& );
+    void PowerUp( const ncounter_t& );
+    virtual void HandleLowPower( );
     
     class DummyPredicate : public SchedulingPredicate
     {

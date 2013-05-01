@@ -54,17 +54,23 @@ class OffChipBus : public Interconnect
 
     bool RequestComplete( NVMainRequest *request );
 
-    ncycle_t GetNextActivate( uint64_t rank, uint64_t bank );
-    ncycle_t GetNextRead( uint64_t rank, uint64_t bank );
-    ncycle_t GetNextWrite( uint64_t rank, uint64_t bank );
-    ncycle_t GetNextPrecharge( uint64_t rank, uint64_t bank );
-    ncycle_t GetNextRefresh( uint64_t rank, uint64_t bank );
+    bool CanPowerDown( const OpType&, const ncounter_t& );
+    bool PowerDown( const OpType&, const ncounter_t& );
+    bool CanPowerUp( const ncounter_t& );
+    bool PowerUp( const ncounter_t& );
+    bool IsRankIdle( const ncounter_t& );
+
+    ncycle_t GetNextActivate( ncounter_t rank, ncounter_t bank );
+    ncycle_t GetNextRead( ncounter_t rank, ncounter_t bank );
+    ncycle_t GetNextWrite( ncounter_t rank, ncounter_t bank );
+    ncycle_t GetNextPrecharge( ncounter_t rank, ncounter_t bank );
+    ncycle_t GetNextRefresh( ncounter_t rank, ncounter_t bank );
 
     void PrintStats( );
 
     void Cycle( ncycle_t steps );
 
-    Rank *GetRank( uint64_t rank ) { return ranks[rank]; }
+    Rank *GetRank( ncounter_t rank ) { return ranks[rank]; }
 
   private:
     bool configSet;

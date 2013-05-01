@@ -651,7 +651,9 @@ bool Bank::IsIssuable( NVMainRequest *req, FailReason *reason )
     if( req->type == ACTIVATE )
     {
         /* if the bank-level nextActive is not satisfied, cannot issue */
-        if( nextActivate > (GetEventQueue()->GetCurrentCycle()) )
+        if( nextActivate > ( GetEventQueue()->GetCurrentCycle() ) 
+            || state == BANK_PDPF || state == BANK_PDPS || state == BANK_PDA )
+
         {
             rv = false;
             if( reason ) 
