@@ -119,12 +119,20 @@ void NVMain::SetConfig( Config *conf, std::string memoryName )
     else
       std::cout << "Warning: Sim Interface should be allocated before configuration!" << std::endl;
 
-    rows = (int)p->MATHeight;
+    if( conf->KeyExists( "MATHeight" ) )
+    {
+        rows = (int)p->MATHeight;
+        subarrays = (int)( p->ROWS / p->MATHeight );
+    }
+    else
+    {
+        rows = p->ROWS;
+        subarrays = 1;
+    }
     cols = (int)p->COLS;
     banks = (int)p->BANKS;
     ranks = (int)p->RANKS;
     channels = (int)p->CHANNELS;
-    subarrays = (int)( p->ROWS / p->MATHeight );
 
     if( config->KeyExists( "Decoder" ) )
         translator = DecoderFactory::CreateNewDecoder( config->GetString( "Decoder" ) );

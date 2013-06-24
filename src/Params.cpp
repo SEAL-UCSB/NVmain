@@ -50,6 +50,7 @@ Params::Params( )
     Rtt_cont_set = false;
     Vddq_set = false;
     Vssq_set = false;
+    MATHeight_set = false;
 
     /* Defaults */
     PrintPreTrace = false;
@@ -57,6 +58,8 @@ Params::Params( )
     PrintConfig = false;
 
     StaggerRefresh = false;
+
+    ROWS = 32768;
 }
 
 Params::~Params( )
@@ -144,6 +147,7 @@ void Params::SetParams( Config *c )
     BANKS = c->GetValue( "BANKS" );
     RAW = c->GetValue( "RAW" );
     MATHeight = c->GetValue( "MATHeight" );
+    MATHeight_set = c->KeyExists( "MATHeight" );
 
     tAL = c->GetValue( "tAL" );
     tBURST = c->GetValue( "tBURST" );
@@ -178,5 +182,8 @@ void Params::SetParams( Config *c )
     BanksPerRefresh = c->GetValue ( "BanksPerRefresh" );
     DelayedRefreshThreshold = c->GetValue ( "DelayedRefreshThreshold" );
     AddressMappingScheme = c->GetString ( "AddressMappingScheme" );
+
+    /* Check for uninitialized parameters. */
+    if( !MATHeight_set ) MATHeight = ROWS;
 }
 

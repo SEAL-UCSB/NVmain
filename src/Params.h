@@ -128,6 +128,7 @@ class Params
     ncounter_t BANKS;
     ncounter_t RAW;
     ncounter_t MATHeight;
+    bool MATHeight_set;
 
     ncycle_t tAL;
     ncycle_t tBURST;

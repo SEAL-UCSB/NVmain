@@ -191,7 +191,14 @@ void MemoryController::SetConfig( Config *conf )
     translator->GetTranslationMethod( )->SetAddressMappingScheme( 
             p->AddressMappingScheme );
 
-    subArrayNum = p->ROWS / p->MATHeight;
+    if( conf->KeyExists( "MATHeight" ) )
+    {
+        subArrayNum = p->ROWS / p->MATHeight;
+    }
+    else
+    {
+        subArrayNum = 1;
+    }
     
     bankQueues = new std::deque<NVMainRequest *> * [p->RANKS];
     activateQueued = new bool * [p->RANKS];
@@ -392,7 +399,7 @@ bool MemoryController::HandleRefresh( )
                                     MakePrechargeAllRequest( 0, 0, tmpBank, i, 0 ) );
 
                             /* clear all active subarrays */
-                            for( int sa = 0; sa < subArrayNum; sa++ )
+                            for( ncounter_t sa = 0; sa < subArrayNum; sa++ )
                             {
                                 activeSubArray[i][tmpBank][sa] = false; 
                                 effectiveRow[i][tmpBank][sa] = p->ROWS;
@@ -1056,7 +1063,7 @@ bool MemoryController::FindClosedBankRequests( std::list<NVMainRequest *>& trans
     return rv;
 }
 
-bool MemoryController::DummyPredicate::operator() ( NVMainRequest* request )
+bool MemoryController::DummyPredicate::operator() ( NVMainRequest* /*request*/ )
 {
     return true;
 }
