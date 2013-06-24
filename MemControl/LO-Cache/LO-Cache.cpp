@@ -103,7 +103,7 @@ void LO_Cache::SetConfig( Config *conf )
 
     ranks = static_cast<ncounter_t>( conf->GetValue( "RANKS" ) );
     banks = static_cast<ncounter_t>( conf->GetValue( "BANKS" ) );
-    rows  = static_cast<ncounter_t>( conf->GetValue( "MATHeight" ) );
+    rows  = static_cast<ncounter_t>( conf->GetValue( "ROWS" ) );
 
 
     functionalCache = new CacheBank**[ranks];

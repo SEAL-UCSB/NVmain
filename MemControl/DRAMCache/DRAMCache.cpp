@@ -106,12 +106,21 @@ void DRAMCache::SetConfig( Config *conf )
 
         int channels, ranks, banks, rows, cols, subarrays;
         
-        rows = conf->GetValue( "MATHeight" );
+        if( conf->KeyExists( "MATHeight" ) )
+        {
+            rows = conf->GetValue( "MATHeight" );
+            subarrays = conf->GetValue( "ROWS" ) / conf->GetValue( "MATHeight" );
+        }
+        else
+        {
+            rows = conf->GetValue( "ROWS" );
+            subarrays = 1;
+        }
+
         cols = conf->GetValue( "COLS" );
         banks = conf->GetValue( "BANKS" );
         ranks = conf->GetValue( "RANKS" );
         channels = conf->GetValue( "DRC_CHANNELS" );
-        subarrays = conf->GetValue( "ROWS" ) / conf->GetValue( "MATHeight" );
 
         TranslationMethod *drcMethod = new TranslationMethod();
         drcMethod->SetBitWidths( NVM::mlog2( rows ),
