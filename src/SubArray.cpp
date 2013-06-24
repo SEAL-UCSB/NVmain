@@ -389,7 +389,7 @@ bool SubArray::Write( NVMainRequest *request )
     busReq->owner = this;
 
     GetEventQueue( )->InsertEvent( EventResponse, this, busReq, 
-            GetEventQueue()->GetCurrentCycle() + p->tCAS );
+            GetEventQueue()->GetCurrentCycle() + p->tCWD );
 
     /* Notify owner of write completion as well */
     GetEventQueue( )->InsertEvent( EventResponse, this, request, 
