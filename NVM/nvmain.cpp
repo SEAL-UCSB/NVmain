@@ -209,13 +209,13 @@ void NVMain::SetConfig( Config *conf, std::string memoryName )
         }
 
         /* Initialize ranks */
-        memory[i] = InterconnectFactory::CreateInterconnect( config->GetString( "INTERCONNECT" ) );
+        memory[i] = InterconnectFactory::CreateInterconnect( channelConfig[i]->GetString( "INTERCONNECT" ) );
 
         confString.str( "" );
         confString << memoryName << ".channel" << i;
         memory[i]->StatName( confString.str( ) );
 
-        AddressTranslator *incAT = DecoderFactory::CreateDecoderNoWarn( conf->GetString( "Decoder" ) );
+        AddressTranslator *incAT = DecoderFactory::CreateDecoderNoWarn( channelConfig[i]->GetString( "Decoder" ) );
         incAT->SetTranslationMethod( method );
         incAT->SetDefaultField( RANK_FIELD );
         memory[i]->SetDecoder( incAT );
