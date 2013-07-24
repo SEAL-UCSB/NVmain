@@ -236,10 +236,12 @@ bool RequestTracer::RequestComplete( NVMainRequest *req )
         if( detectDeadlocks )
         {
             TracedRequest *tr = tracedRequests[addr];
-            bool timerRemoved;
-
-            timerRemoved = GetEventQueue()->RemoveEvent( tr->deadlockEvent, tr->deadlockTimer );
+#ifndef NDEBUG
+            bool timerRemoved = GetEventQueue()->RemoveEvent( tr->deadlockEvent, tr->deadlockTimer );
             assert( timerRemoved );
+#else
+            GetEventQueue()->RemoveEvent( tr->deadlockEvent, tr->deadlockTimer );
+#endif
         }
 
         tracedRequests.erase(addr);

@@ -186,7 +186,6 @@ bool STeMS::DoPrefetch( NVMainRequest *triggerOp,
                         std::vector<NVMAddress>& prefetchList )
 {
     NVMAddress pfAddr;
-    bool foundAGT = false;
 
     /* If there is an entry in the PST for this PC, build a recon buffer */
     if( PST.count( triggerOp->programCounter ) )
@@ -302,8 +301,6 @@ bool STeMS::DoPrefetch( NVMainRequest *triggerOp,
 
             if( ( addressDiff / 64 ) < 256 )
             {
-                foundAGT = true;
-
                 ps->offset[ps->size] = address - ps->address;
                 ps->delta[ps->size] = 0;
                 ps->size++;

@@ -424,17 +424,11 @@ bool SubArray::Write( NVMainRequest *request )
         {
             /* If the old data is not there, we will assume the data is 0.*/
             uint64_t wordSize;
-            uint64_t blockMask;
-            uint64_t blockAddr;
             bool hardError;
 
             wordSize = p->BusWidth;
             wordSize *= p->tBURST * p->RATE;
             wordSize /= 8;
-
-            blockMask = ~(wordSize - 1);
-
-            blockAddr = request->address.GetPhysicalAddress( ) & blockMask;
 
             if( !conf->GetSimInterface( )-> GetDataAtAddress( 
                         request->address.GetPhysicalAddress( ), &oldData ) )
@@ -796,10 +790,6 @@ ncounter_t SubArray::GetId( )
 
 void SubArray::PrintStats( )
 {
-    double idealBandwidth;
-
-    idealBandwidth = (double)(p->CLK * p->MULT * p->RATE * p->BPC);
-
     if( p->EnergyModel_set && p->EnergyModel == "current" )
     {
         std::cout << "i" << psInterval << "." << statName << ".current " << subArrayEnergy << "\t; mA" << std::endl;

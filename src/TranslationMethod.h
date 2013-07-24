@@ -48,7 +48,8 @@ enum MemoryPartition
     MEM_BANK = 2, 
     MEM_RANK = 3, 
     MEM_CHANNEL = 4,
-    MEM_SUBARRAY = 5 
+    MEM_SUBARRAY = 5,
+    MEM_UNKNOWN = 100
 };
 
 class TranslationMethod

@@ -88,7 +88,7 @@ uint64_t AddressTranslator::ReverseTranslate( const uint64_t& row,
 
     uint64_t unitAddr = 1;
     uint64_t phyAddr = 0;
-    MemoryPartition part;
+    MemoryPartition part = MEM_UNKNOWN;
 
     int busOffsetBits = mlog2( busWidth / 8 );
     int burstBits = mlog2( (busWidth * burstLength) / 8 );
@@ -142,7 +142,9 @@ uint64_t AddressTranslator::ReverseTranslate( const uint64_t& row,
                   unitAddr <<= subarrayBits;
                   break;
 
+            case MEM_UNKNOWN:
             default:
+                  std::cerr << "Address Translator: No partition found for address " << std::endl;
                   break;
         }
     }
@@ -350,7 +352,10 @@ void AddressTranslator::FindOrder( int order, MemoryPartition *p )
     else if( subarrayOrder == order )
         *p = MEM_SUBARRAY;
     else
+    {
+        *p = MEM_UNKNOWN;
         std::cerr << "Address Translator: No order " << order << std::endl << "Row = " << rowOrder
 	      << " Column = " << colOrder << " Bank = " << bankOrder << " Rank = " << rankOrder
 	      << " Channel = " << channelOrder << " SubArray = " << subarrayOrder << std::endl;
+    }
 }
