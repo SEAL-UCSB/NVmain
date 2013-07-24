@@ -142,8 +142,6 @@ void Config::Read( std::string filename )
             
             tokens = strtok( NULL, " " );
             
-            double dl;
-
             i = values.find( ty );
             if( i != values.end( ) )
                 values.erase( i );
@@ -157,7 +155,6 @@ void Config::Read( std::string filename )
                 }
                 else
                 {
-                    dl = (double)atof( tokens );
                     values.insert( std::pair<std::string, 
                             std::string>( ty, tokens ) );
                 }

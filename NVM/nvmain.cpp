@@ -121,18 +121,18 @@ void NVMain::SetConfig( Config *conf, std::string memoryName )
 
     if( conf->KeyExists( "MATHeight" ) )
     {
-        rows = (int)p->MATHeight;
-        subarrays = (int)( p->ROWS / p->MATHeight );
+        rows = static_cast<int>(p->MATHeight);
+        subarrays = static_cast<int>( p->ROWS / p->MATHeight );
     }
     else
     {
-        rows = p->ROWS;
+        rows = static_cast<int>(p->ROWS);
         subarrays = 1;
     }
-    cols = (int)p->COLS;
-    banks = (int)p->BANKS;
-    ranks = (int)p->RANKS;
-    channels = (int)p->CHANNELS;
+    cols = static_cast<int>(p->COLS);
+    banks = static_cast<int>(p->BANKS);
+    ranks = static_cast<int>(p->RANKS);
+    channels = static_cast<int>(p->CHANNELS);
 
     if( config->KeyExists( "Decoder" ) )
         translator = DecoderFactory::CreateNewDecoder( config->GetString( "Decoder" ) );
@@ -242,7 +242,7 @@ void NVMain::SetConfig( Config *conf, std::string memoryName )
         memoryControllers[i]->SetConfig( channelConfig[i] );
     }
     
-    numChannels = (unsigned int)channels;
+    numChannels = static_cast<unsigned int>(channels);
 
     std::string pretraceFile;
 

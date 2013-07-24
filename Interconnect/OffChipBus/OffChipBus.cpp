@@ -409,9 +409,8 @@ double OffChipBus::CalculateIOPower( bool isRead, unsigned int bitValue )
             R5 = Rothpd;
 
             /* Delta-wye transformation */
-            double RP, RA, RB, RC;
+            double RP, RB, RC;
             RP = R3*R4 + R4*R5 + R5*R3;
-            RA = RP / R3;
             RB = RP / R5;
             RC = RP / R4;
 
@@ -465,18 +464,16 @@ double OffChipBus::CalculateIOPower( bool isRead, unsigned int bitValue )
             Vwrite = (bitValue == 0) ? VSSQ : VDDQ;
 
             /* Do delta-wye transforms. */
-            double RAL, RBL, RCL, RAR, RBR, RCR;
+            double RAL, RBL, RAR, RBR;
             double RPL, RPR;
 
             RPL = Rothpu*Rothpd + Rothpd*Rs + Rs*Rothpu;
             RAL = RPL / Rothpd;
             RBL = RPL / Rothpu;
-            RCL = RPL / Rs;
 
             RPR = Rttpu*Rttpd + Rttpd*Rs + Rs*Rttpu;
             RAR = RPR / Rttpd;
             RBR = RPR / Rttpu;
-            RCR = RPR / Rs;
 
             /* Calculate bus voltage. */
             double Vbus;
