@@ -169,6 +169,14 @@ void TranslationMethod::SetAddressMappingScheme( std::string scheme )
             std::cerr << "NVMain Error: invalid address mapping scheme: " 
                 << scheme << std::endl;
     }
+
+    /* Set any unset, assuming they are not used. */
+    if( subarray == 0 ) { subarray = currentOrder--; }
+    if( channel == 0 ) { channel = currentOrder--; }
+    if( rank == 0 ) { rank = currentOrder--; }
+    if( bank == 0 ) { bank = currentOrder--; }
+    if( row == 0 ) { row = currentOrder--; }
+    if( col == 0 ) { col = currentOrder--; }
     
     SetOrder( row, col, bank, rank, channel, subarray );
     std::cout << "NVMain: the address mapping order is " << std::endl

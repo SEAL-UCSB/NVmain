@@ -57,7 +57,7 @@ void DRCDecoder::SetCachelineSize( uint64_t lineSize )
 }
 
 void DRCDecoder::Translate( uint64_t address, uint64_t *row, uint64_t *col, 
-                            uint64_t *bank, uint64_t *rank, uint64_t *channel, uint64_t * /*subarray*/ )
+                            uint64_t *bank, uint64_t *rank, uint64_t *channel, uint64_t *subarray )
 {
     int rowOrder, colOrder, bankOrder, rankOrder, channelOrder, subarrayOrder;
     unsigned int rowBits, colBits, bankBits, rankBits, channelBits, subarrayBits;
@@ -78,8 +78,9 @@ void DRCDecoder::Translate( uint64_t address, uint64_t *row, uint64_t *col,
     if( ignoreBits != 0 )
       workingAddr = workingAddr >> ignoreBits;
 
-    /* Column is ignored in our dram cache */
+    /* Column and subarray are ignored in our dram cache */
     *col = 0;
+    *subarray = 0;
 
     /* Find out if bank, rank, or channel are first, then decode accordingly */
     if( channelOrder < rankOrder && channelOrder < bankOrder )
