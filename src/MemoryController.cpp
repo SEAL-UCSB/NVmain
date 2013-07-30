@@ -297,7 +297,7 @@ void MemoryController::SetConfig( Config *conf )
         }
     }
 
-    this->config->Print();
+    //this->config->Print();
 }
 
 /* 

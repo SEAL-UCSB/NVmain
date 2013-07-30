@@ -178,9 +178,10 @@ bool DRAMCache::IssueAtomic( NVMainRequest *req )
 {
     uint64_t chan;
 
+    Retranslate( req );
     req->address.GetTranslatedAddress( NULL, NULL, NULL, NULL, &chan, NULL );
-
     assert( chan < numChannels );
+    assert( GetChild(req)->GetTrampoline() == drcChannels[chan] );
 
     return drcChannels[chan]->IssueAtomic( req );
 }
@@ -241,6 +242,8 @@ bool DRAMCache::RequestComplete( NVMainRequest *req )
         {
             uint64_t chan;
 
+            /* Retranslate incase the request was rerouted. */
+            Retranslate( req );
             req->address.GetTranslatedAddress( NULL, NULL, NULL, NULL, &chan, NULL );
 
             rv = drcChannels[chan]->RequestComplete( req );
