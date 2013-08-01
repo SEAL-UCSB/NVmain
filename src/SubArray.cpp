@@ -97,6 +97,26 @@ void SubArray::SetConfig( Config *c )
     if( conf->KeyExists( "MATWidth" ) )
         MATWidth = static_cast<ncounter_t>( conf->GetValue( "MATWidth" ) );
 
+    /* Configure the write mode. */
+    if( conf->KeyExists( "WriteMode" ) )
+    {
+        if( conf->GetString( "WriteMode" ) == "WriteThrough" )
+        {
+            writeMode = WRITE_THROUGH;
+        }
+        else if( conf->GetString( "WriteMode" ) == "WriteBack" )
+        {
+            writeMode = WRITE_BACK;
+        }
+        else
+        {
+            std::cout << "NVMain Warning: Unknown write mode `"
+                      << conf->GetString( "WriteMode" )
+                      << "'. Defaulting to WriteThrough" << std::endl;
+            writeMode = WRITE_THROUGH;
+        }
+    }
+
     /* We need to create an endurance model at a sub-array level */
     endrModel = EnduranceModelFactory::CreateEnduranceModel( p->EnduranceModel );
     if( endrModel )
@@ -321,6 +341,7 @@ bool SubArray::Read( NVMainRequest *request )
 bool SubArray::Write( NVMainRequest *request )
 {
     uint64_t writeRow;
+    ncycle_t writeTimer;
 
     request->address.GetTranslatedAddress( &writeRow, NULL, NULL, NULL, NULL, NULL );
 
@@ -345,13 +366,18 @@ bool SubArray::Write( NVMainRequest *request )
         return false;
     }
 
+    /* Determine the write time. */
+    writeTimer = p->tWP; // Assume write-through.
+    if( writeMode == WRITE_BACK && writeCycle )
+        writeTimer = 0;
+
     /* Update timing constraints */
     if( request->type == WRITE_PRECHARGE )
     {
         nextActivate = MAX( nextActivate, 
                             GetEventQueue()->GetCurrentCycle()
                                 + p->tAL + p->tCWD + p->tBURST 
-                                + p->tWR + p->tRP );
+                                + writeTimer + p->tWR + p->tRP );
 
         nextPrecharge = MAX( nextPrecharge, nextActivate );
         nextRead = MAX( nextRead, nextActivate );
@@ -365,21 +391,21 @@ bool SubArray::Write( NVMainRequest *request )
         /* insert the event to issue the implicit precharge */ 
         GetEventQueue( )->InsertEvent( EventResponse, this, preReq, 
             GetEventQueue()->GetCurrentCycle() 
-            + p->tAL + p->tCWD + p->tBURST + p->tWR );
+            + p->tAL + p->tCWD + p->tBURST + writeTimer + p->tWR );
     }
     else
     {
         nextPrecharge = MAX( nextPrecharge, 
                              GetEventQueue()->GetCurrentCycle() 
-                                 + p->tAL + p->tCWD + p->tBURST + p->tWR );
+                                 + p->tAL + p->tCWD + p->tBURST + writeTimer + p->tWR );
 
         nextRead = MAX( nextRead, 
                         GetEventQueue()->GetCurrentCycle() 
-                            + p->tCWD + p->tBURST + p->tWTR );
+                            + p->tCWD + p->tBURST + p->tWTR + writeTimer );
 
         nextWrite = MAX( nextWrite, 
                          GetEventQueue()->GetCurrentCycle() 
-                             + MAX( p->tBURST, p->tCCD ) );
+                             + MAX( p->tBURST, p->tCCD ) + writeTimer );
     }
 
     /* Issue a bus burst request when the burst starts. */
@@ -393,7 +419,7 @@ bool SubArray::Write( NVMainRequest *request )
 
     /* Notify owner of write completion as well */
     GetEventQueue( )->InsertEvent( EventResponse, this, request, 
-            GetEventQueue()->GetCurrentCycle() + p->tCWD + p->tBURST );
+            GetEventQueue()->GetCurrentCycle() + p->tCWD + p->tBURST + writeTimer );
 
     /* Calculate energy. */
     if( p->EnergyModel_set && p->EnergyModel == "current" )
@@ -467,6 +493,8 @@ bool SubArray::Write( NVMainRequest *request )
  */
 bool SubArray::Precharge( NVMainRequest *request )
 {
+    ncycle_t writeTimer;
+
     /* TODO: Can we remove this sanity check and totally trust IsIssuable()? */
     /* sanity check */
     if( nextPrecharge > GetEventQueue()->GetCurrentCycle() )
@@ -483,13 +511,17 @@ bool SubArray::Precharge( NVMainRequest *request )
     }
 
     /* Update timing constraints */
+    writeTimer = MAX( 1, p->tRP ); // Assume write-through. Needs to be at least one due to event callback.
+    if( writeMode == WRITE_BACK && writeCycle )
+        writeTimer = MAX( 1, p->tRP + p->tWP );
+
     nextActivate = MAX( nextActivate, 
-                        GetEventQueue()->GetCurrentCycle() + p->tRP );
+                        GetEventQueue()->GetCurrentCycle() + writeTimer );
 
     /* the request is deleted by RequestComplete() */
     request->owner = this;
     GetEventQueue( )->InsertEvent( EventResponse, this, request, 
-              GetEventQueue()->GetCurrentCycle() + p->tRP );
+              GetEventQueue()->GetCurrentCycle() + writeTimer );
 
     /* set the subarray under precharging */
     state = SUBARRAY_PRECHARGING;

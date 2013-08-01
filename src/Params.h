@@ -148,10 +148,13 @@ class Params
     ncycle_t tRRDW;
     ncycle_t tRTP;
     ncycle_t tRTRS;
+    ncycle_t tWP;
     ncycle_t tWR;
     ncycle_t tWTR;
     ncycle_t tXP;
     ncycle_t tXPDLL;
+
+    bool tWP_set;
 
     ncycle_t tRDPDEN; // interval between Read/ReadA and PowerDown
     ncycle_t tWRPDEN; // interval between Write and PowerDown
