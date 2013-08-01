@@ -60,6 +60,8 @@ Params::Params( )
     StaggerRefresh = false;
 
     ROWS = 32768;
+
+    tWP = 0;
 }
 
 Params::~Params( )
@@ -167,6 +169,7 @@ void Params::SetParams( Config *c )
     tRRDW = c->GetValue( "tRRDW" );
     tRTP = c->GetValue( "tRTP" );
     tRTRS = c->GetValue( "tRTRS" );
+    tWP = c->GetValue( "tWP" );
     tWR = c->GetValue( "tWR" );
     tWTR = c->GetValue( "tWTR" );
     tXP = c->GetValue( "tXP" );
@@ -185,5 +188,7 @@ void Params::SetParams( Config *c )
 
     /* Check for uninitialized parameters. */
     if( !MATHeight_set ) MATHeight = ROWS;
+    
+    if( !tWP_set ) tWP = 0;
 }
 
