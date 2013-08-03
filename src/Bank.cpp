@@ -444,6 +444,8 @@ bool Bank::Write( NVMainRequest *request )
         writeCycle = true;
         writes++;
 
+        UpdateEndurance( request );
+
         if( request->type == WRITE_PRECHARGE )
         {
             precharges++;
@@ -811,6 +813,52 @@ bool Bank::IssueCommand( NVMainRequest *req )
     }
 
     return rv;
+}
+
+void Bank::UpdateEndurance( NVMainRequest *request )
+{
+    if( endrModel && bankId == 0 )
+    {
+        NVMDataBlock oldData;
+
+        if( conf->GetSimInterface( ) != NULL )
+        {
+            /* If the old data is not there, we will assume the data is 0.*/
+            uint64_t wordSize;
+            bool hardError;
+
+            wordSize = p->BusWidth;
+            wordSize *= p->tBURST * p->RATE;
+            wordSize /= 8;
+
+            if( !conf->GetSimInterface( )-> GetDataAtAddress( 
+                        request->address.GetPhysicalAddress( ), &oldData ) )
+            {
+                for( uint64_t i = 0; i < wordSize; i++ )
+                  oldData.SetByte( i, 0 );
+            }
+        
+            /* Write the new data... */
+            conf->GetSimInterface( )->SetDataAtAddress( 
+                    request->address.GetPhysicalAddress( ), request->data );
+    
+            /* Model the endurance */
+            hardError = !endrModel->Write( request->address, oldData, 
+                                            request->data );
+
+            if( hardError )
+            {
+                std::cout << "WARNING: Write to 0x" << std::hex 
+                    << request->address.GetPhysicalAddress( )
+                    << std::dec << " resulted in a hard error! " << std::endl;
+            }
+        }
+        else
+        {
+            std::cerr << "NVMain Error: Endurance modeled without simulator "
+                << "interface for data tracking!" << std::endl;
+        }
+    }
 }
 
 bool Bank::WouldConflict( uint64_t checkRow, uint64_t checkSA )
