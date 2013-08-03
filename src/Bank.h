@@ -182,6 +182,8 @@ class Bank : public NVMObject
     ncounter_t bankId;
  
     Params *p;
+
+    void UpdateEndurance( NVMainRequest *request );
 };
 
 };

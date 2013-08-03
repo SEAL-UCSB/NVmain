@@ -442,49 +442,6 @@ bool SubArray::Write( NVMainRequest *request )
     writes++;
     dataCycles += p->tBURST;
     
-    if( endrModel )
-    {
-        NVMDataBlock oldData;
-
-        if( conf->GetSimInterface( ) != NULL )
-        {
-            /* If the old data is not there, we will assume the data is 0.*/
-            uint64_t wordSize;
-            bool hardError;
-
-            wordSize = p->BusWidth;
-            wordSize *= p->tBURST * p->RATE;
-            wordSize /= 8;
-
-            if( !conf->GetSimInterface( )-> GetDataAtAddress( 
-                        request->address.GetPhysicalAddress( ), &oldData ) )
-            {
-                for( int i = 0; i < (int)(p->BusWidth / 8); i++ )
-                  oldData.SetByte( i, 0 );
-            }
-        
-            /* Write the new data... */
-            conf->GetSimInterface( )->SetDataAtAddress( 
-                    request->address.GetPhysicalAddress( ), request->data );
-    
-            /* Model the endurance */
-            hardError = !endrModel->Write( request->address, oldData, 
-                                            request->data );
-
-            if( hardError )
-            {
-                std::cout << "WARNING: Write to 0x" << std::hex 
-                    << request->address.GetPhysicalAddress( )
-                    << std::dec << " resulted in a hard error! " << std::endl;
-            }
-        }
-        else
-        {
-            std::cerr << "NVMain Error: Endurance modeled without simulator "
-                << "interface for data tracking!" << std::endl;
-        }
-    }
-
     return true;
 }
 
