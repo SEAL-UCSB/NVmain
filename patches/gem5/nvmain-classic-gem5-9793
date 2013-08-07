@@ -3,7 +3,7 @@
 
 diff -r 344a843953d6 configs/common/MemConfig.py
 --- a/configs/common/MemConfig.py	Wed Jul 31 07:28:16 2013 -0400
-+++ b/configs/common/MemConfig.py	Thu Aug 01 11:23:38 2013 -0400
++++ b/configs/common/MemConfig.py	Wed Aug 07 13:29:33 2013 -0400
 @@ -54,6 +54,7 @@
      ("lpddr2_s4_1066_x32", "LPDDR2_S4_1066_x32"),
      ("lpddr3_1600_x32", "LPDDR3_1600_x32"),
@@ -14,7 +14,7 @@ diff -r 344a843953d6 configs/common/MemConfig.py
  # Filtered list of aliases. Only aliases for existing memory
 diff -r 344a843953d6 configs/common/Options.py
 --- a/configs/common/Options.py	Wed Jul 31 07:28:16 2013 -0400
-+++ b/configs/common/Options.py	Thu Aug 01 11:23:38 2013 -0400
++++ b/configs/common/Options.py	Wed Aug 07 13:29:33 2013 -0400
 @@ -192,6 +192,24 @@
          help="""Treat value of --checkpoint-restore or --take-checkpoint as a
                  number of instructions.""")
@@ -42,7 +42,7 @@ diff -r 344a843953d6 configs/common/Options.py
      parser.add_option("-c", "--cmd", default="",
 diff -r 344a843953d6 src/mem/NVMainMemory.py
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/NVMainMemory.py	Thu Aug 01 11:23:38 2013 -0400
++++ b/src/mem/NVMainMemory.py	Wed Aug 07 13:29:33 2013 -0400
 @@ -0,0 +1,81 @@
 +# Copyright (c) 2012-2013 Pennsylvania State University
 +# All rights reserved.
@@ -127,7 +127,7 @@ diff -r 344a843953d6 src/mem/NVMainMemory.py
 +
 diff -r 344a843953d6 src/mem/SConscript
 --- a/src/mem/SConscript	Wed Jul 31 07:28:16 2013 -0400
-+++ b/src/mem/SConscript	Thu Aug 01 11:23:38 2013 -0400
++++ b/src/mem/SConscript	Wed Aug 07 13:29:33 2013 -0400
 @@ -60,8 +60,10 @@
      SimObject('AbstractMemory.py')
      SimObject('SimpleMemory.py')
@@ -149,8 +149,8 @@ diff -r 344a843953d6 src/mem/SConscript
  DebugFlag('RubyCache')
 diff -r 344a843953d6 src/mem/nvmain_mem.cc
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/nvmain_mem.cc	Thu Aug 01 11:23:38 2013 -0400
-@@ -0,0 +1,597 @@
++++ b/src/mem/nvmain_mem.cc	Wed Aug 07 13:29:33 2013 -0400
+@@ -0,0 +1,605 @@
 +/*
 + * Copyright (c) 2012-2013 Pennsylvania State University
 + * All rights reserved.
@@ -216,7 +216,6 @@ diff -r 344a843953d6 src/mem/nvmain_mem.cc
 +    char *saveptr1, *saveptr2;
 +
 +    m_nvmainPtr = NULL;
-+    m_slot_available = true;
 +    m_nacked_requests = false;
 +
 +    m_nvmainConfigPath = p->config;
@@ -470,6 +469,13 @@ diff -r 344a843953d6 src/mem/nvmain_mem.cc
 +        return true;
 +    }
 +
++
++    if (memory.retryRead || memory.retryWrite)
++    {
++        DPRINTF(NVMain, "nvmain_mem.cc: Received request while waiting for retry!\n");
++        return false;
++    }
++
 +    // Bus latency is modeled in NVMain.
 +    pkt->busFirstWordDelay = pkt->busLastWordDelay = 0;
 +
@@ -533,8 +539,6 @@ diff -r 344a843953d6 src/mem/nvmain_mem.cc
 +    enqueued = memory.GetChild( )->IssueCommand(request);
 +    if(enqueued)
 +    {
-+        memory.m_slot_available = true;
-+
 +        NVMainMemoryRequest *memRequest = new NVMainMemoryRequest;
 +
 +        memRequest->request = request;
@@ -569,8 +573,6 @@ diff -r 344a843953d6 src/mem/nvmain_mem.cc
 +    }
 +    else
 +    {
-+        memory.m_slot_available = false;
-+
 +        DPRINTF(NVMain, "nvmain_mem.cc: FAILED enqueue Mem request for 0x%x of type %s\n", request->address.GetPhysicalAddress( ), ((pkt->isRead()) ? "READ" : "WRITE") );
 +
 +        if (pkt->isRead())
@@ -643,24 +645,29 @@ diff -r 344a843953d6 src/mem/nvmain_mem.cc
 +    iter = m_request_map.find(req);
 +    memRequest = iter->second;
 +
-+    if(memRequest->packet && !memRequest->atomic)
-+    //if(!memRequest->atomic)
++    //if(memRequest->packet && !memRequest->atomic)
++    if(!memRequest->atomic)
 +    {
-+        bool respond = memRequest->packet->needsResponse();
-+        access(memRequest->packet);
++        bool respond = false;
 +
-+        if( retryRead == true && memRequest->packet->isRead() )
++        if( memRequest->packet )
++        {
++            respond = memRequest->packet->needsResponse();
++            access(memRequest->packet);
++        }
++
++        if( retryRead == true && req->type == READ )
 +        {
 +            retryRead = false;
 +            port.sendRetry();
 +        }
-+        if( retryWrite == true && !memRequest->packet->isRead() )
++        if( retryWrite == true && req->type == WRITE )
 +        {
 +            retryWrite = false;
 +            port.sendRetry();
 +        }
 +
-+        DPRINTF(NVMain, "Completed Mem request for 0x%x of type %s\n", req->address.GetPhysicalAddress( ), ((memRequest->packet->isRead()) ? "READ" : "WRITE"));
++        DPRINTF(NVMain, "Completed Mem request for 0x%x of type %s\n", req->address.GetPhysicalAddress( ), ((req->type == READ) ? "READ" : "WRITE"));
 +
 +        if(respond)
 +        {
@@ -672,7 +679,8 @@ diff -r 344a843953d6 src/mem/nvmain_mem.cc
 +        else
 +        {
 +            /* modified by Tao @ 01/24/2013 */
-+            pendingDelete.push_back(memRequest->packet);
++            if( memRequest->packet )
++                pendingDelete.push_back(memRequest->packet);
 +            //delete memRequest->packet;
 +            delete req;
 +            delete memRequest;
@@ -750,8 +758,8 @@ diff -r 344a843953d6 src/mem/nvmain_mem.cc
 +
 diff -r 344a843953d6 src/mem/nvmain_mem.hh
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/nvmain_mem.hh	Thu Aug 01 11:23:38 2013 -0400
-@@ -0,0 +1,202 @@
++++ b/src/mem/nvmain_mem.hh	Wed Aug 07 13:29:33 2013 -0400
+@@ -0,0 +1,201 @@
 +/*
 + * Copyright (c) 2012-2013 Pennsylvania State University
 + * All rights reserved.
@@ -896,7 +904,6 @@ diff -r 344a843953d6 src/mem/nvmain_mem.hh
 +    std::string m_nvmainConfigPath;
 +
 +    bool m_nacked_requests;
-+    bool m_slot_available;
 +    float m_avgAtomicLatency;
 +    uint64_t m_numAtomicAccesses;
 +
@@ -954,22 +961,3 @@ diff -r 344a843953d6 src/mem/nvmain_mem.hh
 +
 +#endif
 +
-diff -r 344a843953d6 src/sim/serialize.cc
---- a/src/sim/serialize.cc	Wed Jul 31 07:28:16 2013 -0400
-+++ b/src/sim/serialize.cc	Thu Aug 01 11:23:38 2013 -0400
-@@ -33,6 +33,7 @@
- #include <sys/stat.h>
- #include <sys/time.h>
- #include <sys/types.h>
-+#include <signal.h>
- 
- #include <cerrno>
- #include <fstream>
-@@ -225,6 +226,7 @@
- {
-     string str;
-     if (!cp->find(section, name, str) || !parseParam(str, param)) {
-+        raise(SIGSTOP);
-         fatal("Can't unserialize '%s:%s'\n", section, name);
-     }
- }
