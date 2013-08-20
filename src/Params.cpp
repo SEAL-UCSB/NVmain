@@ -35,6 +35,8 @@
 
 #include "Params.h"
 
+#include <cmath>
+
 using namespace NVM;
 
 Params::Params( )
@@ -66,6 +68,37 @@ Params::Params( )
 
 Params::~Params( )
 {
+}
+
+ncycle_t Params::ConvertTiming( Config *conf, std::string param )
+{
+    std::string stringValue = conf->GetString( param );
+    double numericValue = conf->GetEnergy( param ); // GetEnergy returns a float.
+    double calculatedValue = numericValue; // Assume pre-calculated.
+    ncounter_t clock = conf->GetValue( "CLK" );
+
+    if( stringValue.length() > 2 )
+    {
+        std::string units = stringValue.substr( stringValue.length() - 2, std::string::npos );
+
+        if( units == "ns" )
+        {
+            // CLK is in MHz, divide from 1000 to get period in ns.
+            calculatedValue = static_cast<double>(numericValue) * (static_cast<double>(clock) / 1e3f);
+        }
+        else if( units == "us" )
+        {
+            // CLK is in MHz, divide from 1000 to get period in ns.
+            calculatedValue = static_cast<double>(numericValue) * (static_cast<double>(clock) / 1e6f);
+        }
+        else if( units == "ms" )
+        {
+            // CLK is in MHz, divide from 1000 to get period in ns.
+            calculatedValue = static_cast<double>(numericValue) * (static_cast<double>(clock) / 1e9f);
+        }
+    }
+
+    return static_cast<ncycle_t>( std::ceil( calculatedValue ) );
 }
 
 /* This can be called whenever timings change. (Will not update the "next" vars) */
@@ -151,29 +184,29 @@ void Params::SetParams( Config *c )
     MATHeight = c->GetValue( "MATHeight" );
     MATHeight_set = c->KeyExists( "MATHeight" );
 
-    tAL = c->GetValue( "tAL" );
-    tBURST = c->GetValue( "tBURST" );
-    tCAS = c->GetValue( "tCAS" );
-    tCCD = c->GetValue( "tCCD" );
-    tCMD = c->GetValue( "tCMD" );
-    tCWD = c->GetValue( "tCWD" );
-    tRAW = c->GetValue( "tRAW" );
-    tOST = c->GetValue( "tOST" );
-    tPD = c->GetValue( "tPD" );
-    tRAS = c->GetValue( "tRAS" );
-    tRCD = c->GetValue( "tRCD" );
-    tREFW = c->GetValue( "tREFW" );
-    tRFC = c->GetValue( "tRFC" );
-    tRP = c->GetValue( "tRP" );
-    tRRDR = c->GetValue( "tRRDR" );
-    tRRDW = c->GetValue( "tRRDW" );
-    tRTP = c->GetValue( "tRTP" );
-    tRTRS = c->GetValue( "tRTRS" );
-    tWP = c->GetValue( "tWP" );
-    tWR = c->GetValue( "tWR" );
-    tWTR = c->GetValue( "tWTR" );
-    tXP = c->GetValue( "tXP" );
-    tXPDLL = c->GetValue( "tXPDLL" );
+    tAL = ConvertTiming( c, "tAL" );
+    tBURST = ConvertTiming( c, "tBURST" );
+    tCAS = ConvertTiming( c, "tCAS" );
+    tCCD = ConvertTiming( c, "tCCD" );
+    tCMD = ConvertTiming( c, "tCMD" );
+    tCWD = ConvertTiming( c, "tCWD" );
+    tRAW = ConvertTiming( c, "tRAW" );
+    tOST = ConvertTiming( c, "tOST" );
+    tPD = ConvertTiming( c, "tPD" );
+    tRAS = ConvertTiming( c, "tRAS" );
+    tRCD = ConvertTiming( c, "tRCD" );
+    tREFW = ConvertTiming( c, "tREFW" );
+    tRFC = ConvertTiming( c, "tRFC" );
+    tRP = ConvertTiming( c, "tRP" );
+    tRRDR = ConvertTiming( c, "tRRDR" );
+    tRRDW = ConvertTiming( c, "tRRDW" );
+    tRTP = ConvertTiming( c, "tRTP" );
+    tRTRS = ConvertTiming( c, "tRTRS" );
+    tWP = ConvertTiming( c, "tWP" );
+    tWR = ConvertTiming( c, "tWR" );
+    tWTR = ConvertTiming( c, "tWTR" );
+    tXP = ConvertTiming( c, "tXP" );
+    tXPDLL = ConvertTiming( c, "tXPDLL" );
 
     tRDPDEN = c->GetValue( "tRDPDEN" );
     tWRPDEN = c->GetValue( "tWRPDEN" );

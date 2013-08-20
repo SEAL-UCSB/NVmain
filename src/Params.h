@@ -166,6 +166,9 @@ class Params
     unsigned BanksPerRefresh; // the number of banks in a refresh (in lockstep)
     unsigned DelayedRefreshThreshold; // the threshold that indicates how many refresh can be delayed
     std::string AddressMappingScheme; // the address mapping scheme
+
+  private:
+    ncycle_t ConvertTiming( Config *conf, std::string param );
 };
 
 };
