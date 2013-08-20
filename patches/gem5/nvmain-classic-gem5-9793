@@ -3,7 +3,7 @@
 
 diff -r b2aed19e50d4 configs/common/MemConfig.py
 --- a/configs/common/MemConfig.py	Wed Aug 07 16:12:33 2013 -0400
-+++ b/configs/common/MemConfig.py	Wed Aug 07 17:09:17 2013 -0400
++++ b/configs/common/MemConfig.py	Tue Aug 20 13:19:16 2013 -0400
 @@ -54,6 +54,7 @@
      ("lpddr2_s4_1066_x32", "LPDDR2_S4_1066_x32"),
      ("lpddr3_1600_x32", "LPDDR3_1600_x32"),
@@ -14,7 +14,7 @@ diff -r b2aed19e50d4 configs/common/MemConfig.py
  # Filtered list of aliases. Only aliases for existing memory
 diff -r b2aed19e50d4 configs/common/Options.py
 --- a/configs/common/Options.py	Wed Aug 07 16:12:33 2013 -0400
-+++ b/configs/common/Options.py	Wed Aug 07 17:09:17 2013 -0400
++++ b/configs/common/Options.py	Tue Aug 20 13:19:16 2013 -0400
 @@ -192,6 +192,24 @@
          help="""Treat value of --checkpoint-restore or --take-checkpoint as a
                  number of instructions.""")
@@ -42,7 +42,7 @@ diff -r b2aed19e50d4 configs/common/Options.py
      parser.add_option("-c", "--cmd", default="",
 diff -r b2aed19e50d4 src/mem/NVMainMemory.py
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/NVMainMemory.py	Wed Aug 07 17:09:17 2013 -0400
++++ b/src/mem/NVMainMemory.py	Tue Aug 20 13:19:16 2013 -0400
 @@ -0,0 +1,81 @@
 +# Copyright (c) 2012-2013 Pennsylvania State University
 +# All rights reserved.
@@ -127,7 +127,7 @@ diff -r b2aed19e50d4 src/mem/NVMainMemory.py
 +
 diff -r b2aed19e50d4 src/mem/SConscript
 --- a/src/mem/SConscript	Wed Aug 07 16:12:33 2013 -0400
-+++ b/src/mem/SConscript	Wed Aug 07 17:09:17 2013 -0400
++++ b/src/mem/SConscript	Tue Aug 20 13:19:16 2013 -0400
 @@ -60,8 +60,10 @@
      SimObject('AbstractMemory.py')
      SimObject('SimpleMemory.py')
@@ -149,8 +149,8 @@ diff -r b2aed19e50d4 src/mem/SConscript
  DebugFlag('RubyCache')
 diff -r b2aed19e50d4 src/mem/nvmain_mem.cc
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/nvmain_mem.cc	Wed Aug 07 17:09:17 2013 -0400
-@@ -0,0 +1,608 @@
++++ b/src/mem/nvmain_mem.cc	Tue Aug 20 13:19:16 2013 -0400
+@@ -0,0 +1,614 @@
 +/*
 + * Copyright (c) 2012-2013 Pennsylvania State University
 + * All rights reserved.
@@ -659,12 +659,18 @@ diff -r b2aed19e50d4 src/mem/nvmain_mem.cc
 +            access(memRequest->packet);
 +        }
 +
-+        if( retryRead == true && isRead )
++        /*
++         *  If we have combined queues (FRFCFS/FCFS) there is a problem.
++         *  I assume that gem5 will stall such that only one type of request
++         *  will need a retry, however I do not explicitly enfore that only
++         *  one sendRetry() be called.
++         */
++        if( retryRead == true && (isRead || isWrite) )
 +        {
 +            retryRead = false;
 +            port.sendRetry();
 +        }
-+        if( retryWrite == true && isWrite )
++        if( retryWrite == true && (isRead || isWrite) )
 +        {
 +            retryWrite = false;
 +            port.sendRetry();
@@ -761,7 +767,7 @@ diff -r b2aed19e50d4 src/mem/nvmain_mem.cc
 +
 diff -r b2aed19e50d4 src/mem/nvmain_mem.hh
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/nvmain_mem.hh	Wed Aug 07 17:09:17 2013 -0400
++++ b/src/mem/nvmain_mem.hh	Tue Aug 20 13:19:16 2013 -0400
 @@ -0,0 +1,201 @@
 +/*
 + * Copyright (c) 2012-2013 Pennsylvania State University
