@@ -128,6 +128,7 @@ class MemoryController : public NVMObject
 
     bool **activateQueued;
     ncounter_t ***effectiveRow;
+    ncounter_t ***effectiveMuxedRow;
     ncounter_t ***activeSubArray;
     ncounter_t ***starvationCounter;
     ncounter_t starvationThreshold;
