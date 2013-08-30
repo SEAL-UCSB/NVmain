@@ -34,6 +34,7 @@
 *******************************************************************************/
 
 #include "Params.h"
+#include "include/NVMHelpers.h"
 
 #include <cmath>
 
@@ -53,6 +54,7 @@ Params::Params( )
     Vddq_set = false;
     Vssq_set = false;
     MATHeight_set = false;
+    RBSize_set = false;
 
     /* Defaults */
     PrintPreTrace = false;
@@ -183,6 +185,8 @@ void Params::SetParams( Config *c )
     RAW = c->GetValue( "RAW" );
     MATHeight = c->GetValue( "MATHeight" );
     MATHeight_set = c->KeyExists( "MATHeight" );
+    RBSize = c->GetValue( "RBSize" );
+    RBSize_set = c->KeyExists( "RBSize" );
 
     tAL = ConvertTiming( c, "tAL" );
     tBURST = ConvertTiming( c, "tBURST" );
@@ -221,7 +225,12 @@ void Params::SetParams( Config *c )
 
     /* Check for uninitialized parameters. */
     if( !MATHeight_set ) MATHeight = ROWS;
+    if( !RBSize_set ) RBSize = COLS;
     
     if( !tWP_set ) tWP = 0;
+
+    /* Get the true number of addressable words in a row buffer */
+    RBSize >>= mlog2( 8 ); // Shift by burst length
+    RBSize >>= mlog2( DeviceWidth ); // Shift of the number of bits output in all cases
 }
 

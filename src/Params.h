@@ -122,6 +122,8 @@ class Params
     bool PeriodicStatsInterval_set;
 
     ncounter_t ROWS;
+    ncounter_t RBSize;
+    bool RBSize_set;
     ncounter_t COLS;
     ncounter_t CHANNELS;
     ncounter_t RANKS;
