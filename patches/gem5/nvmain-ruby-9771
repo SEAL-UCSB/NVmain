@@ -1,10 +1,10 @@
 # HG changeset patch
-# Parent 3f6e2f267aba6571c478fcd83c4a1b9d6564084f
+# Parent b523d7503d1b5b2ceb0faa587926ec7cd02ba157
 
-diff -r 3f6e2f267aba configs/common/Options.py
---- a/configs/common/Options.py	Mon Aug 26 10:58:06 2013 -0500
-+++ b/configs/common/Options.py	Wed Aug 28 10:04:34 2013 -0400
-@@ -198,6 +198,25 @@
+diff -r b523d7503d1b configs/common/Options.py
+--- a/configs/common/Options.py	Tue Sep 10 16:21:57 2013 -0400
++++ b/configs/common/Options.py	Tue Sep 10 17:06:05 2013 -0400
+@@ -176,6 +176,25 @@
          help="""Treat value of --checkpoint-restore or --take-checkpoint as a
                  number of instructions.""")
  
@@ -30,9 +30,9 @@ diff -r 3f6e2f267aba configs/common/Options.py
  def addSEOptions(parser):
      # Benchmark options
      parser.add_option("-c", "--cmd", default="",
-diff -r 3f6e2f267aba configs/ruby/Ruby.py
---- a/configs/ruby/Ruby.py	Mon Aug 26 10:58:06 2013 -0500
-+++ b/configs/ruby/Ruby.py	Wed Aug 28 10:04:34 2013 -0400
+diff -r b523d7503d1b configs/ruby/Ruby.py
+--- a/configs/ruby/Ruby.py	Tue Sep 10 16:21:57 2013 -0400
++++ b/configs/ruby/Ruby.py	Tue Sep 10 17:06:05 2013 -0400
 @@ -44,6 +44,86 @@
  from m5.objects import *
  from m5.defines import buildEnv
@@ -120,7 +120,7 @@ diff -r 3f6e2f267aba configs/ruby/Ruby.py
  def define_options(parser):
      # By default, ruby uses the simple timing cpu
      parser.set_defaults(cpu_type="timing")
-@@ -72,6 +152,14 @@
+@@ -63,6 +143,14 @@
                        help="high order address bit to use for numa mapping. " \
                             "0 = highest bit, not specified = lowest bit")
  
@@ -135,7 +135,7 @@ diff -r 3f6e2f267aba configs/ruby/Ruby.py
      # ruby sparse memory options
      parser.add_option("--use-map", action="store_true", default=False)
      parser.add_option("--map-levels", type="int", default=4)
-@@ -114,6 +202,15 @@
+@@ -106,6 +194,15 @@
          print "Error: could not create sytem for ruby protocol %s" % protocol
          raise
  
@@ -151,10 +151,10 @@ diff -r 3f6e2f267aba configs/ruby/Ruby.py
      # Create a port proxy for connecting the system port. This is
      # independent of the protocol and kept in the protocol-agnostic
      # part (i.e. here).
-diff -r 3f6e2f267aba src/mem/ruby/system/NVMainControl.cc
+diff -r b523d7503d1b src/mem/ruby/system/NVMainControl.cc
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/ruby/system/NVMainControl.cc	Wed Aug 28 10:04:34 2013 -0400
-@@ -0,0 +1,566 @@
++++ b/src/mem/ruby/system/NVMainControl.cc	Tue Sep 10 17:06:05 2013 -0400
+@@ -0,0 +1,597 @@
 +/*
 + * Copyright (c) 1999-2008 Mark D. Hill and David A. Wood
 + * All rights reserved.
@@ -250,6 +250,7 @@ diff -r 3f6e2f267aba src/mem/ruby/system/NVMainControl.cc
 +    m_nvmainPtr = NULL;
 +    m_slot_available = true;
 +    m_retryRequest = NULL;
++    m_replaying = false;
 +
 +    m_nvmainConfigPath = p->config;
 +
@@ -381,7 +382,10 @@ diff -r 3f6e2f267aba src/mem/ruby/system/NVMainControl.cc
 +    // This is meant to reset memory controller settings, i.e. round robin
 +    // counters, statistics, etc.
 +    //
-+    // TODO: Is this ever called ?
++    m_msg_counter = 0;
++
++    // ruby will call reset after simulating the cache recorder replay.
++    m_replaying = false;
 +}
 +
 +unsigned int
@@ -413,15 +417,25 @@ diff -r 3f6e2f267aba src/mem/ruby/system/NVMainControl.cc
 +{
 +    m_msg_counter++;
 +    memRef.m_msg_counter = m_msg_counter;
-+    int transfer_size;
-+
-+    transfer_size = m_BusWidth / 8;
-+    transfer_size *= m_tBURST * m_RATE;
 +
 +    DPRINTF(RubyMemory, "New memory request%7d: %#08x %c arrived at %lld\n",
 +            m_msg_counter, (unsigned int)memRef.m_addr, memRef.m_is_mem_read ? 'R':'W',
 +            memRef.m_time * g_system_ptr->clockPeriod());
 +
++    /*
++     *  If we are replaying, just send it back, NVMain doesn't need to
++     *  replay anything to function properly
++     */
++    if( m_replaying )
++    {
++        enqueueToDirectory( memRef, Cycles(1) );
++        return;
++    }
++
++    int transfer_size;
++
++    transfer_size = m_BusWidth / 8;
++    transfer_size *= m_tBURST * m_RATE;
 +
 +    // Build NVMainRequest and send to NVMain code.
 +    NVMainRequest *request = new NVMainRequest( );
@@ -595,6 +609,23 @@ diff -r 3f6e2f267aba src/mem/ruby/system/NVMainControl.cc
 +    m_nvmainPtr->Cycle( 1 );
 +}
 +
++void
++NVMainControl::serialize(std::ostream& )
++{
++    // TODO: Add checkpoint support to NVMain
++}
++
++void
++NVMainControl::unserialize(Checkpoint * /*cp*/, const std::string & /*section*/)
++{
++    /*
++     *  When restoring a checkpoint, ruby will replay cache
++     *  accesses. We will ignore these in NVMain and use our
++     *  own checkpoint restore to restore NVMain caches.
++     */
++    m_replaying = true;
++}
++
 +bool
 +NVMainControl::functionalReadBuffers(Packet *pkt)
 +{
@@ -649,7 +680,7 @@ diff -r 3f6e2f267aba src/mem/ruby/system/NVMainControl.cc
 +        }
 +    }
 +
-+    return false;
++    return num_functional_writes;
 +}
 +
 +bool
@@ -721,10 +752,10 @@ diff -r 3f6e2f267aba src/mem/ruby/system/NVMainControl.cc
 +
 +
 +
-diff -r 3f6e2f267aba src/mem/ruby/system/NVMainControl.hh
+diff -r b523d7503d1b src/mem/ruby/system/NVMainControl.hh
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/ruby/system/NVMainControl.hh	Wed Aug 28 10:04:34 2013 -0400
-@@ -0,0 +1,180 @@
++++ b/src/mem/ruby/system/NVMainControl.hh	Tue Sep 10 17:06:05 2013 -0400
+@@ -0,0 +1,184 @@
 +/*
 + * Copyright (c) 1999-2008 Mark D. Hill and David A. Wood
 + * All rights reserved.
@@ -857,6 +888,9 @@ diff -r 3f6e2f267aba src/mem/ruby/system/NVMainControl.hh
 +    bool functionalReadBuffers(Packet *pkt);
 +    uint32_t functionalWriteBuffers(Packet *pkt);
 +
++    void serialize(std::ostream &os);
++    void unserialize(Checkpoint *cp, const std::string &section);
++
 +    void reset();
 +    void Cycle(NVM::ncycle_t) {}
 +
@@ -892,6 +926,7 @@ diff -r 3f6e2f267aba src/mem/ruby/system/NVMainControl.hh
 +    int m_banks, m_ranks, m_ranksPerDimm;
 +
 +    bool m_slot_available;
++    bool m_replaying;
 +    NVM::NVMain *m_nvmainPtr;
 +    NVM::SimInterface *m_nvmainSimInterface;
 +    NVM::Config *m_nvmainConfig;
@@ -905,9 +940,9 @@ diff -r 3f6e2f267aba src/mem/ruby/system/NVMainControl.hh
 +};
 +
 +#endif // __MEM_RUBY_SYSTEM_NVMAIN_CONTROL_HH__
-diff -r 3f6e2f267aba src/mem/ruby/system/NVMainControl.py
+diff -r b523d7503d1b src/mem/ruby/system/NVMainControl.py
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/ruby/system/NVMainControl.py	Wed Aug 28 10:04:34 2013 -0400
++++ b/src/mem/ruby/system/NVMainControl.py	Tue Sep 10 17:06:05 2013 -0400
 @@ -0,0 +1,72 @@
 +# Copyright (c) 2009 Advanced Micro Devices, Inc.
 +# All rights reserved.
@@ -981,9 +1016,9 @@ diff -r 3f6e2f267aba src/mem/ruby/system/NVMainControl.py
 +
 +        self.configparams = config_params
 +        self.configvalues = config_values
-diff -r 3f6e2f267aba src/mem/ruby/system/SConscript
---- a/src/mem/ruby/system/SConscript	Mon Aug 26 10:58:06 2013 -0500
-+++ b/src/mem/ruby/system/SConscript	Wed Aug 28 10:04:34 2013 -0400
+diff -r b523d7503d1b src/mem/ruby/system/SConscript
+--- a/src/mem/ruby/system/SConscript	Tue Sep 10 16:21:57 2013 -0400
++++ b/src/mem/ruby/system/SConscript	Tue Sep 10 17:06:05 2013 -0400
 @@ -40,6 +40,7 @@
  SimObject('WireBuffer.py')
  SimObject('RubySystem.py')
