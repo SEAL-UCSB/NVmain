@@ -1,0 +1,983 @@
+# HG changeset patch
+# Parent c1b28ea22ff86c0b19e61ac578d66c15a59b0c5d
+
+diff -r c1b28ea22ff8 configs/common/MemConfig.py
+--- a/configs/common/MemConfig.py	Sun Sep 15 13:45:59 2013 -0500
++++ b/configs/common/MemConfig.py	Tue Sep 17 13:10:35 2013 -0400
+@@ -54,6 +54,7 @@
+     ("lpddr2_s4_1066_x32", "LPDDR2_S4_1066_x32"),
+     ("lpddr3_1600_x32", "LPDDR3_1600_x32"),
+     ("wio_200_x128", "WideIO_200_x128"),
++    ("nvmain", "NVMainMemory"),
+     ]
+ 
+ # Filtered list of aliases. Only aliases for existing memory
+diff -r c1b28ea22ff8 configs/common/Options.py
+--- a/configs/common/Options.py	Sun Sep 15 13:45:59 2013 -0500
++++ b/configs/common/Options.py	Tue Sep 17 13:10:35 2013 -0400
+@@ -198,6 +198,24 @@
+         help="""Treat value of --checkpoint-restore or --take-checkpoint as a
+                 number of instructions.""")
+ 
++    # Options for nvmain
++    parser.add_option("--nvmain-PARAM", type="string", default="NULL", help="Set NVMain configuration value for PARAM (e.g., --nvmain-RANKS=4, --nvmain-BANKS=8, etc.)") # Only provided for --help, does nothing
++    parser.add_option("--nvmain-warmup", action="store_true", help="Enable warm up of internal caches in NVMain (i.e., DRAMCaches, etc)")
++    parser.add_option("--nvmain-atomic", action="store_true", help="Enable NVMain when using the atomic CPU model.")
++    parser.add_option("--nvmain-atomic-latency", type="string", default="30ns", help="Specify the latency of memory requests in atomic mode")
++    parser.add_option("--nvmain-atomic-variance", type="string", default="5ns", help="Specify the variance of memory requests latencies in atomic mode")
++    parser.add_option("--nvmain-config", type="string", help="Specify the path to the NVMain configuration file")
++
++    #
++    #  Check for extra nvmain configuration override options and add them as options to python
++    #
++    nvmain_argnum = 1
++    for arg in sys.argv:
++        if arg[:9] == "--nvmain-" and arg != "--nvmain-warmup":
++            parser.add_option(arg, type="string", default="NULL", help="Set NVMain configuration value for a parameter")
++        nvmain_argnum = nvmain_argnum + 1
++
++
+ def addSEOptions(parser):
+     # Benchmark options
+     parser.add_option("-c", "--cmd", default="",
+diff -r c1b28ea22ff8 src/mem/NVMainMemory.py
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/src/mem/NVMainMemory.py	Tue Sep 17 13:10:35 2013 -0400
+@@ -0,0 +1,87 @@
++# Copyright (c) 2012-2013 Pennsylvania State University
++# All rights reserved.
++#
++# Redistribution and use in source and binary forms, with or without
++# modification, are permitted provided that the following conditions are
++# met: redistributions of source code must retain the above copyright
++# notice, this list of conditions and the following disclaimer;
++# redistributions in binary form must reproduce the above copyright
++# notice, this list of conditions and the following disclaimer in the
++# documentation and/or other materials provided with the distribution;
++# neither the name of the copyright holders nor the names of its
++# contributors may be used to endorse or promote products derived from
++# this software without specific prior written permission.
++#
++# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
++# A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
++# OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
++# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
++# LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
++# DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
++# THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
++# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
++# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++#
++# Authors: Matt Poremba
++#          Tao Zhang
++
++import optparse
++import sys
++
++from m5.params import *
++from AbstractMemory import *
++from ClockDomain import *
++
++class NVMainMemory(AbstractMemory):
++    type = 'NVMainMemory'
++    cxx_header = 'mem/nvmain_mem.hh'
++    port = SlavePort("Slave ports")
++    atomic_mode = Param.Bool(False, "Enable to use NVMain in atomic mode rather than latency/variance")
++    atomic_latency = Param.Latency('30ns', "Request latency in atomic mode")
++    atomic_variance = Param.Latency('30ns', "Request latency in atomic mode")
++
++    config = Param.String("", "")
++    configparams = Param.String("", "")
++    configvalues = Param.String("", "")
++    NVMainWarmUp = Param.Bool(False, "Enable to warm up the internal cache in NVMain")
++
++
++    def __init__(self, *args, **kwargs):
++        AbstractMemory.__init__(self, *args, **kwargs)
++
++        config_params = ""
++        config_values = ""
++
++        for arg in sys.argv:
++            if arg[:9] == "--nvmain-":
++                param_pair = arg.split('=', 1)
++                param_name = (param_pair[0])[9:]
++                param_value = param_pair[1]
++
++                # Handle special cases
++                if param_name == "atomic":
++                    self.atomic_mode = True
++                elif param_name == "atomic-latency":
++                    self.atomic_latency = param_value
++                elif param_name == "atomic-variance":
++                    self.atomic_variance = param_value
++                elif param_name == "warmup":
++                    self.NVMainWarmUp = True
++                elif param_name == "config":
++                    self.config = param_value
++                else:
++                    print "Setting %s to %s" % (param_name, param_value)
++                    if config_params == "":
++                        config_params = param_name
++                    else:
++                        config_params = config_params + "," + param_name
++                    if config_values == "":
++                        config_values += param_value
++                    else:
++                        config_values = config_values + "," + param_value
++
++        self.configparams = config_params
++        self.configvalues = config_values
++
+diff -r c1b28ea22ff8 src/mem/SConscript
+--- a/src/mem/SConscript	Sun Sep 15 13:45:59 2013 -0500
++++ b/src/mem/SConscript	Tue Sep 17 13:10:35 2013 -0400
+@@ -43,6 +43,7 @@
+ SimObject('MemObject.py')
+ SimObject('SimpleMemory.py')
+ SimObject('SimpleDRAM.py')
++SimObject('NVMainMemory.py')
+ 
+ Source('abstract_mem.cc')
+ Source('addr_mapper.cc')
+@@ -60,6 +61,7 @@
+ Source('simple_mem.cc')
+ Source('physical.cc')
+ Source('simple_dram.cc')
++Source('nvmain_mem.cc')
+ 
+ if env['TARGET_ISA'] != 'null':
+     Source('fs_translating_port_proxy.cc')
+@@ -81,6 +83,7 @@
+ DebugFlag('MMU')
+ DebugFlag('MemoryAccess')
+ DebugFlag('PacketQueue')
++DebugFlag('NVMain')
+ 
+ DebugFlag('ProtocolTrace')
+ DebugFlag('RubyCache')
+diff -r c1b28ea22ff8 src/mem/nvmain_mem.cc
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/src/mem/nvmain_mem.cc	Tue Sep 17 13:10:35 2013 -0400
+@@ -0,0 +1,614 @@
++/*
++ * Copyright (c) 2012-2013 Pennsylvania State University
++ * All rights reserved.
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions are
++ * met: redistributions of source code must retain the above copyright
++ * notice, this list of conditions and the following disclaimer;
++ * redistributions in binary form must reproduce the above copyright
++ * notice, this list of conditions and the following disclaimer in the
++ * documentation and/or other materials provided with the distribution;
++ * neither the name of the copyright holders nor the names of its
++ * contributors may be used to endorse or promote products derived from
++ * this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
++ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
++ * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
++ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
++ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
++ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
++ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
++ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
++ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++/*
++ *  This file is part of NVMain- A cycle accurate timing, bit-accurate
++ *  energy simulator for non-volatile memory. Originally developed by
++ *  Matt Poremba at the Pennsylvania State University.
++ *
++ *  Website: http://www.cse.psu.edu/~poremba/nvmain/
++ *  Email: mrp5060@psu.edu
++ *
++ *  ---------------------------------------------------------------------
++ *
++ *  If you use this software for publishable research, please include
++ *  the original NVMain paper in the citation list and mention the use
++ *  of NVMain.
++ *
++ */
++
++#include "SimInterface/Gem5Interface/Gem5Interface.h"
++#include "Utils/HookFactory.h"
++#include "base/random.hh"
++#include "debug/NVMain.hh"
++#include "mem/nvmain_mem.hh"
++
++using namespace NVM;
++
++
++NVMainMemory::NVMainMemory(const Params *p)
++    : AbstractMemory(p), port(name() + ".port", *this),
++      lat(p->atomic_latency), lat_var(p->atomic_variance),
++      nvmain_atomic(p->atomic_mode), NVMainWarmUp(p->NVMainWarmUp)
++{
++    char *cfgparams;
++    char *cfgvalues;
++    char *cparam, *cvalue;
++
++    char *saveptr1, *saveptr2;
++
++    m_nvmainPtr = NULL;
++    m_nacked_requests = false;
++
++    m_nvmainConfigPath = p->config;
++
++    m_nvmainConfig = new Config( );
++
++    m_nvmainConfig->Read( m_nvmainConfigPath );
++    std::cout << "NVMainControl: Reading NVMain config file: " << m_nvmainConfigPath << "." << std::endl;
++
++    clock = clockPeriod( );
++
++    m_avgAtomicLatency = 100.0f;
++    m_numAtomicAccesses = 0;
++
++    retryRead = false;
++    retryWrite = false;
++
++    /*
++     * Modified by Tao @ 01/22/2013
++     * multiple parameters can be manually specified
++     * please separate the parameters by comma ","
++     * For example,
++     *    configparams = tRCD,tCAS,tRP
++     *    configvalues = 8,8,8
++     */
++    cfgparams = (char *)p->configparams.c_str();
++    cfgvalues = (char *)p->configvalues.c_str();
++
++    for( cparam = strtok_r( cfgparams, ",", &saveptr1 ), cvalue = strtok_r( cfgvalues, ",", &saveptr2 )
++           ; (cparam && cvalue) ; cparam = strtok_r( NULL, ",", &saveptr1 ), cvalue = strtok_r( NULL, ",", &saveptr2) )
++    {
++        std::cout << "NVMain: Overriding parameter `" << cparam << "' with `" << cvalue << "'" << std::endl;
++        m_nvmainConfig->SetValue( cparam, cvalue );
++    }
++
++   eventManager = new NVMainMemoryEventManager(&mainEventQueue, *this);
++
++   BusWidth = m_nvmainConfig->GetValue( "BusWidth" );
++   tBURST = m_nvmainConfig->GetValue( "tBURST" );
++   RATE = m_nvmainConfig->GetValue( "RATE" );
++
++   lastWakeup = curTick();
++}
++
++
++NVMainMemory::~NVMainMemory()
++{
++    std::cout << "NVMain dtor called" << std::endl;
++}
++
++
++void
++NVMainMemory::init()
++{
++    m_nvmainPtr = new NVMain( );
++    m_nvmainSimInterface = new Gem5Interface( );
++    m_nvmainEventQueue = new NVM::EventQueue( );
++
++    m_nvmainConfig->SetSimInterface( m_nvmainSimInterface );
++
++    if (port.isConnected()) {
++        port.sendRangeChange();
++    }
++
++    eventManager->scheduleWakeup( );
++
++    statPrinter.nvmainPtr = m_nvmainPtr;
++
++    registerExitCallback( &statPrinter );
++
++    SetEventQueue( m_nvmainEventQueue );
++
++    /*  Add any specified hooks */
++    std::vector<std::string>& hookList = m_nvmainConfig->GetHooks( );
++
++    for( size_t i = 0; i < hookList.size( ); i++ )
++    {
++        std::cout << "Creating hook " << hookList[i] << std::endl;
++
++        NVMObject *hook = HookFactory::CreateHook( hookList[i] );
++
++        if( hook != NULL )
++        {
++            AddHook( hook );
++            hook->SetParent( this );
++            hook->Init( m_nvmainConfig );
++        }
++        else
++        {
++            std::cout << "Warning: Could not create a hook named `"
++                << hookList[i] << "'." << std::endl;
++        }
++    }
++
++    /* Setup child and parent modules. */
++    AddChild( m_nvmainPtr );
++    m_nvmainPtr->SetParent( this );
++
++    m_nvmainPtr->SetConfig( m_nvmainConfig );
++}
++
++
++BaseSlavePort &
++NVMainMemory::getSlavePort(const std::string& if_name, PortID idx)
++{
++    if (if_name != "port") {
++        return MemObject::getSlavePort(if_name, idx);
++    } else {
++        return port;
++    }
++}
++
++
++NVMainMemory::MemoryPort::MemoryPort(const std::string& _name, NVMainMemory& _memory)
++    : QueuedSlavePort(_name, &_memory, queueImpl),
++      queueImpl(_memory, *this), memory(_memory)
++{
++
++}
++
++
++AddrRangeList NVMainMemory::MemoryPort::getAddrRanges() const
++{
++    AddrRangeList ranges;
++    ranges.push_back(memory.getAddrRange());
++    return ranges;
++}
++
++
++Tick
++NVMainMemory::MemoryPort::recvAtomic(PacketPtr pkt)
++{
++    if (pkt->memInhibitAsserted())
++        return 0;
++
++    /*
++     * do the memory access to get the read data and change the response tag
++     */
++    memory.access(pkt);
++
++    /*
++     * calculate the latency. Now it is only random number
++     */
++    Tick latency = memory.lat;
++
++    if (memory.lat_var != 0)
++        latency += random_mt.random<Tick>(0, memory.lat_var);
++
++    /*
++     *  if NVMain also needs the packet to warm up the inline cache, create the request
++     */
++    if( memory.NVMainWarmUp )
++    {
++        NVMainRequest *request = new NVMainRequest( );
++        unsigned int transfer_size;
++        uint8_t *hostAddr;
++
++        transfer_size =  memory.BusWidth / 8;
++        transfer_size *= memory.tBURST * memory.RATE;
++
++        /* extract the data in the packet */
++        if( pkt->isRead() )
++        {   // read
++            hostAddr = new uint8_t[ pkt->getSize() ];
++            memcpy( hostAddr, pkt->getPtr<uint8_t>(), pkt->getSize() );
++        }
++        else if( pkt->isWrite() )
++        {   // write
++            hostAddr = new uint8_t[ pkt->getSize() ];
++            memcpy( hostAddr, pkt->getPtr<uint8_t>(), pkt->getSize() );
++        }
++        else
++        {
++            // if it is neither read nor write, just return
++            // well, speed may suffer a little bit...
++            return latency;
++        }
++
++        /* store the data into the request */
++        for(int i = 0; i < transfer_size; i++ )
++        {
++            request->data.SetByte(i, *(hostAddr + (transfer_size - 1) - i));
++        }
++        delete [] hostAddr;
++
++        /* initialize the request so that NVMain can correctly serve it */
++        request->access = UNKNOWN_ACCESS;
++        request->address.SetPhysicalAddress(pkt->req->getPaddr());
++        request->status = MEM_REQUEST_INCOMPLETE;
++        request->type = (pkt->isRead()) ? READ : WRITE;
++        request->owner = (NVMObject *)&memory;
++        if(pkt->req->hasPC()) request->programCounter = pkt->req->getPC();
++        if(pkt->req->hasContextId()) request->threadId = pkt->req->contextId();
++
++        /*
++         * Issue the request to NVMain as an atomic request
++         */
++        memory.GetChild( )->IssueAtomic(request);
++
++        delete request;
++    }
++
++    return latency;
++}
++
++
++void
++NVMainMemory::MemoryPort::recvFunctional(PacketPtr pkt)
++{
++    pkt->pushLabel(memory.name());
++
++    if (!queue.checkFunctional(pkt)) {
++        memory.doFunctionalAccess(pkt);
++    }
++
++    pkt->popLabel();
++}
++
++
++bool
++NVMainMemory::MemoryPort::recvTimingReq(PacketPtr pkt)
++{
++    /* added by Tao @ 01/24/2013, just copy the code from SimpleMemory */
++    /// @todo temporary hack to deal with memory corruption issues until
++    /// 4-phase transactions are complete
++    for (int x = 0; x < memory.pendingDelete.size(); x++)
++        delete memory.pendingDelete[x];
++    memory.pendingDelete.clear();
++
++    if (pkt->memInhibitAsserted()) {
++        memory.pendingDelete.push_back(pkt);
++        return true;
++    }
++
++
++    if (!pkt->isRead() && !pkt->isWrite()) {
++        DPRINTF(NVMain, "NVMainMemory: Received a packet that is neither read nor write");
++
++        bool needsResponse = pkt->needsResponse();
++
++        memory.access(pkt);
++        if (needsResponse) {
++            assert(pkt->isResponse());
++
++            pkt->busFirstWordDelay = pkt->busLastWordDelay = 0;
++            queue.schedSendTiming(pkt, curTick() + 1);
++        } else {
++            memory.pendingDelete.push_back(pkt);
++        }
++
++        return true;
++    }
++
++
++    if (memory.retryRead || memory.retryWrite)
++    {
++        DPRINTF(NVMain, "nvmain_mem.cc: Received request while waiting for retry!\n");
++        return false;
++    }
++
++    // Bus latency is modeled in NVMain.
++    pkt->busFirstWordDelay = pkt->busLastWordDelay = 0;
++
++    NVMainRequest *request = new NVMainRequest( );
++
++    bool enqueued;
++    unsigned int transfer_size;
++    uint8_t *hostAddr;
++
++    transfer_size =  memory.BusWidth / 8;
++    transfer_size *= memory.tBURST * memory.RATE;
++
++    if (pkt->isRead())
++    {
++        Request *dataReq = new Request(pkt->req->getPaddr(), transfer_size, 0, Request::funcMasterId);
++        Packet *dataPkt = new Packet(dataReq, MemCmd::ReadReq);
++        dataPkt->allocate();
++        memory.doFunctionalAccess(dataPkt);
++
++        hostAddr = new uint8_t[ dataPkt->getSize() ];
++        memcpy( hostAddr, dataPkt->getPtr<uint8_t>(), dataPkt->getSize() );
++
++        delete dataPkt;
++        delete dataReq;
++    }
++    else
++    {
++        hostAddr = new uint8_t[ pkt->getSize() ];
++
++        memcpy( hostAddr, pkt->getPtr<uint8_t>(), pkt->getSize() );
++    }
++
++    for(int i = 0; i < transfer_size; i++ )
++    {
++        request->data.SetByte(i, *(hostAddr + (transfer_size - 1) - i));
++    }
++    delete [] hostAddr;
++
++    request->access = UNKNOWN_ACCESS;
++    request->address.SetPhysicalAddress(pkt->req->getPaddr());
++    request->status = MEM_REQUEST_INCOMPLETE;
++    request->type = (pkt->isRead()) ? READ : WRITE;
++    request->owner = (NVMObject *)&memory;
++
++    if(pkt->req->hasPC()) request->programCounter = pkt->req->getPC();
++    if(pkt->req->hasContextId()) request->threadId = pkt->req->contextId();
++
++    /* Call hooks here manually, since there is no one else to do it. */
++    std::vector<NVMObject *>& preHooks  = memory.GetHooks( NVMHOOK_PREISSUE );
++    std::vector<NVMObject *>& postHooks = memory.GetHooks( NVMHOOK_POSTISSUE );
++    std::vector<NVMObject *>::iterator it;
++
++    /* Call pre-issue hooks */
++    // TODO: Figure out what to do if it's not enqueued.
++    for( it = preHooks.begin(); it != preHooks.end(); it++ )
++    {
++        (*it)->SetParent( &memory );
++        (*it)->IssueCommand( request );
++    }
++
++    enqueued = memory.GetChild( )->IssueCommand(request);
++    if(enqueued)
++    {
++        NVMainMemoryRequest *memRequest = new NVMainMemoryRequest;
++
++        memRequest->request = request;
++        memRequest->packet = pkt;
++        memRequest->issueTick = curTick();
++        memRequest->atomic = false;
++
++        DPRINTF(NVMain, "nvmain_mem.cc: Enqueued Mem request for 0x%x of type %s\n", request->address.GetPhysicalAddress( ), ((pkt->isRead()) ? "READ" : "WRITE") );
++
++        memory.m_request_map.insert( std::pair<NVMainRequest *, NVMainMemoryRequest *>( request, memRequest ) );
++
++        /*
++         *  It seems gem5 will block until the packet gets a response, so create a copy of the request, so
++         *  the memory controller has it, then delete the original copy to respond to the packet.
++         */
++        if( request->type == WRITE )
++          {
++            NVMainMemoryRequest *requestCopy = new NVMainMemoryRequest( );
++
++            requestCopy->request = new NVMainRequest( );
++            *(requestCopy->request) = *request;
++            requestCopy->packet = pkt;
++            requestCopy->issueTick = curTick();
++            requestCopy->atomic = false;
++
++            memRequest->packet = NULL;
++
++            memory.m_request_map.insert( std::pair<NVMainRequest *, NVMainMemoryRequest *>( requestCopy->request, requestCopy ) );
++
++            memory.RequestComplete( requestCopy->request );
++          }
++    }
++    else
++    {
++        DPRINTF(NVMain, "nvmain_mem.cc: FAILED enqueue Mem request for 0x%x of type %s\n", request->address.GetPhysicalAddress( ), ((pkt->isRead()) ? "READ" : "WRITE") );
++
++        if (pkt->isRead())
++        {
++            memory.retryRead = true;
++        }
++        else
++        {
++            memory.retryWrite = true;
++        }
++
++        delete request;
++        request = NULL;
++    }
++
++    //memory.Sync();
++
++    /* Call post-issue hooks. */
++    if( request != NULL )
++    {
++        for( it = postHooks.begin(); it != postHooks.end(); it++ )
++        {
++            (*it)->SetParent( &memory );
++            (*it)->IssueCommand( request );
++        }
++    }
++
++    return enqueued;
++}
++
++
++
++Tick NVMainMemory::doAtomicAccess(PacketPtr pkt)
++{
++    access(pkt);
++    return static_cast<Tick>(m_avgAtomicLatency);
++}
++
++
++
++void NVMainMemory::doFunctionalAccess(PacketPtr pkt)
++{
++    functionalAccess(pkt);
++}
++
++
++void NVMainMemory::NVMainMemoryEvent::process()
++{
++    // Cycle memory controller
++    memory.m_nvmainPtr->Cycle( 1 );
++
++    memory.eventManager->scheduleWakeup( );
++}
++
++
++bool NVMainMemory::RequestComplete(NVM::NVMainRequest *req)
++{
++    bool isRead = (req->type == READ || req->type == READ_PRECHARGE);
++    bool isWrite = (req->type == WRITE || req->type == WRITE_PRECHARGE);
++
++    /* Ignore bus read/write requests generated by the banks. */
++    if( req->type == BUS_WRITE || req->type == BUS_READ )
++    {
++        delete req;
++        return true;
++    }
++
++    NVMainMemoryRequest *memRequest;
++    std::map<NVMainRequest *, NVMainMemoryRequest *>::iterator iter;
++
++    // Find the mem request pointer in the map.
++    assert(m_request_map.count(req) != 0);
++    iter = m_request_map.find(req);
++    memRequest = iter->second;
++
++    //if(memRequest->packet && !memRequest->atomic)
++    if(!memRequest->atomic)
++    {
++        bool respond = false;
++
++        if( memRequest->packet )
++        {
++            respond = memRequest->packet->needsResponse();
++            access(memRequest->packet);
++        }
++
++        /*
++         *  If we have combined queues (FRFCFS/FCFS) there is a problem.
++         *  I assume that gem5 will stall such that only one type of request
++         *  will need a retry, however I do not explicitly enfore that only
++         *  one sendRetry() be called.
++         */
++        if( retryRead == true && (isRead || isWrite) )
++        {
++            retryRead = false;
++            port.sendRetry();
++        }
++        if( retryWrite == true && (isRead || isWrite) )
++        {
++            retryWrite = false;
++            port.sendRetry();
++        }
++
++        DPRINTF(NVMain, "Completed Mem request for 0x%x of type %s\n", req->address.GetPhysicalAddress( ), (isRead ? "READ" : "WRITE"));
++
++        if(respond)
++        {
++            port.queue.schedSendTiming(memRequest->packet, curTick() + 1);
++
++            delete req;
++            delete memRequest;
++        }
++        else
++        {
++            /* modified by Tao @ 01/24/2013 */
++            if( memRequest->packet )
++                pendingDelete.push_back(memRequest->packet);
++            //delete memRequest->packet;
++            delete req;
++            delete memRequest;
++        }
++    }
++    else
++    {
++        delete req;
++        delete memRequest;
++    }
++
++
++    m_request_map.erase(iter);
++
++    return true;
++}
++
++
++void NVMainMemory::serialize(std::ostream& os)
++{
++    std::string nvmain_chkpt_file = "";
++
++    if( m_nvmainConfig->KeyExists( "CheckpointDirectory" ) )
++        nvmain_chkpt_file += m_nvmainConfig->GetString( "CheckpointDirectory" ) + "/";
++    if( m_nvmainConfig->KeyExists( "CheckpointName" ) )
++        nvmain_chkpt_file += m_nvmainConfig->GetString( "CheckpointName" );
++
++    std::cout << "NVMainMemory: Writing to checkpoint file " << nvmain_chkpt_file << std::endl;
++
++    // TODO: Add checkpoint to nvmain itself.
++    //m_nvmainPtr->Checkpoint( nvmain_chkpt_file );
++}
++
++
++void NVMainMemory::unserialize(Checkpoint *cp, const std::string& section)
++{
++    std::string nvmain_chkpt_file = "";
++
++    if( m_nvmainConfig->KeyExists( "CheckpointDirectory" ) )
++        nvmain_chkpt_file += m_nvmainConfig->GetString( "CheckpointDirectory" ) + "/";
++    if( m_nvmainConfig->KeyExists( "CheckpointName" ) )
++        nvmain_chkpt_file += m_nvmainConfig->GetString( "CheckpointName" );
++
++    // TODO: Add checkpoint to nvmain itself
++    //m_nvmainPtr->Restore( nvmain_chkpt_file );
++
++    // If we are restoring from a checkpoint, we need to reschedule the wake up
++    // so it is not in the past.
++    if( eventManager->memEvent->scheduled() && eventManager->memEvent->when() <= curTick() )
++    {
++        eventManager->deschedule( eventManager->memEvent );
++        eventManager->scheduleWakeup();
++    }
++}
++
++
++NVMainMemory::NVMainMemoryEventManager::NVMainMemoryEventManager(::EventQueue* eventq, NVMainMemory &_memory)
++    : EventManager(eventq), memory(_memory)
++{
++    memEvent = new NVMainMemoryEvent(_memory);
++}
++
++
++void NVMainMemory::NVMainMemoryEventManager::scheduleWakeup( )
++{
++    schedule(memEvent, curTick() + memory.clock);
++}
++
++
++NVMainMemory *
++NVMainMemoryParams::create()
++{
++    return new NVMainMemory(this);
++}
++
+diff -r c1b28ea22ff8 src/mem/nvmain_mem.hh
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/src/mem/nvmain_mem.hh	Tue Sep 17 13:10:35 2013 -0400
+@@ -0,0 +1,201 @@
++/*
++ * Copyright (c) 2012-2013 Pennsylvania State University
++ * All rights reserved.
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions are
++ * met: redistributions of source code must retain the above copyright
++ * notice, this list of conditions and the following disclaimer;
++ * redistributions in binary form must reproduce the above copyright
++ * notice, this list of conditions and the following disclaimer in the
++ * documentation and/or other materials provided with the distribution;
++ * neither the name of the copyright holders nor the names of its
++ * contributors may be used to endorse or promote products derived from
++ * this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
++ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
++ * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
++ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
++ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
++ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
++ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
++ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
++ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++/*
++ *  This file is part of NVMain- A cycle accurate timing, bit-accurate
++ *  energy simulator for non-volatile memory. Originally developed by
++ *  Matt Poremba at the Pennsylvania State University.
++ *
++ *  Website: http://www.cse.psu.edu/~poremba/nvmain/
++ *  Email: mrp5060@psu.edu
++ *
++ *  ---------------------------------------------------------------------
++ *
++ *  If you use this software for publishable research, please include
++ *  the original NVMain paper in the citation list and mention the use
++ *  of NVMain.
++ *
++ */
++
++#ifndef __MEM_NVMAIN_MEM_HH__
++#define __MEM_NVMAIN_MEM_HH__
++
++
++#include "NVM/nvmain.h"
++#include "base/callback.hh"
++#include "include/NVMTypes.h"
++#include "include/NVMainRequest.h"
++#include "mem/abstract_mem.hh"
++#include "mem/tport.hh"
++#include "params/NVMainMemory.hh"
++#include "sim/eventq.hh"
++#include "src/Config.h"
++#include "src/EventQueue.h"
++#include "src/NVMObject.h"
++#include "src/SimInterface.h"
++
++class NVMainMemory : public AbstractMemory, public NVM::NVMObject
++{
++  private:
++
++    class MemoryPort : public QueuedSlavePort
++    {
++        friend class NVMainMemory;
++
++        SlavePacketQueue queueImpl;
++        NVMainMemory& memory;
++
++      public:
++
++        MemoryPort(const std::string& _name, NVMainMemory& _memory);
++
++      protected:
++
++        Tick recvAtomic(PacketPtr pkt);
++
++        void recvFunctional(PacketPtr pkt);
++
++        bool recvTimingReq(PacketPtr pkt);
++
++        AddrRangeList getAddrRanges() const;
++
++    };
++
++    class NVMainMemoryEvent : public Event
++    {
++        friend class NVMainMemory;
++
++        NVMainMemory& memory;
++
++      public:
++
++        NVMainMemoryEvent(NVMainMemory &_memory) : memory(_memory) { }
++        ~NVMainMemoryEvent() { }
++
++        void process();
++    };
++
++    class NVMainMemoryEventManager : public EventManager
++    {
++        friend class NVMainMemory;
++
++        NVMainMemory& memory;
++
++        NVMainMemoryEvent *memEvent;
++
++      public:
++
++        NVMainMemoryEventManager(::EventQueue *eventq, NVMainMemory &_memory);
++        ~NVMainMemoryEventManager( ) { }
++
++        void scheduleWakeup( );
++    };
++
++    class NVMainStatPrinter : public Callback
++    {
++      public:
++        void process() { if( nvmainPtr != NULL ) nvmainPtr->PrintStats( ); }
++
++        NVM::NVMain *nvmainPtr;
++    };
++
++    struct NVMainMemoryRequest
++    {
++        PacketPtr packet;
++        NVM::NVMainRequest *request;
++        Tick issueTick;
++        bool atomic;
++    };
++
++    MemoryPort port;
++    NVMainMemoryEventManager *eventManager;
++
++    NVM::NVMain *m_nvmainPtr;
++    NVM::EventQueue *m_nvmainEventQueue;
++    NVM::Config *m_nvmainConfig;
++    NVM::SimInterface *m_nvmainSimInterface;
++    std::string m_nvmainConfigPath;
++
++    bool m_nacked_requests;
++    float m_avgAtomicLatency;
++    uint64_t m_numAtomicAccesses;
++
++    Tick clock;
++    Tick lat;
++    Tick lat_var;
++    bool nvmain_atomic;
++    bool retryRead, retryWrite;
++
++    uint64_t BusWidth;
++    uint64_t tBURST;
++    uint64_t RATE;
++
++    bool NVMainWarmUp;
++    std::vector<PacketPtr> pendingDelete;
++
++    NVMainStatPrinter statPrinter;
++    Tick lastWakeup;
++
++    std::list<NVMainMemoryRequest *> m_request_list;
++
++    std::map<NVM::NVMainRequest *, NVMainMemoryRequest *> m_request_map;
++
++  public:
++
++    typedef NVMainMemoryParams Params;
++    NVMainMemory(const Params *p);
++    virtual ~NVMainMemory();
++
++    BaseSlavePort& getSlavePort(const std::string& if_name,
++                                PortID idx = InvalidPortID);
++    void init();
++
++    const Params *
++    params() const
++    {
++        return dynamic_cast<const Params *>(_params);
++    }
++
++
++    bool RequestComplete( NVM::NVMainRequest *req );
++
++    void Cycle(NVM::ncycle_t) { }
++
++    void serialize(std::ostream& os);
++    void unserialize(Checkpoint *cp, const std::string& section);
++
++  protected:
++
++    Tick doAtomicAccess(PacketPtr pkt);
++    void doFunctionalAccess(PacketPtr pkt);
++    void Sync();
++
++};
++
++#endif
++
