@@ -52,7 +52,7 @@ class NVMAddress
     void GetTranslatedAddress( uint64_t *addrRow, uint64_t *addrCol, uint64_t *addrBank, 
                                uint64_t *addrRank, uint64_t *addrChannel, uint64_t *addrSA );
     uint64_t GetPhysicalAddress( );
-    uint8_t GetBitAddress( );
+    uint64_t GetBitAddress( );
 
     NVMAddress& operator=( const NVMAddress& m );
   

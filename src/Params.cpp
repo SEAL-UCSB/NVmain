@@ -231,6 +231,6 @@ void Params::SetParams( Config *c )
 
     /* Get the true number of addressable words in a row buffer */
     RBSize >>= mlog2( 8 ); // Shift by burst length
-    RBSize >>= mlog2( DeviceWidth ); // Shift of the number of bits output in all cases
+    RBSize >>= mlog2( static_cast<int>(DeviceWidth) ); // Shift of the number of bits output in all cases
 }
 

@@ -38,5 +38,18 @@ if 'TARGET_ISA' in env and env['TARGET_ISA'] == 'no':
 if 'NVMAIN_BUILD' in env:
     NVMainSourceType('src', 'Backend Source')
 
+NVMainSource('TranslationMethod.cpp')
+NVMainSource('AddressTranslator.cpp')
+NVMainSource('Config.cpp')
+NVMainSource('MemoryController.cpp')
+NVMainSource('SimInterface.cpp')
+NVMainSource('SubArray.cpp')
+NVMainSource('Bank.cpp')
+NVMainSource('EnduranceModel.cpp')
+NVMainSource('Rank.cpp')
+NVMainSource('Prefetcher.cpp')
+NVMainSource('Interconnect.cpp')
+NVMainSource('Params.cpp')
+NVMainSource('NVMObject.cpp')
+NVMainSource('EventQueue.cpp')
 
-NVMainSource('DRCDecoder.cpp')
