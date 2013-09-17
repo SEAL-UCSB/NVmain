@@ -36,7 +36,9 @@ if 'TARGET_ISA' in env and env['TARGET_ISA'] == 'no':
     Return()
 
 if 'NVMAIN_BUILD' in env:
-    NVMainSourceType('src', 'Backend Source')
+    NVMainSourceType('include', 'Include Source')
 
+NVMainSource('NVMDataBlock.cpp')
+NVMainSource('NVMAddress.cpp')
+NVMainSource('NVMHelpers.cpp')
 
-NVMainSource('DRCDecoder.cpp')

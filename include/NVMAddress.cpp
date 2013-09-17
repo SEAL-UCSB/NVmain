@@ -82,7 +82,7 @@ uint64_t NVMAddress::GetPhysicalAddress( )
     return physicalAddress;
 }
 
-uint8_t NVMAddress::GetBitAddress( )
+uint64_t NVMAddress::GetBitAddress( )
 {
     return bit;
 }

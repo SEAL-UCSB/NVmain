@@ -36,7 +36,14 @@ if 'TARGET_ISA' in env and env['TARGET_ISA'] == 'no':
     Return()
 
 if 'NVMAIN_BUILD' in env:
-    NVMainSourceType('src', 'Backend Source')
+    NVMainSourceType('Utils', 'Utility Feature')
 
+NVMainSource('HookFactory.cpp')
+NVMainSource('Caches/CacheBank.cpp')
+NVMainSource('Visualizer/Visualizer.cpp')
+NVMainSource('RequestTracer/RequestTracer.cpp')
 
-NVMainSource('DRCDecoder.cpp')
+NVMainSource('AccessPredictor/AccessPredictor.cpp')
+NVMainSource('AccessPredictor/AccessPredictorFactory.cpp')
+NVMainSource('AccessPredictor/PerfectPredictor/PerfectPredictor.cpp')
+
