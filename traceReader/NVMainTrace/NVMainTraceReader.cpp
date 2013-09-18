@@ -31,29 +31,29 @@
 *                     Website: http://www.cse.psu.edu/~poremba/ )
 *******************************************************************************/
 
-#include "traceReader/NVMainTrace/NVMainTrace.h"
+#include "traceReader/NVMainTrace/NVMainTraceReader.h"
 #include <sstream>
 #include <stdlib.h>
 
 using namespace NVM;
 
-NVMainTrace::NVMainTrace( )
+NVMainTraceReader::NVMainTraceReader( )
 {
     traceFile = "";
 }
 
-NVMainTrace::~NVMainTrace( )
+NVMainTraceReader::~NVMainTraceReader( )
 {
     if( trace.is_open( ) )
         trace.close( );
 }
 
-void NVMainTrace::SetTraceFile( std::string file )
+void NVMainTraceReader::SetTraceFile( std::string file )
 {
     traceFile = file;
 }
 
-std::string NVMainTrace::GetTraceFile( )
+std::string NVMainTraceReader::GetTraceFile( )
 {
     return traceFile;
 }
@@ -63,7 +63,7 @@ std::string NVMainTrace::GetTraceFile( )
  *
  *  CYCLE OP ADDRESS DATA THREADID
  */
-bool NVMainTrace::GetNextAccess( TraceLine *nextAccess )
+bool NVMainTraceReader::GetNextAccess( TraceLine *nextAccess )
 {
     /* If there is no trace file, we can't do anything. */
     if( traceFile == "" )
@@ -96,8 +96,10 @@ bool NVMainTrace::GetNextAccess( TraceLine *nextAccess )
     getline( trace, fullLine );
     if( trace.eof( ) )
     {
-        nextAccess->SetLine( 0xDEADC0DEDEADBEEFULL, NOP, 0, dataBlock, 0 );
-        std::cout << "NVMainTrace: Reached EOF!" << std::endl;
+        NVMAddress nAddress;
+        nAddress.SetPhysicalAddress( 0xDEADC0DEDEADBEEFULL );
+        nextAccess->SetLine( nAddress, NOP, 0, dataBlock, 0 );
+        std::cout << "NVMainTraceReader: Reached EOF!" << std::endl;
         return false;
     }
     
@@ -182,14 +184,18 @@ bool NVMainTrace::GetNextAccess( TraceLine *nextAccess )
     linenum++;
 
     if( operation != READ && operation != WRITE )
-        std::cout << "NVMainTrace: Unknown Operation: " << operation 
+        std::cout << "NVMainTraceReader: Unknown Operation: " << operation 
             << "Line number is " << linenum << ". Full Line is \"" << fullLine 
             << "\"" << std::endl;
 
     /*
      *  Set the line parameters.
      */
-    nextAccess->SetLine( address, operation, cycle, dataBlock, threadId );
+    NVMAddress nAddress;
+
+    nAddress.SetPhysicalAddress( address );
+
+    nextAccess->SetLine( nAddress, operation, cycle, dataBlock, threadId );
 
     return true;
 }
@@ -198,7 +204,7 @@ bool NVMainTrace::GetNextAccess( TraceLine *nextAccess )
  * Get the next N accesses to main memory. Called GetNextAccess N times and 
  * places the return values into a vector of TraceLine pointers.
  */
-int NVMainTrace::GetNextNAccesses( unsigned int N, 
+int NVMainTraceReader::GetNextNAccesses( unsigned int N, 
                                    std::vector<TraceLine *> *nextAccesses )
 {
     int successes;

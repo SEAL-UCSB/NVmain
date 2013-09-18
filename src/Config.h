@@ -61,6 +61,9 @@ class Config
     std::string GetString( std::string key );
     void  SetString( std::string key, std::string );
 
+    bool  GetBool( std::string key );
+    void  SetBool( std::string key, bool value );
+
     bool KeyExists( std::string key );
 
     std::vector<std::string>& GetHooks( );

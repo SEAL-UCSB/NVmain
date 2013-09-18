@@ -39,6 +39,7 @@
 #include "src/EventQueue.h"
 #include "Interconnect/InterconnectFactory.h"
 #include "MemControl/MemoryControllerFactory.h"
+#include "traceWriter/TraceWriterFactory.h"
 #include "Decoders/DecoderFactory.h"
 #include "Utils/HookFactory.h"
 #include "include/NVMainRequest.h"
@@ -57,6 +58,7 @@ NVMain::NVMain( )
     memoryControllers = NULL;
     channelConfig = NULL;
     syncValue = 0.0f;
+    preTracer = NULL;
 }
 
 NVMain::~NVMain( )
@@ -246,9 +248,12 @@ void NVMain::SetConfig( Config *conf, std::string memoryName )
 
     std::string pretraceFile;
 
-    if( config->GetString( "PreTraceFile" ) != "" )
+    if( p->PrintPreTrace || p->EchoPreTrace )
     {
-        pretraceFile  = config->GetString( "PreTraceFile" );
+        if( config->GetString( "PreTraceFile" ) == "" )
+            pretraceFile = "trace.nvt";
+        else
+            pretraceFile = config->GetString( "PreTraceFile" );
 
         if( pretraceFile[0] != '/' )
         {
@@ -258,12 +263,15 @@ void NVMain::SetConfig( Config *conf, std::string memoryName )
 
         std::cout << "Using trace file " << pretraceFile << std::endl;
 
-        pretraceOutput.open( pretraceFile.c_str( ) );
+        if( config->GetString( "PreTraceWriter" ) == "" )
+            preTracer = TraceWriterFactory::CreateNewTraceWriter( "NVMainTrace" );
+        else
+            preTracer = TraceWriterFactory::CreateNewTraceWriter( config->GetString( "PreTraceWriter" ) );
 
-        if( !pretraceOutput.is_open( ) )
-              std::cout << "Warning: Could not open pretrace file " 
-                  << config->GetString( "PreTraceFile" )
-          	  << ". Output will be suppressed." << std::endl;
+        if( p->PrintPreTrace )
+            preTracer->SetTraceFile( pretraceFile );
+        if( p->EchoPreTrace )
+            preTracer->SetEcho( true );
     }
 }
 
@@ -301,54 +309,19 @@ void NVMain::PrintPreTrace( NVMainRequest *request )
 {
     /*
      *  Here we can generate a data trace to use with trace-based testing later.
-     *
-     *  CYCLE OP ADDRESS DATA THREADID
      */
-    if( p->PrintPreTrace )
+    if( p->PrintPreTrace || p->EchoPreTrace )
     {
-        if( p->EchoPreTrace )
-        {
-            /* Output Cycle */
-            std::cout << GetEventQueue()->GetCurrentCycle() << " ";
-            
-            /* Output operation */
-            if( request->type == READ )
-                std::cout << "R ";
-            else
-                std::cout << "W ";
+        TraceLine tl;
 
-            /* Output Address */
-            std::cout << std::hex << "0x" 
-                << (request->address.GetPhysicalAddress( )) << std::dec << " ";
-            
-            /* Output Data */
-            std::cout << request->data << " ";
-            
-            /* Output thread id */
-            std::cout << request->threadId << std::endl;
-        }
-        
-        if( pretraceOutput.is_open( ) )
-        {
-            /* Output Cycle */
-            pretraceOutput << GetEventQueue()->GetCurrentCycle() << " ";
-            
-            /* Output operation */
-            if( request->type == READ )
-              pretraceOutput << "R ";
-            else
-              pretraceOutput << "W ";
-            
-            /* Output Address */
-            pretraceOutput << std::hex << "0x" 
-                << (request->address.GetPhysicalAddress( )) << std::dec << " ";
-            
-            /* Output Data */
-            pretraceOutput << request->data << " ";
-            
-            /* Output thread id */
-            pretraceOutput << request->threadId << std::endl;
-        }
+        tl.SetLine( request->address,
+                    request->type,
+                    GetEventQueue( )->GetCurrentCycle( ),
+                    request->data,
+                    request->threadId 
+                  );
+
+        preTracer->SetNextAccess( &tl );
     }
 }
 

@@ -42,6 +42,7 @@ NVMainSource('HookFactory.cpp')
 NVMainSource('Caches/CacheBank.cpp')
 NVMainSource('Visualizer/Visualizer.cpp')
 NVMainSource('RequestTracer/RequestTracer.cpp')
+NVMainSource('PostTrace/PostTrace.cpp')
 
 NVMainSource('AccessPredictor/AccessPredictor.cpp')
 NVMainSource('AccessPredictor/AccessPredictorFactory.cpp')

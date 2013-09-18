@@ -55,7 +55,7 @@ using namespace NVM;
 int main( int argc, char *argv[] )
 {
     Config *config = new Config( );
-    GenericTrace *trace = NULL;
+    GenericTraceReader *trace = NULL;
     TraceLine *tl = new TraceLine( );
     SimInterface *simInterface = new NullInterface( );
     NVMain *nvmain = new NVMain( );
@@ -139,7 +139,7 @@ int main( int argc, char *argv[] )
 
         NVMainRequest *request = new NVMainRequest( );
         
-        request->address.SetPhysicalAddress( tl->GetAddress( ) );
+        request->address = tl->GetAddress( );
         request->type = tl->GetOperation( );
         request->bulkCmd = CMD_NOP;
         request->threadId = tl->GetThreadId( );

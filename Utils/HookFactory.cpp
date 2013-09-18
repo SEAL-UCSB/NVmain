@@ -36,6 +36,7 @@
 /* Add your hook's include files here.*/
 #include "Utils/Visualizer/Visualizer.h"
 #include "Utils/RequestTracer/RequestTracer.h"
+#include "Utils/PostTrace/PostTrace.h"
 
 
 using namespace NVM;
@@ -47,6 +48,7 @@ NVMObject *HookFactory::CreateHook( std::string hookName )
 
     if( hookName == "Visualizer" ) hook = new Visualizer( );
     else if( hookName == "RequestTracer" ) hook = new RequestTracer( );
+    else if( hookName == "PostTrace" ) hook = new PostTrace( );
     //else if( hookName == "MyHook" ) hook = new MyHook( );
     
     return hook;

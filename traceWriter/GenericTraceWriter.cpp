@@ -31,65 +31,69 @@
 *                     Website: http://www.cse.psu.edu/~poremba/ )
 *******************************************************************************/
 
-#ifndef __NVMAIN_H__
-#define __NVMAIN_H__
-
-#include <iostream>
-#include <fstream>
-#include <stdint.h>
-#include "src/Params.h"
-#include "src/NVMObject.h"
-#include "include/NVMainRequest.h"
 #include "traceWriter/GenericTraceWriter.h"
 
-namespace NVM {
+#include <vector>
+#include <assert.h>
 
-class Config;
-class MemoryController;
-class MemoryControllerManager;
-class Interconnect;
-class AddressTranslator;
-class SimInterface;
-class NVMainRequest;
+using namespace NVM;
 
-class NVMain : public NVMObject
+
+GenericTraceWriter::GenericTraceWriter( ) : echo_on(false), perChannel(false), perRank(false)
 {
-  public:
-    NVMain( );
-    ~NVMain( );
 
-    void SetConfig( Config *conf, std::string memoryName = "defaultMemory" );
-    void SetParams( Params *params ) { p = params; } 
+}
 
-    Config *GetConfig( );
+GenericTraceWriter::~GenericTraceWriter( )
+{
 
-    bool IssueCommand( NVMainRequest *request );
-    bool IssueAtomic( NVMainRequest *request );
-    bool IsIssuable( NVMainRequest *request, FailReason *reason );
+}
 
-    void PrintStats( );
+void GenericTraceWriter::Init( Config * /*conf*/ )
+{
 
-    void Cycle( ncycle_t steps );
+}
 
-  private:
-    Config *config;
-    Config **channelConfig;
-    MemoryController **memoryControllers;
-    Interconnect **memory;
-    AddressTranslator *translator;
-    SimInterface *simInterface;
+void GenericTraceWriter::SetEcho( bool echo )
+{
+    echo_on = echo;
+}
 
-    unsigned int numChannels;
-    double syncValue;
+bool GenericTraceWriter::GetEcho( )
+{
+    return echo_on;
+}
 
-    std::ofstream pretraceOutput;
-    GenericTraceWriter *preTracer;
+void GenericTraceWriter::SetPerChannelTraces( bool perChannel )
+{
+    this->perChannel = perChannel;
+}
 
-    void PrintPreTrace( NVMainRequest *request );
+void GenericTraceWriter::SetPerRankTraces( bool perRank )
+{
+    this->perRank = perRank;
+}
 
-    Params *p;
-};
+bool GenericTraceWriter::GetPerChannelTraces( )
+{
+    return this->perChannel;
+}
 
-};
+bool GenericTraceWriter::GetPerRankTraces( )
+{
+    return this->perRank;
+}
 
-#endif
+int GenericTraceWriter::SetNextNAccesses( unsigned int N, std::vector<TraceLine *> *nextAccesses )
+{
+    int numWritten = 0;
+
+    for( unsigned int lineIdx = 0; lineIdx < N; lineIdx++ )
+    {
+        if( SetNextAccess( nextAccesses->at(lineIdx) ) )
+            numWritten++;
+    }
+
+    return numWritten;
+}
+

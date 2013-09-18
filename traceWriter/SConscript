@@ -29,55 +29,17 @@
 #   Matt Poremba    ( Email: mrp5060 at psu dot edu 
 #                     Website: http://www.cse.psu.edu/~poremba/ )
 
-import os
-
-from os.path import basename
-
-
 Import('*')
 
 # Assume that this is a gem5 extras build if this is set.
 if 'TARGET_ISA' in env and env['TARGET_ISA'] == 'no':
     Return()
 
-    env.Append(CPPPATH=Dir('.'))
+if 'NVMAIN_BUILD' in env:
+    NVMainSourceType('traceWriter', 'Trace Writer')
 
-if 'TARGET_ISA' in env and not 'NVMAIN_BUILD' in env:
-    def NVMainSource(src):
-        return Source(src)
-    Export('NVMainSource')
+NVMainSource('GenericTraceWriter.cpp')
+NVMainSource('NVMainTrace/NVMainTraceWriter.cpp')
+NVMainSource('VerilogTrace/VerilogTraceWriter.cpp')
+NVMainSource('TraceWriterFactory.cpp')
 
-
-NVMainSource('NVM/nvmain.cpp')
-NVMainSource('SimInterface/NullInterface/NullInterface.cpp')
-NVMainSource('MemControl/MemoryControllerFactory.cpp')
-
-# Assume that this is a gem5 extras build if this is set.
-if not 'TARGET_ISA' in env:
-    NVMainSource('traceSim/traceMain.cpp')
-
-    NVMainSource('traceReader/TraceReaderFactory.cpp')
-    NVMainSource('traceReader/TraceLine.cpp')
-    NVMainSource('traceReader/RubyTrace/RubyTraceReader.cpp')
-    NVMainSource('traceReader/NVMainTrace/NVMainTraceReader.cpp')
-
-else:
-    NVMainSource('SimInterface/Gem5Interface/Gem5Interface.cpp')
-
-
-
-    generated_dir = Dir('../protocol')
-
-    def MakeIncludeAction(target, source, env):
-        f = file(str(target[0]), 'w')
-        for s in source:
-            print >>f, '#include "%s"' % str(s.abspath)
-        f.close()
-
-    def MakeInclude(source):
-        target = generated_dir.File(basename(source))
-        include_action = MakeAction(MakeIncludeAction, Transform("MAKE INC", 1))
-        env.Command(target, source, include_action)
-
-
-    MakeInclude('SimInterface/Gem5Interface/Gem5Interface.h')

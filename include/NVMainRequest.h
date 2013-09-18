@@ -139,7 +139,7 @@ class NVMainRequest
     NVMAddress address;            //< Address of request
     OpType type;                   //< Operation type of request (read, write, etc)
     BulkCommand bulkCmd;           //< Bulk Commands (i.e., Read+Precharge, Write+Precharge, etc)
-    int threadId;                  //< Thread ID of issuing application
+    ncounters_t threadId;                  //< Thread ID of issuing application
     NVMDataBlock data;             //< Data to be written, or data that would be read
     MemRequestStatus status;       //< Complete, incomplete, etc.
     NVMAccessType access;          //< User or kernel mode access

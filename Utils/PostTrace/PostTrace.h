@@ -31,63 +31,36 @@
 *                     Website: http://www.cse.psu.edu/~poremba/ )
 *******************************************************************************/
 
-#ifndef __NVMAIN_H__
-#define __NVMAIN_H__
+#ifndef __NVMAIN_UTILS_POSTTRACE_H_
+#define __NVMAIN_UTILS_POSTTRACE_H__
 
-#include <iostream>
-#include <fstream>
-#include <stdint.h>
-#include "src/Params.h"
 #include "src/NVMObject.h"
 #include "include/NVMainRequest.h"
+#include "include/NVMTypes.h"
 #include "traceWriter/GenericTraceWriter.h"
 
 namespace NVM {
 
-class Config;
-class MemoryController;
-class MemoryControllerManager;
-class Interconnect;
-class AddressTranslator;
-class SimInterface;
-class NVMainRequest;
-
-class NVMain : public NVMObject
+class PostTrace : public NVMObject
 {
   public:
-    NVMain( );
-    ~NVMain( );
+    PostTrace( );
+    ~PostTrace( );
 
-    void SetConfig( Config *conf, std::string memoryName = "defaultMemory" );
-    void SetParams( Params *params ) { p = params; } 
+    bool IssueCommand( NVMainRequest *req );
+    bool IssueAtomic( NVMainRequest *req );
 
-    Config *GetConfig( );
+    bool RequestComplete( NVMainRequest *req );
 
-    bool IssueCommand( NVMainRequest *request );
-    bool IssueAtomic( NVMainRequest *request );
-    bool IsIssuable( NVMainRequest *request, FailReason *reason );
+    void Cycle( ncycle_t );
 
-    void PrintStats( );
+    void Init( Config *conf );
 
-    void Cycle( ncycle_t steps );
+ private:
+    ncounter_t numRanks, numBanks, numChannels;
+    ncounter_t traceRanks, traceChannels;
 
-  private:
-    Config *config;
-    Config **channelConfig;
-    MemoryController **memoryControllers;
-    Interconnect **memory;
-    AddressTranslator *translator;
-    SimInterface *simInterface;
-
-    unsigned int numChannels;
-    double syncValue;
-
-    std::ofstream pretraceOutput;
-    GenericTraceWriter *preTracer;
-
-    void PrintPreTrace( NVMainRequest *request );
-
-    Params *p;
+    GenericTraceWriter ***traceWriter;
 };
 
 };

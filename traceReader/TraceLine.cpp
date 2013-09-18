@@ -41,7 +41,7 @@ TraceLine::TraceLine( )
      *  Set the address to some default bad value so it is not read by
      *  the memory simulator before it is set by the trace reader.
      */
-    address = 0xDEADC0DE0BADC0DEULL;
+    address.SetPhysicalAddress( 0xDEADC0DE0BADC0DEULL );
     operation = NOP;
     cycle = 0;
     threadId = 0;
@@ -53,7 +53,7 @@ TraceLine::~TraceLine( )
 }
 
 /* Set the values of the address and memory operation. */
-void TraceLine::SetLine( uint64_t addr, OpType op, unsigned int cy, NVMDataBlock data, unsigned int threadId )
+void TraceLine::SetLine( NVMAddress addr, OpType op, ncycle_t cy, NVMDataBlock data, ncounters_t threadId )
 {
     this->address = addr;
     this->operation = op;
@@ -63,7 +63,7 @@ void TraceLine::SetLine( uint64_t addr, OpType op, unsigned int cy, NVMDataBlock
 }
 
 /* Get the address of the memory operation. */
-uint64_t TraceLine::GetAddress( )
+NVMAddress TraceLine::GetAddress( )
 {
     return address;
 }
@@ -74,7 +74,7 @@ OpType TraceLine::GetOperation( )
     return operation;
 }
 
-unsigned int TraceLine::GetCycle( ) 
+ncycle_t TraceLine::GetCycle( ) 
 {
     return cycle;
 }
@@ -84,7 +84,7 @@ NVMDataBlock TraceLine::GetData( )
     return data;
 }
 
-unsigned int TraceLine::GetThreadId( )
+ncounters_t TraceLine::GetThreadId( )
 {
     return threadId;
 }

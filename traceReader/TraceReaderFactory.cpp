@@ -35,23 +35,23 @@
 #include <iostream>
 
 /* Add your trace reader's include below. */
-#include "traceReader/NVMainTrace/NVMainTrace.h"
-#include "traceReader/RubyTrace/RubyTrace.h"
+#include "traceReader/NVMainTrace/NVMainTraceReader.h"
+#include "traceReader/RubyTrace/RubyTraceReader.h"
 
 using namespace NVM;
 
-GenericTrace *TraceReaderFactory::CreateNewTraceReader( std::string reader )
+GenericTraceReader *TraceReaderFactory::CreateNewTraceReader( std::string reader )
 {
-    GenericTrace *tracer = NULL;
+    GenericTraceReader *tracer = NULL;
 
     if( reader == "" )
         std::cout << "NVMain: TraceReader is not set in configuration file!" 
             << std::endl;
 
     if( reader == "NVMainTrace" )
-        tracer = new NVMainTrace( );
+        tracer = new NVMainTraceReader( );
     else if( reader == "RubyTrace" )
-        tracer = new RubyTrace( );
+        tracer = new RubyTraceReader( );
 
     if( tracer == NULL )
         std::cout << "NVMain: Unknown trace reader `" << reader << "'." 

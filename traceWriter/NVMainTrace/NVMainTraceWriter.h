@@ -31,31 +31,32 @@
 *                     Website: http://www.cse.psu.edu/~poremba/ )
 *******************************************************************************/
 
-#ifndef __NVMAINTRACE_H__
-#define __NVMAINTRACE_H__
+#ifndef __NVMAINTRACEWRITER_H__
+#define __NVMAINTRACEWRITER_H__
 
-#include "traceReader/GenericTrace.h"
+#include "traceWriter/GenericTraceWriter.h"
 #include <string>
 #include <iostream>
 #include <fstream>
 
 namespace NVM {
 
-class NVMainTrace : public GenericTrace
+class NVMainTraceWriter : public GenericTraceWriter
 {
   public:
-    NVMainTrace( );
-    ~NVMainTrace( );
+    NVMainTraceWriter( );
+    ~NVMainTraceWriter( );
     
     void SetTraceFile( std::string file );
     std::string GetTraceFile( );
     
-    bool GetNextAccess( TraceLine *nextAccess );
-    int  GetNextNAccesses( unsigned int N, std::vector<TraceLine *> *nextAccess );
+    bool SetNextAccess( TraceLine *nextAccess );
   
   private:
     std::string traceFile;
-    std::ifstream trace;
+    std::ofstream trace;
+
+    void WriteTraceLine( std::ostream& , TraceLine *line );
 };
 
 };

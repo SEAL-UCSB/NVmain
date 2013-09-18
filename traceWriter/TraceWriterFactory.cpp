@@ -31,65 +31,31 @@
 *                     Website: http://www.cse.psu.edu/~poremba/ )
 *******************************************************************************/
 
-#ifndef __NVMAIN_H__
-#define __NVMAIN_H__
-
+#include "traceWriter/TraceWriterFactory.h"
 #include <iostream>
-#include <fstream>
-#include <stdint.h>
-#include "src/Params.h"
-#include "src/NVMObject.h"
-#include "include/NVMainRequest.h"
-#include "traceWriter/GenericTraceWriter.h"
 
-namespace NVM {
+/* Add your trace reader's include below. */
+#include "traceWriter/NVMainTrace/NVMainTraceWriter.h"
+#include "traceWriter/VerilogTrace/VerilogTraceWriter.h"
 
-class Config;
-class MemoryController;
-class MemoryControllerManager;
-class Interconnect;
-class AddressTranslator;
-class SimInterface;
-class NVMainRequest;
+using namespace NVM;
 
-class NVMain : public NVMObject
+GenericTraceWriter *TraceWriterFactory::CreateNewTraceWriter( std::string writer )
 {
-  public:
-    NVMain( );
-    ~NVMain( );
+    GenericTraceWriter *tracer = NULL;
 
-    void SetConfig( Config *conf, std::string memoryName = "defaultMemory" );
-    void SetParams( Params *params ) { p = params; } 
+    if( writer == "" )
+        std::cout << "NVMain: TraceWriter is not set in configuration file!" 
+            << std::endl;
 
-    Config *GetConfig( );
+    if( writer == "NVMainTrace" )
+        tracer = new NVMainTraceWriter( );
+    else if( writer == "VerilogTrace" )
+        tracer = new VerilogTraceWriter( );
 
-    bool IssueCommand( NVMainRequest *request );
-    bool IssueAtomic( NVMainRequest *request );
-    bool IsIssuable( NVMainRequest *request, FailReason *reason );
+    if( tracer == NULL )
+        std::cout << "NVMain: Unknown trace writer `" << writer << "'." 
+            << std::endl;
 
-    void PrintStats( );
-
-    void Cycle( ncycle_t steps );
-
-  private:
-    Config *config;
-    Config **channelConfig;
-    MemoryController **memoryControllers;
-    Interconnect **memory;
-    AddressTranslator *translator;
-    SimInterface *simInterface;
-
-    unsigned int numChannels;
-    double syncValue;
-
-    std::ofstream pretraceOutput;
-    GenericTraceWriter *preTracer;
-
-    void PrintPreTrace( NVMainRequest *request );
-
-    Params *p;
-};
-
-};
-
-#endif
+    return tracer;
+}
