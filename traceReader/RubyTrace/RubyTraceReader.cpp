@@ -33,16 +33,16 @@
 
 #include <sstream>
 #include <stdlib.h>
-#include "traceReader/RubyTrace/RubyTrace.h"
+#include "traceReader/RubyTrace/RubyTraceReader.h"
 
 using namespace NVM;
 
-RubyTrace::RubyTrace( )
+RubyTraceReader::RubyTraceReader( )
 {
     traceFile = "";
 }
 
-RubyTrace::~RubyTrace( )
+RubyTraceReader::~RubyTraceReader( )
 {
     /* Close the trace file if it is open. */
     if( trace.is_open( ) )
@@ -50,13 +50,13 @@ RubyTrace::~RubyTrace( )
 }
 
 /* Set the trace file's filename. */
-void RubyTrace::SetTraceFile( std::string file )
+void RubyTraceReader::SetTraceFile( std::string file )
 {
     traceFile = file;
 }
 
 /* Return the trace file's filename */
-std::string RubyTrace::GetTraceFile( )
+std::string RubyTraceReader::GetTraceFile( )
 {
     return traceFile;
 }
@@ -65,7 +65,7 @@ std::string RubyTrace::GetTraceFile( )
  * Parse the trace file and find the next access to main memory. May read
  * multiple lines before a memory access is returned.
  */
-bool RubyTrace::GetNextAccess( TraceLine *nextAccess )
+bool RubyTraceReader::GetNextAccess( TraceLine *nextAccess )
 {
     /* If trace file is not specified, we can't know what to do. */
     if( traceFile == "" )
@@ -105,7 +105,9 @@ bool RubyTrace::GetNextAccess( TraceLine *nextAccess )
          */
         if( trace.eof( ) )
         {
-            nextAccess->SetLine( 0xDEADC0DEDEADBEEFULL, NOP, 0, dataBlock, 0 );
+            NVMAddress nAddress;
+            nAddress.SetPhysicalAddress( 0xDEADC0DEDEADBEEFULL );
+            nextAccess->SetLine( nAddress, NOP, 0, dataBlock, 0 );
             return false;
         }
         getline( trace, fullLine );
@@ -198,11 +200,14 @@ bool RubyTrace::GetNextAccess( TraceLine *nextAccess )
                 else
                 {
                     memOp = NOP;
-                    std::cout << "RubyTrace: Unknown memory operation! " 
+                    std::cout << "RubyTraceReader: Unknown memory operation! " 
                         << operation << std::endl;
                 }
 
-                nextAccess->SetLine( decAddress, memOp, currentCycle - cycles, 
+                NVMAddress nAddress;
+                nAddress.SetPhysicalAddress( decAddress );
+
+                nextAccess->SetLine( nAddress, memOp, currentCycle - cycles, 
                                      dataBlock, threadId );
                 break;
             }
@@ -216,7 +221,7 @@ bool RubyTrace::GetNextAccess( TraceLine *nextAccess )
  * Get the next N accesses to main memory. Called GetNextAccess N times and 
  * places the return values into a vector of TraceLine pointers.
  */
-int RubyTrace::GetNextNAccesses( unsigned int N, 
+int RubyTraceReader::GetNextNAccesses( unsigned int N, 
                                  std::vector<TraceLine *> *nextAccesses )
 {
     int successes;

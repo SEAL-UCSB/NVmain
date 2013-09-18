@@ -54,9 +54,19 @@ class NVMAddress
     uint64_t GetPhysicalAddress( );
     uint64_t GetBitAddress( );
 
+    uint64_t GetRow( );
+    uint64_t GetCol( );
+    uint64_t GetBank( );
+    uint64_t GetRank( );
+    uint64_t GetChannel( );
+    uint64_t GetSubarray( );
+    
+    bool IsTranslated( );
+
     NVMAddress& operator=( const NVMAddress& m );
   
  private:
+    bool translated;
     uint64_t physicalAddress;
     uint64_t subarray;
     uint64_t row;

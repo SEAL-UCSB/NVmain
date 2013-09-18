@@ -175,7 +175,6 @@ class PrettyPrint(object):
                        + cls.src_color + "\"%s\"" \
                        + cls.arrow_color + " ==> " \
                        + cls.out_color + "%s" \
-                       + env['OBJSUFFIX'] \
                        + colors['normal']
 
         cls.show_src = show_src
@@ -195,15 +194,17 @@ class PrettyPrint(object):
 
             src_basename = os.path.splitext(split_src[-1])[0]
             src_name = src_basename
+            suffix = env['OBJSUFFIX']
         else:
             tgts = map(strip, target)
             split_src = tgts[0].split("/")
             src_basename = os.path.splitext(split_src[-1])[0]
             src_name = tgts[0]
+            suffix = ''
 
         src_type = source_type(split_src[0], src_basename)
 
-        return cls.output_str % (src_type, src_basename, src_name)
+        return cls.output_str % (src_type, src_basename, ("%s%s" % (src_name, suffix)) )
 
 Export('PrettyPrint')
 

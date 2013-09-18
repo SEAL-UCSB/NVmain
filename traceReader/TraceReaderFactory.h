@@ -34,7 +34,7 @@
 #ifndef __TRACEREADER_TRACEREADERFACTORY_H__
 #define __TRACEREADER_TRACEREADERFACTORY_H__
 
-#include "traceReader/GenericTrace.h"
+#include "traceReader/GenericTraceReader.h"
 #include <string>
 
 namespace NVM {
@@ -45,7 +45,7 @@ class TraceReaderFactory
     TraceReaderFactory( ) { }
     ~TraceReaderFactory( ) { }
 
-    static GenericTrace *CreateNewTraceReader( std::string reader );
+    static GenericTraceReader *CreateNewTraceReader( std::string reader );
 };
 
 };

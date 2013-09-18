@@ -31,63 +31,21 @@
 *                     Website: http://www.cse.psu.edu/~poremba/ )
 *******************************************************************************/
 
-#ifndef __NVMAIN_H__
-#define __NVMAIN_H__
+#ifndef __TRACEWRITER_TRACEWRITERFACTORY_H__
+#define __TRACEWRITER_TRACEWRITERFACTORY_H__
 
-#include <iostream>
-#include <fstream>
-#include <stdint.h>
-#include "src/Params.h"
-#include "src/NVMObject.h"
-#include "include/NVMainRequest.h"
 #include "traceWriter/GenericTraceWriter.h"
+#include <string>
 
 namespace NVM {
 
-class Config;
-class MemoryController;
-class MemoryControllerManager;
-class Interconnect;
-class AddressTranslator;
-class SimInterface;
-class NVMainRequest;
-
-class NVMain : public NVMObject
+class TraceWriterFactory
 {
   public:
-    NVMain( );
-    ~NVMain( );
+    TraceWriterFactory( ) { }
+    ~TraceWriterFactory( ) { }
 
-    void SetConfig( Config *conf, std::string memoryName = "defaultMemory" );
-    void SetParams( Params *params ) { p = params; } 
-
-    Config *GetConfig( );
-
-    bool IssueCommand( NVMainRequest *request );
-    bool IssueAtomic( NVMainRequest *request );
-    bool IsIssuable( NVMainRequest *request, FailReason *reason );
-
-    void PrintStats( );
-
-    void Cycle( ncycle_t steps );
-
-  private:
-    Config *config;
-    Config **channelConfig;
-    MemoryController **memoryControllers;
-    Interconnect **memory;
-    AddressTranslator *translator;
-    SimInterface *simInterface;
-
-    unsigned int numChannels;
-    double syncValue;
-
-    std::ofstream pretraceOutput;
-    GenericTraceWriter *preTracer;
-
-    void PrintPreTrace( NVMainRequest *request );
-
-    Params *p;
+    static GenericTraceWriter *CreateNewTraceWriter( std::string writer );
 };
 
 };

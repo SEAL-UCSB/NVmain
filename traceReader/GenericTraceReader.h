@@ -31,63 +31,27 @@
 *                     Website: http://www.cse.psu.edu/~poremba/ )
 *******************************************************************************/
 
-#ifndef __NVMAIN_H__
-#define __NVMAIN_H__
+#ifndef __GENERICTRACEREADER_H__
+#define __GENERICTRACEREADER_H__
 
-#include <iostream>
-#include <fstream>
-#include <stdint.h>
-#include "src/Params.h"
-#include "src/NVMObject.h"
-#include "include/NVMainRequest.h"
-#include "traceWriter/GenericTraceWriter.h"
+#include <string>
+#include <vector>
+#include "traceReader/TraceLine.h"
 
 namespace NVM {
 
-class Config;
-class MemoryController;
-class MemoryControllerManager;
-class Interconnect;
-class AddressTranslator;
-class SimInterface;
-class NVMainRequest;
-
-class NVMain : public NVMObject
+class GenericTraceReader
 {
   public:
-    NVMain( );
-    ~NVMain( );
+    GenericTraceReader( ) { }
 
-    void SetConfig( Config *conf, std::string memoryName = "defaultMemory" );
-    void SetParams( Params *params ) { p = params; } 
+    virtual ~GenericTraceReader( ) { }
+    virtual void SetTraceFile( std::string file ) = 0;
 
-    Config *GetConfig( );
-
-    bool IssueCommand( NVMainRequest *request );
-    bool IssueAtomic( NVMainRequest *request );
-    bool IsIssuable( NVMainRequest *request, FailReason *reason );
-
-    void PrintStats( );
-
-    void Cycle( ncycle_t steps );
-
-  private:
-    Config *config;
-    Config **channelConfig;
-    MemoryController **memoryControllers;
-    Interconnect **memory;
-    AddressTranslator *translator;
-    SimInterface *simInterface;
-
-    unsigned int numChannels;
-    double syncValue;
-
-    std::ofstream pretraceOutput;
-    GenericTraceWriter *preTracer;
-
-    void PrintPreTrace( NVMainRequest *request );
-
-    Params *p;
+    virtual std::string GetTraceFile( ) = 0;
+    virtual bool GetNextAccess( TraceLine *nextAccess ) = 0;
+    virtual int  GetNextNAccesses( unsigned int N, 
+                                   std::vector<TraceLine *> *nextAccesses ) = 0;
 };
 
 };

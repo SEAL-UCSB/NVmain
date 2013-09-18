@@ -296,6 +296,24 @@ void Config::SetEnergy( std::string key, std::string energy )
     values.insert( std::pair<std::string, std::string>( key, energy ) );
 }
 
+bool Config::GetBool( std::string key )
+{
+    bool rv = false;
+
+    if( KeyExists( key ) && GetString( key ) == "true" )
+        rv = true;
+
+    return rv;
+}
+
+void Config::SetBool( std::string key, bool value )
+{
+    if( value )
+        SetString( key, "true" );
+    else
+        SetString( key, "false" );
+}
+
 std::vector<std::string>& Config::GetHooks( )
 {
     return hookList;

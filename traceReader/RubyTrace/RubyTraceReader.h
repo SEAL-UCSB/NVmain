@@ -31,27 +31,34 @@
 *                     Website: http://www.cse.psu.edu/~poremba/ )
 *******************************************************************************/
 
-#ifndef __GENERICTRACE_H__
-#define __GENERICTRACE_H__
+#ifndef __READRUBYTRACE_H__
+#define __READRUBYTRACE_H__
 
-#include <string>
-#include <vector>
-#include "traceReader/TraceLine.h"
+#include <iostream>
+#include <fstream>
+#include "traceReader/GenericTraceReader.h"
 
 namespace NVM {
 
-class GenericTrace
+/*
+ * This trace reader class reads a trace file generated from GEMS' ruby module. 
+ * The reader was tested using outputs from the MSI_MOSI_CMP_directory protocol.
+ */
+class RubyTraceReader : public GenericTraceReader
 {
   public:
-    GenericTrace() { }
+    RubyTraceReader();
+    ~RubyTraceReader();
 
-    virtual ~GenericTrace() { }
-    virtual void SetTraceFile( std::string file ) = 0;
+    void SetTraceFile( std::string file );
 
-    virtual std::string GetTraceFile( ) = 0;
-    virtual bool GetNextAccess( TraceLine *nextAccess ) = 0;
-    virtual int  GetNextNAccesses( unsigned int N, 
-                                   std::vector<TraceLine *> *nextAccesses ) = 0;
+    std::string GetTraceFile( );
+    bool GetNextAccess( TraceLine *nextAccess );
+    int  GetNextNAccesses( unsigned int N, std::vector<TraceLine *> *nextAccesses );
+
+  private:
+    std::string traceFile;
+    std::ifstream trace;
 };
 
 };

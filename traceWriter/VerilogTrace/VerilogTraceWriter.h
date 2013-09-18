@@ -31,63 +31,40 @@
 *                     Website: http://www.cse.psu.edu/~poremba/ )
 *******************************************************************************/
 
-#ifndef __NVMAIN_H__
-#define __NVMAIN_H__
+#ifndef __VERILOGTRACEWRITER_H__
+#define __VERILOGTRACEWRITER_H__
 
+#include "traceWriter/GenericTraceWriter.h"
+#include <string>
 #include <iostream>
 #include <fstream>
-#include <stdint.h>
-#include "src/Params.h"
-#include "src/NVMObject.h"
-#include "include/NVMainRequest.h"
-#include "traceWriter/GenericTraceWriter.h"
 
 namespace NVM {
 
-class Config;
-class MemoryController;
-class MemoryControllerManager;
-class Interconnect;
-class AddressTranslator;
-class SimInterface;
-class NVMainRequest;
-
-class NVMain : public NVMObject
+class VerilogTraceWriter : public GenericTraceWriter
 {
   public:
-    NVMain( );
-    ~NVMain( );
+    VerilogTraceWriter( );
+    ~VerilogTraceWriter( );
 
-    void SetConfig( Config *conf, std::string memoryName = "defaultMemory" );
-    void SetParams( Params *params ) { p = params; } 
+    void Init( Config *conf );
+    
+    void SetTraceFile( std::string file );
+    std::string GetTraceFile( );
 
-    Config *GetConfig( );
-
-    bool IssueCommand( NVMainRequest *request );
-    bool IssueAtomic( NVMainRequest *request );
-    bool IsIssuable( NVMainRequest *request, FailReason *reason );
-
-    void PrintStats( );
-
-    void Cycle( ncycle_t steps );
-
+    bool GetPerChannelTraces( );
+    bool GetPerRankTraces( );
+    
+    bool SetNextAccess( TraceLine *nextAccess );
+  
   private:
-    Config *config;
-    Config **channelConfig;
-    MemoryController **memoryControllers;
-    Interconnect **memory;
-    AddressTranslator *translator;
-    SimInterface *simInterface;
+    std::string traceFile;
+    std::ofstream trace;
 
-    unsigned int numChannels;
-    double syncValue;
+    ncycle_t lastCommand;
+    ncounter_t deviceWidth;
 
-    std::ofstream pretraceOutput;
-    GenericTraceWriter *preTracer;
-
-    void PrintPreTrace( NVMainRequest *request );
-
-    Params *p;
+    void WriteTraceLine( std::ostream& , TraceLine *line );
 };
 
 };

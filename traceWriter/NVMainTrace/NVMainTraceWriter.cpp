@@ -31,65 +31,85 @@
 *                     Website: http://www.cse.psu.edu/~poremba/ )
 *******************************************************************************/
 
-#ifndef __NVMAIN_H__
-#define __NVMAIN_H__
+#include "traceWriter/NVMainTrace/NVMainTraceWriter.h"
 
-#include <iostream>
-#include <fstream>
-#include <stdint.h>
-#include "src/Params.h"
-#include "src/NVMObject.h"
-#include "include/NVMainRequest.h"
-#include "traceWriter/GenericTraceWriter.h"
+using namespace NVM;
 
-namespace NVM {
-
-class Config;
-class MemoryController;
-class MemoryControllerManager;
-class Interconnect;
-class AddressTranslator;
-class SimInterface;
-class NVMainRequest;
-
-class NVMain : public NVMObject
+NVMainTraceWriter::NVMainTraceWriter( )
 {
-  public:
-    NVMain( );
-    ~NVMain( );
 
-    void SetConfig( Config *conf, std::string memoryName = "defaultMemory" );
-    void SetParams( Params *params ) { p = params; } 
+}
 
-    Config *GetConfig( );
+NVMainTraceWriter::~NVMainTraceWriter( )
+{
 
-    bool IssueCommand( NVMainRequest *request );
-    bool IssueAtomic( NVMainRequest *request );
-    bool IsIssuable( NVMainRequest *request, FailReason *reason );
+}
 
-    void PrintStats( );
+void NVMainTraceWriter::SetTraceFile( std::string file )
+{
+    // Note: This function assumes an absolute path is given, otherwise
+    // the current directory is used. 
 
-    void Cycle( ncycle_t steps );
+    traceFile = file;
 
-  private:
-    Config *config;
-    Config **channelConfig;
-    MemoryController **memoryControllers;
-    Interconnect **memory;
-    AddressTranslator *translator;
-    SimInterface *simInterface;
+    trace.open( traceFile.c_str( ) );
 
-    unsigned int numChannels;
-    double syncValue;
+    if( !trace.is_open( ) )
+    {
+        std::cout << "Warning: Could not open trace file " << file
+                  << ". Output will be suppressed." << std::endl;
+    }
+}
 
-    std::ofstream pretraceOutput;
-    GenericTraceWriter *preTracer;
+std::string NVMainTraceWriter::GetTraceFile( )
+{
+    return traceFile;
+}
 
-    void PrintPreTrace( NVMainRequest *request );
+bool NVMainTraceWriter::SetNextAccess( TraceLine *nextAccess )
+{
+    bool rv = false;
 
-    Params *p;
-};
+    if( trace.is_open( ) )
+    {
+        WriteTraceLine( trace, nextAccess );
+        rv = trace.good();
+    }
 
-};
+    if( this->GetEcho() )
+    {
+        WriteTraceLine( std::cout, nextAccess );
+        rv = true;
+    }
 
-#endif
+    return rv;
+}
+
+void NVMainTraceWriter::WriteTraceLine( std::ostream& stream, TraceLine *line )
+{
+    NVMDataBlock data = line->GetData( );
+
+    /* Only print reads or writes. */
+    if( line->GetOperation() != READ && line->GetOperation() != WRITE )
+        return;
+
+    /* Print memory cycle. */
+    stream << line->GetCycle( ) << " ";
+
+    /* Print the operation type */
+    if( line->GetOperation( ) == READ )
+        stream << "R ";
+    else if( line->GetOperation( ) == WRITE )
+        stream << "W ";
+
+    /* Print address */
+    stream << std::hex << "0x" << line->GetAddress( ).GetPhysicalAddress( ) 
+           << std::dec << " ";
+
+    /* Print data. */
+    stream << data << " ";
+
+    /* Print the thread ID */
+    stream << line->GetThreadId( ) << std::endl;
+}
+

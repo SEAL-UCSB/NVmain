@@ -31,34 +31,48 @@
 *                     Website: http://www.cse.psu.edu/~poremba/ )
 *******************************************************************************/
 
-#ifndef __READRUBYTRACE_H__
-#define __READRUBYTRACE_H__
+#ifndef __GENERICTRACEWRITER_H__
+#define __GENERICTRACEWRITER_H__
 
-#include <iostream>
-#include <fstream>
-#include "traceReader/GenericTrace.h"
+#include "traceReader/TraceLine.h"
+#include "src/Config.h"
+
+#include <string>
+#include <vector>
+#include <cstdlib>
+#include <cassert>
 
 namespace NVM {
 
-/*
- * This trace reader class reads a trace file generated from GEMS' ruby module. 
- * The reader was tested using outputs from the MSI_MOSI_CMP_directory protocol.
- */
-class RubyTrace : public GenericTrace
+class GenericTraceWriter
 {
   public:
-    RubyTrace();
-    ~RubyTrace();
+    GenericTraceWriter( );
+    virtual ~GenericTraceWriter( );
 
-    void SetTraceFile( std::string file );
+    virtual void Init( Config *conf );
 
-    std::string GetTraceFile( );
-    bool GetNextAccess( TraceLine *nextAccess );
-    int  GetNextNAccesses( unsigned int N, std::vector<TraceLine *> *nextAccesses );
+    virtual void SetTraceFile( std::string file ) = 0;
+    virtual std::string GetTraceFile( ) = 0;
+
+    virtual void SetEcho( bool echo ); 
+    virtual bool GetEcho( );
+
+    virtual void SetPerChannelTraces( bool perChannel );
+    virtual void SetPerRankTraces( bool perRank );
+
+    virtual bool GetPerChannelTraces( );
+    virtual bool GetPerRankTraces( );
+
+    virtual bool SetNextAccess( TraceLine *nextAccess ) = 0;
+    virtual int  SetNextNAccesses( unsigned int N, 
+                                   std::vector<TraceLine *> *nextAccesses );
 
   private:
-    std::string traceFile;
-    std::ifstream trace;
+    bool echo_on;
+    bool perChannel;
+    bool perRank;
+
 };
 
 };

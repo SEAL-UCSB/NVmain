@@ -31,63 +31,31 @@
 *                     Website: http://www.cse.psu.edu/~poremba/ )
 *******************************************************************************/
 
-#ifndef __NVMAIN_H__
-#define __NVMAIN_H__
+#ifndef __NVMAINTRACEREADER_H__
+#define __NVMAINTRACEREADER_H__
 
+#include "traceReader/GenericTraceReader.h"
+#include <string>
 #include <iostream>
 #include <fstream>
-#include <stdint.h>
-#include "src/Params.h"
-#include "src/NVMObject.h"
-#include "include/NVMainRequest.h"
-#include "traceWriter/GenericTraceWriter.h"
 
 namespace NVM {
 
-class Config;
-class MemoryController;
-class MemoryControllerManager;
-class Interconnect;
-class AddressTranslator;
-class SimInterface;
-class NVMainRequest;
-
-class NVMain : public NVMObject
+class NVMainTraceReader : public GenericTraceReader
 {
   public:
-    NVMain( );
-    ~NVMain( );
-
-    void SetConfig( Config *conf, std::string memoryName = "defaultMemory" );
-    void SetParams( Params *params ) { p = params; } 
-
-    Config *GetConfig( );
-
-    bool IssueCommand( NVMainRequest *request );
-    bool IssueAtomic( NVMainRequest *request );
-    bool IsIssuable( NVMainRequest *request, FailReason *reason );
-
-    void PrintStats( );
-
-    void Cycle( ncycle_t steps );
-
+    NVMainTraceReader( );
+    ~NVMainTraceReader( );
+    
+    void SetTraceFile( std::string file );
+    std::string GetTraceFile( );
+    
+    bool GetNextAccess( TraceLine *nextAccess );
+    int  GetNextNAccesses( unsigned int N, std::vector<TraceLine *> *nextAccess );
+  
   private:
-    Config *config;
-    Config **channelConfig;
-    MemoryController **memoryControllers;
-    Interconnect **memory;
-    AddressTranslator *translator;
-    SimInterface *simInterface;
-
-    unsigned int numChannels;
-    double syncValue;
-
-    std::ofstream pretraceOutput;
-    GenericTraceWriter *preTracer;
-
-    void PrintPreTrace( NVMainRequest *request );
-
-    Params *p;
+    std::string traceFile;
+    std::ifstream trace;
 };
 
 };
