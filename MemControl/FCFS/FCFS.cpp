@@ -4,7 +4,7 @@
 * All rights reserved.
 * 
 * This source code is part of NVMain - A cycle accurate timing, bit accurate
-* energy simulator for both volatile (e.g., DRAM) and nono-volatile memory
+* energy simulator for both volatile (e.g., DRAM) and non-volatile memory
 * (e.g., PCRAM). The source code is free and you can redistribute and/or
 * modify it by providing that the following conditions are met:
 * 
