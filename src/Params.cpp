@@ -91,12 +91,12 @@ ncycle_t Params::ConvertTiming( Config *conf, std::string param )
         else if( units == "us" )
         {
             // CLK is in MHz, divide from 1000 to get period in ns.
-            calculatedValue = static_cast<double>(numericValue) * (static_cast<double>(clock) / 1e6f);
+            calculatedValue = static_cast<double>(numericValue) * (static_cast<double>(clock));
         }
         else if( units == "ms" )
         {
             // CLK is in MHz, divide from 1000 to get period in ns.
-            calculatedValue = static_cast<double>(numericValue) * (static_cast<double>(clock) / 1e9f);
+            calculatedValue = static_cast<double>(numericValue) * (static_cast<double>(clock) * 1e3f);
         }
     }
 
