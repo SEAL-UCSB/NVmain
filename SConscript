@@ -51,13 +51,13 @@ if 'TARGET_ISA' in env and not 'NVMAIN_BUILD' in env:
 NVMainSource('NVM/nvmain.cpp')
 NVMainSource('SimInterface/NullInterface/NullInterface.cpp')
 NVMainSource('MemControl/MemoryControllerFactory.cpp')
+NVMainSource('traceReader/TraceLine.cpp')
 
 # Assume that this is a gem5 extras build if this is set.
 if not 'TARGET_ISA' in env:
     NVMainSource('traceSim/traceMain.cpp')
 
     NVMainSource('traceReader/TraceReaderFactory.cpp')
-    NVMainSource('traceReader/TraceLine.cpp')
     NVMainSource('traceReader/RubyTrace/RubyTraceReader.cpp')
     NVMainSource('traceReader/NVMainTrace/NVMainTraceReader.cpp')
 
