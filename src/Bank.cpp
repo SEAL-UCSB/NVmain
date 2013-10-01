@@ -86,8 +86,9 @@ Bank::Bank( )
     dataCycles = 0;
     activeCycles = 0;
     standbyCycles = 0;
-    feCycles = 0;
-    seCycles = 0;
+    fastExitActiveCycles = 0;
+    fastExitPrechargeCycles = 0;
+    slowExitPrechargeCycles = 0;
     utilization = 0.0f;
     writeCycle = false;
     writeMode = WRITE_THROUGH;
@@ -1018,9 +1019,11 @@ void Bank::PrintStats( )
               << "i" << psInterval << "." << statName 
               << ".standbyCycles " << standbyCycles << std::endl
               << "i" << psInterval << "." << statName 
-              << ".fastExitCycles " << feCycles << std::endl
+              << ".fastExitActiveCycles " << fastExitActiveCycles << std::endl
               << "i" << psInterval << "." << statName 
-              << ".slowExitCycles " << seCycles << std::endl;
+              << ".fastExitPrechargeCycles " << fastExitPrechargeCycles << std::endl
+              << "i" << psInterval << "." << statName 
+              << ".slowExitPrechargeCycles " << slowExitPrechargeCycles << std::endl;
 
     if( endrModel )
     {
@@ -1067,11 +1070,14 @@ bool Bank::Idle( )
 void Bank::Cycle( ncycle_t steps )
 {
     /* Count cycle numbers for each state */
-    if( state == BANK_PDPF || state == BANK_PDA )
-        feCycles += steps;
+    /* Number of fast exit prechage standbys */
+    if( state == BANK_PDPF )
+        fastExitPrechargeCycles += steps;
+    else if( state == BANK_PDA )
+        fastExitActiveCycles += steps;
     /* precharge powerdown slow exit */
     else if( state == BANK_PDPS )
-        seCycles += steps;
+        slowExitPrechargeCycles += steps;
     /* active standby */
     else if( state == BANK_OPEN )
         activeCycles += steps;

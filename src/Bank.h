@@ -142,8 +142,9 @@ class Bank : public NVMObject
     ncounter_t dataCycles;
     ncounter_t activeCycles;
     ncounter_t standbyCycles;
-    ncounter_t feCycles;
-    ncounter_t seCycles;
+    ncounter_t fastExitActiveCycles;
+    ncounter_t fastExitPrechargeCycles;
+    ncounter_t slowExitPrechargeCycles;
 
     ncycle_t lastActivate;
     ncycle_t nextActivate;
