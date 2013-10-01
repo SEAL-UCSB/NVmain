@@ -116,7 +116,7 @@ void Params::SetParams( Config *c )
 
     EIDD0 = c->GetEnergy( "EIDD0" );
     EIDD2P0 = c->GetEnergy( "EIDD2P0" );
-    EIDD2P0 = c->GetEnergy( "EIDD2P1" );
+    EIDD2P1 = c->GetEnergy( "EIDD2P1" );
     EIDD2N = c->GetEnergy( "EIDD2N" );
     EIDD3P = c->GetEnergy( "EIDD3P" );
     EIDD3N = c->GetEnergy( "EIDD3N" );
