@@ -40,13 +40,15 @@ Sections
 
     2a. Trace Simulation
 
-        The trace simulation can be build using make:
+        The trace simulation can be build using scons:
 
-        $ make
+        $ scons --build-type=[release|debug]
 
-        Running through make will automatically set 
+        Compiling with scons will automatically set 
         the compile flags needed for trace-based
-        simulation
+        simulation. You can use --build-type=debug
+        to add debugging symbol, or release for 
+        -03 optimization.
 
     2b. Simulator-Connected Simulation
 
@@ -68,6 +70,15 @@ Sections
            root directory and import the patch
 
            $ hg qimport /path/to/nvmain/patches/gem5/nvmain
+
+           Apply the path using qpush:
+
+           $ hg qpush
+
+           You can check that the patch was applied using
+           qapplied:
+
+           $ hg qapplied
 
            You can build gem5 normally at this point.
            You will need mercurial queues setup to do
@@ -109,6 +120,8 @@ Sections
 
            $ patch -p0 < /path/to/nvmain/patches/GEMS/gems.patch
 
+           Note: This patch is no longer supported.
+
 
 ------------------------------------------------------
 
@@ -147,17 +160,19 @@ Sections
     For gem5, simulation is setup using python scripts.
     Example NVMain scripts are provided:
 
-    configs/example/nvmain_se.py - NVMain in SE mode
-    configs/spec2006/classic.py  - NVMain using classic memory
-                                   with SPEC benchmarks
-    configs/spec2006/spec2006.py - NVMain using ruby memory
-                                   with SPEC benchmarks
+    configs/example/se.py - Run in SE mode
+    configs/example/fs.py - Run in FS mode
 
-    When running gem5, the parameter --nvmain_config can be used:
+    When running gem5, the parameter --mem-type=nvmain can
+    be used to enable NVMain, or --ruby-mem-type=nvmain for
+    ruby caches. The option --nvmain-config must be used to
+    specify the NVMain configuration file.
 
-    $ gem5.fast config/example/nvmain_se.py -c hello_world         \
-                --caches --l2cache --l1i_size 32kB --l1d_size 32kB \
-                --l2_size 2MB --nvmain_config /path/to/nvmain.cfg
+    $ gem5.fast config/example/se.py -c hello_world      \
+                --mem-type=nvmain --cpu-type=detailed    \
+                --caches --l2cache --l1i_size 32kB       \
+                --l1d_size 32kB --l2_size 2MB            \
+                --nvmain-config=/path/to/nvmain.config
 
 
 ------------------------------------------------------
