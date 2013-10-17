@@ -998,7 +998,7 @@ bool MemoryController::FindRowBufferHits( std::list<NVMainRequest *>& transactio
         ncounter_t muxLevel= static_cast<ncounter_t>(col / p->RBSize);
 
         if( activateQueued[rank][bank]                      /* The bank is active */ 
-            && activeSubArray[rank][bank][subarray] == row  /* The subarray is open */
+            && activeSubArray[rank][bank][subarray]         /* The subarray is open */
             && effectiveRow[rank][bank][subarray] == row    /* The effective row is the row of this request. */
             && effectiveMuxedRow[rank][bank][subarray] == muxLevel  /* Subset of row buffer is at the sense amps. */
             && !bankNeedRefresh[rank][bank]                 /* The bank is not wating for a refresh*/
