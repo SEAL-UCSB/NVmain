@@ -138,6 +138,7 @@ void Params::SetParams( Config *c )
     EIDD4R = c->GetEnergy( "EIDD4R" );
     EIDD4W = c->GetEnergy( "EIDD4W" );
     EIDD5B = c->GetEnergy( "EIDD5B" );
+    EIDD6 = c->GetEnergy( "EIDD6" );
     Eclosed = c->GetEnergy( "Eclosed" );
     Eopen = c->GetEnergy( "Eopen" );
     Eopenrd = c->GetEnergy( "Eopenrd" );
@@ -226,6 +227,8 @@ void Params::SetParams( Config *c )
     tWTR = ConvertTiming( c, "tWTR" );
     tXP = ConvertTiming( c, "tXP" );
     tXPDLL = ConvertTiming( c, "tXPDLL" );
+    tXS = ConvertTiming( c, "tXS" );
+    tXSDLL = ConvertTiming( c, "tXSDLL" );
     tWP0 = ConvertTiming( c, "tWP0" );
     tWP1 = ConvertTiming( c, "tWP1" );
 

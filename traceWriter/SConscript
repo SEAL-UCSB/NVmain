@@ -41,5 +41,6 @@ if 'NVMAIN_BUILD' in env:
 NVMainSource('GenericTraceWriter.cpp')
 NVMainSource('NVMainTrace/NVMainTraceWriter.cpp')
 NVMainSource('VerilogTrace/VerilogTraceWriter.cpp')
+NVMainSource('DRAMPower2Trace/DRAMPower2TraceWriter.cpp')
 NVMainSource('TraceWriterFactory.cpp')
 

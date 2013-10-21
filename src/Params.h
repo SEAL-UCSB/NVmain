@@ -67,6 +67,7 @@ class Params
     double EIDD4R;
     double EIDD4W;
     double EIDD5B;
+    double EIDD6;
     double Eclosed;
     double Eopen;
     double Eopenrd;
@@ -155,6 +156,8 @@ class Params
     ncycle_t tWTR;
     ncycle_t tXP;
     ncycle_t tXPDLL;
+    ncycle_t tXS;
+    ncycle_t tXSDLL;
 
     bool tWP_set;
 
