@@ -126,6 +126,15 @@ void LO_Cache::SetConfig( Config *conf )
     MemoryController::SetConfig( conf );
 }
 
+void LO_Cache::RegisterStats( )
+{
+    AddStat(drc_hits);
+    AddStat(drc_miss);
+    AddStat(drc_hitrate);
+    AddStat(drc_fills);
+    AddStat(drc_evicts);
+}
+
 void LO_Cache::SetMainMemory( NVMain *mm )
 {
     mainMemory = mm;
@@ -429,47 +438,9 @@ void LO_Cache::Cycle( ncycle_t )
 
 }
 
-void LO_Cache::PrintStats( )
+void LO_Cache::CalculateStats( )
 {
-    std::cout << "i" << psInterval << "." << statName << id << ".drc_hits " << drc_hits << std::endl;
-    std::cout << "i" << psInterval << "." << statName << id << ".drc_miss " << drc_miss << std::endl;
+    drc_hitrate = 0.0;
     if( drc_hits+drc_miss > 0 )
-    {
-        std::cout << "i" << psInterval << "." << statName << id << ".drc_hitrate " << (static_cast<float>(drc_hits)/static_cast<float>(drc_miss+drc_hits)) << std::endl;
-    }
-    else
-    {
-        std::cout << "i" << psInterval << "." << statName << id << ".drc_hitrate 0" << std::endl;
-    }
-    std::cout << "i" << psInterval << "." << statName << id << ".drc_fills " << drc_fills << std::endl;
-    std::cout << "i" << psInterval << "." << statName << id << ".drc_evicts " << drc_evicts << std::endl;
-
-/*
-    uint64_t onetimes = 0, twotimes = 0, total = 0;
-    for( uint64_t it = 0; it < 64*1024*1024; it++ )
-    {
-        if( hit_count[it] == 1 )
-        {
-            onetimes++;
-        }
-        else if( hit_count[it] == 2 )
-        {
-            twotimes++;
-        }
-
-        if( hit_count[it] > 0 )
-            total++;
-    }
-
-    FILE *rawData;
-    rawData = fopen( "hitcounts.dat", "w" );
-    fwrite( hit_count, 1, sizeof(hit_count), rawData );
-    fclose( rawData );
-
-    std::cout << "i" << psInterval << "." << statName << id << ".drc_onetimes " << onetimes << std::endl;
-    std::cout << "i" << psInterval << "." << statName << id << ".drc_twotimes " << twotimes << std::endl;
-    std::cout << "i" << psInterval << "." << statName << id << ".drc_uniques " << total << std::endl;
-    */
-
-    std::cout << "i" << psInterval << "." << statName << id << ".max_addr " << std::hex << max_addr << std::dec << std::endl;
+        drc_hitrate = static_cast<float>(drc_hits) / static_cast<float>(drc_miss+drc_hits);
 }

@@ -1,9 +1,9 @@
 # HG changeset patch
-# Parent c1b28ea22ff86c0b19e61ac578d66c15a59b0c5d
+# Parent 172902212ffce89ef1ff5eb6f9f4554876260e77
 
-diff -r c1b28ea22ff8 configs/common/MemConfig.py
---- a/configs/common/MemConfig.py	Sun Sep 15 13:45:59 2013 -0500
-+++ b/configs/common/MemConfig.py	Tue Sep 17 13:10:35 2013 -0400
+diff -r 172902212ffc configs/common/MemConfig.py
+--- a/configs/common/MemConfig.py	Mon Oct 21 13:28:16 2013 -0400
++++ b/configs/common/MemConfig.py	Mon Oct 21 13:28:34 2013 -0400
 @@ -54,6 +54,7 @@
      ("lpddr2_s4_1066_x32", "LPDDR2_S4_1066_x32"),
      ("lpddr3_1600_x32", "LPDDR3_1600_x32"),
@@ -12,9 +12,9 @@ diff -r c1b28ea22ff8 configs/common/MemConfig.py
      ]
  
  # Filtered list of aliases. Only aliases for existing memory
-diff -r c1b28ea22ff8 configs/common/Options.py
---- a/configs/common/Options.py	Sun Sep 15 13:45:59 2013 -0500
-+++ b/configs/common/Options.py	Tue Sep 17 13:10:35 2013 -0400
+diff -r 172902212ffc configs/common/Options.py
+--- a/configs/common/Options.py	Mon Oct 21 13:28:16 2013 -0400
++++ b/configs/common/Options.py	Mon Oct 21 13:28:34 2013 -0400
 @@ -198,6 +198,24 @@
          help="""Treat value of --checkpoint-restore or --take-checkpoint as a
                  number of instructions.""")
@@ -40,9 +40,9 @@ diff -r c1b28ea22ff8 configs/common/Options.py
  def addSEOptions(parser):
      # Benchmark options
      parser.add_option("-c", "--cmd", default="",
-diff -r c1b28ea22ff8 src/mem/NVMainMemory.py
+diff -r 172902212ffc src/mem/NVMainMemory.py
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/NVMainMemory.py	Tue Sep 17 13:10:35 2013 -0400
++++ b/src/mem/NVMainMemory.py	Mon Oct 21 13:28:34 2013 -0400
 @@ -0,0 +1,87 @@
 +# Copyright (c) 2012-2013 Pennsylvania State University
 +# All rights reserved.
@@ -131,9 +131,9 @@ diff -r c1b28ea22ff8 src/mem/NVMainMemory.py
 +        self.configparams = config_params
 +        self.configvalues = config_values
 +
-diff -r c1b28ea22ff8 src/mem/SConscript
---- a/src/mem/SConscript	Sun Sep 15 13:45:59 2013 -0500
-+++ b/src/mem/SConscript	Tue Sep 17 13:10:35 2013 -0400
+diff -r 172902212ffc src/mem/SConscript
+--- a/src/mem/SConscript	Mon Oct 21 13:28:16 2013 -0400
++++ b/src/mem/SConscript	Mon Oct 21 13:28:34 2013 -0400
 @@ -43,6 +43,7 @@
  SimObject('MemObject.py')
  SimObject('SimpleMemory.py')
@@ -142,14 +142,14 @@ diff -r c1b28ea22ff8 src/mem/SConscript
  
  Source('abstract_mem.cc')
  Source('addr_mapper.cc')
-@@ -60,6 +61,7 @@
+@@ -58,6 +59,7 @@
+ Source('tport.cc')
+ Source('port_proxy.cc')
  Source('simple_mem.cc')
++Source('nvmain_mem.cc')
  Source('physical.cc')
  Source('simple_dram.cc')
-+Source('nvmain_mem.cc')
  
- if env['TARGET_ISA'] != 'null':
-     Source('fs_translating_port_proxy.cc')
 @@ -81,6 +83,7 @@
  DebugFlag('MMU')
  DebugFlag('MemoryAccess')
@@ -158,10 +158,10 @@ diff -r c1b28ea22ff8 src/mem/SConscript
  
  DebugFlag('ProtocolTrace')
  DebugFlag('RubyCache')
-diff -r c1b28ea22ff8 src/mem/nvmain_mem.cc
+diff -r 172902212ffc src/mem/nvmain_mem.cc
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/nvmain_mem.cc	Tue Sep 17 13:10:35 2013 -0400
-@@ -0,0 +1,614 @@
++++ b/src/mem/nvmain_mem.cc	Mon Oct 21 13:28:34 2013 -0400
+@@ -0,0 +1,670 @@
 +/*
 + * Copyright (c) 2012-2013 Pennsylvania State University
 + * All rights reserved.
@@ -238,11 +238,14 @@ diff -r c1b28ea22ff8 src/mem/nvmain_mem.cc
 +
 +    clock = clockPeriod( );
 +
++    m_awake = false;
++
 +    m_avgAtomicLatency = 100.0f;
 +    m_numAtomicAccesses = 0;
 +
 +    retryRead = false;
 +    retryWrite = false;
++    m_requests_outstanding = 0;
 +
 +    /*
 +     * Modified by Tao @ 01/22/2013
@@ -281,8 +284,9 @@ diff -r c1b28ea22ff8 src/mem/nvmain_mem.cc
 +void
 +NVMainMemory::init()
 +{
-+    m_nvmainPtr = new NVMain( );
-+    m_nvmainSimInterface = new Gem5Interface( );
++    m_nvmainPtr = new NVM::NVMain( );
++    m_statsPtr = new NVM::Stats( );
++    m_nvmainSimInterface = new NVM::Gem5Interface( );
 +    m_nvmainEventQueue = new NVM::EventQueue( );
 +
 +    m_nvmainConfig->SetSimInterface( m_nvmainSimInterface );
@@ -291,13 +295,24 @@ diff -r c1b28ea22ff8 src/mem/nvmain_mem.cc
 +        port.sendRangeChange();
 +    }
 +
-+    eventManager->scheduleWakeup( );
++    if( NVMainWarmUp )
++    {
++        eventManager->scheduleWakeup( );
++        m_awake = true;
++    }
 +
 +    statPrinter.nvmainPtr = m_nvmainPtr;
++
++    if( m_nvmainConfig->KeyExists( "StatsFile" ) )
++    {
++        statPrinter.statStream.open( m_nvmainConfig->GetString( "StatsFile" ).c_str(),
++                                     std::ofstream::out | std::ofstream::app );
++    }
 +
 +    registerExitCallback( &statPrinter );
 +
 +    SetEventQueue( m_nvmainEventQueue );
++    SetStats( m_statsPtr );
 +
 +    /*  Add any specified hooks */
 +    std::vector<std::string>& hookList = m_nvmainConfig->GetHooks( );
@@ -324,7 +339,6 @@ diff -r c1b28ea22ff8 src/mem/nvmain_mem.cc
 +    /* Setup child and parent modules. */
 +    AddChild( m_nvmainPtr );
 +    m_nvmainPtr->SetParent( this );
-+
 +    m_nvmainPtr->SetConfig( m_nvmainConfig );
 +}
 +
@@ -337,6 +351,16 @@ diff -r c1b28ea22ff8 src/mem/nvmain_mem.cc
 +    } else {
 +        return port;
 +    }
++}
++
++
++void NVMainMemory::NVMainStatPrinter::process()
++{
++    assert(nvmainPtr != NULL);
++
++    nvmainPtr->CalculateStats();
++    std::ostream& refStream = (statStream.is_open()) ? statStream : std::cout;
++    nvmainPtr->GetStats()->PrintAll( refStream );
 +}
 +
 +
@@ -428,6 +452,14 @@ diff -r c1b28ea22ff8 src/mem/nvmain_mem.cc
 +
 +        delete request;
 +    }
++    else
++    {
++        // If we switch back to atomic mode, disable the gem5 event
++        if( memory.m_awake )
++        {
++            memory.m_awake = false;
++        }
++    }
 +
 +    return latency;
 +}
@@ -485,6 +517,13 @@ diff -r c1b28ea22ff8 src/mem/nvmain_mem.cc
 +    {
 +        DPRINTF(NVMain, "nvmain_mem.cc: Received request while waiting for retry!\n");
 +        return false;
++    }
++
++    // Make sure we are awake if we are in timing mode
++    if( !memory.m_awake )
++    {
++        memory.m_awake = true;
++        memory.eventManager->scheduleWakeup( );
 +    }
 +
 +    // Bus latency is modeled in NVMain.
@@ -560,6 +599,7 @@ diff -r c1b28ea22ff8 src/mem/nvmain_mem.cc
 +        DPRINTF(NVMain, "nvmain_mem.cc: Enqueued Mem request for 0x%x of type %s\n", request->address.GetPhysicalAddress( ), ((pkt->isRead()) ? "READ" : "WRITE") );
 +
 +        memory.m_request_map.insert( std::pair<NVMainRequest *, NVMainMemoryRequest *>( request, memRequest ) );
++        memory.m_requests_outstanding++;
 +
 +        /*
 +         *  It seems gem5 will block until the packet gets a response, so create a copy of the request, so
@@ -578,6 +618,7 @@ diff -r c1b28ea22ff8 src/mem/nvmain_mem.cc
 +            memRequest->packet = NULL;
 +
 +            memory.m_request_map.insert( std::pair<NVMainRequest *, NVMainMemoryRequest *>( requestCopy->request, requestCopy ) );
++            memory.m_requests_outstanding++;
 +
 +            memory.RequestComplete( requestCopy->request );
 +          }
@@ -635,7 +676,21 @@ diff -r c1b28ea22ff8 src/mem/nvmain_mem.cc
 +    // Cycle memory controller
 +    memory.m_nvmainPtr->Cycle( 1 );
 +
-+    memory.eventManager->scheduleWakeup( );
++    // Don't schedule event in atomic mode unless there are incomplete requests
++    if( memory.m_awake || !memory.m_request_map.empty() )
++    {
++        memory.eventManager->scheduleWakeup( );
++    }
++}
++
++
++unsigned int NVMainMemory::drain(DrainManager *dm)
++{
++    unsigned int count = port.drain(dm);
++
++    std::cout << "NVMainMemory: drain() was called." << std::endl;
++
++    return count;
 +}
 +
 +
@@ -714,6 +769,7 @@ diff -r c1b28ea22ff8 src/mem/nvmain_mem.cc
 +
 +
 +    m_request_map.erase(iter);
++    m_requests_outstanding--;
 +
 +    return true;
 +}
@@ -776,10 +832,10 @@ diff -r c1b28ea22ff8 src/mem/nvmain_mem.cc
 +    return new NVMainMemory(this);
 +}
 +
-diff -r c1b28ea22ff8 src/mem/nvmain_mem.hh
+diff -r 172902212ffc src/mem/nvmain_mem.hh
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/nvmain_mem.hh	Tue Sep 17 13:10:35 2013 -0400
-@@ -0,0 +1,201 @@
++++ b/src/mem/nvmain_mem.hh	Mon Oct 21 13:28:34 2013 -0400
+@@ -0,0 +1,210 @@
 +/*
 + * Copyright (c) 2012-2013 Pennsylvania State University
 + * All rights reserved.
@@ -841,6 +897,9 @@ diff -r c1b28ea22ff8 src/mem/nvmain_mem.hh
 +#include "src/NVMObject.h"
 +#include "src/SimInterface.h"
 +
++#include <fstream>
++#include <ostream>
++
 +class NVMainMemory : public AbstractMemory, public NVM::NVMObject
 +{
 +  private:
@@ -901,9 +960,10 @@ diff -r c1b28ea22ff8 src/mem/nvmain_mem.hh
 +    class NVMainStatPrinter : public Callback
 +    {
 +      public:
-+        void process() { if( nvmainPtr != NULL ) nvmainPtr->PrintStats( ); }
++        void process();
 +
 +        NVM::NVMain *nvmainPtr;
++        std::ofstream statStream;
 +    };
 +
 +    struct NVMainMemoryRequest
@@ -918,11 +978,13 @@ diff -r c1b28ea22ff8 src/mem/nvmain_mem.hh
 +    NVMainMemoryEventManager *eventManager;
 +
 +    NVM::NVMain *m_nvmainPtr;
++    NVM::Stats *m_statsPtr;
 +    NVM::EventQueue *m_nvmainEventQueue;
 +    NVM::Config *m_nvmainConfig;
 +    NVM::SimInterface *m_nvmainSimInterface;
 +    std::string m_nvmainConfigPath;
 +
++    bool m_awake;
 +    bool m_nacked_requests;
 +    float m_avgAtomicLatency;
 +    uint64_t m_numAtomicAccesses;
@@ -946,6 +1008,7 @@ diff -r c1b28ea22ff8 src/mem/nvmain_mem.hh
 +    std::list<NVMainMemoryRequest *> m_request_list;
 +
 +    std::map<NVM::NVMainRequest *, NVMainMemoryRequest *> m_request_map;
++    uint64_t m_requests_outstanding;
 +
 +  public:
 +
@@ -967,6 +1030,8 @@ diff -r c1b28ea22ff8 src/mem/nvmain_mem.hh
 +    bool RequestComplete( NVM::NVMainRequest *req );
 +
 +    void Cycle(NVM::ncycle_t) { }
++
++    unsigned int drain(DrainManager *dm);
 +
 +    void serialize(std::ostream& os);
 +    void unserialize(Checkpoint *cp, const std::string& section);

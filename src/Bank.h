@@ -46,6 +46,7 @@
 #include "include/NVMainRequest.h"
 #include "src/Params.h"
 #include "src/SubArray.h"
+#include "src/Stats.h"
 
 #include <iostream>
 
@@ -116,8 +117,10 @@ class Bank : public NVMObject
 
     void SetName( std::string );
     void SetId( ncounter_t );
-    void PrintStats( );
     void StatName( std::string name ) { statName = name; }
+
+    void RegisterStats( );
+    void CalculateStats( );
 
     ncounter_t GetId( );
     std::string GetName( );
@@ -145,6 +148,7 @@ class Bank : public NVMObject
     ncounter_t fastExitActiveCycles;
     ncounter_t fastExitPrechargeCycles;
     ncounter_t slowExitPrechargeCycles;
+    ncounter_t powerCycles;
 
     ncycle_t lastActivate;
     ncycle_t nextActivate;
@@ -160,7 +164,11 @@ class Bank : public NVMObject
     WriteMode writeMode;
 
     ncounter_t actWaits;
-    ncounter_t actWaitTime;
+    ncounter_t actWaitTotal;
+    double actWaitAverage;
+
+    uint64_t worstLife;
+    uint64_t averageLife;
 
     double bankEnergy;
     double activeEnergy;
@@ -172,6 +180,9 @@ class Bank : public NVMObject
     double refreshPower;
 
     double utilization;
+    double bandwidth;
+    
+    int dummyStat;
 
     ncounter_t reads, writes, activates, precharges, refreshes;
     ncounter_t idleTimer;

@@ -142,6 +142,31 @@ void NVMObject_hook::Callback( void *data )
     trampoline->Callback( data );
 }
 
+void NVMObject_hook::CalculateStats( )
+{
+    trampoline->CalculateStats( );
+}
+
+void NVMObject_hook::ResetStats( )
+{
+    trampoline->ResetStats( );
+}
+
+void NVMObject_hook::SetStats( Stats *s )
+{
+    trampoline->SetStats( s );
+}
+
+Stats *NVMObject_hook::GetStats( )
+{
+    return trampoline->GetStats( );
+}
+
+void NVMObject_hook::RegisterStats( )
+{
+    trampoline->RegisterStats( );
+}
+
 void NVMObject_hook::Cycle( ncycle_t steps )
 {
     trampoline->Cycle( steps );
@@ -231,6 +256,7 @@ void NVMObject::SetParent( NVMObject *p )
 
     parent = hook;
     SetEventQueue( p->GetEventQueue( ) );
+    SetStats( p->GetStats( ) );
 }
 
 void NVMObject::AddChild( NVMObject *c )
@@ -288,6 +314,40 @@ void NVMObject::SetDecoder( AddressTranslator *at )
 AddressTranslator *NVMObject::GetDecoder( )
 {
     return decoder;
+}
+
+void NVMObject::CalculateStats( )
+{
+    std::vector<NVMObject_hook *>::iterator it;
+
+    for( it = children.begin(); it != children.end(); it++ )
+    {
+        (*it)->CalculateStats( );
+    }
+}
+
+void NVMObject::ResetStats( )
+{
+    std::vector<NVMObject_hook *>::iterator it;
+
+    for( it = children.begin(); it != children.end(); it++ )
+    {
+        (*it)->ResetStats( );
+    }
+}
+
+void NVMObject::SetStats( Stats *s )
+{
+    stats = s;
+}
+
+Stats *NVMObject::GetStats( )
+{
+    return stats;
+}
+
+void NVMObject::RegisterStats( )
+{
 }
 
 HookType NVMObject::GetHookType( )

@@ -51,7 +51,9 @@ class FCFS : public MemoryController
     bool QueueFull( NVMainRequest *req );
 
     void Cycle( ncycle_t );
-    void PrintStats( );
+
+    void RegisterStats( );
+    void CalculateStats( );
 
   private:
     uint64_t queueSize;

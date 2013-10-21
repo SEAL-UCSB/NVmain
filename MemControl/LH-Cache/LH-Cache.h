@@ -65,7 +65,8 @@ class LH_Cache : public AbstractDRAMCache
 
     void Cycle( ncycle_t );
 
-    void PrintStats( );
+    void RegisterStats( );
+    void CalculateStats( );
 
   protected:
     NVMainRequest *MakeTagRequest( NVMainRequest *triggerRequest, int tag );

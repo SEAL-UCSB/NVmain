@@ -93,6 +93,7 @@ void OnChipBus::SetConfig( Config *c )
 
         /* SetConfig recursively */
         ranks[i]->SetConfig( conf ); 
+        ranks[i]->RegisterStats( );
     }
 }
 
@@ -125,12 +126,6 @@ bool OnChipBus::IssueCommand( NVMainRequest *req )
 {
     ncounter_t opRank;
     bool success = false;
-
-    if( !configSet || numRanks == 0 )
-    {
-        std::cerr << "Error: Issued command before memory system was configured!" << std::endl;
-        return false;
-    }
 
     req->address.GetTranslatedAddress( NULL, NULL, NULL, &opRank, NULL, NULL );
 
@@ -208,17 +203,11 @@ ncycle_t OnChipBus::GetNextRefresh( ncounter_t rank, ncounter_t bank )
     return 0;
 }
 
-void OnChipBus::PrintStats( )
+void OnChipBus::CalculateStats( )
 {
-    if( !configSet || numRanks == 0 )
-    {
-        std::cerr << "Error: No statistics to print. Memory system was not configured!" << std::endl;
-        return;
-    }
-
     for( ncounter_t i = 0; i < numRanks; i++ )
     {
-        ranks[i]->PrintStats( );
+        ranks[i]->CalculateStats( );
     }
 }
 

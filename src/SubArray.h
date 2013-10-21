@@ -111,8 +111,10 @@ class SubArray : public NVMObject
 
     void SetName( std::string );
     void SetId( ncounter_t );
-    void PrintStats( );
     void StatName( std::string name ) { statName = name; }
+
+    void RegisterStats( );
+    void CalculateStats( );
 
     ncounter_t GetId( );
     std::string GetName( );
@@ -141,12 +143,15 @@ class SubArray : public NVMObject
     ncounter_t dataCycles;
 
     ncounter_t actWaits;
-    ncounter_t actWaitTime;
+    ncounter_t actWaitTotal;
+    double actWaitAverage;
 
     double subArrayEnergy;
     double activeEnergy;
     double burstEnergy;
     double refreshEnergy;
+
+    uint64_t worstCaseEndurance, averageEndurance;
 
     ncounter_t reads, writes, activates, precharges, refreshes;
     ncounter_t idleTimer;

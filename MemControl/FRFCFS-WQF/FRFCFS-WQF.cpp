@@ -69,49 +69,59 @@ FRFCFS_WQF::FRFCFS_WQF( Interconnect *memory, AddressTranslator *translator )
     HighWaterMark = writeQueueSize;
     LowWaterMark = 0;
 
+    /* Drain control / statistics variables. */
+    m_draining = false;
+    m_drain_start_cycle = 0;
+    m_drain_end_cycle = 0;
+    m_last_drain_end_cycle = 0;
+    m_drain_start_readqueue_size = 0;
+    m_drain_end_readqueue_size = 0;
+    m_request_per_drain = 0;
+
     /* Memory controller statistics. */
     averageLatency = 0.0f;
     averageQueueLatency = 0.0f;
+    measuredLatencies = 0;
+    measuredQueueLatencies = 0;
+    starvation_precharges = 0;
 
+    mem_reads = 0;
+    mem_writes = 0;
     rq_rb_hits = 0;
     rq_rb_miss = 0;
     wq_rb_hits = 0;
     wq_rb_miss = 0;
-    m_request_per_drain = 0;
-    m_min_request_per_drain = 1e10;
-    m_max_request_per_drain = 0;
-    m_drain_num = 0;
-    m_drain_duration = 0;
-    m_drain_max_duration = 0;
-    m_drain_min_duration = 1e10;
-    m_drain_start_cycle = 0;
-    m_drain_end_cycle = 0;
-    m_last_drain_end_cycle = 0;
-    m_drain_request_num = 0;
-    m_min_drain_interval = 1e10;
-    m_max_drain_interval = 0;
-    m_read_duration = 0;
-    m_min_read_duration = 1e10;
-    m_max_read_duration = 0;
-    m_drain_enter_readqueue_num = 0;
-    m_min_enter_readqueue_num = 1e10;
-    m_max_enter_readqueue_num = 0;
-    m_drain_readqueue_size = 0;
-    m_drain_start_readqueue_size = 0;
-    m_drain_end_readqueue_size = 0;
-    m_min_start_readqueue_size = 1e10;
-    m_max_start_readqueue_size = 0;
-    m_draining = false;
 
-    measuredLatencies = 0;
-    measuredQueueLatencies = 0;
+    total_drains = 0;
+    total_drain_writes = 0;
+    average_writes_per_drain = 0.0;
+    minimum_drain_writes = 1e10;
+    maximum_drain_writes = 0;
 
-    mem_reads = 0;
-    mem_writes = 0;
+    total_drain_cycles = 0;
+    average_drain_cycles = 0.0;
+    maximum_drain_cycles = 0;
+    minimum_drain_cycles = 1e10;
 
-    starvation_precharges = 0;
+    total_non_drain_cycles = 0;
+    average_drain_spacing = 0.0;
+    minimum_drain_spacing = 1e10;
+    maximum_drain_spacing = 0;
 
-    psInterval = 0;
+    total_read_cycles = 0;
+    average_read_spacing = 0.0;
+    minimum_read_spacing = 1e10;
+    maximum_read_spacing = 0;
+
+    total_readqueue_size = 0;
+    average_predrain_readqueue_size = 0.0;
+    minimum_predrain_readqueue_size = 1e10;
+    maximum_predrain_readqueue_size = 0;
+
+    total_reads_during_drain = 0;
+    average_reads_during_drain = 0.0;
+    minimum_reads_during_drain = 1e10;
+    maximum_reads_during_drain = 0;
 }
 
 FRFCFS_WQF::~FRFCFS_WQF( )
@@ -161,6 +171,53 @@ void FRFCFS_WQF::SetConfig( Config *conf )
     }
 
     MemoryController::SetConfig( conf );
+}
+
+void FRFCFS_WQF::RegisterStats( )
+{
+    AddStat(mem_reads);
+    AddStat(mem_writes);
+    AddStat(rq_rb_hits);
+    AddStat(rq_rb_miss);
+    AddStat(wq_rb_hits);
+    AddStat(wq_rb_miss);
+
+    AddStat(total_drains);
+    AddStat(total_drain_writes);
+    AddStat(average_writes_per_drain);
+    AddStat(minimum_drain_writes);
+    AddStat(maximum_drain_writes);
+
+    AddStat(total_drain_cycles);
+    AddStat(average_drain_cycles);
+    AddStat(minimum_drain_cycles);
+    AddStat(maximum_drain_cycles);
+
+    AddStat(total_non_drain_cycles);
+    AddStat(average_drain_spacing);
+    AddStat(minimum_drain_spacing);
+    AddStat(maximum_drain_spacing);
+
+    AddStat(total_read_cycles);
+    AddStat(average_read_spacing);
+    AddStat(minimum_read_spacing);
+    AddStat(maximum_read_spacing);
+
+    AddStat(total_readqueue_size);
+    AddStat(average_predrain_readqueue_size);
+    AddStat(minimum_predrain_readqueue_size);
+    AddStat(maximum_predrain_readqueue_size);
+
+    AddStat(total_reads_during_drain);
+    AddStat(average_reads_during_drain);
+    AddStat(minimum_reads_during_drain);
+    AddStat(maximum_reads_during_drain);
+
+    AddStat(starvation_precharges);
+    AddStat(averageLatency);
+    AddStat(averageQueueLatency);
+    AddStat(measuredLatencies);
+    AddStat(measuredQueueLatencies);
 }
 
 bool FRFCFS_WQF::QueueFull( NVMainRequest * /*req*/ )
@@ -270,66 +327,66 @@ void FRFCFS_WQF::Cycle( ncycle_t steps )
             uint64_t tmpEnterReadQueue = m_drain_end_readqueue_size 
                                             - m_drain_start_readqueue_size;
 
-            m_drain_readqueue_size += m_drain_start_readqueue_size;
-            m_drain_enter_readqueue_num += tmpEnterReadQueue;
+            total_readqueue_size += m_drain_start_readqueue_size;
+            total_reads_during_drain += tmpEnterReadQueue;
             
             /* selectively record the max and min read queue size */
-            if( m_min_start_readqueue_size > m_drain_start_readqueue_size )
-                m_min_start_readqueue_size = m_drain_start_readqueue_size;
-            else if( m_max_start_readqueue_size < m_drain_start_readqueue_size )
-                m_max_start_readqueue_size = m_drain_start_readqueue_size;
+            if( minimum_predrain_readqueue_size > m_drain_start_readqueue_size )
+                minimum_predrain_readqueue_size = m_drain_start_readqueue_size;
+            else if( maximum_predrain_readqueue_size < m_drain_start_readqueue_size )
+                maximum_predrain_readqueue_size = m_drain_start_readqueue_size;
 
             /* selectively record the max and min enter read queue number */
-            if( m_min_enter_readqueue_num > tmpEnterReadQueue )
-                m_min_enter_readqueue_num = tmpEnterReadQueue;
-            else if( m_max_enter_readqueue_num < tmpEnterReadQueue )
-                m_max_enter_readqueue_num = tmpEnterReadQueue;
+            if( minimum_reads_during_drain > tmpEnterReadQueue )
+                minimum_reads_during_drain = tmpEnterReadQueue;
+            else if( maximum_reads_during_drain < tmpEnterReadQueue )
+                maximum_reads_during_drain = tmpEnterReadQueue;
 
             /* calculate the drain duration */
             uint64_t tmpDuration = m_drain_end_cycle - m_drain_start_cycle;
             uint64_t tmpInterval = m_drain_end_cycle - m_last_drain_end_cycle;
 
-            m_drain_duration += tmpDuration;
+            total_drain_cycles += tmpDuration;
             /* selectively record the max and min drain duration time */
-            if( m_drain_max_duration < tmpDuration )
-                m_drain_max_duration = tmpDuration;
-            else if( m_drain_min_duration > tmpDuration )
-                m_drain_min_duration = tmpDuration;
+            if( maximum_drain_cycles < tmpDuration )
+                maximum_drain_cycles = tmpDuration;
+            else if( minimum_drain_cycles > tmpDuration )
+                minimum_drain_cycles = tmpDuration;
 
             /* 
              * increment the drain numbers and the total number of drained 
              * write requests 
              */
-            m_drain_num++;
-            m_drain_request_num += m_request_per_drain;
+            total_drains++;
+            total_drain_writes += m_request_per_drain;
 
             /* 
              * selectively record the max and min write request number during 
              * a drain 
              */
-            if( m_min_request_per_drain > m_request_per_drain )
-                m_min_request_per_drain = m_request_per_drain;
-            else if( m_max_request_per_drain < m_request_per_drain )
-                m_max_request_per_drain = m_request_per_drain;
+            if( minimum_drain_writes > m_request_per_drain )
+                minimum_drain_writes = m_request_per_drain;
+            else if( maximum_drain_writes < m_request_per_drain )
+                maximum_drain_writes = m_request_per_drain;
 
             /* calculate the interval between two write drains */
-            m_drain_interval += tmpInterval;
+            total_non_drain_cycles += tmpInterval;
 
             /* selectively record the max and min write drain interval */
-            if( m_min_drain_interval > tmpInterval )
-                m_min_drain_interval = tmpInterval;
-            else if( m_max_drain_interval < tmpInterval )
-                m_max_drain_interval = tmpInterval;
+            if( minimum_drain_spacing > tmpInterval )
+                minimum_drain_spacing = tmpInterval;
+            else if( maximum_drain_spacing < tmpInterval )
+                maximum_drain_spacing = tmpInterval;
 
             /* calculate the read duration */
             uint64_t tmpReadDuration = tmpInterval - tmpDuration;
-            m_read_duration += tmpReadDuration;
+            total_read_cycles += tmpReadDuration;
 
             /* selectively record the max and min read duration */
-            if( m_min_read_duration > tmpReadDuration )
-                m_min_read_duration = tmpReadDuration;
-            else if( m_max_read_duration < tmpReadDuration )
-                m_max_read_duration = tmpReadDuration;
+            if( minimum_read_spacing > tmpReadDuration )
+                minimum_read_spacing = tmpReadDuration;
+            else if( maximum_read_spacing < tmpReadDuration )
+                maximum_read_spacing = tmpReadDuration;
         }
         /* reset the counter */
         m_request_per_drain = 0;
@@ -414,99 +471,26 @@ void FRFCFS_WQF::Cycle( ncycle_t steps )
     MemoryController::Cycle( steps );
 }
 
-void FRFCFS_WQF::PrintStats( )
+void FRFCFS_WQF::CalculateStats( )
 {
-    std::cout << "i" << psInterval << "." << statName << id 
-        << ".mem_reads " << mem_reads << std::endl;
-    std::cout << "i" << psInterval << "." << statName << id 
-        << ".mem_writes " << mem_writes << std::endl;
-    std::cout << "i" << psInterval << "." << statName << id 
-        << ".rq_rb_hits " << rq_rb_hits << std::endl;
-    std::cout << "i" << psInterval << "." << statName << id 
-        << ".rq_rb_miss " << rq_rb_miss << std::endl;
-    std::cout << "i" << psInterval << "." << statName << id 
-        << ".wq_rb_hits " << wq_rb_hits << std::endl;
-    std::cout << "i" << psInterval << "." << statName << id 
-        << ".wq_rb_miss " << wq_rb_miss << std::endl;
-    std::cout << "i" << psInterval << "." << statName << id 
-        << ".total drain numbers " << m_drain_num << std::endl;
-    std::cout << "i" << psInterval << "." << statName << id 
-        << ".total drained write numbers " << m_drain_request_num << std::endl;
-    if( m_drain_num > 0 )
+    if( total_drains > 0 )
     {
-        std::cout << "i" << psInterval << "." << statName << id 
-            << ".average write numbers in a drain " 
-            << ( m_drain_request_num / m_drain_num ) << std::endl;
-        std::cout << "i" << psInterval << "." << statName << id 
-            << ".minimum write numbers in a drain " 
-            << m_min_request_per_drain << std::endl;
-        std::cout << "i" << psInterval << "." << statName << id 
-            << ".maximum write numbers in a drain " 
-            << m_max_request_per_drain << std::endl;
-        std::cout << "i" << psInterval << "." << statName << id 
-            << ".total drain durations " << m_drain_duration << std::endl;
-        std::cout << "i" << psInterval << "." << statName << id 
-            << ".average drain duration " 
-            << ( m_drain_duration / m_drain_num ) << std::endl;
-        std::cout << "i" << psInterval << "." << statName << id 
-            << ".minimum drain duration " << m_drain_min_duration << std::endl;
-        std::cout << "i" << psInterval << "." << statName << id 
-            << ".maximum drain duration " << m_drain_max_duration << std::endl;
-        std::cout << "i" << psInterval << "." << statName << id 
-            << ".total drain interval " << m_drain_interval << std::endl;
-        std::cout << "i" << psInterval << "." << statName << id 
-            << ".average drain interval " 
-            << ( m_drain_interval / m_drain_num ) << std::endl;
-        std::cout << "i" << psInterval << "." << statName << id 
-            << ".minimum drain interval " << m_min_drain_interval << std::endl;
-        std::cout << "i" << psInterval << "." << statName << id 
-            << ".maximum drain interval " << m_max_drain_interval << std::endl;
-        std::cout << "i" << psInterval << "." << statName << id 
-            << ".total read duration " << m_read_duration << std::endl;
-        std::cout << "i" << psInterval << "." << statName << id 
-            << ".average read duration " 
-            << ( m_read_duration / m_drain_num ) << std::endl;
-        std::cout << "i" << psInterval << "." << statName << id 
-            << ".minimum read duration " << m_min_read_duration << std::endl;
-        std::cout << "i" << psInterval << "." << statName << id 
-            << ".maximum read duration " << m_max_read_duration << std::endl;
-        std::cout << "i" << psInterval << "." << statName << id 
-            << ".total read queue size before drain " 
-            << m_drain_readqueue_size << std::endl;
-        std::cout << "i" << psInterval << "." << statName << id 
-            << ".average read queue size before drain " 
-            << ( m_drain_readqueue_size / m_drain_num ) << std::endl;
-        std::cout << "i" << psInterval << "." << statName << id 
-            << ".minimum read queue size before drain " 
-            << m_min_start_readqueue_size << std::endl;
-        std::cout << "i" << psInterval << "." << statName << id 
-            << ".maximum read queue size before drain " 
-            << m_max_start_readqueue_size << std::endl;
-        std::cout << "i" << psInterval << "." << statName << id 
-            << ".total enter read queue during drain " 
-            << m_drain_enter_readqueue_num << std::endl;
-        std::cout << "i" << psInterval << "." << statName << id 
-            << ".average enter read queue during drain " 
-            << ( m_drain_enter_readqueue_num / m_drain_num ) << std::endl;
-        std::cout << "i" << psInterval << "." << statName << id 
-            << ".minimum enter read queue during drain " 
-            << m_min_enter_readqueue_num << std::endl;
-        std::cout << "i" << psInterval << "." << statName << id 
-            << ".maximum enter read queue during drain " 
-            << m_max_enter_readqueue_num << std::endl;
+        average_writes_per_drain = static_cast<double>(total_drain_writes) / static_cast<double>(total_drains);
+        average_drain_cycles = static_cast<double>(total_drain_cycles) / static_cast<double>(total_drains);
+        average_drain_spacing = static_cast<double>(total_non_drain_cycles) / static_cast<double>(total_drains);
+        average_read_spacing = static_cast<double>(total_read_cycles) / static_cast<double>(total_drains);
+        average_predrain_readqueue_size = static_cast<double>(total_readqueue_size) / static_cast<double>(total_drains);
+        average_reads_during_drain = static_cast<double>(total_reads_during_drain) / static_cast<double>(total_drains);
     }
-    std::cout << "i" << psInterval << "." << statName << id 
-        << ".starvation_precharges " << starvation_precharges << std::endl;
-    std::cout << "i" << psInterval << "." << statName << id 
-        << ".averageLatency " << averageLatency << std::endl;
-    std::cout << "i" << psInterval << "." << statName << id 
-        << ".averageQueueLatency " << averageQueueLatency << std::endl;
-    std::cout << "i" << psInterval << "." << statName << id 
-        << ".measuredLatencies " << measuredLatencies << std::endl;
-    std::cout << "i" << psInterval << "." << statName << id 
-        << ".measuredQueueLatencies " << measuredQueueLatencies << std::endl;
+    else
+    {
+        average_writes_per_drain = 0.0;
+        average_drain_cycles = 0.0;
+        average_drain_spacing = 0.0;
+        average_read_spacing = 0.0;
+        average_predrain_readqueue_size = 0.0;
+        average_reads_during_drain = 0.0;
+    }
 
-    MemoryController::PrintStats( );
-
-    psInterval++;
+    MemoryController::CalculateStats( );
 }

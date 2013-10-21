@@ -65,7 +65,7 @@ class OnChipBus : public Interconnect
     ncycle_t GetNextPrecharge( ncounter_t rank, ncounter_t bank );
     ncycle_t GetNextRefresh( ncounter_t rank, ncounter_t bank );
 
-    void PrintStats( );
+    void CalculateStats( );
 
     void Cycle( ncycle_t steps );
 

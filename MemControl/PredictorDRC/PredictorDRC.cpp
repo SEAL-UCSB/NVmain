@@ -86,6 +86,11 @@ void PredictorDRC::SetConfig( Config *conf )
     MemoryController::SetConfig( conf );
 }
 
+void PredictorDRC::RegisterStats( )
+{
+
+}
+
 bool PredictorDRC::IssueAtomic( NVMainRequest *req )
 {
     return predictor->IssueAtomic( req );
@@ -133,10 +138,10 @@ void PredictorDRC::Cycle( ncycle_t steps )
     DRC->Cycle( steps );
 }
 
-void PredictorDRC::PrintStats( )
+void PredictorDRC::CalculateStats( )
 {
     /*
      *  This is a root module, print the stats of all child modules.
      */
-    DRC->PrintStats( );
+    DRC->CalculateStats( );
 }

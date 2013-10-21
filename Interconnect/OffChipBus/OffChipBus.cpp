@@ -100,6 +100,7 @@ void OffChipBus::SetConfig( Config *c )
 
         /* SetConfig recursively. */
         ranks[i]->SetConfig( conf );
+        ranks[i]->RegisterStats( );
     }
 }
 
@@ -225,17 +226,11 @@ ncycle_t OffChipBus::GetNextRefresh( ncounter_t rank, ncounter_t bank )
     return 0;
 }
 
-void OffChipBus::PrintStats( )
+void OffChipBus::CalculateStats( )
 {
-    if( !configSet || numRanks == 0 )
-    {
-        std::cerr << "NVMain Error: No statistics to print." 
-           << " Memory system was not configured!" << std::endl;
-    }
-
     for( ncounter_t i = 0; i < numRanks; i++ )
     {
-        ranks[i]->PrintStats( );
+        ranks[i]->CalculateStats( );
     }
 }
 

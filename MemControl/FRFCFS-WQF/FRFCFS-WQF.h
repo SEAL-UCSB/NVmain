@@ -57,7 +57,8 @@ class FRFCFS_WQF : public MemoryController
 
     bool QueueFull( NVMainRequest *req );
 
-    void PrintStats( );
+    void RegisterStats( );
+    void CalculateStats( );
 
   private:
     /* separate read/write queue */
@@ -75,40 +76,48 @@ class FRFCFS_WQF : public MemoryController
     /* write draining flag */
     bool     m_draining;
 
+    /* State variables */
+    uint64_t m_request_per_drain;
+    uint64_t m_drain_start_cycle;
+    uint64_t m_drain_end_cycle;
+    uint64_t m_drain_start_readqueue_size;
+    uint64_t m_drain_end_readqueue_size;
+    uint64_t m_last_drain_end_cycle;
+
     /* Stats */
     uint64_t measuredLatencies, measuredQueueLatencies;
     double   averageLatency, averageQueueLatency;
+    double   average_writes_per_drain;
+    double   average_drain_cycles;
+    double   average_drain_spacing;
+    double   average_read_spacing;
+    double   average_predrain_readqueue_size;
+    double   average_reads_during_drain;
     uint64_t mem_reads, mem_writes;
     uint64_t starvation_precharges;
     uint64_t rq_rb_hits;
     uint64_t rq_rb_miss;
     uint64_t wq_rb_hits;
     uint64_t wq_rb_miss;
-    uint64_t m_request_per_drain;
-    uint64_t m_drain_request_num;
-    uint64_t m_min_request_per_drain;
-    uint64_t m_max_request_per_drain;
-    uint64_t m_drain_num;
-    uint64_t m_drain_duration;
-    uint64_t m_drain_max_duration;
-    uint64_t m_drain_min_duration;
-    uint64_t m_drain_start_cycle;
-    uint64_t m_drain_end_cycle;
-    uint64_t m_drain_enter_readqueue_num;
-    uint64_t m_min_enter_readqueue_num;
-    uint64_t m_max_enter_readqueue_num;
-    uint64_t m_drain_readqueue_size;
-    uint64_t m_drain_start_readqueue_size;
-    uint64_t m_drain_end_readqueue_size;
-    uint64_t m_min_start_readqueue_size;
-    uint64_t m_max_start_readqueue_size;
-    uint64_t m_last_drain_end_cycle;
-    uint64_t m_drain_interval;
-    uint64_t m_min_drain_interval;
-    uint64_t m_max_drain_interval;
-    uint64_t m_read_duration;
-    uint64_t m_min_read_duration;
-    uint64_t m_max_read_duration;
+    uint64_t total_drain_writes;
+    uint64_t minimum_drain_writes;
+    uint64_t maximum_drain_writes;
+    uint64_t total_drains;
+    uint64_t total_drain_cycles;
+    uint64_t maximum_drain_cycles;
+    uint64_t minimum_drain_cycles;
+    uint64_t total_reads_during_drain;
+    uint64_t minimum_reads_during_drain;
+    uint64_t maximum_reads_during_drain;
+    uint64_t total_readqueue_size;
+    uint64_t minimum_predrain_readqueue_size;
+    uint64_t maximum_predrain_readqueue_size;
+    uint64_t total_non_drain_cycles;
+    uint64_t minimum_drain_spacing;
+    uint64_t maximum_drain_spacing;
+    uint64_t total_read_cycles;
+    uint64_t minimum_read_spacing;
+    uint64_t maximum_read_spacing;
 };
 
 };

@@ -67,7 +67,7 @@ class NVMain : public NVMObject
     bool IssueAtomic( NVMainRequest *request );
     bool IsIssuable( NVMainRequest *request, FailReason *reason );
 
-    void PrintStats( );
+    void CalculateStats( );
 
     void Cycle( ncycle_t steps );
 

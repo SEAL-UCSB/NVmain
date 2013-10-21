@@ -308,6 +308,11 @@ void MemoryController::SetConfig( Config *conf )
     //this->config->Print();
 }
 
+void MemoryController::RegisterStats( )
+{
+    AddStat(simulation_cycles);
+}
+
 /* 
  * NeedRefresh() has three functions:
  *  1) it returns false when no refresh is used (p->UseRefresh = false) 
@@ -1330,10 +1335,10 @@ void MemoryController::MoveRankBank( )
     /* if fixed scheduling is used, we do nothing */
 }
 
-void MemoryController::PrintStats( )
+void MemoryController::CalculateStats( )
 {
-    std::cout << "i" << psInterval << "." << statName << ".simulation cycles " 
-        << GetEventQueue()->GetCurrentCycle() << std::endl;
-    memory->PrintStats( );
-    translator->PrintStats( );
+    simulation_cycles = GetEventQueue()->GetCurrentCycle();
+
+    memory->CalculateStats( );
+    translator->CalculateStats( );
 }
