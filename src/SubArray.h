@@ -149,6 +149,7 @@ class SubArray : public NVMObject
     double subArrayEnergy;
     double activeEnergy;
     double burstEnergy;
+    double writeEnergy;
     double refreshEnergy;
 
     uint64_t worstCaseEndurance, averageEndurance;
@@ -163,6 +164,9 @@ class SubArray : public NVMObject
     ncounter_t subArrayId;
  
     Params *p;
+
+    ncycle_t WriteCellData( NVMainRequest *request );
+
 };
 
 };

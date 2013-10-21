@@ -169,6 +169,21 @@ class Params
     unsigned DelayedRefreshThreshold; // the threshold that indicates how many refresh can be delayed
     std::string AddressMappingScheme; // the address mapping scheme
 
+    ncounter_t MLCLevels;
+    ncounter_t WPVariance;
+
+    /* SLC energy */
+    double Ereset; 
+    double Eset; 
+    ncycle_t tWP0;
+    ncycle_t tWP1;
+
+    /* 2-level MLC average program pulse count */
+    ncycle_t nWP00;
+    ncycle_t nWP01;
+    ncycle_t nWP10;
+    ncycle_t nWP11;
+
   private:
     ncycle_t ConvertTiming( Config *conf, std::string param );
 };
