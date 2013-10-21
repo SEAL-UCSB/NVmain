@@ -59,7 +59,7 @@ void DRAMPower2TraceWriter::Init( Config *conf )
         if( xmlFileName[0] != '/' )
         {
             xmlFileName  = NVM::GetFilePath( conf->GetFileName() );
-            xmlFileName += config->GetString( "DRAMPower2XML" );
+            xmlFileName += conf->GetString( "DRAMPower2XML" );
         }
 
         xmlFile.open( xmlFileName.c_str(),
