@@ -31,34 +31,46 @@
 *                     Website: http://www.cse.psu.edu/~poremba/ )
 *******************************************************************************/
 
-#include "traceWriter/TraceWriterFactory.h"
+#ifndef __DRAMPOWER2TRACEWRITER_H__
+#define __DRAMPOWER2TRACEWRITER_H__
+
+#include "traceWriter/GenericTraceWriter.h"
+#include <string>
 #include <iostream>
+#include <fstream>
 
-/* Add your trace reader's include below. */
-#include "traceWriter/NVMainTrace/NVMainTraceWriter.h"
-#include "traceWriter/VerilogTrace/VerilogTraceWriter.h"
-#include "traceWriter/DRAMPower2Trace/DRAMPower2TraceWriter.h"
+namespace NVM {
 
-using namespace NVM;
-
-GenericTraceWriter *TraceWriterFactory::CreateNewTraceWriter( std::string writer )
+class DRAMPower2TraceWriter : public GenericTraceWriter
 {
-    GenericTraceWriter *tracer = NULL;
+  public:
+    DRAMPower2TraceWriter( );
+    ~DRAMPower2TraceWriter( );
 
-    if( writer == "" )
-        std::cout << "NVMain: TraceWriter is not set in configuration file!" 
-            << std::endl;
+    void Init( Config *conf );
+    
+    void SetTraceFile( std::string file );
+    std::string GetTraceFile( );
 
-    if( writer == "NVMainTrace" )
-        tracer = new NVMainTraceWriter( );
-    else if( writer == "VerilogTrace" )
-        tracer = new VerilogTraceWriter( );
-    else if( writer == "DRAMPower2Trace" )
-        tracer = new DRAMPower2TraceWriter( );
+    bool GetPerChannelTraces( );
+    bool GetPerRankTraces( );
+    
+    bool SetNextAccess( TraceLine *nextAccess );
+  
+  private:
+    enum pdStates { PUP, PDN_F_ACT, PDN_F_PRE, PDN_S_PRE }; 
+    
+    pdStates pdState;
 
-    if( tracer == NULL )
-        std::cout << "NVMain: Unknown trace writer `" << writer << "'." 
-            << std::endl;
+    std::string traceFile;
+    std::ofstream trace, xmlFile;
 
-    return tracer;
-}
+    ncycle_t lastCommand;
+    ncounter_t deviceWidth;
+
+    void WriteTraceLine( std::ostream& , TraceLine *line );
+};
+
+};
+
+#endif
