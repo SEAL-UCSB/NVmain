@@ -3,7 +3,7 @@
 
 diff -r 172902212ffc configs/common/MemConfig.py
 --- a/configs/common/MemConfig.py	Mon Oct 21 13:28:16 2013 -0400
-+++ b/configs/common/MemConfig.py	Mon Oct 21 13:28:34 2013 -0400
++++ b/configs/common/MemConfig.py	Mon Oct 21 15:08:28 2013 -0400
 @@ -54,6 +54,7 @@
      ("lpddr2_s4_1066_x32", "LPDDR2_S4_1066_x32"),
      ("lpddr3_1600_x32", "LPDDR3_1600_x32"),
@@ -14,7 +14,7 @@ diff -r 172902212ffc configs/common/MemConfig.py
  # Filtered list of aliases. Only aliases for existing memory
 diff -r 172902212ffc configs/common/Options.py
 --- a/configs/common/Options.py	Mon Oct 21 13:28:16 2013 -0400
-+++ b/configs/common/Options.py	Mon Oct 21 13:28:34 2013 -0400
++++ b/configs/common/Options.py	Mon Oct 21 15:08:28 2013 -0400
 @@ -198,6 +198,24 @@
          help="""Treat value of --checkpoint-restore or --take-checkpoint as a
                  number of instructions.""")
@@ -42,7 +42,7 @@ diff -r 172902212ffc configs/common/Options.py
      parser.add_option("-c", "--cmd", default="",
 diff -r 172902212ffc src/mem/NVMainMemory.py
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/NVMainMemory.py	Mon Oct 21 13:28:34 2013 -0400
++++ b/src/mem/NVMainMemory.py	Mon Oct 21 15:08:28 2013 -0400
 @@ -0,0 +1,87 @@
 +# Copyright (c) 2012-2013 Pennsylvania State University
 +# All rights reserved.
@@ -133,7 +133,7 @@ diff -r 172902212ffc src/mem/NVMainMemory.py
 +
 diff -r 172902212ffc src/mem/SConscript
 --- a/src/mem/SConscript	Mon Oct 21 13:28:16 2013 -0400
-+++ b/src/mem/SConscript	Mon Oct 21 13:28:34 2013 -0400
++++ b/src/mem/SConscript	Mon Oct 21 15:08:28 2013 -0400
 @@ -43,6 +43,7 @@
  SimObject('MemObject.py')
  SimObject('SimpleMemory.py')
@@ -160,7 +160,7 @@ diff -r 172902212ffc src/mem/SConscript
  DebugFlag('RubyCache')
 diff -r 172902212ffc src/mem/nvmain_mem.cc
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/nvmain_mem.cc	Mon Oct 21 13:28:34 2013 -0400
++++ b/src/mem/nvmain_mem.cc	Mon Oct 21 15:08:28 2013 -0400
 @@ -0,0 +1,670 @@
 +/*
 + * Copyright (c) 2012-2013 Pennsylvania State University
@@ -834,7 +834,7 @@ diff -r 172902212ffc src/mem/nvmain_mem.cc
 +
 diff -r 172902212ffc src/mem/nvmain_mem.hh
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/nvmain_mem.hh	Mon Oct 21 13:28:34 2013 -0400
++++ b/src/mem/nvmain_mem.hh	Mon Oct 21 15:08:28 2013 -0400
 @@ -0,0 +1,210 @@
 +/*
 + * Copyright (c) 2012-2013 Pennsylvania State University
@@ -884,6 +884,9 @@ diff -r 172902212ffc src/mem/nvmain_mem.hh
 +#define __MEM_NVMAIN_MEM_HH__
 +
 +
++#include <fstream>
++#include <ostream>
++
 +#include "NVM/nvmain.h"
 +#include "base/callback.hh"
 +#include "include/NVMTypes.h"
@@ -896,9 +899,6 @@ diff -r 172902212ffc src/mem/nvmain_mem.hh
 +#include "src/EventQueue.h"
 +#include "src/NVMObject.h"
 +#include "src/SimInterface.h"
-+
-+#include <fstream>
-+#include <ostream>
 +
 +class NVMainMemory : public AbstractMemory, public NVM::NVMObject
 +{

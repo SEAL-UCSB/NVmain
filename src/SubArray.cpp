@@ -32,9 +32,11 @@
 *******************************************************************************/
 
 #include "src/SubArray.h"
+#include "src/Bank.h"
 #include "src/MemoryController.h"
 #include "src/EventQueue.h"
 #include "Endurance/EnduranceModelFactory.h"
+#include "Endurance/Distributions/Normal.h"
 
 #include <signal.h>
 #include <cassert>
@@ -60,6 +62,7 @@ SubArray::SubArray( )
     subArrayEnergy = 0.0f;
     activeEnergy = 0.0f;
     burstEnergy = 0.0f;
+    writeEnergy = 0.0f;
     refreshEnergy = 0.0f;
 
     writeCycle = false;
@@ -138,6 +141,7 @@ void SubArray::RegisterStats( )
         AddUnitStat(subArrayEnergy, "nJ");
         AddUnitStat(activeEnergy, "nJ");
         AddUnitStat(burstEnergy, "nJ");
+        AddUnitStat(writeEnergy, "nJ");
         AddUnitStat(refreshEnergy, "nJ");
     }
 
@@ -402,7 +406,7 @@ bool SubArray::Write( NVMainRequest *request )
     }
 
     /* Determine the write time. */
-    writeTimer = p->tWP; // Assume write-through.
+    writeTimer = WriteCellData( request ); // Assume write-through.
     if( writeMode == WRITE_BACK && writeCycle )
         writeTimer = 0;
 
@@ -503,9 +507,10 @@ bool SubArray::Precharge( NVMainRequest *request )
     }
 
     /* Update timing constraints */
+    ncycle_t writeTotal = WriteCellData( request );
     writeTimer = MAX( 1, p->tRP ); // Assume write-through. Needs to be at least one due to event callback.
     if( writeMode == WRITE_BACK && writeCycle )
-        writeTimer = MAX( 1, p->tRP + p->tWP );
+        writeTimer = MAX( 1, p->tRP + writeTotal );
 
     nextActivate = MAX( nextActivate, 
                         GetEventQueue()->GetCurrentCycle() + writeTimer );
@@ -572,6 +577,107 @@ bool SubArray::Refresh( NVMainRequest* request )
     }
 
     return true;
+}
+
+ncycle_t SubArray::WriteCellData( NVMainRequest *request )
+{
+    ncycle_t maxDelay = 0;
+
+    Bank *parentBank = (Bank*)GetParent( );
+    ncounter_t parentBankId = parentBank->GetId( );
+    unsigned int memoryWordSize = p->tBURST * p->RATE * p->BusWidth;
+    unsigned int deviceCount = p->BusWidth / p->DeviceWidth;
+    unsigned int writeSize = memoryWordSize / deviceCount;
+    unsigned int writeBytes = writeSize / 8;
+
+    /* Assume that data written is not interleaved over devices. */
+    unsigned int offset = writeBytes * parentBankId;
+    std::deque<uint8_t> writeBits;
+
+    /* Get each byte, then push back each bit to the writeBits vector. */
+    for( unsigned int byteIdx = 0; byteIdx < writeBytes; byteIdx++ )
+    {
+        uint8_t curByte = request->data.GetByte( byteIdx + offset );
+
+        for( unsigned int bitIdx = 0; bitIdx < 8; bitIdx++ )
+        {
+            writeBits.push_back( ((curByte & 0x80) ? 1 : 0) );
+            curByte <<= 1;
+        }
+    }
+
+    /* Based on the MLC level count, get this many bits at once. */
+    unsigned int writeCount = writeSize / p->MLCLevels;
+
+    for( unsigned int writeIdx = 0; writeIdx < writeCount; writeIdx++ )
+    {
+        uint8_t cellData = 0;
+
+        for( unsigned int bitIdx = 0; bitIdx < p->MLCLevels; bitIdx++ )
+        {
+            cellData <<= 1;
+            cellData |= writeBits.front( );
+            writeBits.pop_front( );
+        }
+
+        /* Get the delay and add the energy. Assume one-RESET-multiple-SET */
+        ncycle_t writePulseTime = 0;
+        ncounters_t setPulseCount = 0;
+
+        if( p->MLCLevels == 1 )
+        {
+            if( cellData == 0 )
+                writePulseTime = p->tWP0;
+            else
+                writePulseTime = p->tWP1;
+        }
+        else if( p->MLCLevels == 2 )
+        {
+            if( cellData == 0 )
+                setPulseCount = 0;
+            else if( cellData == 1 ) // 01 -> Assume 1 RESET + nWP01 SETs
+                setPulseCount = p->nWP01;
+            else if( cellData == 2 ) // 10 -> Assume 1 RESET + nWP1 SETs
+                setPulseCount = p->nWP10;
+            else if( cellData == 3 ) // 11 -> Assume 1 RESET + nWP11 SETs
+                setPulseCount = p->nWP11;
+            else
+                std::cout << "SubArray: Unknown cell value: " << (int)cellData << std::endl;
+
+            /* Simulate program and verify failures */
+            if( setPulseCount > 0 )
+            {
+                NormalDistribution norm;
+
+                norm.SetMean( setPulseCount );
+                norm.SetVariance( p->WPVariance );
+
+                setPulseCount = norm.GetEndurance( );
+
+                /* Make sure this is at least one. */
+                if( setPulseCount < 1 ) setPulseCount = 1;
+
+                writePulseTime = p->tWP0 + setPulseCount * p->tWP1;
+            }
+            else
+            {
+                writePulseTime = p->tWP0;
+            }
+
+            /* Only calculate energy for energy-mode model. */
+            if( p->EnergyModel_set && p->EnergyModel != "current" )
+            {
+                subArrayEnergy += p->Ereset + setPulseCount * p->Eset;
+                writeEnergy += p->Ereset + setPulseCount * p->Eset;
+            }
+        }
+
+        /* See if this writePulseTime is the longest. */
+        if( writePulseTime > maxDelay )
+            maxDelay = writePulseTime;
+    }
+
+    return maxDelay;
 }
 
 /*

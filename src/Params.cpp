@@ -66,6 +66,18 @@ Params::Params( )
     ROWS = 32768;
 
     tWP = 0;
+
+    /* MLC params. */
+    MLCLevels = 1;
+    WPVariance = 1;
+    Ereset = 0.3;
+    Eset = 0.2;
+    tWP0 = 100;
+    tWP1 = 50;
+    nWP00 = 0;
+    nWP01 = 7;
+    nWP10 = 5;
+    nWP11 = 1;
 }
 
 Params::~Params( )
@@ -74,6 +86,9 @@ Params::~Params( )
 
 ncycle_t Params::ConvertTiming( Config *conf, std::string param )
 {
+    if( !conf->KeyExists( param ) )
+        return 0;
+
     std::string stringValue = conf->GetString( param );
     double numericValue = conf->GetEnergy( param ); // GetEnergy returns a float.
     double calculatedValue = numericValue; // Assume pre-calculated.
@@ -211,6 +226,8 @@ void Params::SetParams( Config *c )
     tWTR = ConvertTiming( c, "tWTR" );
     tXP = ConvertTiming( c, "tXP" );
     tXPDLL = ConvertTiming( c, "tXPDLL" );
+    tWP0 = ConvertTiming( c, "tWP0" );
+    tWP1 = ConvertTiming( c, "tWP1" );
 
     tRDPDEN = c->GetValue( "tRDPDEN" );
     tWRPDEN = c->GetValue( "tWRPDEN" );
@@ -222,6 +239,17 @@ void Params::SetParams( Config *c )
     BanksPerRefresh = c->GetValue ( "BanksPerRefresh" );
     DelayedRefreshThreshold = c->GetValue ( "DelayedRefreshThreshold" );
     AddressMappingScheme = c->GetString ( "AddressMappingScheme" );
+
+    if( c->KeyExists( "MLCLevels" ) ) MLCLevels = c->GetValue( "MLCLevels" );
+    if( c->KeyExists( "WPVariance" ) ) WPVariance = c->GetValue( "WPVariance" );
+
+    if( c->KeyExists( "Ereset" ) ) Ereset = c->GetEnergy( "Ereset" );
+    if( c->KeyExists( "Eset" ) )   Eset = c->GetEnergy( "Eset" );
+
+    if( c->KeyExists( "nWP00" ) ) nWP00 = c->GetValue( "nWP00" );
+    if( c->KeyExists( "nWP01" ) ) nWP01 = c->GetValue( "nWP01" );
+    if( c->KeyExists( "nWP10" ) ) nWP10 = c->GetValue( "nWP10" );
+    if( c->KeyExists( "nWP11" ) ) nWP11 = c->GetValue( "nWP11" );
 
     /* Check for uninitialized parameters. */
     if( !MATHeight_set ) MATHeight = ROWS;
