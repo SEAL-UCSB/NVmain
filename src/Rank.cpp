@@ -48,8 +48,8 @@ Rank::Rank( )
 {
     activeCycles = 0;
     standbyCycles = 0;
-    feCycles = 0;
-    seCycles = 0;
+    fastExitCycles = 0;
+    slowExitCycles = 0;
 
     lastActivate = NULL;
     RAWindex = 0;
@@ -128,6 +128,7 @@ void Rank::SetConfig( Config *c )
 
         /* SetConfig recursively. */
         banks[i]->SetConfig( c );
+        banks[i]->RegisterStats( );
     }
 
     /* 
@@ -154,9 +155,55 @@ void Rank::SetConfig( Config *c )
     rrdWaits = 0;
     actWaits = 0;
 
-    fawWaitTime = 0;
-    rrdWaitTime = 0;
-    actWaitTime = 0;
+    fawWaitTotal = 0;
+    rrdWaitTotal = 0;
+    actWaitTotal = 0;
+}
+
+void Rank::RegisterStats( )
+{
+    if( p->EnergyModel_set && p->EnergyModel == "current" )
+    {
+        AddUnitStat(totalEnergy, "mA");
+        AddUnitStat(backgroundEnergy, "mA");
+        AddUnitStat(activateEnergy, "mA");
+        AddUnitStat(burstEnergy, "mA");
+        AddUnitStat(refreshEnergy, "mA");
+    }
+    else
+    {
+        AddUnitStat(totalEnergy, "nJ");
+        AddUnitStat(backgroundEnergy, "nJ");
+        AddUnitStat(activateEnergy, "nJ");
+        AddUnitStat(burstEnergy, "nJ");
+        AddUnitStat(refreshEnergy, "nJ");
+    }
+
+    AddUnitStat(totalPower, "W");
+    AddUnitStat(backgroundPower, "W");
+    AddUnitStat(activatePower, "W");
+    AddUnitStat(burstPower, "W");
+    AddUnitStat(refreshPower, "W");
+
+    AddStat(reads);
+    AddStat(writes);
+
+    AddStat(activeCycles);
+    AddStat(standbyCycles);
+    AddStat(fastExitCycles);
+    AddStat(slowExitCycles);
+
+    AddStat(actWaits);
+    AddStat(actWaitTotal); 
+    AddStat(actWaitAverage);
+
+    AddStat(rrdWaits);
+    AddStat(rrdWaitTotal); 
+    AddStat(rrdWaitAverage); 
+
+    AddStat(fawWaits);
+    AddStat(fawWaitTotal);
+    AddStat(fawWaitAverage);
 }
 
 bool Rank::Idle( )
@@ -556,21 +603,21 @@ bool Rank::IsIssuable( NVMainRequest *req, FailReason *reason )
             if( nextActivate > GetEventQueue( )->GetCurrentCycle( ) )
             {
                 actWaits++;
-                actWaitTime += nextActivate - GetEventQueue( )->GetCurrentCycle( );
+                actWaitTotal += nextActivate - GetEventQueue( )->GetCurrentCycle( );
             }
 
             if( ( lastActivate[RAWindex] + p->tRRDR )
                     > GetEventQueue( )->GetCurrentCycle( ) ) 
             {
                 rrdWaits++;
-                rrdWaitTime += ( lastActivate[RAWindex] + 
+                rrdWaitTotal += ( lastActivate[RAWindex] + 
                         p->tRRDR - (GetEventQueue()->GetCurrentCycle()) );
             }
             if( ( lastActivate[( RAWindex + 1 ) % rawNum] + p->tRAW )
                     > GetEventQueue( )->GetCurrentCycle( ) ) 
             {
                 fawWaits++;
-                fawWaitTime += ( lastActivate[( RAWindex + 1 ) % rawNum] + 
+                fawWaitTotal += ( lastActivate[( RAWindex + 1 ) % rawNum] + 
                     p->tRAW - GetEventQueue( )->GetCurrentCycle( ) );
             }
         }
@@ -789,7 +836,7 @@ void Rank::Cycle( ncycle_t steps )
     {
         /* active powerdown */
         case RANK_PDA:
-            feCycles += steps;
+            fastExitCycles += steps;
             if( p->EnergyModel_set && p->EnergyModel == "current" )
                 backgroundEnergy += ( p->EIDD3P * (double)steps );  
             else
@@ -798,7 +845,7 @@ void Rank::Cycle( ncycle_t steps )
 
         /* precharge powerdown fast exit */
         case RANK_PDPF:
-            feCycles += steps;
+            fastExitCycles += steps;
             if( p->EnergyModel_set && p->EnergyModel == "current" )
                 backgroundEnergy += ( p->EIDD2P1 * (double)steps );  
             else 
@@ -807,7 +854,7 @@ void Rank::Cycle( ncycle_t steps )
 
         /* precharge powerdown slow exit */
         case RANK_PDPS:
-            seCycles += steps;
+            slowExitCycles += steps;
             if( p->EnergyModel_set && p->EnergyModel == "current" )
                 backgroundEnergy += ( p->EIDD2P0 * (double)steps );  
             else 
@@ -849,17 +896,12 @@ void Rank::SetName( std::string )
 {
 }
 
-void Rank::PrintStats( )
+void Rank::CalculateStats( )
 {
-    double totalPower = 0.0f;
-    double totalEnergy = 0.0f;
     double bankE, actE, bstE, refE;
-    double bkgEnergy, actEnergy, bstEnergy, refEnergy;
-    double bkgPower, actPower, bstPower, refPower;
-    ncounter_t reads, writes;
 
-    bkgEnergy = actEnergy = bstEnergy = refEnergy = 0.0f;
-    bkgPower = actPower = bstPower = refPower = 0.0f;
+    totalEnergy = backgroundEnergy = activateEnergy = burstEnergy = refreshEnergy = 0.0;
+    totalPower = backgroundPower = activatePower = burstPower = refreshPower = 0.0;
     reads = writes = 0;
 
     for( ncounter_t i = 0; i < bankCount; i++ )
@@ -867,9 +909,9 @@ void Rank::PrintStats( )
         banks[i]->GetEnergy( bankE, actE, bstE, refE );
 
         totalEnergy += bankE;
-        actEnergy += actE;
-        bstEnergy += bstE;
-        refEnergy += refE;
+        activateEnergy += actE;
+        burstEnergy += bstE;
+        refreshEnergy += refE;
 
         reads += banks[i]->GetReads( );
         writes += banks[i]->GetWrites( );
@@ -877,109 +919,37 @@ void Rank::PrintStats( )
 
     /* add up the background energy */
     totalEnergy += backgroundEnergy;
-    bkgEnergy = backgroundEnergy;
+    backgroundEnergy = backgroundEnergy;
 
     ncycle_t simulationTime = GetEventQueue()->GetCurrentCycle();
 
     if( simulationTime != 0 )
     {
         /* power in mW */
-        totalPower = ( totalEnergy * p->Voltage ) / (double)simulationTime / 1000.0f;
-        bkgPower = ( bkgEnergy * p->Voltage ) / (double)simulationTime / 1000.0f; 
-        actPower = ( actEnergy * p->Voltage ) / (double)simulationTime / 1000.0f; 
-        bstPower = ( bstEnergy * p->Voltage ) / (double)simulationTime / 1000.0f; 
-        refPower = ( refEnergy * p->Voltage ) / (double)simulationTime / 1000.0f; 
+        totalPower = ( totalEnergy * p->Voltage ) / (double)simulationTime / 1000.0;
+        backgroundPower = ( backgroundEnergy * p->Voltage ) / (double)simulationTime / 1000.0; 
+        activatePower = ( activateEnergy * p->Voltage ) / (double)simulationTime / 1000.0; 
+        burstPower = ( burstEnergy * p->Voltage ) / (double)simulationTime / 1000.0; 
+        refreshPower = ( refreshEnergy * p->Voltage ) / (double)simulationTime / 1000.0; 
     }
 
     /* energy breakdown. device is in lockstep within a rank */
     totalEnergy *= (double)deviceCount;
-    bkgEnergy *= (double)deviceCount;
-    actEnergy *= (double)deviceCount;
-    bstEnergy *= (double)deviceCount;
-    refEnergy *= (double)deviceCount;
+    backgroundEnergy *= (double)deviceCount;
+    activateEnergy *= (double)deviceCount;
+    burstEnergy *= (double)deviceCount;
+    refreshEnergy *= (double)deviceCount;
 
     /* power breakdown. device is in lockstep within a rank */
     totalPower *= (double)deviceCount;
-    bkgPower *= (double)deviceCount;
-    actPower *= (double)deviceCount;
-    bstPower *= (double)deviceCount;
-    refPower *= (double)deviceCount;
+    backgroundPower *= (double)deviceCount;
+    activatePower *= (double)deviceCount;
+    burstPower *= (double)deviceCount;
+    refreshPower *= (double)deviceCount;
 
-    if( p->EnergyModel_set && p->EnergyModel == "current" )
-    {
-        std::cout << "i" << psInterval << "." << statName 
-            << ".current " << totalEnergy << "\t; mA" << std::endl;
-        std::cout << "i" << psInterval << "." << statName 
-            << ".current.background " << bkgEnergy << "\t; mA" << std::endl;
-        std::cout << "i" << psInterval << "." << statName 
-            << ".current.active " << actEnergy << "\t; mA" << std::endl;
-        std::cout << "i" << psInterval << "." << statName 
-            << ".current.burst " << bstEnergy << "\t; mA" << std::endl;
-        std::cout << "i" << psInterval << "." << statName 
-            << ".current.refresh " << refEnergy << "\t; mA" << std::endl;
-    }
-    else
-    {
-        std::cout << "i" << psInterval << "." << statName 
-            << ".energy " << totalEnergy << "\t; nJ" << std::endl; 
-        std::cout << "i" << psInterval << "." << statName 
-            << ".energy.background " << bkgEnergy << "\t; nJ" << std::endl;
-        std::cout << "i" << psInterval << "." << statName 
-            << ".energy.active " << actEnergy << "\t; nJ" << std::endl;
-        std::cout << "i" << psInterval << "." << statName 
-            << ".energy.burst " << bstEnergy << "\t; nJ" << std::endl;
-        std::cout << "i" << psInterval << "." << statName 
-            << ".energy.refresh " << refEnergy << "\t; nJ" << std::endl;
-    }
-    
-    std::cout << "i" << psInterval << "." << statName << ".power " 
-              << totalPower << "\t; W " << std::endl
-              << "i" << psInterval << "." << statName << ".power.background " 
-              << bkgPower << "\t; W " << std::endl
-              << "i" << psInterval << "." << statName << ".power.active " 
-              << actPower << "\t; W " << std::endl
-              << "i" << psInterval << "." << statName << ".power.burst " 
-              << bstPower << "\t; W " << std::endl
-              << "i" << psInterval << "." << statName << ".power.refresh " 
-              << refPower << "\t; W " << std::endl;
+    actWaitAverage = static_cast<double>(actWaitTotal) / static_cast<double>(actWaits);
+    rrdWaitAverage = static_cast<double>(rrdWaitTotal) / static_cast<double>(rrdWaits);
+    fawWaitAverage = static_cast<double>(fawWaitTotal) / static_cast<double>(fawWaits);
 
-    std::cout << "i" << psInterval << "." << statName << ".reads " << reads << std::endl;
-    std::cout << "i" << psInterval << "." << statName << ".writes " << writes << std::endl;
-
-    std::cout << "i" << psInterval << "." << statName 
-              << ".activeCycles " << activeCycles << std::endl
-              << "i" << psInterval << "." << statName 
-              << ".standbyCycles " << standbyCycles << std::endl
-              << "i" << psInterval << "." << statName 
-              << ".fastExitCycles " << feCycles << std::endl
-              << "i" << psInterval << "." << statName 
-              << ".slowExitCycles " << seCycles << std::endl;
-
-    std::cout << "i" << psInterval << "." << statName << ".actWaits " 
-        << actWaits << std::endl;
-    std::cout << "i" << psInterval << "." << statName << ".actWaits.totalTime " 
-        << actWaitTime << std::endl;
-    std::cout << "i" << psInterval << "." << statName << ".actWaits.averageTime " 
-        << (double)((double)actWaitTime / (double)actWaits) << std::endl;
-
-    std::cout << "i" << psInterval << "." << statName << ".rrdWaits " 
-        << rrdWaits << std::endl;
-    std::cout << "i" << psInterval << "." << statName << ".rrdWaits.totalTime " 
-        << rrdWaitTime << std::endl;
-    std::cout << "i" << psInterval << "." << statName << ".rrdWaits.averageTime " 
-        << (double)((double)rrdWaitTime / (double)rrdWaits) << std::endl;
-
-    std::cout << "i" << psInterval << "." << statName << ".fawWaits " 
-        << fawWaits << std::endl;
-    std::cout << "i" << psInterval << "." << statName << ".fawWaits.totalTime " 
-        << fawWaitTime << std::endl;
-    std::cout << "i" << psInterval << "." << statName << ".fawWaits.averageTime " 
-        << (double)((double)fawWaitTime / (double)fawWaits) << std::endl;
-
-    for( ncounter_t i = 0; i < bankCount; i++ )
-    {
-        banks[i]->PrintStats( );
-    }
-
-    psInterval++;
+    NVMObject::CalculateStats( );
 }

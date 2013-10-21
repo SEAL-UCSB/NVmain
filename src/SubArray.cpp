@@ -73,7 +73,8 @@ SubArray::SubArray( )
     refreshes = 0;
 
     actWaits = 0;
-    actWaitTime = 0;
+    actWaitTotal = 0;
+    actWaitAverage = 0.0;
 
     subArrayId = -1;
 
@@ -121,6 +122,40 @@ void SubArray::SetConfig( Config *c )
     endrModel = EnduranceModelFactory::CreateEnduranceModel( p->EnduranceModel );
     if( endrModel )
         endrModel->SetConfig( conf );
+}
+
+void SubArray::RegisterStats( )
+{
+    if( p->EnergyModel_set && p->EnergyModel == "current" )
+    {
+        AddUnitStat(subArrayEnergy, "mA");
+        AddUnitStat(activeEnergy, "mA");
+        AddUnitStat(burstEnergy, "mA");
+        AddUnitStat(refreshEnergy, "mA");
+    }
+    else
+    {
+        AddUnitStat(subArrayEnergy, "nJ");
+        AddUnitStat(activeEnergy, "nJ");
+        AddUnitStat(burstEnergy, "nJ");
+        AddUnitStat(refreshEnergy, "nJ");
+    }
+
+    AddStat(reads);
+    AddStat(writes);
+    AddStat(activates);
+    AddStat(precharges);
+    AddStat(refreshes);
+
+    if( endrModel )
+    {
+        AddStat(worstCaseEndurance);
+        AddStat(averageEndurance);
+    }
+
+    AddStat(actWaits);
+    AddStat(actWaitTotal);
+    AddStat(actWaitAverage);
 }
 
 /*
@@ -568,7 +603,7 @@ bool SubArray::IsIssuable( NVMainRequest *req, FailReason *reason )
             if( nextActivate > (GetEventQueue()->GetCurrentCycle()) )
             {
                 actWaits++;
-                actWaitTime += nextActivate - (GetEventQueue()->GetCurrentCycle() );
+                actWaitTotal += nextActivate - (GetEventQueue()->GetCurrentCycle() );
             }
         }
     }
@@ -777,49 +812,12 @@ ncounter_t SubArray::GetId( )
     return subArrayId;
 }
 
-void SubArray::PrintStats( )
+void SubArray::CalculateStats( )
 {
-    if( p->EnergyModel_set && p->EnergyModel == "current" )
-    {
-        std::cout << "i" << psInterval << "." << statName << ".current " << subArrayEnergy << "\t; mA" << std::endl;
-        std::cout << "i" << psInterval << "." << statName << ".current.active " << activeEnergy << "\t; mA" << std::endl;
-        std::cout << "i" << psInterval << "." << statName << ".current.burst " << burstEnergy << "\t; mA" << std::endl;
-        std::cout << "i" << psInterval << "." << statName << ".current.refresh " << refreshEnergy << "\t; mA" << std::endl;
-    }
-    else
-    {
-        std::cout << "i" << psInterval << "." << statName << ".energy " << subArrayEnergy << "\t; nJ" << std::endl; 
-        std::cout << "i" << psInterval << "." << statName << ".energy.active " << activeEnergy << "\t; nJ" << std::endl;
-        std::cout << "i" << psInterval << "." << statName << ".energy.burst " << burstEnergy << "\t; nJ" << std::endl;
-        std::cout << "i" << psInterval << "." << statName << ".energy.refresh " << refreshEnergy << "\t; nJ" << std::endl;
-    }
-    
-    std::cout << "i" << psInterval << "." << statName << ".reads " << reads << std::endl
-              << "i" << psInterval << "." << statName << ".writes " << writes << std::endl
-              << "i" << psInterval << "." << statName << ".activates " << activates << std::endl
-              << "i" << psInterval << "." << statName << ".precharges " << precharges << std::endl
-              << "i" << psInterval << "." << statName << ".refreshes " << refreshes << std::endl;
+    worstCaseEndurance = endrModel->GetWorstLife( );
+    averageEndurance = endrModel->GetAverageLife( );
 
-    if( endrModel )
-    {
-        if( endrModel->GetWorstLife( ) == std::numeric_limits< uint64_t >::max( ) )
-          std::cout << "i" << psInterval << "." << statName << ".worstCaseEndurance N/A" << std::endl
-                    << "i" << psInterval << "." << statName << ".averageEndurance N/A" << std::endl;
-        else
-          std::cout << "i" << psInterval << "." << statName << ".worstCaseEndurance " 
-                    << (endrModel->GetWorstLife( )) << std::endl
-                    << "i" << psInterval << "." << statName << ".averageEndurance " 
-                    << endrModel->GetAverageLife( ) << std::endl;
-
-        endrModel->PrintStats( );
-    }
-
-    std::cout << "i" << psInterval << "." << statName << ".actWaits " << actWaits << std::endl
-              << "i" << psInterval << "." << statName << ".actWaits.totalTime " << actWaitTime << std::endl
-              << "i" << psInterval << "." << statName << ".actWaits.averageTime " 
-              << (double)((double)actWaitTime / (double)actWaits) << std::endl;
-
-    psInterval++;
+    actWaitAverage = static_cast<double>(actWaitTotal) / static_cast<double>(actWaits);
 }
 
 bool SubArray::Idle( )

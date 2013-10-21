@@ -46,7 +46,7 @@ class PerfectMemory : public MemoryController
 
     bool IssueCommand( NVMainRequest *req );
 
-    void PrintStats( );
+    void PrintStats( std::ostream& );
 
     void Cycle( ncycle_t );
 };

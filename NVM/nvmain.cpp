@@ -242,6 +242,10 @@ void NVMain::SetConfig( Config *conf, std::string memoryName )
         /* Set Config recursively. */
         memory[i]->SetConfig( channelConfig[i] );
         memoryControllers[i]->SetConfig( channelConfig[i] );
+
+        /* Register statistics. */
+        memoryControllers[i]->RegisterStats( );
+        memory[i]->RegisterStats( );
     }
     
     numChannels = static_cast<unsigned int>(channels);
@@ -406,9 +410,9 @@ void NVMain::Cycle( ncycle_t )
     GetEventQueue()->Loop( );
 }
 
-void NVMain::PrintStats( )
+void NVMain::CalculateStats( )
 {
     for( unsigned int i = 0; i < numChannels; i++ )
-        memoryControllers[i]->PrintStats( );
+        memoryControllers[i]->CalculateStats( );
 }
 

@@ -47,14 +47,19 @@ class FlipNWrite : public EnduranceModel
 
     bool Write( NVMAddress address, NVMDataBlock oldData, NVMDataBlock newData );
 
-    void PrintStats( );
+    void StatName( std::string name ) { statName = name; }
+
+    void RegisterStats( );
+    void CalculateStats( );
 
   private:
     std::set< uint64_t > flippedAddresses;
+    std::string statName;
   
-    uint64_t flipBitsWritten;
-    uint64_t flipNWriteModify;
-    uint64_t bitCompareModify;
+    uint64_t bitWrites;
+    uint64_t bitsFlipped;
+    uint64_t bitCompareSwapWrites;
+    double flipNWriteReduction;
 
     void InvertData( NVMDataBlock &data, uint64_t startBit, uint64_t endBit );
 };

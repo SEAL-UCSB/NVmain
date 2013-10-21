@@ -55,7 +55,8 @@ class DRCDecoder : public AddressTranslator
     using AddressTranslator::Translate;
     using AddressTranslator::SetDefaultField;
 
-    void PrintStats( ) { }
+    void RegisterStats( ) { }
+    void CalculateStats( ) { }
 
   private:
     uint64_t ignoreBits;

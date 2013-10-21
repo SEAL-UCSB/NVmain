@@ -52,14 +52,14 @@ LH_Cache::LH_Cache( Interconnect *memory, AddressTranslator *translator )
 
     std::cout << "Create a Basic DRAM Cache!" << std::endl;
 
-    averageHitLatency = 0.0f;
-    averageHitQueueLatency = 0.0f;
-    averageMissLatency = 0.0f;
-    averageMissQueueLatency = 0.0f;
-    averageMMLatency = 0.0f;
-    averageMMQueueLatency = 0.0f;
-    averageFillLatency = 0.0f;
-    averageFillQueueLatency = 0.0f;
+    averageHitLatency = 0.0;
+    averageHitQueueLatency = 0.0;
+    averageMissLatency = 0.0;
+    averageMissQueueLatency = 0.0;
+    averageMMLatency = 0.0;
+    averageMMQueueLatency = 0.0;
+    averageFillLatency = 0.0;
+    averageFillQueueLatency = 0.0;
 
     measuredHitLatencies = 0;
     measuredHitQueueLatencies = 0;
@@ -148,6 +148,42 @@ void LH_Cache::SetConfig( Config *conf )
     }
 
     MemoryController::SetConfig( conf );
+}
+
+void LH_Cache::RegisterStats( )
+{
+    AddStat(mem_reads);
+    AddStat(mem_writes);
+    AddStat(rb_hits);
+    AddStat(rb_miss);
+    AddStat(drcHits);
+    AddStat(drcMiss);
+    AddStat(fills);
+
+    AddStat(mm_reqs);
+    AddStat(mm_reads);
+
+    AddStat(starvation_precharges);
+
+    AddStat(averageHitLatency);
+    AddStat(measuredHitLatencies);
+    AddStat(averageHitQueueLatency);
+    AddStat(measuredHitQueueLatencies);
+
+    AddStat(averageMissLatency);
+    AddStat(measuredMissLatencies);
+    AddStat(averageMissQueueLatency);
+    AddStat(measuredMissQueueLatencies);
+
+    AddStat(averageMMLatency);
+    AddStat(measuredMMLatencies);
+    AddStat(averageMMQueueLatency);
+    AddStat(measuredMMQueueLatencies);
+
+    AddStat(averageFillLatency);
+    AddStat(measuredFillLatencies);
+    AddStat(averageFillQueueLatency);
+    AddStat(measuredFillQueueLatencies);
 }
 
 void LH_Cache::SetMainMemory( NVMain *mm )
@@ -627,40 +663,7 @@ bool LH_Cache::IssueFillCommands( NVMainRequest *req )
     return rv;
 }
 
-void LH_Cache::PrintStats( )
+void LH_Cache::CalculateStats( )
 {
-    std::cout << "i" << psInterval << "." << statName << id << ".mem_reads " << mem_reads << std::endl;
-    std::cout << "i" << psInterval << "." << statName << id << ".mem_writes " << mem_writes << std::endl;
-    std::cout << "i" << psInterval << "." << statName << id << ".rb_hits " << rb_hits << std::endl;
-    std::cout << "i" << psInterval << "." << statName << id << ".rb_miss " << rb_miss << std::endl;
-    std::cout << "i" << psInterval << "." << statName << id << ".drcHits " << drcHits << std::endl;
-    std::cout << "i" << psInterval << "." << statName << id << ".drcMiss " << drcMiss << std::endl;
-    std::cout << "i" << psInterval << "." << statName << id << ".mm_reqs " << mm_reqs << std::endl;
-    std::cout << "i" << psInterval << "." << statName << id << ".mm_reads " << mm_reads << std::endl;
-    std::cout << "i" << psInterval << "." << statName << id << ".fills " << fills << std::endl;
-    std::cout << "i" << psInterval << "." << statName << id << ".starvation_precharges " << starvation_precharges << std::endl;
-
-    std::cout << "i" << psInterval << "." << statName << id << ".averageHitLatency " << averageHitLatency << std::endl;
-    std::cout << "i" << psInterval << "." << statName << id << ".measuredHitLatencies " << measuredHitLatencies << std::endl;
-    std::cout << "i" << psInterval << "." << statName << id << ".averageHitQueueLatency " << averageHitQueueLatency << std::endl;
-    std::cout << "i" << psInterval << "." << statName << id << ".measuredHitQueueLatencies " << measuredHitQueueLatencies << std::endl;
-
-    std::cout << "i" << psInterval << "." << statName << id << ".averageMissLatency " << averageMissLatency << std::endl;
-    std::cout << "i" << psInterval << "." << statName << id << ".measuredMissLatencies " << measuredMissLatencies << std::endl;
-    std::cout << "i" << psInterval << "." << statName << id << ".averageMissQueueLatency " << averageMissQueueLatency << std::endl;
-    std::cout << "i" << psInterval << "." << statName << id << ".measuredMissQueueLatencies " << measuredMissQueueLatencies << std::endl;
- 
-    std::cout << "i" << psInterval << "." << statName << id << ".averageMMLatency " << averageMMLatency << std::endl;
-    std::cout << "i" << psInterval << "." << statName << id << ".measuredMMLatencies " << measuredMMLatencies << std::endl;
-    std::cout << "i" << psInterval << "." << statName << id << ".averageMMQueueLatency " << averageMMQueueLatency << std::endl;
-    std::cout << "i" << psInterval << "." << statName << id << ".measuredMMQueueLatencies " << measuredMMQueueLatencies << std::endl;
-
-    std::cout << "i" << psInterval << "." << statName << id << ".averageFillLatency " << averageFillLatency << std::endl;
-    std::cout << "i" << psInterval << "." << statName << id << ".measuredFillLatencies " << measuredFillLatencies << std::endl;
-    std::cout << "i" << psInterval << "." << statName << id << ".averageFillQueueLatency " << averageFillQueueLatency << std::endl;
-    std::cout << "i" << psInterval << "." << statName << id << ".measuredFillQueueLatencies " << measuredFillQueueLatencies << std::endl;
-
-    MemoryController::PrintStats( );
-
-    psInterval++;
+    MemoryController::CalculateStats( );
 }

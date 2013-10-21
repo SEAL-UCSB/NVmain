@@ -58,8 +58,6 @@ MissMap::~MissMap( )
 {
 }
 
-
-
 void MissMap::SetConfig( Config *conf )
 {
     /* Initialize off-chip memory */
@@ -134,6 +132,16 @@ void MissMap::SetConfig( Config *conf )
     missMap->SetWriteTime( missMapLatency );
 
     std::cout << "Created a MissMap!" << std::endl;
+}
+
+void MissMap::RegisterStats( )
+{
+    AddStat(missMapAllocations);
+    AddStat(missMapWrites);
+    AddStat(missMapHits);
+    AddStat(missMapMisses);
+    AddStat(missMapForceEvicts);
+    AddStat(missMapMemReads);
 }
 
 bool MissMap::QueueFull( NVMainRequest * )
@@ -520,15 +528,6 @@ void MissMap::Cycle( ncycle_t )
     }
 }
 
-void MissMap::PrintStats( )
+void MissMap::CalculateStats( )
 {
-    /* MissMap stats */
-    std::cout << "i" << psInterval << "." << statName << id << ".missMapAllocations " << missMapAllocations << std::endl;
-    std::cout << "i" << psInterval << "." << statName << id << ".missMapWrites " << missMapWrites << std::endl;
-    std::cout << "i" << psInterval << "." << statName << id << ".missMapHits " << missMapHits << std::endl;
-    std::cout << "i" << psInterval << "." << statName << id << ".missMapMisses " << missMapMisses << std::endl;
-    std::cout << "i" << psInterval << "." << statName << id << ".missMapForceEvicts " << missMapForceEvicts << std::endl;
-    std::cout << "i" << psInterval << "." << statName << id << ".missMapMemReads " << missMapMemReads << std::endl;
-
-    psInterval++;
 }

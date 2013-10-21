@@ -39,6 +39,9 @@
 #include "include/NVMTypes.h"
 #include "include/FailReasons.h"
 #include "Decoders/DecoderFactory.h"
+#include "src/Stats.h"
+
+#include <ostream>
 #include <vector>
 #include <typeinfo>
 
@@ -77,6 +80,13 @@ class NVMObject_hook
     void Callback( void *data );
 
     void Cycle( ncycle_t steps );
+
+    void CalculateStats( );
+    void ResetStats( );
+
+    void SetStats( Stats* );
+    Stats* GetStats( );
+    void RegisterStats( );
 
     NVMObject *GetTrampoline( );
 
@@ -120,6 +130,13 @@ class NVMObject
     virtual void SetDecoder( AddressTranslator *at );
     virtual AddressTranslator *GetDecoder( );
 
+    virtual void CalculateStats( );
+    virtual void ResetStats( );
+
+    void SetStats( Stats* );
+    Stats* GetStats( );
+    virtual void RegisterStats( );
+
     HookType GetHookType( );
     void SetHookType( HookType );
 
@@ -129,6 +146,7 @@ class NVMObject
   protected:
     NVMObject_hook *parent;
     AddressTranslator *decoder;
+    Stats *stats;
     std::vector<NVMObject_hook *> children;
     std::vector<NVMObject *> *hooks;
     EventQueue *eventQueue;

@@ -58,7 +58,8 @@ class DRAMCache : public MemoryController
 
     void Cycle( ncycle_t );
 
-    void PrintStats( );
+    void RegisterStats( );
+    void CalculateStats( );
 
     NVMain *GetMainMemory( );
 

@@ -85,7 +85,6 @@ class Rank : public NVMObject
     bool RequestComplete( NVMainRequest* );
 
     void SetName( std::string name );
-    void PrintStats( );
     void StatName( std::string name ) { statName = name; }
 
     bool PowerDown( const OpType& pdOp );
@@ -102,6 +101,9 @@ class Rank : public NVMObject
     ncycle_t GetNextRefresh( uint64_t bank );
 
     void Cycle( ncycle_t steps );
+
+    void RegisterStats( );
+    void CalculateStats( );
 
   private:
     Config *conf;
@@ -127,17 +129,23 @@ class Rank : public NVMObject
 
     ncounter_t activeCycles;
     ncounter_t standbyCycles;
-    ncounter_t feCycles;
-    ncounter_t seCycles;
+    ncounter_t fastExitCycles;
+    ncounter_t slowExitCycles;
 
     ncounter_t rrdWaits;
-    ncounter_t rrdWaitTime;
+    ncounter_t rrdWaitTotal;
+    double rrdWaitAverage;
     ncounter_t fawWaits;
-    ncounter_t fawWaitTime;
+    ncounter_t fawWaitTotal;
+    double fawWaitAverage;
     ncounter_t actWaits;
-    ncounter_t actWaitTime;
+    ncounter_t actWaitTotal;
+    double actWaitAverage;
 
-    double backgroundEnergy;
+    ncounter_t reads, writes;
+
+    double totalEnergy, backgroundEnergy, activateEnergy, burstEnergy, refreshEnergy;
+    double totalPower, backgroundPower, activatePower, burstPower, refreshPower;
 
     bool Activate( NVMainRequest *request );
     bool Read( NVMainRequest *request );

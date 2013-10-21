@@ -50,9 +50,9 @@ FlipNWrite::FlipNWrite( )
 
 
     /* Clear statistics */
-    flipBitsWritten = 0;
-    flipNWriteModify = 0;
-    bitCompareModify = 0;
+    bitWrites = 0;
+    bitsFlipped = 0;
+    bitCompareSwapWrites = 0;
 
     SetGranularity( 1 );
 }
@@ -63,6 +63,14 @@ FlipNWrite::~FlipNWrite( )
      *  Nothing to do here. We do not own the *config pointer, so
      *  don't delete that.
      */
+}
+
+void FlipNWrite::RegisterStats( )
+{
+    AddStat(bitsFlipped);
+    AddStat(bitWrites);
+    AddStat(bitCompareSwapWrites);
+    AddUnitStat(flipNWriteReduction, "%");
 }
 
 void FlipNWrite::InvertData( NVMDataBlock& data, uint64_t startBit, uint64_t endBit )
@@ -261,7 +269,7 @@ bool FlipNWrite::Write( NVMAddress address, NVMDataBlock oldData,
         std::vector< uint64_t > *decrementVector;
         std::vector< NVMAddress > *faultVector;
 
-        bitCompareModify += modifyCount[i];
+        bitCompareSwapWrites += modifyCount[i];
 
         if( modifyCount[i] > (fpSize / 2) )
         {
@@ -270,8 +278,8 @@ bool FlipNWrite::Write( NVMAddress address, NVMDataBlock oldData,
 
             InvertData( newData, i*fpSize, (i+1)*fpSize );
 
-            flipBitsWritten++;
-            flipNWriteModify += modifyCount[i] - (fpSize - modifyCount[i]);
+            bitWrites++;
+            bitsFlipped += modifyCount[i] - (fpSize - modifyCount[i]);
 
             /*
              *  Mark this address as flipped. If the data was already inverted, it
@@ -292,7 +300,7 @@ bool FlipNWrite::Write( NVMAddress address, NVMDataBlock oldData,
         }
         else
         {
-            flipNWriteModify += modifyCount[i];
+            bitsFlipped += modifyCount[i];
 
             decrementVector = &(nonInvertedKeys[i]);
             faultVector = &(nonInvertedFaultAddr[i]);
@@ -320,20 +328,13 @@ bool FlipNWrite::Write( NVMAddress address, NVMDataBlock oldData,
     return rv;
 }
 
-void FlipNWrite::PrintStats( )
+void FlipNWrite::CalculateStats( )
 {
     uint64_t totalMod;
-    double reduction;
 
-    totalMod = flipNWriteModify + flipBitsWritten;
-    if( bitCompareModify != 0 )
-        reduction = (((double)totalMod / (double)bitCompareModify)*100.0f);
+    totalMod = bitsFlipped + bitWrites;
+    if( bitCompareSwapWrites != 0 )
+        flipNWriteReduction = (((double)totalMod / (double)bitCompareSwapWrites)*100.0);
     else
-        reduction = 100.0f;
-
-    std::cout << "FlipNWrite: Modified " << flipNWriteModify << " bits + " 
-              << flipBitsWritten
-              << " flip bits. (" << totalMod << " total). BCS would modify " 
-              << bitCompareModify << " bits so far. " << reduction 
-              << "% of BCS!" << std::endl;
+        flipNWriteReduction = 100.0;
 }

@@ -69,7 +69,8 @@ class LO_Cache : public AbstractDRAMCache
 
     void Cycle( ncycle_t );
 
-    void PrintStats( );
+    void RegisterStats( );
+    void CalculateStats( );
 
   private:
     NVMTransactionQueue *drcQueue;
@@ -85,8 +86,7 @@ class LO_Cache : public AbstractDRAMCache
 
     bool perfectFills;
     uint64_t max_addr;
-
-    //uint8_t hit_count[64*1024*1024]; //Assumes 4GB memory size!
+    double drc_hitrate;
 
     std::map<NVMainRequest *, NVMainRequest *> outstandingFills;
 };

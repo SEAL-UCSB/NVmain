@@ -72,7 +72,8 @@ class AddressTranslator
     virtual uint64_t Translate( uint64_t address );
     virtual void SetDefaultField( TranslationField f ); 
 
-    virtual void PrintStats( ) { }
+    virtual void RegisterStats( ) { } 
+    virtual void CalculateStats( ) { }
 
   private:
     TranslationMethod *method;

@@ -166,6 +166,11 @@ void DRAMCache::SetConfig( Config *conf )
     MemoryController::SetConfig( conf );
 }
 
+void DRAMCache::RegisterStats( )
+{
+
+}
+
 void DRAMCache::Retranslate( NVMainRequest *req )
 {
     uint64_t col, row, bank, rank, chan, subarray;
@@ -269,16 +274,16 @@ void DRAMCache::Cycle( ncycle_t steps )
     mainMemory->Cycle( steps );
 }
 
-void DRAMCache::PrintStats( )
+void DRAMCache::CalculateStats( )
 {
     uint64_t i;
 
     for( i = 0; i < numChannels; i++ )
     {
-        drcChannels[i]->PrintStats( );
+        drcChannels[i]->CalculateStats( );
     }
 
-    mainMemory->PrintStats( );
+    mainMemory->CalculateStats( );
 }
 
 NVMain *DRAMCache::GetMainMemory( )

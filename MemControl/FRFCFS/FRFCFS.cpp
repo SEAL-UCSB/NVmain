@@ -100,6 +100,19 @@ void FRFCFS::SetConfig( Config *conf )
     MemoryController::SetConfig( conf );
 }
 
+void FRFCFS::RegisterStats( )
+{
+   AddStat(mem_reads);
+   AddStat(mem_writes);
+   AddStat(rb_hits);
+   AddStat(rb_miss);
+   AddStat(starvation_precharges);
+   AddStat(averageLatency);
+   AddStat(averageQueueLatency);
+   AddStat(measuredLatencies);
+   AddStat(measuredQueueLatencies);
+}
+
 bool FRFCFS::QueueFull( NVMainRequest * /*req*/ )
 {
     return (memQueue.size() >= queueSize);
@@ -208,22 +221,9 @@ void FRFCFS::Cycle( ncycle_t steps )
     MemoryController::Cycle( steps );
 }
 
-void FRFCFS::PrintStats( )
+void FRFCFS::CalculateStats( )
 {
-    std::cout << "i" << psInterval << "." << statName << id << ".mem_reads " << mem_reads << std::endl;
-    std::cout << "i" << psInterval << "." << statName << id << ".mem_writes " << mem_writes << std::endl;
-    std::cout << "i" << psInterval << "." << statName << id << ".rb_hits " << rb_hits << std::endl;
-    std::cout << "i" << psInterval << "." << statName << id << ".rb_miss " << rb_miss << std::endl;
-    std::cout << "i" << psInterval << "." << statName << id << ".starvation_precharges " << starvation_precharges << std::endl;
-    std::cout << "i" << psInterval << "." << statName << id << ".averageLatency " << averageLatency << std::endl;
-    std::cout << "i" << psInterval << "." << statName << id << ".averageQueueLatency " << averageQueueLatency << std::endl;
-    std::cout << "i" << psInterval << "." << statName << id << ".measuredLatencies " << measuredLatencies << std::endl;
-    std::cout << "i" << psInterval << "." << statName << id << ".measuredQueueLatencies " << measuredQueueLatencies << std::endl;
-    std::cout << "i" << psInterval << "." << statName << id << ".cpu_insts " << cpu_insts << std::endl;
-
-    MemoryController::PrintStats( );
-
-    psInterval++;
+    MemoryController::CalculateStats( );
 }
 
 

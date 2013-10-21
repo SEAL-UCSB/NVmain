@@ -106,7 +106,8 @@ class MemoryController : public NVMObject
     AddressTranslator *GetAddressTranslator( );
 
     void StatName( std::string name ) { statName = name; }
-    virtual void PrintStats( );
+    virtual void RegisterStats( );
+    virtual void CalculateStats( );
 
     virtual void Cycle( ncycle_t steps ); 
 
@@ -225,6 +226,9 @@ class MemoryController : public NVMObject
     };
 
     ncounter_t id;
+
+    /* Stats */
+    ncounter_t simulation_cycles;
 
     Params *p;
 };

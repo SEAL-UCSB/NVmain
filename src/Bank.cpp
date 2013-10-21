@@ -61,6 +61,8 @@ Bank::Bank( )
     nextPowerUp = 0;
     nextCommand = CMD_NOP;
 
+    dummyStat = 0;
+
     subArrays = NULL;
     subArrayNum = 0;
     activeSubArrayQueue.clear();
@@ -101,7 +103,7 @@ Bank::Bank( )
     refreshes = 0;
 
     actWaits = 0;
-    actWaitTime = 0;
+    actWaitTotal = 0;
 
     bankId = -1;
 
@@ -160,6 +162,55 @@ void Bank::SetConfig( Config *c )
 
     if( p->InitPD )
         state = BANK_PDPF;
+}
+
+void Bank::RegisterStats( )
+{
+    AddStat(dummyStat);
+
+    if( p->EnergyModel_set && p->EnergyModel == "current" )
+    {
+        AddUnitStat(bankEnergy, "mA");
+        AddUnitStat(activeEnergy, "mA");
+        AddUnitStat(burstEnergy, "mA");
+        AddUnitStat(refreshEnergy, "mA");
+    }
+    else
+    {
+        AddUnitStat(bankEnergy, "nJ");
+        AddUnitStat(activeEnergy, "nJ");
+        AddUnitStat(burstEnergy, "nJ");
+        AddUnitStat(refreshEnergy, "nJ");
+    }
+
+    AddUnitStat(bankPower, "W");
+    AddUnitStat(activePower, "W");
+    AddUnitStat(burstPower, "W");
+    AddUnitStat(refreshPower, "W");
+
+    AddUnitStat(bandwidth, "MB/s");
+    AddStat(dataCycles); 
+    AddStat(powerCycles);
+    AddStat(utilization);
+
+    AddStat(reads);
+    AddStat(writes);
+    AddStat(activates);
+    AddStat(precharges);
+    AddStat(refreshes);
+
+    AddStat(activeCycles);
+    AddStat(standbyCycles);
+    AddStat(fastExitActiveCycles);
+    AddStat(fastExitPrechargeCycles);
+    AddStat(slowExitPrechargeCycles);
+
+    AddStat(worstLife); 
+    AddStat(averageLife);
+
+    AddStat(actWaits);
+    AddStat(actWaitTotal); 
+    AddStat(actWaitAverage);
 }
 
 /*
@@ -663,7 +714,7 @@ bool Bank::IsIssuable( NVMainRequest *req, FailReason *reason )
                 reason->reason = BANK_TIMING;
 
             actWaits++;
-            actWaitTime += nextActivate - (GetEventQueue()->GetCurrentCycle());
+            actWaitTotal += nextActivate - (GetEventQueue()->GetCurrentCycle());
         }
         else
             rv = subArrays[opSubArray]->IsIssuable( req, reason );
@@ -886,11 +937,8 @@ void Bank::CalculatePower( )
     }
 
     bankPower = ( bankEnergy * p->Voltage ) / (double)simulationTime / 1000.0f; 
-
     activePower = ( activeEnergy * p->Voltage ) / (double)simulationTime / 1000.0f; 
-
     burstPower = ( burstEnergy * p->Voltage ) / (double)simulationTime / 1000.0f; 
-    
     refreshPower = ( refreshEnergy * p->Voltage ) / (double)simulationTime / 1000.0f; 
 }
 
@@ -951,7 +999,7 @@ ncounter_t Bank::GetId( )
     return bankId;
 }
 
-void Bank::PrintStats( )
+void Bank::CalculateStats( )
 {
     double idealBandwidth;
 
@@ -964,91 +1012,18 @@ void Bank::PrintStats( )
 
     CalculatePower( );
 
-    if( p->EnergyModel_set && p->EnergyModel == "current" )
+    bandwidth = (utilization * idealBandwidth);
+    powerCycles = activeCycles + standbyCycles;
+
+    worstLife = endrModel->GetWorstLife( );
+    averageLife = endrModel->GetAverageLife( );
+
+    actWaitAverage = static_cast<double>(actWaitTotal) / static_cast<double>(actWaits);
+
+    if( subArrayNum > 1 )
     {
-        std::cout << "i" << psInterval << "." << statName 
-            << ".current " << bankEnergy << "\t; mA" << std::endl;
-        std::cout << "i" << psInterval << "." << statName 
-            << ".current.active " << activeEnergy << "\t; mA" << std::endl;
-        std::cout << "i" << psInterval << "." << statName 
-            << ".current.burst " << burstEnergy << "\t; mA" << std::endl;
-        std::cout << "i" << psInterval << "." << statName 
-            << ".current.refresh " << refreshEnergy << "\t; mA" << std::endl;
+        NVMObject::CalculateStats( );
     }
-    else
-    {
-        std::cout << "i" << psInterval << "." << statName 
-            << ".energy " << bankEnergy << "\t; nJ" << std::endl; 
-        std::cout << "i" << psInterval << "." << statName 
-            << ".energy.active " << activeEnergy << "\t; nJ" << std::endl;
-        std::cout << "i" << psInterval << "." << statName 
-            << ".energy.burst " << burstEnergy << "\t; nJ" << std::endl;
-        std::cout << "i" << psInterval << "." << statName 
-            << ".energy.refresh " << refreshEnergy << "\t; nJ" << std::endl;
-    }
-    
-    std::cout << "i" << psInterval << "." << statName << ".power " 
-              << bankPower << "\t; W per bank per device" << std::endl
-              << "i" << psInterval << "." << statName << ".power.active " 
-              << activePower << "\t; W per bank per device" << std::endl
-              << "i" << psInterval << "." << statName << ".power.burst " 
-              << burstPower << "\t; W per bank per device" << std::endl
-              << "i" << psInterval << "." << statName << ".power.refresh " 
-              << refreshPower << "\t; W per bank per device" << std::endl;
-
-    std::cout << "i" << psInterval << "." << statName << ".bandwidth " 
-              << (utilization * idealBandwidth) << "\t; MB/s " << std::endl
-              << "i" << psInterval << "." << statName << "(" << dataCycles << " data cycles in " 
-              << (activeCycles + standbyCycles) << " cycles)" << std::endl
-              << "i" << psInterval << "." << statName << ".utilization " 
-              << utilization << std::endl;
-
-    std::cout << "i" << psInterval << "." << statName 
-              << ".reads " << reads << std::endl
-              << "i" << psInterval << "." << statName 
-              << ".writes " << writes << std::endl
-              << "i" << psInterval << "." << statName 
-              << ".activates " << activates << std::endl
-              << "i" << psInterval << "." << statName 
-              << ".precharges " << precharges << std::endl
-              << "i" << psInterval << "." << statName 
-              << ".refreshes " << refreshes << std::endl;
-
-    std::cout << "i" << psInterval << "." << statName 
-              << ".activeCycles " << activeCycles << std::endl
-              << "i" << psInterval << "." << statName 
-              << ".standbyCycles " << standbyCycles << std::endl
-              << "i" << psInterval << "." << statName 
-              << ".fastExitActiveCycles " << fastExitActiveCycles << std::endl
-              << "i" << psInterval << "." << statName 
-              << ".fastExitPrechargeCycles " << fastExitPrechargeCycles << std::endl
-              << "i" << psInterval << "." << statName 
-              << ".slowExitPrechargeCycles " << slowExitPrechargeCycles << std::endl;
-
-    if( endrModel )
-    {
-        if( endrModel->GetWorstLife( ) == std::numeric_limits< uint64_t >::max( ) )
-          std::cout << "i" << psInterval << "." << statName 
-                    << ".worstCaseEndurance N/A" << std::endl
-                    << "i" << psInterval << "." << statName 
-                    << ".averageEndurance N/A" << std::endl;
-        else
-          std::cout << "i" << psInterval << "." << statName << ".worstCaseEndurance " 
-                    << (endrModel->GetWorstLife( )) << std::endl
-                    << "i" << psInterval << "." << statName << ".averageEndurance " 
-                    << endrModel->GetAverageLife( ) << std::endl;
-
-        endrModel->PrintStats( );
-    }
-
-    std::cout << "i" << psInterval << "." << statName 
-              << ".actWaits " << actWaits << std::endl
-              << "i" << psInterval << "." << statName 
-              << ".actWaits.totalTime " << actWaitTime << std::endl
-              << "i" << psInterval << "." << statName << ".actWaits.averageTime " 
-              << (double)((double)actWaitTime / (double)actWaits) << std::endl;
-
-    psInterval++;
 }
 
 

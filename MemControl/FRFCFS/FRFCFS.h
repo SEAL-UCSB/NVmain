@@ -54,7 +54,8 @@ class FRFCFS : public MemoryController
 
     bool QueueFull( NVMainRequest *req );
 
-    void PrintStats( );
+    void RegisterStats( );
+    void CalculateStats( );
 
   private:
     NVMTransactionQueue memQueue;

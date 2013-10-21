@@ -58,7 +58,8 @@ class PredictorDRC : public MemoryController
 
     void Cycle( ncycle_t );
 
-    void PrintStats( );
+    void RegisterStats( );
+    void CalculateStats( );
 
  private:
     NVMain *mainMemory;

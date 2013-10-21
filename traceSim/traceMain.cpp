@@ -34,6 +34,8 @@
 #include <sstream>
 #include <cmath>
 #include <stdlib.h>
+#include <fstream>
+
 #include "src/Interconnect.h"
 #include "Interconnect/InterconnectFactory.h"
 #include "src/Config.h"
@@ -54,6 +56,7 @@ using namespace NVM;
 
 int main( int argc, char *argv[] )
 {
+    Stats *stats = new Stats( );
     Config *config = new Config( );
     GenericTraceReader *trace = NULL;
     TraceLine *tl = new TraceLine( );
@@ -74,6 +77,14 @@ int main( int argc, char *argv[] )
     config->Read( argv[1] );
     config->SetSimInterface( simInterface );
     nvmain->SetEventQueue( mainEventQueue );
+    nvmain->SetStats( stats );
+    std::ofstream statStream;
+
+    if( config->KeyExists( "StatsFile" ) )
+    {
+        statStream.open( config->GetString( "StatsFile" ).c_str(), 
+                         std::ofstream::out | std::ofstream::app );
+    }
 
     /*  Add any specified hooks */
     std::vector<std::string>& hookList = config->GetHooks( );
@@ -220,12 +231,15 @@ int main( int argc, char *argv[] )
         }
     }       
 
-    nvmain->PrintStats( );
+    nvmain->CalculateStats( );
+    std::ostream& refStream = (statStream.is_open()) ? statStream : std::cout;
+    stats->PrintAll( refStream );
 
     std::cout << "Exiting at cycle " << currentCycle << " because simCycles " 
         << simulateCycles << " reached." << std::endl; 
 
     delete config;
+    delete stats;
 
     return 0;
 }

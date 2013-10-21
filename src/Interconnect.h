@@ -50,7 +50,8 @@ class Interconnect : public NVMObject
     virtual void SetConfig( Config *c ) = 0;
 
     void StatName( std::string name ) { statName = name; }
-    virtual void PrintStats( ) { }
+    virtual void RegisterStats( ) { }
+    virtual void CalculateStats( ) { }
     
     virtual void Cycle( ncycle_t steps ) = 0;
 

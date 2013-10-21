@@ -111,11 +111,11 @@ void PerfectMemory::Cycle( ncycle_t )
 {
 }
 
-void PerfectMemory::PrintStats( )
+void PerfectMemory::PrintStats( std::ostream& )
 {
-#ifndef TRACE
-    if( GetConfig( )->KeyExists( "CTL_DUMP" ) 
-            && GetConfig( )->GetString( "CTL_DUMP" ) == "true" )
-        Stats::schedStatEvent( true, false );
-#endif
+    /*
+     *  This memory controller is considered and end-node, meaning requests
+     *  will never go further than this object. Therefore, we don't need to
+     *  print any child module stats, if any exist.
+     */
 }

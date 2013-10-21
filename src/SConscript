@@ -52,4 +52,5 @@ NVMainSource('Interconnect.cpp')
 NVMainSource('Params.cpp')
 NVMainSource('NVMObject.cpp')
 NVMainSource('EventQueue.cpp')
+NVMainSource('Stats.cpp')
 
