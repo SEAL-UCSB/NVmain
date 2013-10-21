@@ -585,13 +585,13 @@ ncycle_t SubArray::WriteCellData( NVMainRequest *request )
 
     Bank *parentBank = (Bank*)GetParent( );
     ncounter_t parentBankId = parentBank->GetId( );
-    unsigned int memoryWordSize = p->tBURST * p->RATE * p->BusWidth;
-    unsigned int deviceCount = p->BusWidth / p->DeviceWidth;
+    unsigned int memoryWordSize = static_cast<unsigned int>(p->tBURST * p->RATE * p->BusWidth);
+    unsigned int deviceCount = static_cast<unsigned int>(p->BusWidth / p->DeviceWidth);
     unsigned int writeSize = memoryWordSize / deviceCount;
     unsigned int writeBytes = writeSize / 8;
 
     /* Assume that data written is not interleaved over devices. */
-    unsigned int offset = writeBytes * parentBankId;
+    unsigned int offset = writeBytes * static_cast<unsigned int>(parentBankId);
     std::deque<uint8_t> writeBits;
 
     /* Get each byte, then push back each bit to the writeBits vector. */
@@ -602,16 +602,16 @@ ncycle_t SubArray::WriteCellData( NVMainRequest *request )
         for( unsigned int bitIdx = 0; bitIdx < 8; bitIdx++ )
         {
             writeBits.push_back( ((curByte & 0x80) ? 1 : 0) );
-            curByte <<= 1;
+            curByte = curByte << 1;
         }
     }
 
     /* Based on the MLC level count, get this many bits at once. */
-    unsigned int writeCount = writeSize / p->MLCLevels;
+    unsigned int writeCount = writeSize / static_cast<unsigned int>(p->MLCLevels);
 
     for( unsigned int writeIdx = 0; writeIdx < writeCount; writeIdx++ )
     {
-        uint8_t cellData = 0;
+        unsigned int cellData = 0;
 
         for( unsigned int bitIdx = 0; bitIdx < p->MLCLevels; bitIdx++ )
         {
@@ -667,8 +667,8 @@ ncycle_t SubArray::WriteCellData( NVMainRequest *request )
             /* Only calculate energy for energy-mode model. */
             if( p->EnergyModel_set && p->EnergyModel != "current" )
             {
-                subArrayEnergy += p->Ereset + setPulseCount * p->Eset;
-                writeEnergy += p->Ereset + setPulseCount * p->Eset;
+                subArrayEnergy += p->Ereset + static_cast<double>(setPulseCount) * p->Eset;
+                writeEnergy += p->Ereset + static_cast<double>(setPulseCount) * p->Eset;
             }
         }
 

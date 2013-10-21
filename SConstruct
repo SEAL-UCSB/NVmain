@@ -28,7 +28,6 @@ if build_type == None or build_type == "fast":
     env.Append(CCFLAGS='-Werror')
     env.Append(CCFLAGS='-Wall')
     env.Append(CCFLAGS='-Wextra')
-    env.Append(CCFLAGS='-Wconversion')
     env.Append(CCFLAGS='-fPIC')
     env['OBJSUFFIX'] = '.fo'
     build_type = "fast"
@@ -38,7 +37,6 @@ elif build_type == "debug":
     env.Append(CCFLAGS='-Werror')
     env.Append(CCFLAGS='-Wall')
     env.Append(CCFLAGS='-Wextra')
-    env.Append(CCFLAGS='-Wconversion')
     env.Append(CCFLAGS='-fPIC')
     env['OBJSUFFIX'] = '.do'
 elif build_type == "prof":
@@ -48,7 +46,6 @@ elif build_type == "prof":
     env.Append(CCFLAGS='-Werror')
     env.Append(CCFLAGS='-Wall')
     env.Append(CCFLAGS='-Wextra')
-    env.Append(CCFLAGS='-Wconversion')
     env.Append(CCFLAGS='-fPIC')
     env['OBJSUFFIX'] = '.po'
 
