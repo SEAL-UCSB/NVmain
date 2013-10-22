@@ -68,6 +68,7 @@ Params::Params( )
     tWP = 0;
 
     /* MLC params. */
+    UniformWrites = true; // Disable MLC by default
     MLCLevels = 1;
     WPVariance = 1;
     Ereset = 0.3;
@@ -245,6 +246,8 @@ void Params::SetParams( Config *c )
 
     if( c->KeyExists( "MLCLevels" ) ) MLCLevels = c->GetValue( "MLCLevels" );
     if( c->KeyExists( "WPVariance" ) ) WPVariance = c->GetValue( "WPVariance" );
+    if( c->KeyExists( "UniformWrites" ) && c->GetString( "UniformWrites" ) == "false" )
+        UniformWrites = false;
 
     if( c->KeyExists( "Ereset" ) ) Ereset = c->GetEnergy( "Ereset" );
     if( c->KeyExists( "Eset" ) )   Eset = c->GetEnergy( "Eset" );
