@@ -1274,7 +1274,9 @@ void MemoryController::CycleCommandQueues( )
                               << queueHead->type << std::endl;
 
                     // Give the opportunity to attach a debugger here.
+#ifndef NDEBUG
                     raise( SIGSTOP );
+#endif
                     exit(1);
                 }
             }
