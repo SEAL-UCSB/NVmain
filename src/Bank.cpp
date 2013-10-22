@@ -85,13 +85,16 @@ Bank::Bank( )
     burstPower = 0.0f;
     refreshPower = 0.0f;
 
+    bandwidth = 0.0;
     dataCycles = 0;
+    powerCycles = 0;
+    utilization = 0.0f;
+
     activeCycles = 0;
     standbyCycles = 0;
     fastExitActiveCycles = 0;
     fastExitPrechargeCycles = 0;
     slowExitPrechargeCycles = 0;
-    utilization = 0.0f;
     writeCycle = false;
     writeMode = WRITE_THROUGH;
     idleTimer = 0;
@@ -104,6 +107,10 @@ Bank::Bank( )
 
     actWaits = 0;
     actWaitTotal = 0;
+    actWaitAverage = 0.0;
+
+    worstLife = 0;
+    averageLife = 0;
 
     bankId = -1;
 

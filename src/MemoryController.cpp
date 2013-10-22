@@ -1277,6 +1277,7 @@ void MemoryController::CycleCommandQueues( )
 #ifndef NDEBUG
                     raise( SIGSTOP );
 #endif
+                    GetStats( )->PrintAll( std::cerr );
                     exit(1);
                 }
             }

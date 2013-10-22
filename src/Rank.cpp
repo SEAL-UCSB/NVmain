@@ -51,6 +51,33 @@ Rank::Rank( )
     fastExitCycles = 0;
     slowExitCycles = 0;
 
+    totalEnergy = 0.0;
+    backgroundEnergy = 0.0;
+    activateEnergy = 0.0;
+    burstEnergy = 0.0;
+    refreshEnergy = 0.0;
+
+    totalPower = 0.0;
+    backgroundPower = 0.0;
+    activatePower = 0.0;
+    burstPower = 0.0;
+    refreshPower = 0.0;
+
+    reads = 0;
+    writes = 0;
+
+    actWaits = 0;
+    actWaitTotal = 0;
+    actWaitAverage = 0.0;
+
+    rrdWaits = 0;
+    rrdWaitTotal = 0;
+    rrdWaitAverage = 0.0;
+
+    fawWaits = 0;
+    fawWaitTotal = 0;
+    fawWaitAverage = 0.0;
+
     lastActivate = NULL;
     RAWindex = 0;
 

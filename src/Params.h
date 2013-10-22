@@ -41,6 +41,11 @@
 
 namespace NVM {
 
+enum ProgramMode {
+    ProgramMode_SRMS,
+    ProgramMode_SSMR
+};
+
 class Params
 {
   public:
@@ -172,6 +177,7 @@ class Params
     unsigned DelayedRefreshThreshold; // the threshold that indicates how many refresh can be delayed
     std::string AddressMappingScheme; // the address mapping scheme
 
+    ProgramMode programMode;
     ncounter_t MLCLevels;
     ncounter_t WPVariance;
     bool UniformWrites;
