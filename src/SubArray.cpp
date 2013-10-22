@@ -59,6 +59,14 @@ SubArray::SubArray( )
     lastActivate = 0;
     openRow = 0;
 
+    nextActivate = 0;
+    nextPrecharge = 0;
+    nextRead = 0;
+    nextWrite = 0;
+    
+    dataCycles = 0;
+    worstCaseWrite = 0;
+
     subArrayEnergy = 0.0f;
     activeEnergy = 0.0f;
     burstEnergy = 0.0f;
@@ -160,6 +168,8 @@ void SubArray::RegisterStats( )
     AddStat(actWaits);
     AddStat(actWaitTotal);
     AddStat(actWaitAverage);
+
+    AddStat(worstCaseWrite);
 }
 
 /*
@@ -625,7 +635,7 @@ ncycle_t SubArray::WriteCellData( NVMainRequest *request )
 
         /* Get the delay and add the energy. Assume one-RESET-multiple-SET */
         ncycle_t writePulseTime = 0;
-        ncounters_t setPulseCount = 0;
+        ncounters_t programPulseCount = 0;
 
         if( p->MLCLevels == 1 )
         {
@@ -637,30 +647,33 @@ ncycle_t SubArray::WriteCellData( NVMainRequest *request )
         else if( p->MLCLevels == 2 )
         {
             if( cellData == 0 )
-                setPulseCount = 0;
+                programPulseCount = 0;
             else if( cellData == 1 ) // 01 -> Assume 1 RESET + nWP01 SETs
-                setPulseCount = p->nWP01;
+                programPulseCount = p->nWP01;
             else if( cellData == 2 ) // 10 -> Assume 1 RESET + nWP1 SETs
-                setPulseCount = p->nWP10;
+                programPulseCount = p->nWP10;
             else if( cellData == 3 ) // 11 -> Assume 1 RESET + nWP11 SETs
-                setPulseCount = p->nWP11;
+                programPulseCount = p->nWP11;
             else
                 std::cout << "SubArray: Unknown cell value: " << (int)cellData << std::endl;
 
             /* Simulate program and verify failures */
-            if( setPulseCount > 0 )
+            if( programPulseCount > 0 )
             {
                 NormalDistribution norm;
 
-                norm.SetMean( setPulseCount );
+                norm.SetMean( programPulseCount );
                 norm.SetVariance( p->WPVariance );
 
-                setPulseCount = norm.GetEndurance( );
+                programPulseCount = norm.GetEndurance( );
 
                 /* Make sure this is at least one. */
-                if( setPulseCount < 1 ) setPulseCount = 1;
+                if( programPulseCount < 1 ) programPulseCount = 1;
 
-                writePulseTime = p->tWP0 + setPulseCount * p->tWP1;
+                if( p->programMode == ProgramMode_SRMS )
+                    writePulseTime = p->tWP0 + programPulseCount * p->tWP1;
+                else // SSMR
+                    writePulseTime = p->tWP1 + programPulseCount * p->tWP0;
             }
             else
             {
@@ -670,8 +683,8 @@ ncycle_t SubArray::WriteCellData( NVMainRequest *request )
             /* Only calculate energy for energy-mode model. */
             if( p->EnergyModel_set && p->EnergyModel != "current" )
             {
-                subArrayEnergy += p->Ereset + static_cast<double>(setPulseCount) * p->Eset;
-                writeEnergy += p->Ereset + static_cast<double>(setPulseCount) * p->Eset;
+                subArrayEnergy += p->Ereset + static_cast<double>(programPulseCount) * p->Eset;
+                writeEnergy += p->Ereset + static_cast<double>(programPulseCount) * p->Eset;
             }
         }
 
@@ -679,6 +692,9 @@ ncycle_t SubArray::WriteCellData( NVMainRequest *request )
         if( writePulseTime > maxDelay )
             maxDelay = writePulseTime;
     }
+
+    if( maxDelay > worstCaseWrite )
+        worstCaseWrite = maxDelay;
 
     return maxDelay;
 }

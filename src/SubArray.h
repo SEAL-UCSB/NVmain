@@ -141,6 +141,7 @@ class SubArray : public NVMObject
     bool writeCycle;
     WriteMode writeMode;
     ncounter_t dataCycles;
+    ncycle_t worstCastWrite;
 
     ncounter_t actWaits;
     ncounter_t actWaitTotal;

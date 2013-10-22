@@ -37,6 +37,7 @@
 #include "include/NVMHelpers.h"
 
 #include <cmath>
+#include <iostream>
 
 using namespace NVM;
 
@@ -69,6 +70,7 @@ Params::Params( )
 
     /* MLC params. */
     UniformWrites = true; // Disable MLC by default
+    programMode = ProgramMode_SRMS;
     MLCLevels = 1;
     WPVariance = 1;
     Ereset = 0.3;
@@ -248,6 +250,16 @@ void Params::SetParams( Config *c )
     if( c->KeyExists( "WPVariance" ) ) WPVariance = c->GetValue( "WPVariance" );
     if( c->KeyExists( "UniformWrites" ) && c->GetString( "UniformWrites" ) == "false" )
         UniformWrites = false;
+    if( c->KeyExists( "ProgramMode" ) )
+    {
+        if( c->GetString( "ProgramMode" ) == "SRMS" )
+            programMode = ProgramMode_SRMS;
+        else if( c->GetString( "ProgramMode" ) == "SSMR" )
+            programMode = ProgramMode_SSMR;
+        else
+            std::cout << "Unknown ProgramMode: " << c->GetString( "ProgramMode" )
+                      << ". Defaulting to SRMS" << std::endl;
+    }
 
     if( c->KeyExists( "Ereset" ) ) Ereset = c->GetEnergy( "Ereset" );
     if( c->KeyExists( "Eset" ) )   Eset = c->GetEnergy( "Eset" );
