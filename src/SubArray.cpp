@@ -87,6 +87,11 @@ SubArray::SubArray( )
     actWaitTotal = 0;
     actWaitAverage = 0.0;
 
+    num00Writes = 0;
+    num01Writes = 0;
+    num10Writes = 0;
+    num11Writes = 0;
+
     subArrayId = -1;
 
     psInterval = 0;
@@ -170,6 +175,10 @@ void SubArray::RegisterStats( )
     AddStat(actWaitAverage);
 
     AddStat(worstCaseWrite);
+    AddStat(num00Writes);
+    AddStat(num01Writes);
+    AddStat(num10Writes);
+    AddStat(num11Writes);
 }
 
 /*
@@ -647,13 +656,25 @@ ncycle_t SubArray::WriteCellData( NVMainRequest *request )
         else if( p->MLCLevels == 2 )
         {
             if( cellData == 0 )
+            {
                 programPulseCount = 0;
+                num00Writes++;
+            }
             else if( cellData == 1 ) // 01 -> Assume 1 RESET + nWP01 SETs
+            {
                 programPulseCount = p->nWP01;
+                num01Writes++;
+            }
             else if( cellData == 2 ) // 10 -> Assume 1 RESET + nWP1 SETs
+            {
                 programPulseCount = p->nWP10;
+                num10Writes++;
+            }
             else if( cellData == 3 ) // 11 -> Assume 1 RESET + nWP11 SETs
+            {
                 programPulseCount = p->nWP11;
+                num11Writes++;
+            }
             else
                 std::cout << "SubArray: Unknown cell value: " << (int)cellData << std::endl;
 
