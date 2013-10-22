@@ -174,6 +174,7 @@ class Params
 
     ncounter_t MLCLevels;
     ncounter_t WPVariance;
+    bool UniformWrites;
 
     /* SLC energy */
     double Ereset; 

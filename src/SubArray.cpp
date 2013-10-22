@@ -581,6 +581,9 @@ bool SubArray::Refresh( NVMainRequest* request )
 
 ncycle_t SubArray::WriteCellData( NVMainRequest *request )
 {
+    if( p->UniformWrites )
+        return p->tWP;
+
     ncycle_t maxDelay = 0;
 
     Bank *parentBank = (Bank*)GetParent( );
