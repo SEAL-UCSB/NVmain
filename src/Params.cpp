@@ -81,6 +81,8 @@ Params::Params( )
     nWP01 = 7;
     nWP10 = 5;
     nWP11 = 1;
+
+    DeadlockTimer = 10000000;
 }
 
 Params::~Params( )
@@ -268,6 +270,8 @@ void Params::SetParams( Config *c )
     if( c->KeyExists( "nWP01" ) ) nWP01 = c->GetValue( "nWP01" );
     if( c->KeyExists( "nWP10" ) ) nWP10 = c->GetValue( "nWP10" );
     if( c->KeyExists( "nWP11" ) ) nWP11 = c->GetValue( "nWP11" );
+
+    if( c->KeyExists( "DeadlockTimer" ) ) DeadlockTimer = c->GetValue( "DeadlockTimer" );
 
     /* Check for uninitialized parameters. */
     if( !MATHeight_set ) MATHeight = ROWS;
