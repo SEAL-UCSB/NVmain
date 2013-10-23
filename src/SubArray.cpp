@@ -605,7 +605,9 @@ ncycle_t SubArray::WriteCellData( NVMainRequest *request )
 
     ncycle_t maxDelay = 0;
 
-    Bank *parentBank = (Bank*)GetParent( );
+    Bank *parentBank = dynamic_cast<Bank*>(GetParent( )->GetTrampoline( ));
+    assert( parentBank != NULL );
+
     ncounter_t parentBankId = parentBank->GetId( );
     unsigned int memoryWordSize = static_cast<unsigned int>(p->tBURST * p->RATE * p->BusWidth);
     unsigned int deviceCount = static_cast<unsigned int>(p->BusWidth / p->DeviceWidth);
