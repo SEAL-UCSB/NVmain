@@ -1259,7 +1259,7 @@ void MemoryController::CycleCommandQueues( )
             {
                 NVMainRequest *queueHead = bankQueues[i][j].at( 0 );
 
-                if( ( GetEventQueue()->GetCurrentCycle() - queueHead->issueCycle ) > 1000000 )
+                if( ( GetEventQueue()->GetCurrentCycle() - queueHead->issueCycle ) > p->DeadlockTimer )
                 {
                     ncounter_t row, col, bank, rank, channel, subarray;
                     queueHead->address.GetTranslatedAddress( &row, &col, &bank, &rank, &channel, &subarray );

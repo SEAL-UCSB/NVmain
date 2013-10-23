@@ -194,6 +194,9 @@ class Params
     ncycle_t nWP10;
     ncycle_t nWP11;
 
+    /* Configurable deadlock timer. */
+    ncycle_t DeadlockTimer;
+
   private:
     ncycle_t ConvertTiming( Config *conf, std::string param );
 };
