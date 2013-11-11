@@ -245,7 +245,11 @@ bool LO_Cache::RequestComplete( NVMainRequest *req )
 {
     bool rv = false;
 
-    if( req->owner == this )
+    if( req->type == REFRESH )
+    {
+        ProcessRefreshPulse( req );
+    }
+    else if( req->owner == this )
     {
         if( req->tag == DRC_FILL )
         {
