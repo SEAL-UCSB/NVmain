@@ -177,10 +177,10 @@ void Bank::RegisterStats( )
 
     if( p->EnergyModel_set && p->EnergyModel == "current" )
     {
-        AddUnitStat(bankEnergy, "mA");
-        AddUnitStat(activeEnergy, "mA");
-        AddUnitStat(burstEnergy, "mA");
-        AddUnitStat(refreshEnergy, "mA");
+        AddUnitStat(bankEnergy, "mA*t");
+        AddUnitStat(activeEnergy, "mA*t");
+        AddUnitStat(burstEnergy, "mA*t");
+        AddUnitStat(refreshEnergy, "mA*t");
     }
     else
     {
