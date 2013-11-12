@@ -404,7 +404,7 @@ bool LO_Cache::RequestComplete( NVMainRequest *req )
     return rv;
 }
 
-void LO_Cache::Cycle( ncycle_t )
+void LO_Cache::Cycle( ncycle_t steps )
 {
     NVMainRequest *nextRequest = NULL;
 
@@ -440,6 +440,7 @@ void LO_Cache::Cycle( ncycle_t )
     /* Issue any commands in the command queues. */
     CycleCommandQueues( );
 
+    MemoryController::Cycle( steps );
 }
 
 void LO_Cache::CalculateStats( )
@@ -447,4 +448,6 @@ void LO_Cache::CalculateStats( )
     drc_hitrate = 0.0;
     if( drc_hits+drc_miss > 0 )
         drc_hitrate = static_cast<float>(drc_hits) / static_cast<float>(drc_miss+drc_hits);
+
+    MemoryController::CalculateStats( );
 }
