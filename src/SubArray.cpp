@@ -144,10 +144,10 @@ void SubArray::RegisterStats( )
 {
     if( p->EnergyModel_set && p->EnergyModel == "current" )
     {
-        AddUnitStat(subArrayEnergy, "mA");
-        AddUnitStat(activeEnergy, "mA");
-        AddUnitStat(burstEnergy, "mA");
-        AddUnitStat(refreshEnergy, "mA");
+        AddUnitStat(subArrayEnergy, "mA*t");
+        AddUnitStat(activeEnergy, "mA*t");
+        AddUnitStat(burstEnergy, "mA*t");
+        AddUnitStat(refreshEnergy, "mA*t");
     }
     else
     {

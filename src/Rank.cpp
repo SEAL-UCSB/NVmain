@@ -191,11 +191,11 @@ void Rank::RegisterStats( )
 {
     if( p->EnergyModel_set && p->EnergyModel == "current" )
     {
-        AddUnitStat(totalEnergy, "mA");
-        AddUnitStat(backgroundEnergy, "mA");
-        AddUnitStat(activateEnergy, "mA");
-        AddUnitStat(burstEnergy, "mA");
-        AddUnitStat(refreshEnergy, "mA");
+        AddUnitStat(totalEnergy, "mA*t");
+        AddUnitStat(backgroundEnergy, "mA*t");
+        AddUnitStat(activateEnergy, "mA*t");
+        AddUnitStat(burstEnergy, "mA*t");
+        AddUnitStat(refreshEnergy, "mA*t");
     }
     else
     {
@@ -952,7 +952,7 @@ void Rank::CalculateStats( )
 
     if( simulationTime != 0 )
     {
-        /* power in mW */
+        /* power in W */
         totalPower = ( totalEnergy * p->Voltage ) / (double)simulationTime / 1000.0;
         backgroundPower = ( backgroundEnergy * p->Voltage ) / (double)simulationTime / 1000.0; 
         activatePower = ( activateEnergy * p->Voltage ) / (double)simulationTime / 1000.0; 
