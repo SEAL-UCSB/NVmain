@@ -195,6 +195,8 @@ void MemoryController::SetConfig( Config *conf )
     translator->GetTranslationMethod( )->SetAddressMappingScheme( 
             p->AddressMappingScheme );
 
+    std::cout << statName << " capacity is " << (((p->COLS * 8 * (p->BusWidth / p->DeviceWidth)/8) * p->ROWS * p->BANKS * p->RANKS) / (1024*1024)) << " MB." << std::endl;
+
     if( conf->KeyExists( "MATHeight" ) )
     {
         subArrayNum = p->ROWS / p->MATHeight;
