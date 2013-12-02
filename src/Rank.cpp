@@ -83,6 +83,7 @@ Rank::Rank( )
 
     conf = NULL;
 
+    state = RANK_CLOSED;
     backgroundEnergy = 0.0f;
 
     psInterval = 0;
@@ -927,7 +928,7 @@ void Rank::CalculateStats( )
 {
     double bankE, actE, bstE, refE;
 
-    totalEnergy = backgroundEnergy = activateEnergy = burstEnergy = refreshEnergy = 0.0;
+    totalEnergy = activateEnergy = burstEnergy = refreshEnergy = 0.0;
     totalPower = backgroundPower = activatePower = burstPower = refreshPower = 0.0;
     reads = writes = 0;
 
