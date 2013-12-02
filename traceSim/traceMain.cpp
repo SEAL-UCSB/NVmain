@@ -137,6 +137,8 @@ int main( int argc, char *argv[] )
             std::cout << "Could not read next line from trace file!" 
                 << std::endl;
 
+            break;
+
             /* Just ride it out 'til the end. */
             while( currentCycle < simulateCycles )
             {

@@ -37,6 +37,7 @@
 #include <vector>
 #include <string>
 #include <map>
+#include <set>
 #include "src/SimInterface.h"
 
 namespace NVM {
@@ -80,6 +81,7 @@ class Config
   private:
     std::string fileName;
     std::map<std::string, std::string> values;
+    std::set<std::string> warned;
     std::vector<std::string> hookList;
     SimInterface *simPtr;
 

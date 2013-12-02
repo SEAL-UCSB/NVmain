@@ -83,6 +83,8 @@ class LO_Cache : public AbstractDRAMCache
 
     ncounter_t drc_hits, drc_miss;
     ncounter_t drc_evicts, drc_fills;
+    ncounter_t rb_hits, rb_miss;
+    ncounter_t starvation_precharges;
 
     bool perfectFills;
     uint64_t max_addr;
