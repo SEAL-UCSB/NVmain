@@ -202,6 +202,13 @@ std::string Config::GetString( std::string key )
 
     i = values.find( key );
 
+    if( !KeyExists( key ) && !warned.count( key ) )
+    {
+        std::cout << "Config: Warning: Key " << key << " is not set. Using '' as the default. Please configure this value if this is wrong." << std::endl;
+        warned.insert( key );
+    }
+
+
     /*
      *  Find returns map::end if the element is not found. We will use -1 as
      *  the error code. Functions calling this function should check for -1
@@ -235,6 +242,12 @@ int Config::GetValue( std::string key )
     }
 
     i = values.find( key );
+
+    if( !KeyExists( key ) && !warned.count( key ) )
+    {
+        std::cout << "Config: Warning: Key " << key << " is not set. Using '-1' as the default. Please configure this value if this is wrong." << std::endl;
+        warned.insert( key );
+    }
 
     /*
      *  Find returns map::end if the element is not found. We will use -1 as
@@ -276,6 +289,12 @@ double Config::GetEnergy( std::string key )
 
     i = values.find( key );
 
+    if( !KeyExists( key ) && !warned.count( key ) )
+    {
+        std::cout << "Config: Warning: Key " << key << " is not set. Using '-1.0' as the default. Please configure this value if this is wrong." << std::endl;
+        warned.insert( key );
+    }
+
     /*
      *  Find returns map::end if the element is not found. We will use -1 as
      *  the error code. Functions calling this function should check for -1
@@ -299,6 +318,12 @@ void Config::SetEnergy( std::string key, std::string energy )
 bool Config::GetBool( std::string key )
 {
     bool rv = false;
+
+    if( !KeyExists( key ) && !warned.count( key ) )
+    {
+        std::cout << "Config: Warning: Key " << key << " is not set. Using 'false' as the default. Please configure this value if this is wrong." << std::endl;
+        warned.insert( key );
+    }
 
     if( KeyExists( key ) && GetString( key ) == "true" )
         rv = true;

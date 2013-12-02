@@ -63,6 +63,10 @@ LO_Cache::LO_Cache( Interconnect *memory, AddressTranslator *decoder )
     drc_fills = 0;
     drc_evicts = 0;
 
+    rb_hits = 0;
+    rb_miss = 0;
+    starvation_precharges = 0;
+
     perfectFills = false;
     max_addr = 0;
 
@@ -133,6 +137,9 @@ void LO_Cache::RegisterStats( )
     AddStat(drc_hitrate);
     AddStat(drc_fills);
     AddStat(drc_evicts);
+    AddStat(rb_hits);
+    AddStat(rb_miss);
+    AddStat(starvation_precharges);
 }
 
 void LO_Cache::SetMainMemory( NVMain *mm )
@@ -411,18 +418,23 @@ void LO_Cache::Cycle( ncycle_t steps )
     /* Check for starved requests BEFORE row buffer hits. */
     if( FindStarvedRequest( *drcQueue, &nextRequest ) )
     {
+        rb_miss++;
+        starvation_precharges++;
     }
     /* Check for row buffer hits. */
     else if( FindRowBufferHit( *drcQueue, &nextRequest) )
     {
+        rb_hits++;
     }
     /* Find the oldest request that can be issued. */
     else if( FindOldestReadyRequest( *drcQueue, &nextRequest ) )
     {
+        rb_miss++;
     }
     /* Find requests to a bank that is closed. */
     else if( FindClosedBankRequest( *drcQueue, &nextRequest ) )
     {
+        rb_miss++;
     }
     else
     {
