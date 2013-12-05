@@ -1,10 +1,10 @@
 # HG changeset patch
 # Parent 45033eb02ca7f1d0e9f5f98d87dc6bca72b1e078
-Handle drain method.
+Hopefully fixed a bug with retrying responses
 
 diff -r 45033eb02ca7 configs/common/MemConfig.py
 --- a/configs/common/MemConfig.py	Wed Dec 04 08:15:35 2013 -0500
-+++ b/configs/common/MemConfig.py	Wed Dec 04 11:25:26 2013 -0500
++++ b/configs/common/MemConfig.py	Thu Dec 05 16:21:20 2013 -0500
 @@ -54,6 +54,7 @@
      ("lpddr2_s4_1066_x32", "LPDDR2_S4_1066_x32"),
      ("lpddr3_1600_x32", "LPDDR3_1600_x32"),
@@ -15,7 +15,7 @@ diff -r 45033eb02ca7 configs/common/MemConfig.py
  # Filtered list of aliases. Only aliases for existing memory
 diff -r 45033eb02ca7 configs/common/Options.py
 --- a/configs/common/Options.py	Wed Dec 04 08:15:35 2013 -0500
-+++ b/configs/common/Options.py	Wed Dec 04 11:25:26 2013 -0500
++++ b/configs/common/Options.py	Thu Dec 05 16:21:20 2013 -0500
 @@ -198,6 +198,24 @@
          help="""Treat value of --checkpoint-restore or --take-checkpoint as a
                  number of instructions.""")
@@ -43,7 +43,7 @@ diff -r 45033eb02ca7 configs/common/Options.py
      parser.add_option("-c", "--cmd", default="",
 diff -r 45033eb02ca7 src/mem/NVMainMemory.py
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/NVMainMemory.py	Wed Dec 04 11:25:26 2013 -0500
++++ b/src/mem/NVMainMemory.py	Thu Dec 05 16:21:20 2013 -0500
 @@ -0,0 +1,87 @@
 +# Copyright (c) 2012-2013 Pennsylvania State University
 +# All rights reserved.
@@ -134,7 +134,7 @@ diff -r 45033eb02ca7 src/mem/NVMainMemory.py
 +
 diff -r 45033eb02ca7 src/mem/SConscript
 --- a/src/mem/SConscript	Wed Dec 04 08:15:35 2013 -0500
-+++ b/src/mem/SConscript	Wed Dec 04 11:25:26 2013 -0500
++++ b/src/mem/SConscript	Thu Dec 05 16:21:20 2013 -0500
 @@ -43,6 +43,7 @@
  SimObject('MemObject.py')
  SimObject('SimpleMemory.py')
@@ -151,18 +151,19 @@ diff -r 45033eb02ca7 src/mem/SConscript
  Source('physical.cc')
  Source('simple_dram.cc')
  
-@@ -80,6 +82,7 @@
+@@ -80,6 +82,8 @@
  DebugFlag('MMU')
  DebugFlag('MemoryAccess')
  DebugFlag('PacketQueue')
 +DebugFlag('NVMain')
++DebugFlag('NVMainMin')
  
  DebugFlag('ProtocolTrace')
  DebugFlag('RubyCache')
 diff -r 45033eb02ca7 src/mem/nvmain_mem.cc
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/nvmain_mem.cc	Wed Dec 04 11:25:26 2013 -0500
-@@ -0,0 +1,728 @@
++++ b/src/mem/nvmain_mem.cc	Thu Dec 05 16:21:20 2013 -0500
+@@ -0,0 +1,735 @@
 +/*
 + * Copyright (c) 2012-2013 Pennsylvania State University
 + * All rights reserved.
@@ -211,6 +212,7 @@ diff -r 45033eb02ca7 src/mem/nvmain_mem.cc
 +#include "Utils/HookFactory.h"
 +#include "base/random.hh"
 +#include "debug/NVMain.hh"
++#include "debug/NVMainMin.hh"
 +#include "mem/nvmain_mem.hh"
 +
 +using namespace NVM;
@@ -246,6 +248,7 @@ diff -r 45033eb02ca7 src/mem/nvmain_mem.cc
 +
 +    retryRead = false;
 +    retryWrite = false;
++    retryResp = false;
 +    m_requests_outstanding = 0;
 +
 +    /*
@@ -265,8 +268,6 @@ diff -r 45033eb02ca7 src/mem/nvmain_mem.cc
 +        std::cout << "NVMain: Overriding parameter `" << cparam << "' with `" << cvalue << "'" << std::endl;
 +        m_nvmainConfig->SetValue( cparam, cvalue );
 +    }
-+
-+   //eventManager = new NVMainMemoryEventManager(&mainEventQueue, *this);
 +
 +   BusWidth = m_nvmainConfig->GetValue( "BusWidth" );
 +   tBURST = m_nvmainConfig->GetValue( "tBURST" );
@@ -298,7 +299,6 @@ diff -r 45033eb02ca7 src/mem/nvmain_mem.cc
 +
 +    if( NVMainWarmUp )
 +    {
-+        //eventManager->scheduleWakeup( );
 +        schedule(clockEvent, clockEdge());
 +        m_awake = true;
 +    }
@@ -348,6 +348,7 @@ diff -r 45033eb02ca7 src/mem/nvmain_mem.cc
 +void NVMainMemory::startup()
 +{
 +    DPRINTF(NVMain, "NVMainMemory: startup() called.\n");
++    DPRINTF(NVMainMin, "NVMainMemory: startup() called.\n");
 +    //wakeup();
 +}
 +
@@ -355,6 +356,7 @@ diff -r 45033eb02ca7 src/mem/nvmain_mem.cc
 +void NVMainMemory::wakeup()
 +{
 +    DPRINTF(NVMain, "NVMainMemory: wakeup() called.\n");
++    DPRINTF(NVMainMin, "NVMainMemory: wakeup() called.\n");
 +    schedule(clockEvent, clockEdge());
 +}
 +
@@ -381,8 +383,7 @@ diff -r 45033eb02ca7 src/mem/nvmain_mem.cc
 +
 +
 +NVMainMemory::MemoryPort::MemoryPort(const std::string& _name, NVMainMemory& _memory)
-+    : QueuedSlavePort(_name, &_memory, queueImpl),
-+      queueImpl(_memory, *this), memory(_memory)
++    : SlavePort(_name, &_memory), memory(_memory)
 +{
 +
 +}
@@ -486,9 +487,11 @@ diff -r 45033eb02ca7 src/mem/nvmain_mem.cc
 +{
 +    pkt->pushLabel(memory.name());
 +
-+    if (!queue.checkFunctional(pkt)) {
-+        memory.doFunctionalAccess(pkt);
-+    }
++    memory.doFunctionalAccess(pkt);
++
++    for( std::deque<PacketPtr>::iterator i = memory.responseQueue.begin();
++         i != memory.responseQueue.end(); ++i )
++        pkt->checkFunctional(*i);
 +
 +    pkt->popLabel();
 +}
@@ -512,6 +515,7 @@ diff -r 45033eb02ca7 src/mem/nvmain_mem.cc
 +
 +    if (!pkt->isRead() && !pkt->isWrite()) {
 +        DPRINTF(NVMain, "NVMainMemory: Received a packet that is neither read nor write.\n");
++        DPRINTF(NVMainMin, "NVMainMemory: Received a packet that is neither read nor write.\n");
 +
 +        bool needsResponse = pkt->needsResponse();
 +
@@ -520,7 +524,7 @@ diff -r 45033eb02ca7 src/mem/nvmain_mem.cc
 +            assert(pkt->isResponse());
 +
 +            pkt->busFirstWordDelay = pkt->busLastWordDelay = 0;
-+            queue.schedSendTiming(pkt, curTick() + 1);
++            memory.responseQueue.push_back(pkt);
 +        } else {
 +            memory.pendingDelete.push_back(pkt);
 +        }
@@ -532,6 +536,7 @@ diff -r 45033eb02ca7 src/mem/nvmain_mem.cc
 +    if (memory.retryRead || memory.retryWrite)
 +    {
 +        DPRINTF(NVMain, "nvmain_mem.cc: Received request while waiting for retry!\n");
++        DPRINTF(NVMainMin, "nvmain_mem.cc: Received request while waiting for retry!\n");
 +        return false;
 +    }
 +
@@ -642,6 +647,7 @@ diff -r 45033eb02ca7 src/mem/nvmain_mem.cc
 +    else
 +    {
 +        DPRINTF(NVMain, "nvmain_mem.cc: FAILED enqueue Mem request for 0x%x of type %s\n", request->address.GetPhysicalAddress( ), ((pkt->isRead()) ? "READ" : "WRITE") );
++        DPRINTF(NVMainMin, "nvmain_mem.cc: FAILED enqueue Mem request for 0x%x of type %s\n", request->address.GetPhysicalAddress( ), ((pkt->isRead()) ? "READ" : "WRITE") );
 +
 +        if (pkt->isRead())
 +        {
@@ -705,9 +711,19 @@ diff -r 45033eb02ca7 src/mem/nvmain_mem.cc
 +}
 +
 +
++void NVMainMemory::MemoryPort::recvRetry( )
++{
++    memory.recvRetry( );
++}
++
++
 +void NVMainMemory::recvRetry( )
 +{
 +    DPRINTF(NVMain, "NVMainMemory: recvRetry() called.\n");
++    DPRINTF(NVMainMin, "NVMainMemory: recvRetry() called.\n");
++
++    retryResp = false;
++    SendResponses( );
 +}
 +
 +
@@ -794,7 +810,7 @@ diff -r 45033eb02ca7 src/mem/nvmain_mem.cc
 +
 +void NVMainMemory::SendResponses( )
 +{
-+    if( responseQueue.empty() )
++    if( responseQueue.empty() || retryResp == true )
 +        return;
 +
 +
@@ -811,9 +827,9 @@ diff -r 45033eb02ca7 src/mem/nvmain_mem.cc
 +    else
 +    {
 +        DPRINTF(NVMain, "NVMainMemory: Retrying response.\n");
++        DPRINTF(NVMainMin, "NVMainMemory: Retrying response.\n");
 +
-+        // TODO: Remove this print
-+        std::cout << "NVMainMemory: gem5 requested retrying response." << std::endl;
++        retryResp = true;
 +    }
 +}
 +
@@ -823,6 +839,7 @@ diff -r 45033eb02ca7 src/mem/nvmain_mem.cc
 +    if( drainManager != NULL && m_request_map.empty() )
 +    {
 +        DPRINTF(NVMain, "NVMainMemory: Drain completed.\n");
++        DPRINTF(NVMainMin, "NVMainMemory: Drain completed.\n");
 +
 +        drainManager->signalDrainDone( );
 +        drainManager = NULL;
@@ -857,16 +874,6 @@ diff -r 45033eb02ca7 src/mem/nvmain_mem.cc
 +
 +    // TODO: Add checkpoint to nvmain itself
 +    //m_nvmainPtr->Restore( nvmain_chkpt_file );
-+
-+    // If we are restoring from a checkpoint, we need to reschedule the wake up
-+    // so it is not in the past.
-+    /*
-+    if( eventManager->memEvent->scheduled() && eventManager->memEvent->when() <= curTick() )
-+    {
-+        eventManager->deschedule( eventManager->memEvent );
-+        eventManager->scheduleWakeup();
-+    }
-+    */
 +}
 +
 +
@@ -875,7 +882,8 @@ diff -r 45033eb02ca7 src/mem/nvmain_mem.cc
 +    // Cycle memory controller
 +    m_nvmainPtr->Cycle( 1 );
 +
-+    SendResponses( );
++    if( retryResp == false )
++        SendResponses( );
 +
 +    // Don't schedule event in atomic mode unless there are incomplete requests
 +    if( m_awake || !m_request_map.empty() )
@@ -893,8 +901,8 @@ diff -r 45033eb02ca7 src/mem/nvmain_mem.cc
 +
 diff -r 45033eb02ca7 src/mem/nvmain_mem.hh
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/nvmain_mem.hh	Wed Dec 04 11:25:26 2013 -0500
-@@ -0,0 +1,187 @@
++++ b/src/mem/nvmain_mem.hh	Thu Dec 05 16:21:20 2013 -0500
+@@ -0,0 +1,189 @@
 +/*
 + * Copyright (c) 2012-2013 Pennsylvania State University
 + * All rights reserved.
@@ -963,11 +971,11 @@ diff -r 45033eb02ca7 src/mem/nvmain_mem.hh
 +{
 +  private:
 +
-+    class MemoryPort : public QueuedSlavePort
++    class MemoryPort : public SlavePort
 +    {
 +        friend class NVMainMemory;
 +
-+        SlavePacketQueue queueImpl;
++//        SlavePacketQueue queueImpl;
 +        NVMainMemory& memory;
 +
 +      public:
@@ -981,6 +989,8 @@ diff -r 45033eb02ca7 src/mem/nvmain_mem.hh
 +        void recvFunctional(PacketPtr pkt);
 +
 +        bool recvTimingReq(PacketPtr pkt);
++
++        void recvRetry( );
 +
 +        AddrRangeList getAddrRanges() const;
 +
@@ -1028,7 +1038,7 @@ diff -r 45033eb02ca7 src/mem/nvmain_mem.hh
 +    Tick lat;
 +    Tick lat_var;
 +    bool nvmain_atomic;
-+    bool retryRead, retryWrite;
++    bool retryRead, retryWrite, retryResp;
 +
 +    uint64_t BusWidth;
 +    uint64_t tBURST;
