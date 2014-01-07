@@ -177,7 +177,20 @@ uint64_t DRCDecoder::ReverseTranslate( const uint64_t& row,
 
     GetTranslationMethod( )->GetCount( &rowNum, &colNum, &bankNum, 
                                        &rankNum, &channelNum, &subarrayNum );
+
+    /* 
+     *  DRAM cache always ignores the cachline bits + any extra ignore bits to force 
+     *  adjacent cachelines into the same DRAM page.
+     */
+    unitAddr *= cachelineSize;
+    unitAddr *= (1 << ignoreBits);
     
+    /*
+     *  Note: DRAM cache only needs the bank, rank, and channel for pre/act/ref.
+     *  The row may be needed for other reverse translations, but since forward
+     *  translation overrides the row order (always at the end), they are not used
+     *  in this loop.
+     */
     for( int i = 0; i < 6 ; i++ )
     {
         /* 0->4, low to high, FindOrder() will find the correct one */
@@ -185,16 +198,6 @@ uint64_t DRCDecoder::ReverseTranslate( const uint64_t& row,
 
         switch( part )
         {
-            case MEM_ROW:
-                  phyAddr += ( row * unitAddr ); 
-                  unitAddr *= rowNum;
-                  break;
-
-            case MEM_COL:
-                  phyAddr += ( col * unitAddr ); 
-                  unitAddr *= cachelineSize;
-                  break;
-
             case MEM_BANK:
                   phyAddr += ( bank * unitAddr ); 
                   unitAddr *= bankNum;
@@ -210,15 +213,13 @@ uint64_t DRCDecoder::ReverseTranslate( const uint64_t& row,
                   unitAddr *= channelNum;
                   break;
 
-            case MEM_SUBARRAY:
-                  phyAddr += ( subarray * unitAddr ); 
-                  unitAddr *= subarrayNum;
-                  break;
-
             default:
                   break;
         }
     }
+
+    /* Row always in upper bits as in forward translation. */
+    phyAddr += ( row * unitAddr );
 
     return phyAddr;
 } 
