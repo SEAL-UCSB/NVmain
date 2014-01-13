@@ -95,7 +95,7 @@ class MemoryController : public NVMObject
     void InitBankQueues( unsigned int numQueues );
 
     virtual bool RequestComplete( NVMainRequest *request );
-    virtual bool QueueFull( NVMainRequest *request );
+    virtual bool IsIssuable( NVMainRequest *request, FailReason *fail );
 
     void SetMemory( Interconnect *mem );
     Interconnect *GetMemory( );

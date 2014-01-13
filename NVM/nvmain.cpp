@@ -279,32 +279,17 @@ void NVMain::SetConfig( Config *conf, std::string memoryName )
     }
 }
 
-bool NVMain::IsIssuable( NVMainRequest *request, FailReason * /*reason*/ )
+bool NVMain::IsIssuable( NVMainRequest *request, FailReason *reason )
 {
     uint64_t channel, rank, bank, row, col, subarray;
     bool rv;
 
-    if( request != NULL )
-    {
-        translator->Translate( request->address.GetPhysicalAddress( ), 
-                               &row, &col, &rank, &bank, &channel, &subarray );
+    assert( request != NULL );
 
-        rv = !memoryControllers[channel]->QueueFull( request );
-    }
-    else
-    {
-        /* 
-         *  Since we don't know what queue this will go to, we need to return if
-         *  any of the queues are full..
-         */
-        rv = true;
+    translator->Translate( request->address.GetPhysicalAddress( ), 
+                           &row, &col, &rank, &bank, &channel, &subarray );
 
-        for( uint64_t i = 0; i < numChannels; i++ )
-        {
-            if( memoryControllers[i]->QueueFull( request ) )
-              rv = false;
-        }
-    }
+    rv = memoryControllers[channel]->IsIssuable( request, reason );
 
     return rv;
 }

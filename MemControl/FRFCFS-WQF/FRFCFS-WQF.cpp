@@ -220,24 +220,25 @@ void FRFCFS_WQF::RegisterStats( )
     AddStat(measuredQueueLatencies);
 }
 
-bool FRFCFS_WQF::QueueFull( NVMainRequest * /*req*/ )
+bool FRFCFS_WQF::IsIssuable( NVMainRequest *request, FailReason * /*fail*/ )
 {
-    /*
-     * So this function is annoying. Ruby/gem5 will ask if the queue is full, but 
-     * does not provide any information about the next request which makes it 
-     * impossible to determine if the queue the next request will actually go to
-     * is full. Therefore we return true if any of the queues are full.
-     */
-    return ( (readQueue.size() >= readQueueSize) 
-            || (writeQueue.size() >= writeQueueSize) );
+    bool rv = true;
+
+    /* during a write drain, no write can enqueue */
+    if( (request->type == READ  && readQueue.size()  >= readQueueSize) 
+            || (request->type == WRITE && ( writeQueue.size() >= writeQueueSize 
+                    || m_draining == true ) ) )
+    {
+        rv = false;
+    }
+
+    return rv;
 }
 
 bool FRFCFS_WQF::IssueCommand( NVMainRequest *request )
 {
     /* during a write drain, no write can enqueue */
-    if( (request->type == READ  && readQueue.size()  >= readQueueSize) 
-            || (request->type == WRITE && ( writeQueue.size() >= writeQueueSize 
-                    || m_draining == true ) ) )
+    if( !IsIssuable( request ) )
     {
         return false;
     }

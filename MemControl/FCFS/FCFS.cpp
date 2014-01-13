@@ -102,11 +102,6 @@ void FCFS::RegisterStats( )
     AddStat(measuredQueueLatencies);
 }
 
-bool FCFS::QueueFull( NVMainRequest * /*req*/ )
-{
-    return( transactionQueues[0].size() >= queueSize );
-}
-
 bool FCFS::RequestComplete( NVMainRequest * request )
 {
     /* 
@@ -141,22 +136,33 @@ bool FCFS::RequestComplete( NVMainRequest * request )
     return MemoryController::RequestComplete( request );
 }
 
+bool FCFS::IsIssuable( NVMainRequest * /*request*/, FailReason * /*fail*/ )
+{
+    bool rv = true;
+
+    /* Allow up to 16 read/writes outstanding. */
+    if( transactionQueues[0].size( ) >= queueSize )
+        rv = false;
+
+    return rv;
+}
+
 /*
  *  This method is called whenever a new transaction from the processor issued to
  *  this memory controller / channel. All scheduling decisions should be made here.
  */
-bool FCFS::IssueCommand( NVMainRequest *req )
+bool FCFS::IssueCommand( NVMainRequest *request )
 {
     /* Allow up to 16 read/writes outstanding. */
-    if( transactionQueues[0].size( ) >= queueSize )
+    if( !IsIssuable( request ) )
         return false;
 
-    if( req->type == READ )
+    if( request->type == READ )
         mem_reads++;
     else
         mem_writes++;
 
-    transactionQueues[0].push_back( req );
+    transactionQueues[0].push_back( request );
 
     /*
      * Return whether the request could be queued. Return false if the queue is full.

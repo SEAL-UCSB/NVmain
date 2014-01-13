@@ -46,13 +46,12 @@ class FRFCFS : public MemoryController
     ~FRFCFS( );
 
     bool IssueCommand( NVMainRequest *req );
+    bool IsIssuable( NVMainRequest *request, FailReason *fail = NULL );
     bool RequestComplete( NVMainRequest * request );
 
     void SetConfig( Config *conf );
 
     void Cycle( ncycle_t steps );
-
-    bool QueueFull( NVMainRequest *req );
 
     void RegisterStats( );
     void CalculateStats( );
