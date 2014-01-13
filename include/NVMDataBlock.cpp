@@ -78,7 +78,7 @@ void NVMDataBlock::Print( std::ostream& out ) const
 
 NVMDataBlock& NVMDataBlock::operator=( const NVMDataBlock& m )
 {
-    for( size_t it = 0; it < data.size( ); it++ )
+    for( size_t it = 0; it < m.data.size( ); it++ )
     {
         data.push_back( m.data[it] );
     }
