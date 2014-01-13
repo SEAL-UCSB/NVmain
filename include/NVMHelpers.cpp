@@ -61,4 +61,29 @@ std::string GetFilePath( std::string file )
     return file.substr( 0, last_sep+1 );
 } 
 
+std::string PyDictHistogram( std::map<uint64_t, uint64_t> iiMap )
+{
+
+    /* Print a histogram as a python-style dict. */
+    std::string pyHisto = "{";
+
+    bool outputComma = false;
+    for( std::map<uint64_t, uint64_t>::iterator iter = iiMap.begin();
+         iter != iiMap.end(); ++iter )
+    {
+        if( outputComma )
+            pyHisto += ", ";
+
+        pyHisto += std::to_string(iter->first);
+        pyHisto += ": ";
+        pyHisto += std::to_string(iter->second);
+
+        outputComma = true;
+    }
+
+    pyHisto += "}";
+
+    return pyHisto;
+}
+
 };

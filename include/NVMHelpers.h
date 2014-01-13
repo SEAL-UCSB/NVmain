@@ -35,11 +35,13 @@
 #define __NVMAIN_HELPERS_H__
 
 #include <string>
+#include <map>
 
 namespace NVM {
 
 int mlog2( int num );
 std::string GetFilePath( std::string file );
+std::string PyDictHistogram( std::map<uint64_t, uint64_t> );
 
 };
 

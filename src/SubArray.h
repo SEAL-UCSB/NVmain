@@ -172,6 +172,9 @@ class SubArray : public NVMObject
 
     ncycle_t WriteCellData( NVMainRequest *request );
 
+    std::map<uint64_t, uint64_t> mlcTimingMap;
+    std::string mlcTimingHisto;
+
 };
 
 };
