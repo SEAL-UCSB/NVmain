@@ -113,9 +113,19 @@ void FRFCFS::RegisterStats( )
    AddStat(measuredQueueLatencies);
 }
 
-bool FRFCFS::QueueFull( NVMainRequest * /*req*/ )
+bool FRFCFS::IsIssuable( NVMainRequest * /*request*/, FailReason * /*fail*/ )
 {
-    return (memQueue.size() >= queueSize);
+    bool rv = true;
+
+    /*
+     *  Limit the number of commands in the queue. This will stall the caches/CPU.
+     */ 
+    if( memQueue.size( ) >= queueSize )
+    {
+        rv = false;
+    }
+
+    return rv;
 }
 
 /*
@@ -124,10 +134,7 @@ bool FRFCFS::QueueFull( NVMainRequest * /*req*/ )
  */
 bool FRFCFS::IssueCommand( NVMainRequest *req )
 {
-    /*
-     *  Limit the number of commands in the queue. This will stall the caches/CPU.
-     */ 
-    if( memQueue.size( ) >= queueSize )
+    if( !IsIssuable( req ) )
     {
         return false;
     }

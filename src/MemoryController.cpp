@@ -159,9 +159,9 @@ bool MemoryController::RequestComplete( NVMainRequest *request )
     return true;
 }
 
-bool MemoryController::QueueFull( NVMainRequest * /*request*/ )
+bool MemoryController::IsIssuable( NVMainRequest * /*request*/, FailReason * /*fail*/ )
 {
-    return false;
+    return true;
 }
 
 void MemoryController::SetMemory( Interconnect *mem )

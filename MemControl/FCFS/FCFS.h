@@ -46,9 +46,9 @@ class FCFS : public MemoryController
 
     void SetConfig( Config *conf );
 
-    bool IssueCommand( NVMainRequest *req );
+    bool IssueCommand( NVMainRequest *request );
+    bool IsIssuable( NVMainRequest *request, FailReason *fail = NULL );
     bool RequestComplete( NVMainRequest * request );
-    bool QueueFull( NVMainRequest *req );
 
     void Cycle( ncycle_t );
 
