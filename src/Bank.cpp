@@ -160,6 +160,7 @@ void Bank::SetConfig( Config *c )
         AddChild( subArrays[i] );
 
         subArrays[i]->SetConfig( c );
+        subArrays[i]->RegisterStats( );
     }
 
     /* We need to create an endurance model on a bank-by-bank basis */
@@ -1027,10 +1028,7 @@ void Bank::CalculateStats( )
 
     actWaitAverage = static_cast<double>(actWaitTotal) / static_cast<double>(actWaits);
 
-    if( subArrayNum > 1 )
-    {
-        NVMObject::CalculateStats( );
-    }
+    NVMObject::CalculateStats( );
 }
 
 
