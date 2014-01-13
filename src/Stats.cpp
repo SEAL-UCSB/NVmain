@@ -125,6 +125,7 @@ void StatBase::Print( std::ostream& stream )
     else if( statType == typeid(ncounters_t).name() ) stream << *(static_cast<ncounters_t *>(value));
     else if( statType == typeid(ncycle_t).name() ) stream << *(static_cast<ncycle_t *>(value));
     else if( statType == typeid(ncycles_t).name() ) stream << *(static_cast<ncycles_t *>(value));
+    else if( statType == typeid(std::string).name() ) stream << *(static_cast<std::string *>(value));
     else stream << "?????";
 
     stream << units << std::endl;

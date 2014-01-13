@@ -35,6 +35,7 @@
 #include "src/Bank.h"
 #include "src/MemoryController.h"
 #include "src/EventQueue.h"
+#include "include/NVMHelpers.h"
 #include "Endurance/EnduranceModelFactory.h"
 #include "Endurance/Distributions/Normal.h"
 
@@ -91,6 +92,7 @@ SubArray::SubArray( )
     num01Writes = 0;
     num10Writes = 0;
     num11Writes = 0;
+    mlcTimingHisto = "";
 
     subArrayId = -1;
 
@@ -179,6 +181,7 @@ void SubArray::RegisterStats( )
     AddStat(num01Writes);
     AddStat(num10Writes);
     AddStat(num11Writes);
+    AddStat(mlcTimingHisto);
 }
 
 /*
@@ -526,10 +529,9 @@ bool SubArray::Precharge( NVMainRequest *request )
     }
 
     /* Update timing constraints */
-    ncycle_t writeTotal = WriteCellData( request );
     writeTimer = MAX( 1, p->tRP ); // Assume write-through. Needs to be at least one due to event callback.
     if( writeMode == WRITE_BACK && writeCycle )
-        writeTimer = MAX( 1, p->tRP + writeTotal );
+        writeTimer = MAX( 1, p->tRP + WriteCellData( request ) );
 
     nextActivate = MAX( nextActivate, 
                         GetEventQueue()->GetCurrentCycle() + writeTimer );
@@ -683,6 +685,10 @@ ncycle_t SubArray::WriteCellData( NVMainRequest *request )
             /* Simulate program and verify failures */
             if( programPulseCount > 0 )
             {
+                /* Inhibit weird outlier numbers. Using max stddev = 3 */
+                uint64_t max_stddev = 3;
+                uint64_t maxPulseCount = max_stddev + programPulseCount;
+
                 NormalDistribution norm;
 
                 norm.SetMean( programPulseCount );
@@ -692,6 +698,9 @@ ncycle_t SubArray::WriteCellData( NVMainRequest *request )
 
                 /* Make sure this is at least one. */
                 if( programPulseCount < 1 ) programPulseCount = 1;
+
+                if( programPulseCount > maxPulseCount )
+                    programPulseCount = maxPulseCount;
 
                 if( p->programMode == ProgramMode_SRMS )
                     writePulseTime = p->tWP0 + programPulseCount * p->tWP1;
@@ -715,6 +724,11 @@ ncycle_t SubArray::WriteCellData( NVMainRequest *request )
         if( writePulseTime > maxDelay )
             maxDelay = writePulseTime;
     }
+
+    if( mlcTimingMap.count( maxDelay ) > 0 )
+        mlcTimingMap[maxDelay]++;
+    else
+        mlcTimingMap[maxDelay] = 1;
 
     if( maxDelay > worstCaseWrite )
         worstCaseWrite = maxDelay;
@@ -966,6 +980,9 @@ void SubArray::CalculateStats( )
     averageEndurance = endrModel->GetAverageLife( );
 
     actWaitAverage = static_cast<double>(actWaitTotal) / static_cast<double>(actWaits);
+
+    /* Print a histogram as a python-style dict. */
+    mlcTimingHisto = PyDictHistogram( mlcTimingMap );
 }
 
 bool SubArray::Idle( )
