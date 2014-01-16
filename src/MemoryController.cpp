@@ -264,7 +264,6 @@ void MemoryController::SetConfig( Config *conf )
     {
         /* sanity check */
         assert( p->BanksPerRefresh <= p->BANKS );
-        assert( (p->BANKS % p->BanksPerRefresh) == 0 );
 
         /* 
          * it does not make sense when refresh is needed 
@@ -407,21 +406,24 @@ bool MemoryController::HandleRefresh( )
                 {
                     for( ncounter_t tmpBank = 0; tmpBank < p->BanksPerRefresh; tmpBank++ ) 
                     {
+                        /* Use modulo to allow for an odd number of banks per refresh. */
+                        ncounter_t refBank = (tmpBank + j) % p->BANKS;
+
                         /* Precharge all active banks and active subarrays */
-                        if( activateQueued[i][tmpBank+j] == true && bankQueues[i][tmpBank+j].empty() )
+                        if( activateQueued[i][refBank] == true && bankQueues[i][refBank].empty() )
                         {
                             /* issue a PRECHARGE_ALL command to close all subarrays */
-                            bankQueues[i][tmpBank+j].push_back( 
-                                    MakePrechargeAllRequest( 0, 0, tmpBank+j, i, 0 ) );
+                            bankQueues[i][refBank].push_back( 
+                                    MakePrechargeAllRequest( 0, 0, refBank, i, 0 ) );
 
                             /* clear all active subarrays */
                             for( ncounter_t sa = 0; sa < subArrayNum; sa++ )
                             {
-                                activeSubArray[i][tmpBank+j][sa] = false; 
-                                effectiveRow[i][tmpBank+j][sa] = p->ROWS;
-                                effectiveMuxedRow[i][tmpBank+j][sa] = p->ROWS;
+                                activeSubArray[i][refBank][sa] = false; 
+                                effectiveRow[i][refBank][sa] = p->ROWS;
+                                effectiveMuxedRow[i][refBank][sa] = p->ROWS;
                             }
-                            activateQueued[i][tmpBank+j] = false;
+                            activateQueued[i][refBank] = false;
                         }
                     }
 
