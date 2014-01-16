@@ -157,11 +157,11 @@ void DRCDecoder::Translate( uint64_t address, uint64_t *row, uint64_t *col,
 }
 
 uint64_t DRCDecoder::ReverseTranslate( const uint64_t& row, 
-                                       const uint64_t& col, 
+                                       const uint64_t& /*col*/, 
                                        const uint64_t& bank,
 				       const uint64_t& rank, 
                                        const uint64_t& channel,
-                                       const uint64_t& subarray)
+                                       const uint64_t& /*subarray*/)
 {
     uint64_t unitAddr = 1;
     uint64_t phyAddr = 0;

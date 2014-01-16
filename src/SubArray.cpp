@@ -678,7 +678,7 @@ ncycle_t SubArray::WriteCellData( NVMainRequest *request )
         }
         else if( p->MLCLevels == 2 )
         {
-            uint64_t max_stddev = p->nWPVar;
+            ncounters_t max_stddev = p->nWPVar;
 
             if( cellData == 0 )
             {
@@ -709,8 +709,8 @@ ncycle_t SubArray::WriteCellData( NVMainRequest *request )
             if( programPulseCount > 0 )
             {
                 /* Inhibit weird outlier numbers. Using max stddev = 3 */
-                uint64_t maxPulseCount = max_stddev + programPulseCount;
-                uint64_t minPulseCount = programPulseCount - max_stddev;
+                ncounters_t maxPulseCount = max_stddev + programPulseCount;
+                ncounters_t minPulseCount = programPulseCount - max_stddev;
 
                 NormalDistribution norm;
 
