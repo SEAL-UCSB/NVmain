@@ -67,9 +67,9 @@ int main( int argc, char *argv[] )
     unsigned int simulateCycles;
     unsigned int currentCycle;
     
-    if( argc != 3 && argc != 4 )
+    if( argc < 4 )
     {
-        std::cout << "Usage: nvmain CONFIG_FILE TRACE_FILE [CYCLES]" 
+        std::cout << "Usage: nvmain CONFIG_FILE TRACE_FILE CYCLES [PARAM=value ...]" 
             << std::endl;
         return 1;
     }
@@ -79,6 +79,24 @@ int main( int argc, char *argv[] )
     nvmain->SetEventQueue( mainEventQueue );
     nvmain->SetStats( stats );
     std::ofstream statStream;
+
+    /* Allow for overriding config parameter values for trace simulations from command line. */
+    if( argc > 4 )
+    {
+        for( int curArg = 4; curArg < argc; ++curArg )
+        {
+            std::string clParam, clValue, clPair;
+            
+            clPair = argv[curArg];
+            clParam = clPair.substr( 0, clPair.find_first_of("="));
+            clValue = clPair.substr( clPair.find_first_of("=") + 1, std::string::npos );
+
+            std::cout << "Overriding " << clParam << " with '" << clValue << "'" << std::endl;
+
+            config->SetValue( clParam, clValue );
+        }
+    }
+
 
     if( config->KeyExists( "StatsFile" ) )
     {
