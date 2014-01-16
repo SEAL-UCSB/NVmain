@@ -93,6 +93,8 @@ SubArray::SubArray( )
     num10Writes = 0;
     num11Writes = 0;
     mlcTimingHisto = "";
+    averageWriteTime = 0.0;
+    measuredWriteTimes = 0;
 
     subArrayId = -1;
 
@@ -182,6 +184,8 @@ void SubArray::RegisterStats( )
     AddStat(num10Writes);
     AddStat(num11Writes);
     AddStat(mlcTimingHisto);
+    AddStat(averageWriteTime);
+    AddStat(measuredWriteTimes);
 }
 
 /*
@@ -430,7 +434,16 @@ bool SubArray::Write( NVMainRequest *request )
     /* Determine the write time. */
     writeTimer = WriteCellData( request ); // Assume write-through.
     if( writeMode == WRITE_BACK && writeCycle )
+    {
         writeTimer = 0;
+    }
+
+    if( writeMode == WRITE_THROUGH )
+    {
+        averageWriteTime = ((averageWriteTime * static_cast<double>(measuredWriteTimes)) + static_cast<double>(writeTimer)) 
+                         / (static_cast<double>(measuredWriteTimes) + 1.0);
+        measuredWriteTimes++;
+    }
 
     /* Update timing constraints */
     if( request->type == WRITE_PRECHARGE )
@@ -531,7 +544,13 @@ bool SubArray::Precharge( NVMainRequest *request )
     /* Update timing constraints */
     writeTimer = MAX( 1, p->tRP ); // Assume write-through. Needs to be at least one due to event callback.
     if( writeMode == WRITE_BACK && writeCycle )
+    {
         writeTimer = MAX( 1, p->tRP + WriteCellData( request ) );
+
+        averageWriteTime = ((averageWriteTime * static_cast<double>(measuredWriteTimes)) + static_cast<double>(writeTimer)) 
+                         / (static_cast<double>(measuredWriteTimes) + 1.0);
+        measuredWriteTimes++;
+    }
 
     nextActivate = MAX( nextActivate, 
                         GetEventQueue()->GetCurrentCycle() + writeTimer );
@@ -659,10 +678,13 @@ ncycle_t SubArray::WriteCellData( NVMainRequest *request )
         }
         else if( p->MLCLevels == 2 )
         {
+            uint64_t max_stddev = p->nWPVar;
+
             if( cellData == 0 )
             {
                 programPulseCount = 0;
                 num00Writes++;
+                max_stddev = 0; // assume single RESET does not fail
             }
             else if( cellData == 1 ) // 01 -> Assume 1 RESET + nWP01 SETs
             {
@@ -678,6 +700,7 @@ ncycle_t SubArray::WriteCellData( NVMainRequest *request )
             {
                 programPulseCount = p->nWP11;
                 num11Writes++;
+                max_stddev = 0; // assume single SET does not fail
             }
             else
                 std::cout << "SubArray: Unknown cell value: " << (int)cellData << std::endl;
@@ -686,8 +709,8 @@ ncycle_t SubArray::WriteCellData( NVMainRequest *request )
             if( programPulseCount > 0 )
             {
                 /* Inhibit weird outlier numbers. Using max stddev = 3 */
-                uint64_t max_stddev = 3;
                 uint64_t maxPulseCount = max_stddev + programPulseCount;
+                uint64_t minPulseCount = programPulseCount - max_stddev;
 
                 NormalDistribution norm;
 
@@ -701,6 +724,8 @@ ncycle_t SubArray::WriteCellData( NVMainRequest *request )
 
                 if( programPulseCount > maxPulseCount )
                     programPulseCount = maxPulseCount;
+                if( programPulseCount < minPulseCount )
+                    programPulseCount = minPulseCount;
 
                 if( p->programMode == ProgramMode_SRMS )
                     writePulseTime = p->tWP0 + programPulseCount * p->tWP1;
@@ -993,3 +1018,4 @@ bool SubArray::Idle( )
 void SubArray::Cycle( ncycle_t )
 {
 }
+

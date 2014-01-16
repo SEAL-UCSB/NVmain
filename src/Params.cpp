@@ -56,6 +56,7 @@ Params::Params( )
     Vssq_set = false;
     MATHeight_set = false;
     RBSize_set = false;
+    tWP_set = false;
 
     /* Defaults */
     PrintPreTrace = false;
@@ -81,6 +82,7 @@ Params::Params( )
     nWP01 = 7;
     nWP10 = 5;
     nWP11 = 1;
+    nWPVar = 2;
 
     DeadlockTimer = 10000000;
 }
@@ -227,7 +229,7 @@ void Params::SetParams( Config *c )
     tRRDW = ConvertTiming( c, "tRRDW" );
     tRTP = ConvertTiming( c, "tRTP" );
     tRTRS = ConvertTiming( c, "tRTRS" );
-    tWP = ConvertTiming( c, "tWP" );
+    if( c->KeyExists( "tWP" ) ) { tWP = ConvertTiming( c, "tWP" ); tWP_set = true; }
     tWR = ConvertTiming( c, "tWR" );
     tWTR = ConvertTiming( c, "tWTR" );
     tXP = ConvertTiming( c, "tXP" );
@@ -270,6 +272,7 @@ void Params::SetParams( Config *c )
     if( c->KeyExists( "nWP01" ) ) nWP01 = c->GetValue( "nWP01" );
     if( c->KeyExists( "nWP10" ) ) nWP10 = c->GetValue( "nWP10" );
     if( c->KeyExists( "nWP11" ) ) nWP11 = c->GetValue( "nWP11" );
+    if( c->KeyExists( "nWPVar" ) ) nWPVar = c->GetValue( "nWPVar" );
 
     if( c->KeyExists( "DeadlockTimer" ) ) DeadlockTimer = c->GetValue( "DeadlockTimer" );
 
