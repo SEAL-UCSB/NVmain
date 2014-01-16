@@ -194,6 +194,9 @@ class Params
     ncycle_t nWP10;
     ncycle_t nWP11;
 
+    /* 2-level MLC variance (01 and 10 only). */
+    ncycle_t nWPVar;
+
     /* Configurable deadlock timer. */
     ncycle_t DeadlockTimer;
 

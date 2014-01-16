@@ -146,6 +146,8 @@ class SubArray : public NVMObject
     ncounter_t num01Writes;
     ncounter_t num10Writes;
     ncounter_t num11Writes;
+    double averageWriteTime;
+    ncounter_t measuredWriteTimes;
 
     ncounter_t actWaits;
     ncounter_t actWaitTotal;
