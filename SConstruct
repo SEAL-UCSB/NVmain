@@ -19,7 +19,7 @@ AddOption('--build-type', dest='build_type', type='choice',
 #  This environment will be copied for different build types
 #  e.g., release, debug, profiling, etc.
 #
-env = Environment()
+env = Environment(ENV = os.environ)
 
 build_type = GetOption("build_type")
 
@@ -29,6 +29,7 @@ if build_type == None or build_type == "fast":
     env.Append(CCFLAGS='-Wall')
     env.Append(CCFLAGS='-Wextra')
     env.Append(CCFLAGS='-fPIC')
+    env.Append(CCFLAGS='-std=c++0x')
     env['OBJSUFFIX'] = '.fo'
     build_type = "fast"
 elif build_type == "debug":
@@ -38,6 +39,7 @@ elif build_type == "debug":
     env.Append(CCFLAGS='-Wall')
     env.Append(CCFLAGS='-Wextra')
     env.Append(CCFLAGS='-fPIC')
+    env.Append(CCFLAGS='-std=c++0x')
     env['OBJSUFFIX'] = '.do'
 elif build_type == "prof":
     env.Append(CCFLAGS='-O0')
@@ -47,6 +49,7 @@ elif build_type == "prof":
     env.Append(CCFLAGS='-Wall')
     env.Append(CCFLAGS='-Wextra')
     env.Append(CCFLAGS='-fPIC')
+    env.Append(CCFLAGS='-std=c++0x')
     env['OBJSUFFIX'] = '.po'
 
 

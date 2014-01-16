@@ -36,6 +36,7 @@
 
 #include <string>
 #include <map>
+#include <cstdint>
 
 namespace NVM {
 
