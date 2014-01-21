@@ -98,9 +98,6 @@ bool PredictorDRC::IssueAtomic( NVMainRequest *req )
 
 bool PredictorDRC::IssueCommand( NVMainRequest *req )
 {
-    std::cout << "Request 0x" << std::hex << req->address.GetPhysicalAddress() << std::dec
-              << " arrived at predictor DRC." << std::endl;
-
     return predictor->IssueCommand( req );
 }
 
@@ -111,9 +108,6 @@ bool PredictorDRC::RequestComplete( NVMainRequest *req )
      *  generated here. Use the standard RequestComplete.
      */
     bool rv = false;
-
-    std::cout << "Request 0x" << std::hex << req->address.GetPhysicalAddress() << std::dec
-              << " completed at predictor DRC." << std::endl;
 
     if( req->type == REFRESH )
         ProcessRefreshPulse( req );

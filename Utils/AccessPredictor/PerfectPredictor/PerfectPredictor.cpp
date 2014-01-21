@@ -145,9 +145,6 @@ bool PerfectPredictor::IssueCommand( NVMainRequest *req )
     
     assert( drc != NULL );
 
-    std::cout << "Request 0x" << std::hex << req->address.GetPhysicalAddress() << std::dec
-              << " issued to perfect predictor." << std::endl;
-
     if( req->type == WRITE )
     {
         /*
@@ -157,8 +154,8 @@ bool PerfectPredictor::IssueCommand( NVMainRequest *req )
     }
     else if( drc->IssueFunctional( req ) )
     {
-        std::cout << "Request 0x" << std::hex << req->address.GetPhysicalAddress() << std::dec
-                  << " predicted HIT." << std::endl;
+        //std::cout << "Request 0x" << std::hex << req->address.GetPhysicalAddress() << std::dec
+        //          << " predicted HIT." << std::endl;
 
         rv = drc->IssueCommand( req );
     }
@@ -178,8 +175,8 @@ bool PerfectPredictor::IssueCommand( NVMainRequest *req )
             exit(1);
         }
 
-        std::cout << "Request 0x" << std::hex << req->address.GetPhysicalAddress() << std::dec
-                  << " predicted MISS." << std::endl;
+        //std::cout << "Request 0x" << std::hex << req->address.GetPhysicalAddress() << std::dec
+        //          << " predicted MISS." << std::endl;
 
         outstandingMisses.insert( req->address.GetPhysicalAddress( ) );
     }
@@ -197,21 +194,21 @@ bool PerfectPredictor::RequestComplete( NVMainRequest *req )
      */
     if( req->owner == this )
     {
-        std::cout << "Request 0x" << std::hex << req->address.GetPhysicalAddress() << std::dec
-                  << " fill complete." << std::endl;
+        //std::cout << "Request 0x" << std::hex << req->address.GetPhysicalAddress() << std::dec
+        //          << " fill complete." << std::endl;
 
         delete req;
         rv = true;
     }
     else
     {
-        std::cout << "Request 0x" << std::hex << req->address.GetPhysicalAddress() << std::dec
-                  << " complete." << std::endl;
+        //std::cout << "Request 0x" << std::hex << req->address.GetPhysicalAddress() << std::dec
+        //          << " complete." << std::endl;
 
         if( outstandingMisses.count( req->address.GetPhysicalAddress() ) != 0 )
         {
-            std::cout << "Request 0x" << std::hex << req->address.GetPhysicalAddress() << std::dec
-                      << " starting fill." << std::endl;
+            //std::cout << "Request 0x" << std::hex << req->address.GetPhysicalAddress() << std::dec
+            //          << " starting fill." << std::endl;
 
             NVMainRequest *fillReq = new NVMainRequest();
 
