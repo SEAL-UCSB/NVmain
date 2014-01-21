@@ -30,6 +30,7 @@ if build_type == None or build_type == "fast":
     env.Append(CCFLAGS='-Wextra')
     env.Append(CCFLAGS='-fPIC')
     env.Append(CCFLAGS='-std=c++0x')
+    env.Append(CCFLAGS='-DNDEBUG')
     env['OBJSUFFIX'] = '.fo'
     build_type = "fast"
 elif build_type == "debug":
@@ -50,6 +51,7 @@ elif build_type == "prof":
     env.Append(CCFLAGS='-Wextra')
     env.Append(CCFLAGS='-fPIC')
     env.Append(CCFLAGS='-std=c++0x')
+    env.Append(CCFLAGS='-DNDEBUG')
     env['OBJSUFFIX'] = '.po'
 
 
