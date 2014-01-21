@@ -63,6 +63,7 @@ int main( int argc, char *argv[] )
     SimInterface *simInterface = new NullInterface( );
     NVMain *nvmain = new NVMain( );
     EventQueue *mainEventQueue = new EventQueue( );
+    bool IgnoreData = false;
 
     unsigned int simulateCycles;
     unsigned int currentCycle;
@@ -102,6 +103,11 @@ int main( int argc, char *argv[] )
     {
         statStream.open( config->GetString( "StatsFile" ).c_str(), 
                          std::ofstream::out | std::ofstream::app );
+    }
+
+    if( config->KeyExists( "IgnoreData" ) && config->GetString( "IgnoreData" ) == "true" )
+    {
+        IgnoreData = true;
     }
 
     /*  Add any specified hooks */
@@ -174,7 +180,7 @@ int main( int argc, char *argv[] )
         request->type = tl->GetOperation( );
         request->bulkCmd = CMD_NOP;
         request->threadId = tl->GetThreadId( );
-        request->data = tl->GetData( );
+        if( !IgnoreData ) request->data = tl->GetData( );
         request->status = MEM_REQUEST_INCOMPLETE;
         request->owner = (NVMObject *)nvmain;
         
