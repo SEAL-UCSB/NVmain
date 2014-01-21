@@ -36,6 +36,27 @@
             ]
         },
         { 
+            "name" : "3D_PredictorDRC_example",
+            "config" : "../Config/3D_PredictorDRC_example.config",
+            "desc" : "Make sure 3D_PredictorDRC_example.config works",
+            "cycles" : "100000",
+            "overrides" : "IgnoreData=true",
+            "returncode" : 0,
+            "checks" : [
+                "i0.defaultMemory.channel0.PredictorDRC.drcChannel0.LO_Cache.drc_hits 6847",
+                "i0.defaultMemory.channel0.PredictorDRC.drcChannel0.LO_Cache.drc_miss 0",
+                "i0.defaultMemory.channel0.PredictorDRC.drcChannel0.LO_Cache.drc_hitrate 1",
+                "i0.offChipMemory.channel0.FRFCFS.mem_reads 757",
+                "i0.offChipMemory.channel1.FRFCFS.mem_reads 743",
+                "i0.offChipMemory.channel2.FRFCFS.mem_reads 865",
+                "i0.offChipMemory.channel3.FRFCFS.mem_reads 817",
+                "i0.offChipMemory.channel0.FRFCFS.mem_writes 0",
+                "i0.offChipMemory.channel1.FRFCFS.mem_writes 0",
+                "i0.offChipMemory.channel2.FRFCFS.mem_writes 0",
+                "i0.offChipMemory.channel3.FRFCFS.mem_writes 0"
+            ]
+        },
+        { 
             "name" : "3D_DRAMCache_example",
             "config" : "../Config/3D_DRAMCache_example.config",
             "desc" : "Make sure 3D_DRAMCache_example.config works",
@@ -43,6 +64,11 @@
             "overrides" : "IgnoreData=true",
             "returncode" : 0,
             "checks" : [
+                "i0.defaultMemory.channel0.DRC.drcChannel0.LO_Cache.drc_hits 1858",
+                "i0.defaultMemory.channel0.DRC.drcChannel0.LO_Cache.drc_miss 3181",
+                "i0.defaultMemory.channel0.DRC.drcChannel0.LO_Cache.drc_hitrate 0.368724",
+                "i0.defaultMemory.channel0.DRC.drcChannel0.LO_Cache.drc_fills 3179",
+                "i0.defaultMemory.channel0.DRC.drcChannel0.LO_Cache.drc_evicts 1857",
                 "i0.offChipMemory.channel0.FRFCFS.mem_reads 757",
                 "i0.offChipMemory.channel1.FRFCFS.mem_reads 743",
                 "i0.offChipMemory.channel2.FRFCFS.mem_reads 865",
@@ -61,6 +87,11 @@
             "overrides" : "IgnoreData=true UseRefresh=false",
             "returncode" : 0,
             "checks" : [
+                "i0.defaultMemory.channel0.DRC.drcChannel0.LO_Cache.drc_hits 1858",
+                "i0.defaultMemory.channel0.DRC.drcChannel0.LO_Cache.drc_miss 3181",
+                "i0.defaultMemory.channel0.DRC.drcChannel0.LO_Cache.drc_hitrate 0.368724",
+                "i0.defaultMemory.channel0.DRC.drcChannel0.LO_Cache.drc_fills 3179",
+                "i0.defaultMemory.channel0.DRC.drcChannel0.LO_Cache.drc_evicts 1857",
                 "i0.offChipMemory.channel0.FRFCFS.mem_reads 757",
                 "i0.offChipMemory.channel1.FRFCFS.mem_reads 743",
                 "i0.offChipMemory.channel2.FRFCFS.mem_reads 865",
@@ -79,6 +110,11 @@
             "overrides" : "IgnoreData=true UseRefresh=false ClosePage=0",
             "returncode" : 0,
             "checks" : [
+                "i0.defaultMemory.channel0.DRC.drcChannel0.LO_Cache.drc_hits 1858",
+                "i0.defaultMemory.channel0.DRC.drcChannel0.LO_Cache.drc_miss 3181",
+                "i0.defaultMemory.channel0.DRC.drcChannel0.LO_Cache.drc_hitrate 0.368724",
+                "i0.defaultMemory.channel0.DRC.drcChannel0.LO_Cache.drc_fills 3178",
+                "i0.defaultMemory.channel0.DRC.drcChannel0.LO_Cache.drc_evicts 1857",
                 "i0.offChipMemory.channel0.FRFCFS.mem_reads 757",
                 "i0.offChipMemory.channel1.FRFCFS.mem_reads 743",
                 "i0.offChipMemory.channel2.FRFCFS.mem_reads 865",
@@ -97,6 +133,11 @@
             "overrides" : "IgnoreData=true UseRefresh=true ClosePage=0",
             "returncode" : 0,
             "checks" : [
+                "i0.defaultMemory.channel0.DRC.drcChannel0.LO_Cache.drc_hits 1858",
+                "i0.defaultMemory.channel0.DRC.drcChannel0.LO_Cache.drc_miss 3181",
+                "i0.defaultMemory.channel0.DRC.drcChannel0.LO_Cache.drc_hitrate 0.368724",
+                "i0.defaultMemory.channel0.DRC.drcChannel0.LO_Cache.drc_fills 3178",
+                "i0.defaultMemory.channel0.DRC.drcChannel0.LO_Cache.drc_evicts 1857",
                 "i0.offChipMemory.channel0.FRFCFS.mem_reads 757",
                 "i0.offChipMemory.channel1.FRFCFS.mem_reads 743",
                 "i0.offChipMemory.channel2.FRFCFS.mem_reads 865",
