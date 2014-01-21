@@ -37,6 +37,7 @@
 #include "src/MemoryController.h"
 #include "src/EventQueue.h"
 #include "Endurance/EnduranceModelFactory.h"
+#include "Endurance/NullModel/NullModel.h"
 
 #include <signal.h>
 #include <cassert>
@@ -879,6 +880,12 @@ void Bank::UpdateEndurance( NVMainRequest *request )
 {
     if( endrModel && bankId == 0 )
     {
+        /* Don't track data for NullModel. */
+        if( dynamic_cast<NullModel *>(endrModel) != NULL )
+        {
+            return;
+        }
+
         NVMDataBlock oldData;
 
         if( conf->GetSimInterface( ) != NULL )
