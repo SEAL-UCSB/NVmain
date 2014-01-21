@@ -1,0 +1,163 @@
+{
+    "tests" : [
+        { 
+            "name" : "Deadlock",
+            "config" : "Configs/Deadlock.config",
+            "desc" : "Make sure the deadlock detector works",
+            "cycles" : "0",
+            "overrides" : "IgnoreData=true",
+            "returncode" : 1,
+            "checks" : [
+                "Operation could not be sent to memory after a very long time"
+            ]
+        },
+        { 
+            "name" : "2D_DRAM_example",
+            "config" : "../Config/2D_DRAM_example.config",
+            "desc" : "Make sure 2D_DRAM_example.config works",
+            "cycles" : "0",
+            "overrides" : "IgnoreData=true",
+            "returncode" : 0,
+            "checks" : [
+                "i0.defaultMemory.channel0.FRFCFS.mem_reads 49676",
+                "i0.defaultMemory.channel0.FRFCFS.mem_writes 48275"
+            ]
+        },
+        { 
+            "name" : "3D_DRAM_example",
+            "config" : "../Config/3D_DRAM_example.config",
+            "desc" : "Make sure 3D_DRAM_example.config works",
+            "cycles" : "0",
+            "overrides" : "IgnoreData=true",
+            "returncode" : 0,
+            "checks" : [
+                "i0.defaultMemory.channel3.FRFCFS-WQF.mem_reads 12430",
+                "i0.defaultMemory.channel3.FRFCFS-WQF.mem_writes 12067"
+            ]
+        },
+        { 
+            "name" : "3D_DRAMCache_example",
+            "config" : "../Config/3D_DRAMCache_example.config",
+            "desc" : "Make sure 3D_DRAMCache_example.config works",
+            "cycles" : "100000",
+            "overrides" : "IgnoreData=true",
+            "returncode" : 0,
+            "checks" : [
+                "i0.offChipMemory.channel0.FRFCFS.mem_reads 757",
+                "i0.offChipMemory.channel1.FRFCFS.mem_reads 743",
+                "i0.offChipMemory.channel2.FRFCFS.mem_reads 865",
+                "i0.offChipMemory.channel3.FRFCFS.mem_reads 816",
+                "i0.offChipMemory.channel0.FRFCFS.mem_writes 0",
+                "i0.offChipMemory.channel1.FRFCFS.mem_writes 0",
+                "i0.offChipMemory.channel2.FRFCFS.mem_writes 0",
+                "i0.offChipMemory.channel3.FRFCFS.mem_writes 0"
+            ]
+        },
+        { 
+            "name" : "LO_Cache_regression_1",
+            "config" : "../Config/3D_DRAMCache_example.config",
+            "desc" : "Test non-refresh DRAM cache",
+            "cycles" : "100000",
+            "overrides" : "IgnoreData=true UseRefresh=false",
+            "returncode" : 0,
+            "checks" : [
+                "i0.offChipMemory.channel0.FRFCFS.mem_reads 757",
+                "i0.offChipMemory.channel1.FRFCFS.mem_reads 743",
+                "i0.offChipMemory.channel2.FRFCFS.mem_reads 865",
+                "i0.offChipMemory.channel3.FRFCFS.mem_reads 816",
+                "i0.offChipMemory.channel0.FRFCFS.mem_writes 0",
+                "i0.offChipMemory.channel1.FRFCFS.mem_writes 0",
+                "i0.offChipMemory.channel2.FRFCFS.mem_writes 0",
+                "i0.offChipMemory.channel3.FRFCFS.mem_writes 0"
+            ]
+        },
+        { 
+            "name" : "LO_Cache_regression_2",
+            "config" : "../Config/3D_DRAMCache_example.config",
+            "desc" : "Test non-refresh DRAM cache with open-page policy",
+            "cycles" : "100000",
+            "overrides" : "IgnoreData=true UseRefresh=false ClosePage=0",
+            "returncode" : 0,
+            "checks" : [
+                "i0.offChipMemory.channel0.FRFCFS.mem_reads 757",
+                "i0.offChipMemory.channel1.FRFCFS.mem_reads 743",
+                "i0.offChipMemory.channel2.FRFCFS.mem_reads 865",
+                "i0.offChipMemory.channel3.FRFCFS.mem_reads 816",
+                "i0.offChipMemory.channel0.FRFCFS.mem_writes 0",
+                "i0.offChipMemory.channel1.FRFCFS.mem_writes 0",
+                "i0.offChipMemory.channel2.FRFCFS.mem_writes 0",
+                "i0.offChipMemory.channel3.FRFCFS.mem_writes 0"
+            ]
+        },
+        { 
+            "name" : "LO_Cache_regression_3",
+            "config" : "../Config/3D_DRAMCache_example.config",
+            "desc" : "Test DRAM cache with open-page policy and refresh",
+            "cycles" : "100000",
+            "overrides" : "IgnoreData=true UseRefresh=true ClosePage=0",
+            "returncode" : 0,
+            "checks" : [
+                "i0.offChipMemory.channel0.FRFCFS.mem_reads 757",
+                "i0.offChipMemory.channel1.FRFCFS.mem_reads 743",
+                "i0.offChipMemory.channel2.FRFCFS.mem_reads 865",
+                "i0.offChipMemory.channel3.FRFCFS.mem_reads 816",
+                "i0.offChipMemory.channel0.FRFCFS.mem_writes 0",
+                "i0.offChipMemory.channel1.FRFCFS.mem_writes 0",
+                "i0.offChipMemory.channel2.FRFCFS.mem_writes 0",
+                "i0.offChipMemory.channel3.FRFCFS.mem_writes 0"
+            ]
+        },
+        { 
+            "name" : "PCM_example",
+            "config" : "../Config/PCM_ISSCC_2012_4GB.config",
+            "desc" : "Make sure 2D_DRAM_example.config works",
+            "cycles" : "0",
+            "overrides" : "IgnoreData=true",
+            "returncode" : 0,
+            "checks" : [
+                "i0.defaultMemory.channel0.FRFCFS-WQF.mem_reads 49676",
+                "i0.defaultMemory.channel0.FRFCFS-WQF.mem_writes 48275"
+            ]
+        },
+        { 
+            "name" : "RRAM_example",
+            "config" : "../Config/RRAM_ISSCC_2012_4GB.config",
+            "desc" : "Make sure RRAM_ISSCC_2012_4GB.config works",
+            "cycles" : "0",
+            "overrides" : "IgnoreData=true",
+            "returncode" : 0,
+            "checks" : [
+                "i0.defaultMemory.channel0.FRFCFS-WQF.mem_reads 12441",
+                "i0.defaultMemory.channel0.FRFCFS-WQF.mem_writes 12054",
+                "i0.defaultMemory.channel1.FRFCFS-WQF.mem_reads 12391",
+                "i0.defaultMemory.channel1.FRFCFS-WQF.mem_writes 12079",
+                "i0.defaultMemory.channel2.FRFCFS-WQF.mem_reads 12390",
+                "i0.defaultMemory.channel2.FRFCFS-WQF.mem_writes 12048",
+                "i0.defaultMemory.channel3.FRFCFS-WQF.mem_reads 12454",
+                "i0.defaultMemory.channel3.FRFCFS-WQF.mem_writes 12094"
+            ]
+        },
+        { 
+            "name" : "STTRAM_example",
+            "config" : "../Config/STTRAM_Everspin_4GB.config",
+            "desc" : "Make sure STTRAM_Everspin_4GB.config works",
+            "cycles" : "0",
+            "overrides" : "IgnoreData=true",
+            "returncode" : 0,
+            "checks" : [
+                "i0.defaultMemory.channel0.FRFCFS-WQF.mem_reads 12470",
+                "i0.defaultMemory.channel0.FRFCFS-WQF.mem_writes 12050",
+                "i0.defaultMemory.channel1.FRFCFS-WQF.mem_reads 12521",
+                "i0.defaultMemory.channel1.FRFCFS-WQF.mem_writes 12111",
+                "i0.defaultMemory.channel2.FRFCFS-WQF.mem_reads 12333",
+                "i0.defaultMemory.channel2.FRFCFS-WQF.mem_writes 12060",
+                "i0.defaultMemory.channel3.FRFCFS-WQF.mem_reads 12352",
+                "i0.defaultMemory.channel3.FRFCFS-WQF.mem_writes 12054"
+            ]
+        }
+    ],
+
+    "traces" : [
+        "Traces/hello_world.nvt"
+    ]
+}
