@@ -226,7 +226,7 @@ int main( int argc, char *argv[] )
                 /* Wait until currentCycle is the trace operation's cycle. */
                 while( currentCycle < tl->GetCycle( ) )
                 {
-                    if( currentCycle >= simulateCycles )
+                    if( currentCycle >= simulateCycles && simulateCycles != 0 )
                         break;
 
                     nvmain->Cycle( 1 );
@@ -234,7 +234,7 @@ int main( int argc, char *argv[] )
                     currentCycle++;
                 }
 
-                if( currentCycle >= simulateCycles )
+                if( currentCycle >= simulateCycles && simulateCycles != 0 )
                     break;
             }
 
@@ -244,7 +244,7 @@ int main( int argc, char *argv[] )
              */
             while( !nvmain->IssueCommand( request ) )
             {
-                if( currentCycle >= simulateCycles )
+                if( currentCycle >= simulateCycles && simulateCycles != 0 )
                     break;
 
                 nvmain->Cycle( 1 );
@@ -252,7 +252,7 @@ int main( int argc, char *argv[] )
                 currentCycle++;
             }
 
-            if( currentCycle >= simulateCycles )
+            if( currentCycle >= simulateCycles && simulateCycles != 0 )
                 break;
         }
     }       
