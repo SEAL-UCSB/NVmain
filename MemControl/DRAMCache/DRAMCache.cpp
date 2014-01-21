@@ -161,6 +161,9 @@ void DRAMCache::SetConfig( Config *conf )
 
         channelMemory->SetConfig( conf );
         drcChannels[i]->SetConfig( conf );
+
+        channelMemory->RegisterStats( );
+        drcChannels[i]->RegisterStats( );
     }
 
     MemoryController::SetConfig( conf );
