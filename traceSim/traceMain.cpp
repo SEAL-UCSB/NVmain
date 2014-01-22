@@ -75,6 +75,14 @@ int main( int argc, char *argv[] )
         return 1;
     }
 
+    /* Print out the command line that was provided. */
+    std::cout << "NVMain command line is:" << std::endl;
+    for( int curArg = 0; curArg < argc; ++curArg )
+    {
+        std::cout << argv[curArg] << " ";
+    }
+    std::cout << std::endl << std::endl;
+
     config->Read( argv[1] );
     config->SetSimInterface( simInterface );
     nvmain->SetEventQueue( mainEventQueue );
