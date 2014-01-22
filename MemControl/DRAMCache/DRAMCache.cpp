@@ -167,6 +167,8 @@ void DRAMCache::SetConfig( Config *conf )
     }
 
     MemoryController::SetConfig( conf );
+
+    SetDebugName( "DRAMCache", conf );
 }
 
 void DRAMCache::RegisterStats( )

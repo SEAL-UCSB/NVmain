@@ -171,6 +171,8 @@ void FRFCFS_WQF::SetConfig( Config *conf )
     }
 
     MemoryController::SetConfig( conf );
+
+    SetDebugName( "FRFCFS-WQF", conf );
 }
 
 void FRFCFS_WQF::RegisterStats( )

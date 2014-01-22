@@ -95,6 +95,8 @@ void OnChipBus::SetConfig( Config *c )
         ranks[i]->SetConfig( conf ); 
         ranks[i]->RegisterStats( );
     }
+
+    SetDebugName( "OnChipBus", c );
 }
 
 bool OnChipBus::CanPowerDown( const OpType& pdOp, const ncounter_t& rankId )

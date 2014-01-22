@@ -143,6 +143,8 @@ class NVMObject
     void AddHook( NVMObject *hook );
     std::vector<NVMObject *>& GetHooks( HookType h );
 
+    virtual void SetDebugName( std::string dn, Config *config );
+
   protected:
     NVMObject_hook *parent;
     AddressTranslator *decoder;
@@ -150,6 +152,7 @@ class NVMObject
     std::vector<NVMObject_hook *> children;
     std::vector<NVMObject *> *hooks;
     EventQueue *eventQueue;
+    std::ostream *debugStream;
     HookType hookType;
     ncycle_t MAX( const ncycle_t, const ncycle_t );
 };

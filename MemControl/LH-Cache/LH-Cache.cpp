@@ -50,7 +50,10 @@ LH_Cache::LH_Cache( Interconnect *memory, AddressTranslator *translator )
     SetMemory( memory );
     SetTranslator( translator );
 
-    std::cout << "Create a Basic DRAM Cache!" << std::endl;
+    std::cout << "This Memory Controller is no longer maintained in favor of LO-Cache and is in a non-working state." << std::endl;
+    std::cout << "This code is only provided for reference." << std::endl;
+
+    exit(1);
 
     averageHitLatency = 0.0;
     averageHitQueueLatency = 0.0;

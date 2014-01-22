@@ -29,71 +29,32 @@
 * Author list: 
 *   Matt Poremba    ( Email: mrp5060 at psu dot edu 
 *                     Website: http://www.cse.psu.edu/~poremba/ )
+*   Tao Zhang       ( Email: tzz106 at cse dot psu dot edu
+*                     Website: http://www.cse.psu.edu/~tzz106 )
 *******************************************************************************/
 
-#ifndef __CONFIG_H__
-#define __CONFIG_H__
+#ifndef __NVM_DEBUG_H__
+#define __NVM_DEBUG_H__
 
-#include <vector>
-#include <string>
-#include <map>
-#include <set>
+
+#include <iosfwd>
 #include <fstream>
-
-#include "src/SimInterface.h"
 
 namespace NVM {
 
-class Config 
-{
-  public:
-    Config ();
-    ~Config ();
+class nullstream : public std::ostream {};
 
-    Config(const Config& conf);
-    
-    void Read( std::string filename );
-    std::string GetFileName( );
 
-    int  GetValue( std::string key );
-    void SetValue( std::string key, std::string value );
+template <typename T>
+nullstream& operator<<( nullstream& s, T const& ) { return s; }
 
-    double GetEnergy( std::string key );
-    void  SetEnergy( std::string key, std::string energy );
+//nullstream& operator<<( nullstream& s, std::ostream &(std::ostream&));
 
-    std::string GetString( std::string key );
-    void  SetString( std::string key, std::string );
-
-    bool  GetBool( std::string key );
-    void  SetBool( std::string key, bool value );
-
-    bool KeyExists( std::string key );
-
-    std::vector<std::string>& GetHooks( );
-
-    void Print( );
-
-    /*
-     *  Any special class to get information from the underlying
-     *  simulator can be set here.
-     */
-    void SetSimInterface( SimInterface *simPtr );
-    SimInterface *GetSimInterface( );
-
-    void SetDebugLog( );
-    std::ostream *GetDebugLog( );
-
-  private:
-    std::string fileName;
-    std::map<std::string, std::string> values;
-    std::set<std::string> warned;
-    std::vector<std::string> hookList;
-    SimInterface *simPtr;
-    std::ofstream debugLogFile;
-    bool useDebugLog;
+static nullstream nvmainDebugInhibitor;
 
 };
 
-};
 
 #endif
+
+

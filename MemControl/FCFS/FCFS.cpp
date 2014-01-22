@@ -88,6 +88,8 @@ void FCFS::SetConfig( Config *conf )
     }
 
     MemoryController::SetConfig( conf );
+
+    SetDebugName( "FCFS", conf );
 }
 
 void FCFS::RegisterStats( )

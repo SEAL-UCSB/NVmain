@@ -45,6 +45,7 @@ using namespace NVM;
 Config::Config( )
 {
     simPtr = NULL;
+    useDebugLog = false;
 }
 
 
@@ -72,6 +73,7 @@ Config::Config(const Config& conf)
     {
         hookList.push_back( (*vit) );
     }
+    SetDebugLog( );
 }
 
 
@@ -170,7 +172,10 @@ void Config::Read( std::string filename )
     {
         std::cout << "NVMain: Could not read configuration file: " 
             << filename << std::endl;
+        exit(1);
     }
+
+    SetDebugLog( );
 }
 
 bool Config::KeyExists( std::string key )
@@ -364,3 +369,29 @@ SimInterface *Config::GetSimInterface( )
 {
     return simPtr;
 }
+
+void Config::SetDebugLog( )
+{
+    if( this->KeyExists( "DebugLog" ) )
+    {
+        std::string debugLogFilename = this->GetString( "DebugLog" );
+        debugLogFile.open( debugLogFilename.c_str() );
+        if( !debugLogFile.is_open() )
+        {
+            std::cerr << "NVMain: Could not open debug log file: " << debugLogFilename << std::endl;
+            exit(1);
+        }
+        std::cout << &debugLogFile << std::endl;
+        std::cout << "Printing debug information to '" << debugLogFilename << "'" << std::endl;
+        useDebugLog = true;
+    }
+}
+
+std::ostream *Config::GetDebugLog( )
+{
+    if( useDebugLog )
+        return &debugLogFile;
+
+    return &std::cerr;
+}
+

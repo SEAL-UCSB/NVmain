@@ -37,7 +37,11 @@
 #define __NVM_PARAMS_H__
 
 #include "src/Config.h"
+#include "src/Debug.h"
 #include "include/NVMTypes.h"
+
+#include <set>
+#include <string>
 
 namespace NVM {
 
@@ -199,6 +203,10 @@ class Params
 
     /* Configurable deadlock timer. */
     ncycle_t DeadlockTimer;
+
+    /* List of debug classes. */
+    bool debugOn;
+    std::set<std::string> debugClasses;
 
   private:
     ncycle_t ConvertTiming( Config *conf, std::string param );
