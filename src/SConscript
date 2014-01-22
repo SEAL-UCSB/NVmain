@@ -53,4 +53,5 @@ NVMainSource('Params.cpp')
 NVMainSource('NVMObject.cpp')
 NVMainSource('EventQueue.cpp')
 NVMainSource('Stats.cpp')
+NVMainSource('Debug.cpp')
 

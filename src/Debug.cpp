@@ -29,71 +29,14 @@
 * Author list: 
 *   Matt Poremba    ( Email: mrp5060 at psu dot edu 
 *                     Website: http://www.cse.psu.edu/~poremba/ )
+*   Tao Zhang       ( Email: tzz106 at cse dot psu dot edu
+*                     Website: http://www.cse.psu.edu/~tzz106 )
 *******************************************************************************/
 
-#ifndef __CONFIG_H__
-#define __CONFIG_H__
+#include "src/Debug.h"
 
-#include <vector>
-#include <string>
-#include <map>
-#include <set>
-#include <fstream>
+using namespace NVM;
 
-#include "src/SimInterface.h"
 
-namespace NVM {
 
-class Config 
-{
-  public:
-    Config ();
-    ~Config ();
 
-    Config(const Config& conf);
-    
-    void Read( std::string filename );
-    std::string GetFileName( );
-
-    int  GetValue( std::string key );
-    void SetValue( std::string key, std::string value );
-
-    double GetEnergy( std::string key );
-    void  SetEnergy( std::string key, std::string energy );
-
-    std::string GetString( std::string key );
-    void  SetString( std::string key, std::string );
-
-    bool  GetBool( std::string key );
-    void  SetBool( std::string key, bool value );
-
-    bool KeyExists( std::string key );
-
-    std::vector<std::string>& GetHooks( );
-
-    void Print( );
-
-    /*
-     *  Any special class to get information from the underlying
-     *  simulator can be set here.
-     */
-    void SetSimInterface( SimInterface *simPtr );
-    SimInterface *GetSimInterface( );
-
-    void SetDebugLog( );
-    std::ostream *GetDebugLog( );
-
-  private:
-    std::string fileName;
-    std::map<std::string, std::string> values;
-    std::set<std::string> warned;
-    std::vector<std::string> hookList;
-    SimInterface *simPtr;
-    std::ofstream debugLogFile;
-    bool useDebugLog;
-
-};
-
-};
-
-#endif

@@ -128,6 +128,8 @@ void LO_Cache::SetConfig( Config *conf )
     }
 
     MemoryController::SetConfig( conf );
+
+    SetDebugName( "LO-Cache", conf );
 }
 
 void LO_Cache::RegisterStats( )

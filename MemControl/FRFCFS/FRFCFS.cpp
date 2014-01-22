@@ -98,6 +98,8 @@ void FRFCFS::SetConfig( Config *conf )
     }
 
     MemoryController::SetConfig( conf );
+
+    SetDebugName( "FRFCFS", conf );
 }
 
 void FRFCFS::RegisterStats( )

@@ -308,6 +308,8 @@ void MemoryController::SetConfig( Config *conf )
     }
 
     //this->config->Print();
+
+    SetDebugName( "MemoryController", conf );
 }
 
 void MemoryController::RegisterStats( )
@@ -1251,6 +1253,10 @@ void MemoryController::CycleCommandQueues( )
             if( !bankQueues[i][j].empty( )
                 && memory->IsIssuable( bankQueues[i][j].at( 0 ), &fail ) )
             {
+                *debugStream << "MemoryContoller: Issued request type " << bankQueues[i][j].at(0)->type
+                             << " for address Ox" << std::hex << bankQueues[i][j].at(0)->address.GetPhysicalAddress()
+                             << std::dec << std::endl;
+
                 GetChild( )->IssueCommand( bankQueues[i][j].at( 0 ) );
 
                 bankQueues[i][j].erase( bankQueues[i][j].begin( ) );

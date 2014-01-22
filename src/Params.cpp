@@ -33,10 +33,12 @@
 *                     Website: http://www.cse.psu.edu/~tzz106 )
 *******************************************************************************/
 
-#include "Params.h"
+#include "src/Params.h"
 #include "include/NVMHelpers.h"
 
 #include <cmath>
+#include <cstdlib>
+#include <sstream>
 #include <iostream>
 
 using namespace NVM;
@@ -85,6 +87,9 @@ Params::Params( )
     nWPVar = 2;
 
     DeadlockTimer = 10000000;
+
+    debugOn = false;
+    debugClasses.clear();
 }
 
 Params::~Params( )
@@ -275,6 +280,22 @@ void Params::SetParams( Config *c )
     if( c->KeyExists( "nWPVar" ) ) nWPVar = c->GetValue( "nWPVar" );
 
     if( c->KeyExists( "DeadlockTimer" ) ) DeadlockTimer = c->GetValue( "DeadlockTimer" );
+
+    if( c->KeyExists( "EnableDebug" ) && c->GetString( "EnableDebug" ) == "true" )
+        debugOn = true;
+    if( c->KeyExists( "DebugClasses" ) )
+    {
+        std::string debugClassList = c->GetString( "DebugClasses" );
+        std::string debugClass;
+        std::istringstream debugClassStream( debugClassList );
+
+        while( std::getline( debugClassStream, debugClass, ',' ) )
+        {
+            // TODO: strip whitespace?
+            std::cout << "Will print debug information from \"" << debugClass << ".\"" << std::endl;
+            debugClasses.insert( debugClass );
+        }
+    }
 
     /* Check for uninitialized parameters. */
     if( !MATHeight_set ) MATHeight = ROWS;

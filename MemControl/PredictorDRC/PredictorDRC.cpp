@@ -84,6 +84,8 @@ void PredictorDRC::SetConfig( Config *conf )
     predictor->SetHitDestination( DRC );
 
     MemoryController::SetConfig( conf );
+
+    SetDebugName( "PredictorDRC", conf );
 }
 
 void PredictorDRC::RegisterStats( )

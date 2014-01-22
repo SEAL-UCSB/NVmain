@@ -38,6 +38,7 @@
 #include "src/EventQueue.h"
 #include "src/AddressTranslator.h"
 #include "src/Rank.h"
+#include "src/Debug.h"
 
 #include <cassert>
 
@@ -185,6 +186,7 @@ NVMObject::NVMObject( )
     eventQueue = NULL;
     hookType = NVMHOOK_NONE;
     hooks = new std::vector<NVMObject *> [NVMHOOK_COUNT];
+    debugStream = NULL;
 }
 
 void NVMObject::Init( Config * )
@@ -370,6 +372,26 @@ void NVMObject::AddHook( NVMObject *hook )
 std::vector<NVMObject *>& NVMObject::GetHooks( HookType h )
 {
     return hooks[h];
+}
+
+void NVMObject::SetDebugName( std::string dn, Config *config )
+{
+    Params *params = new Params( );
+    params->SetParams( config );
+
+    /* Debugging a parent will add debug prints for all children. */
+    if( debugStream == config->GetDebugLog( ) || debugStream == &std::cerr )
+        return;
+
+    /* Note: This should be called from SetConfig to ensure config was read! */
+    if( params->debugOn && params->debugClasses.count( dn ) )
+    {
+        debugStream = config->GetDebugLog( );
+    }
+    else
+    {
+        debugStream = &nvmainDebugInhibitor;
+    }
 }
 
 ncycle_t NVMObject::MAX( const ncycle_t a, const ncycle_t b )
