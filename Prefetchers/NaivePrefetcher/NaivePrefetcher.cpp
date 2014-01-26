@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright (c) 2012-2013, The Microsystems Design Labratory (MDL)
+* Copyright (c) 2012-2014, The Microsystems Design Labratory (MDL)
 * Department of Computer Science and Engineering, The Pennsylvania State University
 * All rights reserved.
 * 
