@@ -46,11 +46,8 @@ using namespace NVM;
  * the sense that it only starts a drain when the write queue is completely full
  * and drains until empty.
  */
-FRFCFS_WQF::FRFCFS_WQF( Interconnect *memory, AddressTranslator *translator )
+FRFCFS_WQF::FRFCFS_WQF( )
 {
-    SetMemory( memory );
-    SetTranslator( translator );
-
     std::cout << "Created a First Ready First Come First Serve memory \
         controller with write queue!" << std::endl;
 

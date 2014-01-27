@@ -73,6 +73,13 @@ void OnChipBus::SetConfig( Config *c )
     conf = c;
     configSet = true;
 
+    /* When selecting a child, use the rank field from the decoder. */
+    AddressTranslator *incAT = DecoderFactory::CreateDecoderNoWarn( c->GetString( "Decoder" ) );
+    TranslationMethod *method = GetParent()->GetTrampoline()->GetDecoder()->GetTranslationMethod();
+    incAT->SetTranslationMethod( method );
+    incAT->SetDefaultField( RANK_FIELD );
+    SetDecoder( incAT );
+
     numRanks = conf->GetValue( "RANKS" );
 
     ranks = new Rank * [numRanks];

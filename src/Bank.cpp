@@ -138,6 +138,13 @@ void Bank::SetConfig( Config *c )
     params->SetParams( c );
     SetParams( params );
 
+    /* When selecting a child, use the subarray field from the decoder. */
+    AddressTranslator *bankAT = DecoderFactory::CreateDecoderNoWarn( c->GetString( "Decoder" ) );
+    TranslationMethod *method = GetParent()->GetTrampoline()->GetDecoder()->GetTranslationMethod();
+    bankAT->SetTranslationMethod( method );
+    bankAT->SetDefaultField( SUBARRAY_FIELD );
+    SetDecoder( bankAT );
+
     MATHeight = p->MATHeight;
 
     subArrayNum = p->ROWS / MATHeight;

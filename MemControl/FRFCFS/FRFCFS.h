@@ -42,7 +42,7 @@ namespace NVM {
 class FRFCFS : public MemoryController
 {
   public:
-    FRFCFS( Interconnect *memory, AddressTranslator *translator );
+    FRFCFS( );
     ~FRFCFS( );
 
     bool IssueCommand( NVMainRequest *req );

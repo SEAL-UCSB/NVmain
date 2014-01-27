@@ -39,7 +39,9 @@
 #include "Interconnect/OffChipBus/OffChipBus.h"
 #include "src/Rank.h"
 #include "src/Bank.h"
+#include "Interconnect/InterconnectFactory.h"
 
+#include <sstream>
 #include <cassert>
 #include <cstdlib>
 #include <csignal>
@@ -48,9 +50,8 @@ using namespace NVM;
 
 MemoryController::MemoryController( )
 {
-    transactionQueues = NULL;
     memory = NULL;
-    translator = NULL;
+    transactionQueues = NULL;
 
     starvationThreshold = 4;
     subArrayNum = 1;
@@ -113,19 +114,6 @@ MemoryController::~MemoryController( )
     
 }
 
-MemoryController::MemoryController( Interconnect *memory, AddressTranslator *translator )
-{
-    this->memory = memory;
-    this->translator = translator;
-
-    transactionQueues = NULL;
-}
-
-AddressTranslator *MemoryController::GetAddressTranslator( )
-{
-    return translator;
-}
-
 void MemoryController::InitQueues( unsigned int numQueues )
 {
     if( transactionQueues != NULL )
@@ -139,7 +127,7 @@ void MemoryController::InitQueues( unsigned int numQueues )
 
 void MemoryController::Cycle( ncycle_t steps )
 {
-    memory->Cycle( steps );
+    GetChild( )->Cycle( steps );
 }
 
 bool MemoryController::RequestComplete( NVMainRequest *request )
@@ -167,26 +155,6 @@ bool MemoryController::IsIssuable( NVMainRequest * /*request*/, FailReason * /*f
     return true;
 }
 
-void MemoryController::SetMemory( Interconnect *mem )
-{
-    this->memory = mem;
-}
-
-Interconnect *MemoryController::GetMemory( )
-{
-    return (this->memory);
-}
-
-void MemoryController::SetTranslator( AddressTranslator *trans )
-{
-    this->translator = trans;
-}
-
-AddressTranslator *MemoryController::GetTranslator( )
-{
-    return (this->translator);
-}
-
 void MemoryController::SetConfig( Config *conf )
 {
     this->config = conf;
@@ -194,9 +162,30 @@ void MemoryController::SetConfig( Config *conf )
     Params *params = new Params( );
     params->SetParams( conf );
     SetParams( params );
+
+    /* When selecting a child, use the bank field from the decoder. */
+    AddressTranslator *mcAT = DecoderFactory::CreateDecoderNoWarn( conf->GetString( "Decoder" ) );
+    mcAT->SetTranslationMethod( GetParent( )->GetTrampoline( )->GetDecoder( )->GetTranslationMethod( ) );
+    mcAT->SetDefaultField( NO_FIELD );
+    SetDecoder( mcAT );
+
+    /* Initialize interconnect */
+    std::stringstream confString;
+
+    memory = InterconnectFactory::CreateInterconnect( conf->GetString( "INTERCONNECT" ) );
+
+    confString.str( "" );
+    confString << statName << ".channel" << GetID( );
+    memory->StatName( confString.str( ) );
+
+    memory->SetParent( this );
+    AddChild( memory );
+
+    memory->SetConfig( conf );
+    memory->RegisterStats( );
     
-    translator->GetTranslationMethod( )->SetAddressMappingScheme( 
-            p->AddressMappingScheme );
+    /* Configure common memory controller parameters. */
+    GetDecoder( )->GetTranslationMethod( )->SetAddressMappingScheme( p->AddressMappingScheme );
 
     /*
      *  The logical bank size is: ROWS * COLS * memory word size (in bytes). 
@@ -413,7 +402,7 @@ bool MemoryController::HandleRefresh( )
                 /* create a refresh command that will be sent to ranks */
                 NVMainRequest* cmdRefresh = MakeRefreshRequest( 0, 0, j, i, 0 );
 
-                if( memory->IsIssuable( cmdRefresh, &fail ) == false )
+                if( GetChild( )->IsIssuable( cmdRefresh, &fail ) == false )
                 {
                     for( ncounter_t tmpBank = 0; tmpBank < p->BanksPerRefresh; tmpBank++ ) 
                     {
@@ -522,13 +511,13 @@ void MemoryController::PowerDown( const ncounter_t& rankId )
         std::cerr << "NVMain Error: Undefined low power mode" << std::endl;
 
     /* if some banks are active, active powerdown is applied */
-    if( memory->IsRankIdle( rankId ) == false )
+    if( ((Interconnect*)GetChild()->GetTrampoline())->IsRankIdle( rankId ) == false )
         pdOp = POWERDOWN_PDA;
 
-    if( memory->CanPowerDown( pdOp, rankId ) 
+    if( ((Interconnect*)GetChild()->GetTrampoline())->CanPowerDown( pdOp, rankId ) 
         && RankQueueEmpty( rankId ) )
     {
-        memory->PowerDown( pdOp, rankId );
+        ((Interconnect*)GetChild()->GetTrampoline())->PowerDown( pdOp, rankId );
         rankPowerDown[rankId] = true;
     }
 }
@@ -537,9 +526,9 @@ void MemoryController::PowerUp( const ncounter_t& rankId )
 {
     /* if some banks are active, active powerdown is applied */
     if( RankQueueEmpty( rankId ) == false 
-        && memory->CanPowerUp( rankId ) )
+        && ((Interconnect*)GetChild()->GetTrampoline())->CanPowerUp( rankId ) )
     {
-        memory->PowerUp( rankId );
+        ((Interconnect*)GetChild()->GetTrampoline())->PowerUp( rankId );
         rankPowerDown[rankId] = false;
     }
 }
@@ -564,9 +553,9 @@ void MemoryController::HandleLowPower( )
         if( needRefresh )
         {
             /* if the rank is powered down, power it up */
-            if( rankPowerDown[rankId] && memory->CanPowerUp( rankId ) )
+            if( rankPowerDown[rankId] && ((Interconnect*)GetChild()->GetTrampoline())->CanPowerUp( rankId ) )
             {
-                memory->PowerUp( rankId );
+                ((Interconnect*)GetChild()->GetTrampoline())->PowerUp( rankId );
                 rankPowerDown[rankId] = false;
             }
         }
@@ -591,6 +580,11 @@ void MemoryController::SetID( unsigned int id )
     this->id = id;
 }
 
+unsigned int MemoryController::GetID( )
+{
+    return this->id;
+}
+
 NVMainRequest *MemoryController::MakeActivateRequest( NVMainRequest *triggerRequest )
 {
     NVMainRequest *activateRequest = new NVMainRequest( );
@@ -612,7 +606,7 @@ NVMainRequest *MemoryController::MakeActivateRequest( const ncounter_t row,
     NVMainRequest *activateRequest = new NVMainRequest( );
 
     activateRequest->type = ACTIVATE;
-    ncounter_t actAddr = translator->ReverseTranslate( row, col, bank, rank, 0, subarray );
+    ncounter_t actAddr = GetDecoder( )->ReverseTranslate( row, col, bank, rank, 0, subarray );
     activateRequest->address.SetPhysicalAddress( actAddr );
     activateRequest->address.SetTranslatedAddress( row, col, bank, rank, 0, subarray );
     activateRequest->issueCycle = GetEventQueue()->GetCurrentCycle();
@@ -642,7 +636,7 @@ NVMainRequest *MemoryController::MakePrechargeRequest( const ncounter_t row,
     NVMainRequest *prechargeRequest = new NVMainRequest( );
 
     prechargeRequest->type = PRECHARGE;
-    ncounter_t preAddr = translator->ReverseTranslate( row, col, bank, rank, 0, subarray );
+    ncounter_t preAddr = GetDecoder( )->ReverseTranslate( row, col, bank, rank, 0, subarray );
     prechargeRequest->address.SetPhysicalAddress( preAddr );
     prechargeRequest->address.SetTranslatedAddress( row, col, bank, rank, 0, subarray );
     prechargeRequest->issueCycle = GetEventQueue()->GetCurrentCycle();
@@ -672,7 +666,7 @@ NVMainRequest *MemoryController::MakePrechargeAllRequest( const ncounter_t row,
     NVMainRequest *prechargeAllRequest = new NVMainRequest( );
 
     prechargeAllRequest->type = PRECHARGE_ALL;
-    ncounter_t preAddr = translator->ReverseTranslate( row, col, bank, rank, 0, subarray );
+    ncounter_t preAddr = GetDecoder( )->ReverseTranslate( row, col, bank, rank, 0, subarray );
     prechargeAllRequest->address.SetPhysicalAddress( preAddr );
     prechargeAllRequest->address.SetTranslatedAddress( row, col, bank, rank, 0, subarray );
     prechargeAllRequest->issueCycle = GetEventQueue()->GetCurrentCycle();
@@ -702,7 +696,7 @@ NVMainRequest *MemoryController::MakeRefreshRequest( const ncounter_t row,
     NVMainRequest *refreshRequest = new NVMainRequest( );
 
     refreshRequest->type = REFRESH;
-    ncounter_t preAddr = translator->ReverseTranslate( row, col, bank, rank, 0, subarray );
+    ncounter_t preAddr = GetDecoder( )->ReverseTranslate( row, col, bank, rank, 0, subarray );
     refreshRequest->address.SetPhysicalAddress( preAddr );
     refreshRequest->address.SetTranslatedAddress( row, col, bank, rank, 0, subarray );
     refreshRequest->issueCycle = GetEventQueue()->GetCurrentCycle();
@@ -827,7 +821,7 @@ bool MemoryController::FindWriteStalledRead( std::list<NVMainRequest *>& transac
         /* By design, mux level can only be a subset of the selected columns. */
         ncounter_t muxLevel = static_cast<ncounter_t>(col / p->RBSize);
 
-        OffChipBus *ocb = dynamic_cast<OffChipBus *>(memory);
+        OffChipBus *ocb = dynamic_cast<OffChipBus *>(GetChild()->GetTrampoline());
         if( ocb == NULL )
         {
             std::cout << "No idea what interconnect type is." << std::endl;
@@ -859,7 +853,7 @@ bool MemoryController::FindWriteStalledRead( std::list<NVMainRequest *>& transac
             && effectiveMuxedRow[rank][bank][subarray] == muxLevel  /* Subset of row buffer is currently at the sense amps */
             && !bankNeedRefresh[rank][bank]               /* The bank is not waiting for a refresh */
             && writingArray->isWriting                    /* There needs to be a write to cancel. */
-            && memory->IsIssuable( (*it ) )               /* Make sure we can actually send this right away, otherwise we may skip starvation/other checks in MC. */
+            && GetChild( )->IsIssuable( (*it ) )          /* Make sure we can actually send this right away, otherwise we may skip starvation/other checks in MC. */
             && pred( (*it) ) )                            /* User-defined predicate is true */
         {
             *hitRequest = (*it);
@@ -1347,7 +1341,7 @@ void MemoryController::CycleCommandQueues( )
             FailReason fail;
 
             if( !bankQueues[i][j].empty( )
-                && memory->IsIssuable( bankQueues[i][j].at( 0 ), &fail ) )
+                && GetChild( )->IsIssuable( bankQueues[i][j].at( 0 ), &fail ) )
             {
                 *debugStream << "MemoryContoller: Issued request type " << bankQueues[i][j].at(0)->type
                              << " for address Ox" << std::hex << bankQueues[i][j].at(0)->address.GetPhysicalAddress()
@@ -1449,6 +1443,6 @@ void MemoryController::CalculateStats( )
 {
     simulation_cycles = GetEventQueue()->GetCurrentCycle();
 
-    memory->CalculateStats( );
-    translator->CalculateStats( );
+    GetChild( )->CalculateStats( );
+    GetDecoder( )->CalculateStats( );
 }

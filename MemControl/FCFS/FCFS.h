@@ -41,7 +41,7 @@ namespace NVM {
 class FCFS : public MemoryController
 {
   public:
-    FCFS( Interconnect *memory, AddressTranslator *translator );
+    FCFS( );
     ~FCFS( ) { }
 
     void SetConfig( Config *conf );

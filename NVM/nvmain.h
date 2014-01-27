@@ -75,7 +75,6 @@ class NVMain : public NVMObject
     Config *config;
     Config **channelConfig;
     MemoryController **memoryControllers;
-    Interconnect **memory;
     AddressTranslator *translator;
     SimInterface *simInterface;
 

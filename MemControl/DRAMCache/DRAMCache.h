@@ -45,7 +45,7 @@ class NVMain;
 class DRAMCache : public MemoryController
 {
   public:
-    DRAMCache( Interconnect *memory, AddressTranslator *translator );
+    DRAMCache( );
     ~DRAMCache( );
 
 

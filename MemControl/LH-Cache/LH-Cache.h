@@ -52,7 +52,7 @@ class NVMain;
 class LH_Cache : public AbstractDRAMCache 
 {
   public:
-    LH_Cache( Interconnect *memory, AddressTranslator *translator );
+    LH_Cache( );
     virtual ~LH_Cache( );
 
     void SetConfig( Config *conf );

@@ -53,7 +53,6 @@ using namespace NVM;
 NVMain::NVMain( )
 {
     config = NULL;
-    memory = NULL;
     translator = NULL;
     memoryControllers = NULL;
     channelConfig = NULL;
@@ -75,16 +74,6 @@ NVMain::~NVMain( )
         }
 
         delete [] memoryControllers;
-    }
-
-    if( memory )
-    {
-        for( unsigned int i = 0; i < numChannels; i++ )
-        {
-            delete memory[i];
-        }
-
-        delete [] memory;
     }
 
     if( translator )
@@ -156,32 +145,6 @@ void NVMain::SetConfig( Config *conf, std::string memoryName )
 
     SetDecoder( translator );
 
-    /*  Add any specified hooks */
-    /*
-    std::vector<std::string>& hookList = config->GetHooks( );
-
-    for( size_t i = 0; i < hookList.size( ); i++ )
-    {
-        std::cout << "Creating hook " << hookList[i] << std::endl;
-
-        NVMObject *hook = HookFactory::CreateHook( hookList[i] );
-        
-        if( hook != NULL )
-        {
-            AddHook( hook );
-            hook->SetParent( this );
-            hook->Init( );
-        }
-        else
-        {
-            std::cout << "Warning: Could not create a hook named `" 
-                << hookList[i] << "'." << std::endl;
-        }
-    }
-    */
-
-    memory = new Interconnect* [channels];
-
     memoryControllers = new MemoryController* [channels];
     channelConfig = new Config* [channels];
     for( int i = 0; i < channels; i++ )
@@ -210,22 +173,11 @@ void NVMain::SetConfig( Config *conf, std::string memoryName )
             channelConfig[i]->Read( channelConfigFile );
         }
 
-        /* Initialize ranks */
-        memory[i] = InterconnectFactory::CreateInterconnect( channelConfig[i]->GetString( "INTERCONNECT" ) );
-
-        confString.str( "" );
-        confString << memoryName << ".channel" << i;
-        memory[i]->StatName( confString.str( ) );
-
-        AddressTranslator *incAT = DecoderFactory::CreateDecoderNoWarn( channelConfig[i]->GetString( "Decoder" ) );
-        incAT->SetTranslationMethod( method );
-        incAT->SetDefaultField( RANK_FIELD );
-        memory[i]->SetDecoder( incAT );
-
-
         /* Initialize memory controller */
-        memoryControllers[i] = MemoryControllerFactory::CreateNewController( 
-                channelConfig[i]->GetString( "MEM_CTL" ), memory[i], translator );
+        memoryControllers[i] = 
+            MemoryControllerFactory::CreateNewController( channelConfig[i]->GetString( "MEM_CTL" ) );
+
+        /* When selecting a MC child, use no field from the decoder (only-child). */
 
         confString.str( "" );
         confString << memoryName << ".channel" << i << "." 
@@ -236,16 +188,11 @@ void NVMain::SetConfig( Config *conf, std::string memoryName )
         AddChild( memoryControllers[i] );
         memoryControllers[i]->SetParent( this );
 
-        memoryControllers[i]->AddChild( memory[i] );
-        memory[i]->SetParent( memoryControllers[i] );
-
         /* Set Config recursively. */
-        memory[i]->SetConfig( channelConfig[i] );
         memoryControllers[i]->SetConfig( channelConfig[i] );
 
         /* Register statistics. */
         memoryControllers[i]->RegisterStats( );
-        memory[i]->RegisterStats( );
     }
     
     numChannels = static_cast<unsigned int>(channels);
@@ -286,7 +233,7 @@ bool NVMain::IsIssuable( NVMainRequest *request, FailReason *reason )
 
     assert( request != NULL );
 
-    translator->Translate( request->address.GetPhysicalAddress( ), 
+    GetDecoder( )->Translate( request->address.GetPhysicalAddress( ), 
                            &row, &col, &rank, &bank, &channel, &subarray );
 
     rv = memoryControllers[channel]->IsIssuable( request, reason );
@@ -326,7 +273,7 @@ bool NVMain::IssueCommand( NVMainRequest *request )
     }
 
     /* Translate the address, then copy to the address struct, and copy to request. */
-    translator->Translate( request->address.GetPhysicalAddress( ), 
+    GetDecoder( )->Translate( request->address.GetPhysicalAddress( ), 
                            &row, &col, &bank, &rank, &channel, &subarray );
     request->address.SetTranslatedAddress( row, col, bank, rank, channel, subarray );
     request->bulkCmd = CMD_NOP;
@@ -351,7 +298,7 @@ bool NVMain::IssueAtomic( NVMainRequest *request )
     }
 
     /* Translate the address, then copy to the address struct, and copy to request. */
-    translator->Translate( request->address.GetPhysicalAddress( ), 
+    GetDecoder( )->Translate( request->address.GetPhysicalAddress( ), 
                            &row, &col, &bank, &rank, &channel, &subarray );
     request->address.SetTranslatedAddress( row, col, bank, rank, channel, subarray );
     request->bulkCmd = CMD_NOP;

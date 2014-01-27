@@ -89,8 +89,7 @@ void MissMap::SetConfig( Config *conf )
     for( ncounter_t i = 0; i < numChannels; i++ )
     {
         drcChannels[i] = dynamic_cast<LH_Cache *>( 
-                MemoryControllerFactory::CreateNewController( 
-                    drcVariant, GetMemory(), GetTranslator() ));
+                MemoryControllerFactory::CreateNewController( drcVariant ));
 
         drcChannels[i]->SetMainMemory( mainMemory );
 

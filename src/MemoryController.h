@@ -87,7 +87,6 @@ class MemoryController : public NVMObject
 {
   public:
     MemoryController( );
-    MemoryController( Interconnect *memory, AddressTranslator *translator );
     ~MemoryController( );
 
 
@@ -96,14 +95,6 @@ class MemoryController : public NVMObject
 
     virtual bool RequestComplete( NVMainRequest *request );
     virtual bool IsIssuable( NVMainRequest *request, FailReason *fail );
-
-    void SetMemory( Interconnect *mem );
-    Interconnect *GetMemory( );
-
-    void SetTranslator( AddressTranslator *trans );
-    AddressTranslator *GetTranslator( );
-
-    AddressTranslator *GetAddressTranslator( );
 
     void StatName( std::string name ) { statName = name; }
     virtual void RegisterStats( );
@@ -116,10 +107,10 @@ class MemoryController : public NVMObject
     Config *GetConfig( );
 
     void SetID( unsigned int id );
+    unsigned int GetID( );
 
   protected:
     Interconnect *memory;
-    AddressTranslator *translator;
     Config *config;
     std::string statName;
     ncounter_t psInterval;

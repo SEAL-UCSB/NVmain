@@ -44,7 +44,7 @@ namespace NVM {
 class FRFCFS_WQF : public MemoryController
 {
   public:
-    FRFCFS_WQF( Interconnect *memory, AddressTranslator *translator );
+    FRFCFS_WQF( );
     ~FRFCFS_WQF( );
 
     bool IssueCommand( NVMainRequest *request );
