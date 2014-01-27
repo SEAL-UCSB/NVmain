@@ -48,6 +48,9 @@
 #define NVMObjectType (typeid(*(parent->GetTrampoline())).name())
 #define NVMClass(a) (typeid(a).name())
 
+// a = NVMainRequest*, b=Class Name
+#define FindChild(a,b) (dynamic_cast<b *>(_FindChild(a,typeid(b).name())))
+
 namespace NVM {
 
 class NVMainRequest;
@@ -120,6 +123,7 @@ class NVMObject
 
     virtual void SetParent( NVMObject *p );
     virtual void AddChild( NVMObject *c ); 
+    NVMObject *_FindChild( NVMainRequest *req, const char *childClass );
 
     virtual void SetEventQueue( EventQueue *eq );
     virtual EventQueue *GetEventQueue( );
