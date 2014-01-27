@@ -49,17 +49,9 @@ using namespace NVM;
  *  - This memory controller leaves all banks and ranks in active mode 
  *    (it does not do power management)
  */
-FCFS::FCFS( Interconnect *memory, AddressTranslator *translator )
+FCFS::FCFS( )
 {
-    /*
-     *  We'll need these classes later, so copy them. the "memory" and 
-     *  "translator" variables are *  defined in the protected section of 
-     *  the MemoryController base class. 
-     */
-    SetMemory( memory );
-    SetTranslator( translator );
-
-    std::cout << "Created a Simple Close Page memory controller!" << std::endl;
+    std::cout << "Created a FCFS memory controller!" << std::endl;
 
     queueSize = 32;
 

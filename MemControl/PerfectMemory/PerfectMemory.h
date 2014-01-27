@@ -41,7 +41,7 @@ namespace NVM {
 class PerfectMemory : public MemoryController
 {
   public:
-    PerfectMemory( Interconnect *memory, AddressTranslator *translator );
+    PerfectMemory( );
     ~PerfectMemory( ) { }
 
     bool IssueCommand( NVMainRequest *req );

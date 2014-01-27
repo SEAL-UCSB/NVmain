@@ -47,16 +47,8 @@
 
 using namespace NVM;
 
-FRFCFS::FRFCFS( Interconnect *memory, AddressTranslator *translator )
+FRFCFS::FRFCFS( )
 {
-    /*
-     *  We'll need these classes later, so copy them. the "memory" and 
-     *  "translator" variables are *  defined in the protected section of 
-     *  the MemoryController base class. 
-     */
-    SetMemory( memory );
-    SetTranslator( translator );
-
     std::cout << "Created a First Ready First Come First Serve memory controller!"
         << std::endl;
 

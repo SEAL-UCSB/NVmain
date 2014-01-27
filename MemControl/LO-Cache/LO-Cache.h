@@ -56,7 +56,7 @@ class NVMain;
 class LO_Cache : public AbstractDRAMCache
 {
   public:
-    LO_Cache( Interconnect *memory, AddressTranslator *decoder );
+    LO_Cache( );
     virtual ~LO_Cache( );
 
     void SetConfig( Config *conf );

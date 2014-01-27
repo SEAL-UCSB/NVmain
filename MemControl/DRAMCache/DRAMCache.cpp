@@ -45,12 +45,9 @@
 
 using namespace NVM;
 
-DRAMCache::DRAMCache( Interconnect *memory, AddressTranslator *translator )
+DRAMCache::DRAMCache( )
 {
-    translator->GetTranslationMethod( )->SetOrder( 5, 1, 4, 3, 2, 6 );
-
-    SetMemory( memory );
-    SetTranslator( translator );
+    //translator->GetTranslationMethod( )->SetOrder( 5, 1, 4, 3, 2, 6 );
 
     std::cout << "Created a DRAMCache!" << std::endl;
 
@@ -96,14 +93,7 @@ void DRAMCache::SetConfig( Config *conf )
     drcChannels = new AbstractDRAMCache*[numChannels];
     for( ncounter_t i = 0; i < numChannels; i++ )
     {
-        std::stringstream formatter;
-
-        Interconnect *channelMemory = InterconnectFactory::CreateInterconnect( conf->GetString( "INTERCONNECT" ) );
-
-        formatter.str( "" );
-        formatter << this->statName << ".drcChannel" << i;
-        channelMemory->StatName( formatter.str() );
-
+        /* Setup the translation method for DRAM cache decoders. */
         int channels, ranks, banks, rows, cols, subarrays;
         
         if( conf->KeyExists( "MATHeight" ) )
@@ -132,41 +122,31 @@ void DRAMCache::SetConfig( Config *conf )
                                  );
         drcMethod->SetCount( rows, cols, banks, ranks, channels, subarrays );
         
+        /* When selecting a child, use the channel field from a DRC decoder. */
         DRCDecoder *drcDecoder = new DRCDecoder( );
-        DRCDecoder *intDecoder = new DRCDecoder( );
-
         drcDecoder->SetTranslationMethod( drcMethod );
         drcDecoder->SetDefaultField( CHANNEL_FIELD );
-
-        intDecoder->SetTranslationMethod( drcMethod );
-        intDecoder->SetDefaultField( RANK_FIELD );
-
-        channelMemory->SetDecoder( intDecoder );
         SetDecoder( drcDecoder );
 
-        drcChannels[i] = dynamic_cast<AbstractDRAMCache *>( MemoryControllerFactory::CreateNewController( conf->GetString( "DRCVariant" ), channelMemory, drcDecoder ) );
+        /* Initialize a DRAM cache channel. */
+        std::stringstream formatter;
+
+        drcChannels[i] = dynamic_cast<AbstractDRAMCache *>( MemoryControllerFactory::CreateNewController(conf->GetString( "DRCVariant" )) );
         drcChannels[i]->SetMainMemory( mainMemory );
 
-        formatter << "." << conf->GetString( "DRCVariant" );
-
-        drcChannels[i]->StatName( formatter.str() ); 
+        formatter.str( "" );
+        formatter << this->statName << "." << conf->GetString( "DRCVariant" ) << i;
         drcChannels[i]->SetID( static_cast<int>(i) );
-
-        AddChild( drcChannels[i] );
+        drcChannels[i]->StatName( formatter.str() ); 
 
         drcChannels[i]->SetParent( this );
-        drcChannels[i]->AddChild( channelMemory );
+        AddChild( drcChannels[i] );
 
-        channelMemory->SetParent( drcChannels[i] );
-
-        channelMemory->SetConfig( conf );
         drcChannels[i]->SetConfig( conf );
-
-        channelMemory->RegisterStats( );
         drcChannels[i]->RegisterStats( );
     }
 
-    MemoryController::SetConfig( conf );
+    //MemoryController::SetConfig( conf );
 
     SetDebugName( "DRAMCache", conf );
 }

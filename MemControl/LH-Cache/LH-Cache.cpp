@@ -42,13 +42,10 @@
 
 using namespace NVM;
 
-LH_Cache::LH_Cache( Interconnect *memory, AddressTranslator *translator )
+LH_Cache::LH_Cache( )
     : locks(*this), FQF(*this), NWB(*this)
 {
-    translator->GetTranslationMethod( )->SetOrder( 5, 1, 4, 3, 2, 6 );
-
-    SetMemory( memory );
-    SetTranslator( translator );
+    //translator->GetTranslationMethod( )->SetOrder( 5, 1, 4, 3, 2, 6 );
 
     std::cout << "This Memory Controller is no longer maintained in favor of LO-Cache and is in a non-working state." << std::endl;
     std::cout << "This code is only provided for reference." << std::endl;

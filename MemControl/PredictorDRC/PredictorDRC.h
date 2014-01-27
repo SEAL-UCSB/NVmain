@@ -46,7 +46,7 @@ class NVMain;
 class PredictorDRC : public MemoryController
 {
   public:
-    PredictorDRC( Interconnect *memory, AddressTranslator *translator );
+    PredictorDRC( );
     ~PredictorDRC( );
 
 

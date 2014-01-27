@@ -35,29 +35,34 @@
 #define __UTILS_ACCESSPREDICTOR_H__
 
 
+#include "src/AddressTranslator.h"
 #include "src/NVMObject.h"
 
 
 namespace NVM {
 
 
-class NVMain;
-class MemoryController;
 
-
-class AccessPredictor : public NVMObject
+class AccessPredictor : public AddressTranslator, public NVMObject
 {
   public:
     AccessPredictor( );
     ~AccessPredictor( );
 
+    /* Translate is request for system traversal via GetChild() */
+    virtual uint64_t Translate( NVMainRequest *request ) = 0;
+
     void Cycle( ncycle_t );
 
-    virtual void SetHitDestination( NVMain *hitMemory ) = 0;
-    virtual void SetHitDestination( MemoryController *hitController ) = 0;
+    void SetHitDestination( ncounter_t hitChildId );  
+    void SetMissDestination( ncounter_t missChildId );
 
-    virtual void SetMissDestination( NVMain *missMemory ) = 0;
-    virtual void SetMissDestination( MemoryController *missController ) = 0;
+    ncounter_t GetHitDestination( );
+    ncounter_t GetMissDestination( );
+
+  private:
+    ncounter_t hitChildId, missChildId;
+
 };
 
 

@@ -107,6 +107,12 @@ void Rank::SetConfig( Config *c )
     params->SetParams( c );
     SetParams( params );
 
+    /* When selecting a child, use the bank field from the decoder. */
+    AddressTranslator *rankAT = DecoderFactory::CreateDecoderNoWarn( conf->GetString( "Decoder" ) );
+    rankAT->SetTranslationMethod( GetParent( )->GetTrampoline( )->GetDecoder( )->GetTranslationMethod( ) );
+    rankAT->SetDefaultField( BANK_FIELD );
+    SetDecoder( rankAT );
+
     bankCount = p->BANKS;
     deviceWidth = p->DeviceWidth;
     busWidth = p->BusWidth;
@@ -166,12 +172,6 @@ void Rank::SetConfig( Config *c )
     lastActivate = new ncycle_t[rawNum];
     for( ncounter_t i = 0; i < rawNum; i++ )
         lastActivate[i] = 0;
-
-    /* When selecting a child, use the rank field from the decoder. */
-    AddressTranslator *rankAT = DecoderFactory::CreateDecoderNoWarn( conf->GetString( "Decoder" ) );
-    rankAT->SetTranslationMethod( GetParent( )->GetTrampoline( )->GetDecoder( )->GetTranslationMethod( ) );
-    rankAT->SetDefaultField( BANK_FIELD );
-    SetDecoder( rankAT );
 
     /* We'll say you can't do anything until the command has time to issue on the bus. */
     nextRead = p->tCMD;

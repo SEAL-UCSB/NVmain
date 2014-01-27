@@ -75,6 +75,7 @@ class NVMObject_hook
     bool IssueCommand( NVMainRequest *req );
     bool IsIssuable( NVMainRequest *req, FailReason *reason = NULL );
     bool IssueAtomic( NVMainRequest *req );
+    bool IssueFunctional( NVMainRequest *req );
 
     bool RequestComplete( NVMainRequest *req );
     void Callback( void *data );
@@ -112,6 +113,7 @@ class NVMObject
     virtual bool IssueCommand( NVMainRequest *req );
     virtual bool IsIssuable( NVMainRequest *req, FailReason *reason = NULL );
     virtual bool IssueAtomic( NVMainRequest *req );
+    virtual bool IssueFunctional( NVMainRequest *req );
 
     virtual bool RequestComplete( NVMainRequest *req );
     virtual void Callback( void *data );
@@ -125,7 +127,9 @@ class NVMObject
     NVMObject_hook *GetParent( );
     std::vector<NVMObject_hook *>& GetChildren( );
     NVMObject_hook *GetChild( NVMainRequest *req );  
+    NVMObject_hook *GetChild( ncounter_t child );
     NVMObject_hook *GetChild( );
+    ncounter_t GetChildId( NVMObject *c );
 
     virtual void SetDecoder( AddressTranslator *at );
     virtual AddressTranslator *GetDecoder( );
