@@ -269,6 +269,23 @@ bool FRFCFS_WQF::IssueCommand( NVMainRequest *request )
 
 bool FRFCFS_WQF::RequestComplete( NVMainRequest * request )
 {
+    if( request->type == WRITE || request->type == WRITE_PRECHARGE )
+    {
+        /* 
+         *  Put cancelled requests at the head of the write queue
+         *  like nothing ever happened.
+         */
+        if( request->flags & NVMainRequest::FLAG_CANCELLED )
+        {
+            writeQueue.push_front( request );
+            request->flags &= ~NVMainRequest::FLAG_CANCELLED; 
+        }
+        else if( request->flags & NVMainRequest::FLAG_PAUSED )
+        {
+            writeQueue.push_front( request );
+        }
+    }
+
     /* 
      * Only reads and writes are sent back to NVMain and checked for in the 
      * transaction queue 
@@ -465,6 +482,10 @@ void FRFCFS_WQF::Cycle( ncycle_t steps )
     /* Issue the memory transaction as a series of commands to the command queue. */
     if( nextRequest != NULL )
     {
+        /* If we are draining, do not allow write cancellation or pausing. */
+        if( m_draining == true )
+            nextRequest->flags |= NVMainRequest::FLAG_FORCED;
+
         IssueMemoryCommands( nextRequest );
     }
 

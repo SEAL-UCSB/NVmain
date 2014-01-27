@@ -156,6 +156,9 @@ class NVMainRequest
     ncycle_t issueCycle;           //< When the memory controller issued the request to the interconnect (dequeued)
     ncycle_t completionCycle;      //< When the request was sent back to the requestor
 
+    ncycle_t writeProgress;        //< Number of cycles remaining for write request
+    ncycle_t cancellations;        //< Number of times this request was cancelled
+
     const NVMainRequest& operator=( const NVMainRequest& );
     bool operator<( NVMainRequest m ) const;
 
@@ -164,7 +167,10 @@ class NVMainRequest
         FLAG_LAST_REQUEST = 1,          // Last request for a row in the transaction queue
         FLAG_IS_READ = 2,               // Is a read (i.e., READ or READ_PRE, etc.)
         FLAG_IS_WRITE = 4,              // Is a write (i.e., WRITE or WRITE_PRE, etc.)
-        FLAG_COUNT = 1,
+        FLAG_CANCELLED = 8,             // This write was cancelled
+        FLAG_PAUSED = 16,               // This write was paused
+        FLAG_FORCED = 32,               // This write can not be paused or cancelled
+        FLAG_COUNT
     };
 
 };

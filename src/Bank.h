@@ -127,12 +127,13 @@ class Bank : public NVMObject
 
     void Cycle( ncycle_t steps );
 
+    SubArray **subArrays;
+
   private:
     Config *conf;
     std::string statName;
     ncounter_t psInterval;
 
-    SubArray **subArrays;
     std::deque<ncounter_t> activeSubArrayQueue;
     ncounter_t MATWidth;
     ncounter_t MATHeight;
