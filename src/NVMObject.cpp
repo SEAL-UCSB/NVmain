@@ -312,6 +312,18 @@ void NVMObject::AddChild( NVMObject *c )
     children.push_back( hook );
 }
 
+NVMObject *NVMObject::_FindChild( NVMainRequest *req, const char *childClass )
+{
+    NVMObject *curChild = this;
+
+    while( curChild != NULL && NVMClass(*curChild) != childClass )
+    {
+        curChild = curChild->GetChild( req )->GetTrampoline();
+    }
+
+    return curChild;
+}
+
 ncounter_t NVMObject::GetChildId( NVMObject *c )
 {
     std::vector<NVMObject_hook *>::iterator it;

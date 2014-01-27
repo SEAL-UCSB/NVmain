@@ -821,25 +821,8 @@ bool MemoryController::FindWriteStalledRead( std::list<NVMainRequest *>& transac
         /* By design, mux level can only be a subset of the selected columns. */
         ncounter_t muxLevel = static_cast<ncounter_t>(col / p->RBSize);
 
-        OffChipBus *ocb = dynamic_cast<OffChipBus *>(GetChild()->GetTrampoline());
-        if( ocb == NULL )
-        {
-            std::cout << "No idea what interconnect type is." << std::endl;
-        }
-        Rank *rhr = ocb->GetRank( rank );
-        Bank *sbank = NULL;
-        sbank = dynamic_cast<Bank *>(rhr->banks[bank]);
-        SubArray *writingArray = NULL;
-
-        if( sbank == NULL )
-        {
-            std::cout << "No idea what bank is." << std::endl;
-            return false;
-        }
-        else if( sbank != NULL )
-        {
-            writingArray = sbank->subArrays[subarray];
-        }
+        /* Find the requests's SubArray destination. */
+        SubArray *writingArray = FindChild( (*it), SubArray );
 
         //if( writingArray->isWriting )
         //{
