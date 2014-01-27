@@ -195,7 +195,13 @@ void MemoryController::SetConfig( Config *conf )
     translator->GetTranslationMethod( )->SetAddressMappingScheme( 
             p->AddressMappingScheme );
 
-    std::cout << statName << " capacity is " << (((p->COLS * 8 * (p->BusWidth / p->DeviceWidth)/8) * p->ROWS * p->BANKS * p->RANKS) / (1024*1024)) << " MB." << std::endl;
+    /*
+     *  The logical bank size is: ROWS * COLS * memory word size (in bytes). 
+     *  memory word size (in bytes) is: device width * minimum burst length * data rate / (8 bits/byte) * number of devices
+     *  number of devices = bus width / device width
+     *  Total channel size is: loglcal bank size * BANKS * RANKS
+     */
+    std::cout << statName << " capacity is " << ((p->ROWS * p->COLS * p->DeviceWidth * p->tBURST * p->RATE * (p->BusWidth / p->DeviceWidth) * p->BANKS * p->RANKS) / (8*1024*1024)) << " MB." << std::endl;
 
     if( conf->KeyExists( "MATHeight" ) )
     {
