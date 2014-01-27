@@ -76,7 +76,20 @@ SubArray::SubArray( )
 
     writeCycle = false;
     writeMode = WRITE_THROUGH;
+    isWriting = false;
+    writeEnd = 0;
+    writeStart = 0;
+    writeEventTime = 0;
+    writeRequest = NULL;
+    nextActivatePreWrite = 0;
+    nextPrechargePreWrite = 0;
+    nextReadPreWrite = 0;
+    nextWritePreWrite = 0;
     idleTimer = 0;
+
+    cancelledWrites = 0;
+    cancelledWriteTime = 0;
+    pausedWrites = 0;
 
     reads = 0;
     writes = 0;
@@ -161,6 +174,10 @@ void SubArray::RegisterStats( )
         AddUnitStat(writeEnergy, "nJ");
         AddUnitStat(refreshEnergy, "nJ");
     }
+
+    AddStat(cancelledWrites);
+    AddStat(cancelledWriteTime);
+    AddStat(pausedWrites);
 
     AddStat(reads);
     AddStat(writes);
@@ -275,6 +292,50 @@ bool SubArray::Read( NVMainRequest *request )
     uint64_t readRow;
 
     request->address.GetTranslatedAddress( &readRow, NULL, NULL, NULL, NULL, NULL );
+
+    /* Check if we need to cancel or pause a write to service this request. */
+    if( p->WritePausing && isWriting )
+    {
+        ncycle_t writeProgress = writeEnd - GetEventQueue()->GetCurrentCycle();
+        ncycle_t writeTimer = writeEnd - writeStart;
+
+        /* Update write progress. */
+        writeRequest->writeProgress = writeProgress;
+        float writePercent = 1.0f - (static_cast<float>(writeProgress) / static_cast<float>(writeTimer));
+
+        std::cout << "GOT A READ DURING WRITE; PROGRESS IS " << writePercent << std::endl;
+
+        /* Pause after 40%, cancel otherwise. */
+        if( writePercent > p->PauseThreshold )
+        {
+            writeRequest->flags |= NVMainRequest::FLAG_PAUSED;
+            pausedWrites++;
+        }
+        else
+        {
+            writeRequest->flags |= NVMainRequest::FLAG_CANCELLED;
+
+            /* Force writes to be completed after several cancellations to ensure forward progress. */
+            if( writeRequest->cancellations++ > 4 )
+                writeRequest->flags |= NVMainRequest::FLAG_FORCED;
+
+            cancelledWrites++;
+            cancelledWriteTime += GetEventQueue()->GetCurrentCycle() - writeStart;
+        }
+
+        /* Delete the old event indicating write completion. */
+        GetEventQueue( )->RemoveEvent( writeEvent, writeEventTime );
+
+        /* Return this write as paused/cancelled. */
+        GetEventQueue( )->InsertEvent( EventResponse, this, writeRequest,
+                                    GetEventQueue()->GetCurrentCycle() + 1 );
+
+        /* Restore the old next* state. */
+        nextActivate = nextActivatePreWrite;
+        nextPrecharge = nextPrechargePreWrite;
+        nextWrite = nextWritePreWrite;
+        nextRead = nextReadPreWrite;
+    }
 
     /* TODO: Can we remove this sanity check and totally trust IsIssuable()? */
     /* sanity check */
@@ -433,10 +494,30 @@ bool SubArray::Write( NVMainRequest *request )
 
     /* Determine the write time. */
     writeTimer = WriteCellData( request ); // Assume write-through.
+    if( request->flags & NVMainRequest::FLAG_PAUSED ) // This was paused, restart with remaining time
+    {
+        writeTimer = request->writeProgress;
+        request->flags &= ~NVMainRequest::FLAG_PAUSED; // unpause this
+    }
+    else
+    {
+        writeTimer = WriteCellData( request ); // Assume write-through.
+    }
+
     if( writeMode == WRITE_BACK && writeCycle )
     {
         writeTimer = 0;
     }
+
+    /* Write canceling/pausing only for write-through memory */
+    if( writeMode == WRITE_THROUGH )
+        request->writeProgress = writeTimer;
+
+    /* Save the next* state incause we cancel a write. */
+    nextActivatePreWrite = nextActivate;
+    nextPrechargePreWrite = nextPrecharge;
+    nextReadPreWrite = nextRead;
+    nextWritePreWrite = nextWrite;
 
     if( writeMode == WRITE_THROUGH )
     {
@@ -482,6 +563,34 @@ bool SubArray::Write( NVMainRequest *request )
                              + MAX( p->tBURST, p->tCCD ) + writeTimer );
     }
 
+    /* Mark that a write is in progress in cause we want to pause/cancel. */
+    isWriting = true;
+    writeRequest = request;
+    writeStart = GetEventQueue()->GetCurrentCycle();
+    writeEnd = GetEventQueue()->GetCurrentCycle() + writeTimer;
+    writeEventTime = GetEventQueue()->GetCurrentCycle() + p->tCWD + p->tBURST + writeTimer;
+
+    /* The parent has our hook in the children list, we need to find this. */
+    std::vector<NVMObject_hook *>& children = GetParent( )->GetTrampoline( )->GetChildren( );
+    std::vector<NVMObject_hook *>::iterator it;
+    NVMObject_hook *hook = NULL;
+
+    for( it = children.begin(); it != children.end(); it++ )
+    {
+        if( (*it)->GetTrampoline() == this )
+        {
+            hook = (*it);
+            break;
+        }
+    }
+
+    assert( hook != NULL );
+
+    writeEvent = new NVM::Event( );
+    writeEvent->SetType( EventResponse );
+    writeEvent->SetRecipient( hook );
+    writeEvent->SetRequest( request );
+
     /* Issue a bus burst request when the burst starts. */
     NVMainRequest *busReq = new NVMainRequest( );
     *busReq = *request;
@@ -492,8 +601,7 @@ bool SubArray::Write( NVMainRequest *request )
             GetEventQueue()->GetCurrentCycle() + p->tCWD );
 
     /* Notify owner of write completion as well */
-    GetEventQueue( )->InsertEvent( EventResponse, this, request, 
-            GetEventQueue()->GetCurrentCycle() + p->tCWD + p->tBURST + writeTimer );
+    GetEventQueue( )->InsertEvent( writeEvent, writeEventTime );
 
     /* Calculate energy. */
     if( p->EnergyModel_set && p->EnergyModel == "current" )
@@ -798,7 +906,8 @@ bool SubArray::IsIssuable( NVMainRequest *req, FailReason *reason )
     {
         if( nextRead > (GetEventQueue()->GetCurrentCycle()) /* if it is too early to read */
             || state != SUBARRAY_OPEN  /* or, the subarray is not active */
-            || opRow != openRow )      /* or, the target row is not the open row */
+            || opRow != openRow        /* or, the target row is not the open row */
+            || ( p->WritePausing && isWriting && writeRequest->flags & NVMainRequest::FLAG_FORCED ) ) /* or, write can't be paused. */
         {
             rv = false;
             if( reason ) 
@@ -903,6 +1012,11 @@ bool SubArray::IssueCommand( NVMainRequest *req )
 
 bool SubArray::RequestComplete( NVMainRequest *req )
 {
+    if( req->type == WRITE )
+    {
+        isWriting = false;
+    }
+
     if( req->owner == this )
     {
         switch( req->type )

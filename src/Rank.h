@@ -104,6 +104,7 @@ class Rank : public NVMObject
 
     void RegisterStats( );
     void CalculateStats( );
+    Bank **banks;
 
   private:
     Config *conf;
@@ -112,7 +113,6 @@ class Rank : public NVMObject
     uint64_t psInterval;
     RankState state;
 
-    Bank **banks;
     ncounter_t bankCount;
     ncounter_t deviceWidth;
     ncounter_t deviceCount;

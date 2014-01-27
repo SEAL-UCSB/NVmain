@@ -48,6 +48,8 @@
 
 namespace NVM {
 
+class Event;
+
 /*
  *  We only use four subarray states because we use distributed timing control
  *  No PowerDown state is implemented since it does not make sense to apply 
@@ -120,6 +122,7 @@ class SubArray : public NVMObject
     std::string GetName( );
 
     void Cycle( ncycle_t );
+    bool isWriting;
 
   private:
     Config *conf;
@@ -139,7 +142,16 @@ class SubArray : public NVMObject
     ncycle_t nextRead;
     ncycle_t nextWrite;
     bool writeCycle;
+    ncycle_t writeEnd;
+    ncycle_t writeStart;
+    NVMainRequest *writeRequest;
+    NVM::Event *writeEvent;
+    ncycle_t writeEventTime;
     WriteMode writeMode;
+    ncycle_t nextActivatePreWrite;
+    ncycle_t nextPrechargePreWrite;
+    ncycle_t nextReadPreWrite;
+    ncycle_t nextWritePreWrite;
     ncounter_t dataCycles;
     ncycle_t worstCaseWrite;
     ncounter_t num00Writes;
@@ -148,6 +160,10 @@ class SubArray : public NVMObject
     ncounter_t num11Writes;
     double averageWriteTime;
     ncounter_t measuredWriteTimes;
+
+    ncounter_t cancelledWrites;
+    ncounter_t cancelledWriteTime;
+    ncounter_t pausedWrites;
 
     ncounter_t actWaits;
     ncounter_t actWaitTotal;

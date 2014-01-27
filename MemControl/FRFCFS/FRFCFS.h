@@ -70,6 +70,7 @@ class FRFCFS : public MemoryController
     uint64_t rb_miss;
     uint64_t starvation_precharges;
     uint64_t cpu_insts;
+    uint64_t write_pauses;
 };
 
 };

@@ -86,6 +86,9 @@ Params::Params( )
     nWP11 = 1;
     nWPVar = 2;
 
+    WritePausing = false;
+    PauseThreshold = 0.4;
+
     DeadlockTimer = 10000000;
 
     debugOn = false;
@@ -296,6 +299,11 @@ void Params::SetParams( Config *c )
             debugClasses.insert( debugClass );
         }
     }
+
+    if( c->KeyExists( "WritePausing" ) && c->GetString( "WritePausing" ) == "true" )
+        WritePausing = true;
+    if( c->KeyExists( "PauseThrehold" ) )
+        PauseThreshold = c->GetEnergy( "PauseThreshold" );
 
     /* Check for uninitialized parameters. */
     if( !MATHeight_set ) MATHeight = ROWS;

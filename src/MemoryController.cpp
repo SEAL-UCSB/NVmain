@@ -36,6 +36,9 @@
 #include "src/MemoryController.h"
 #include "include/NVMainRequest.h"
 #include "src/EventQueue.h"
+#include "Interconnect/OffChipBus/OffChipBus.h"
+#include "src/Rank.h"
+#include "src/Bank.h"
 
 #include <cassert>
 #include <cstdlib>
@@ -788,6 +791,93 @@ bool MemoryController::FindStarvedRequest( std::list<NVMainRequest *>& transacti
                 (*starvedRequest)->flags |= NVMainRequest::FLAG_LAST_REQUEST;
 
             rv = true;
+            break;
+        }
+    }
+
+    return rv;
+}
+
+bool MemoryController::FindWriteStalledRead( std::list<NVMainRequest *>& transactionQueue,
+                                             NVMainRequest **hitRequest )
+{
+    DummyPredicate pred;
+
+    return FindWriteStalledRead( transactionQueue, hitRequest, pred );
+}
+
+bool MemoryController::FindWriteStalledRead( std::list<NVMainRequest *>& transactionQueue, 
+                                             NVMainRequest **hitRequest, SchedulingPredicate& pred )
+{
+    bool rv = false;
+    std::list<NVMainRequest *>::iterator it;
+
+    if( !p->WritePausing )
+        return false;
+
+    for( it = transactionQueue.begin(); it != transactionQueue.end(); it++ )
+    {
+        if( (*it)->type != READ )
+            continue;
+
+        ncounter_t rank, bank, row, subarray, col;
+
+        (*it)->address.GetTranslatedAddress( &row, &col, &bank, &rank, NULL, &subarray );
+
+        /* By design, mux level can only be a subset of the selected columns. */
+        ncounter_t muxLevel = static_cast<ncounter_t>(col / p->RBSize);
+
+        OffChipBus *ocb = dynamic_cast<OffChipBus *>(memory);
+        if( ocb == NULL )
+        {
+            std::cout << "No idea what interconnect type is." << std::endl;
+        }
+        Rank *rhr = ocb->GetRank( rank );
+        Bank *sbank = NULL;
+        sbank = dynamic_cast<Bank *>(rhr->banks[bank]);
+        SubArray *writingArray = NULL;
+
+        if( sbank == NULL )
+        {
+            std::cout << "No idea what bank is." << std::endl;
+            return false;
+        }
+        else if( sbank != NULL )
+        {
+            writingArray = sbank->subArrays[subarray];
+        }
+
+        //if( writingArray->isWriting )
+        //{
+        //    std::cout << "Subarray is writing!" << std::endl;
+        //}
+
+
+        if( activateQueued[rank][bank]                    /* The bank is active */ 
+            && activeSubArray[rank][bank][subarray]       /* The subarray is open */
+            && effectiveRow[rank][bank][subarray] == row  /* The effective row is the row of this request */ 
+            && effectiveMuxedRow[rank][bank][subarray] == muxLevel  /* Subset of row buffer is currently at the sense amps */
+            && !bankNeedRefresh[rank][bank]               /* The bank is not waiting for a refresh */
+            && writingArray->isWriting                    /* There needs to be a write to cancel. */
+            && memory->IsIssuable( (*it ) )               /* Make sure we can actually send this right away, otherwise we may skip starvation/other checks in MC. */
+            && pred( (*it) ) )                            /* User-defined predicate is true */
+        {
+            *hitRequest = (*it);
+            transactionQueue.erase( it );
+
+            /* Different row buffer management policy has different behavior */ 
+
+            /* 
+             * if Relaxed Close-Page row buffer management policy is applied,
+             * we check whether there is another request has row buffer hit.
+             * if not, this request is the last request and we can close the
+             * row.
+             */
+            if( IsLastRequest( transactionQueue, (*hitRequest) ) )
+                (*hitRequest)->flags |= NVMainRequest::FLAG_LAST_REQUEST;
+
+            rv = true;
+
             break;
         }
     }
