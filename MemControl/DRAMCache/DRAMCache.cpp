@@ -37,6 +37,7 @@
 #include "include/NVMHelpers.h"
 #include "NVM/nvmain.h"
 #include "Decoders/DRCDecoder/DRCDecoder.h"
+#include "src/EventQueue.h"
 
 #include <iostream>
 #include <sstream>
@@ -76,8 +77,11 @@ void DRAMCache::SetConfig( Config *conf )
     mainMemoryConfig->Read( configFile );
 
     mainMemory = new NVMain( );
+    EventQueue *mainMemoryEventQueue = new EventQueue( );
     mainMemory->SetParent( this ); 
+    mainMemory->SetEventQueue( mainMemoryEventQueue );
     mainMemory->SetConfig( mainMemoryConfig, "offChipMemory" );
+
 
     /* Orphan the interconnect created by NVMain */
     std::vector<NVMObject_hook *>& childNodes = GetChildren( );
