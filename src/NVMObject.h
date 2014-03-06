@@ -133,6 +133,9 @@ class NVMObject
     virtual void CalculateStats( );
     virtual void ResetStats( );
 
+    virtual void CreateCheckpoint( std::string dir );
+    virtual void RestoreCheckpoint( std::string dir );
+
     void SetStats( Stats* );
     Stats* GetStats( );
     virtual void RegisterStats( );

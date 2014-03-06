@@ -38,6 +38,7 @@
 #include "src/EventQueue.h"
 
 #include <iostream>
+#include <sstream>
 #include <cstring>
 #include <cassert>
 
@@ -90,7 +91,7 @@ LO_Cache::~LO_Cache( )
 
 void LO_Cache::SetConfig( Config *conf )
 {
-    ncounter_t ranks, banks, rows;
+    ncounter_t rows;
 
     /* Set Defauls */
     drcQueueSize = 32;
@@ -464,4 +465,105 @@ void LO_Cache::CalculateStats( )
         drc_hitrate = static_cast<float>(drc_hits) / static_cast<float>(drc_miss+drc_hits);
 
     MemoryController::CalculateStats( );
+}
+
+void LO_Cache::CreateCheckpoint( std::string dir )
+{
+    /* Use our statName as the file to write in the checkpoint directory. */
+    for( ncounter_t rankIdx = 0; rankIdx < ranks; rankIdx++ )
+    {
+        for( ncounter_t bankIdx = 0; bankIdx < banks; bankIdx++ )
+        {
+            std::stringstream cpt_file;
+            cpt_file.str("");
+            cpt_file << dir << "/" << statName << "_r";
+            cpt_file << rankIdx << "_b" << bankIdx;
+
+            std::ofstream cpt_handle;
+            
+            cpt_handle.open( cpt_file.str(), std::ofstream::out | std::ofstream::trunc | std::ofstream::binary );
+
+            if( !cpt_handle.is_open( ) )
+            {
+                std::cout << "LO_Cache: Warning: Could not open checkpoint file: " << cpt_file << "!" << std::endl;
+            }
+            else
+            {
+                /* Iterate over cache sets, since they may not be allocated contiguously. */
+                for( uint64_t set = 0; set < functionalCache[rankIdx][bankIdx]->numSets; set++ )
+                {
+                    cpt_handle.write( (const char *)(functionalCache[rankIdx][bankIdx]->cacheEntry[set]), 
+                                      sizeof(CacheEntry)*functionalCache[rankIdx][bankIdx]->numAssoc );
+                }
+
+                cpt_handle.close( );
+            }
+
+            /* Write checkpoint information. */
+            /* Note: For future compatability only at the memory. This is not read during restoration. */
+            std::string cpt_info = cpt_file.str() + ".json";
+
+            cpt_handle.open( cpt_info, std::ofstream::out | std::ofstream::trunc | std::ofstream::binary );
+
+            if( !cpt_handle.is_open() )
+            {
+                std::cout << "LO_Cache: Warning: Could not open checkpoint info file: " << cpt_info << "!" << std::endl;
+            }
+            else
+            {
+                std::string cpt_info_str = "{\n\t\"Version\": 1\n}";
+                cpt_handle.write( cpt_info_str.c_str(), cpt_info_str.length() ); 
+
+                cpt_handle.close();
+            }
+        }
+    }
+}
+
+void LO_Cache::RestoreCheckpoint( std::string dir )
+{
+    for( ncounter_t rankIdx = 0; rankIdx < ranks; rankIdx++ )
+    {
+        for( ncounter_t bankIdx = 0; bankIdx < banks; bankIdx++ )
+        {
+            std::stringstream cpt_file;
+            cpt_file.str("");
+            cpt_file << dir << "/" << statName << "_r";
+            cpt_file << rankIdx << "_b" << bankIdx;
+
+            std::ifstream cpt_handle;
+
+            cpt_handle.open( cpt_file.str(), std::ifstream::ate | std::ifstream::binary );
+
+            if( !cpt_handle.is_open( ) )
+            {
+                std::cout << "LO_Cache: Warning: Could not open checkpoint file: " << cpt_file << "!" << std::endl;
+            }
+            else
+            {
+                std::streampos expectedSize = sizeof(CacheEntry)*functionalCache[rankIdx][bankIdx]->numSets*functionalCache[rankIdx][bankIdx]->numAssoc;
+                if( cpt_handle.tellg( ) != expectedSize )
+                {
+                    std::cout << "LO_Cache: Warning: Expected checkpoint size differs from DRAM cache configuration. Skipping restore." << std::endl;
+                }
+                else
+                {
+                    cpt_handle.close( );
+
+                    cpt_handle.open( cpt_file.str(), std::ifstream::in | std::ifstream::binary );
+
+                    /* Iterate over cache sets, since they may not be allocated contiguously. */
+                    for( uint64_t set = 0; set < functionalCache[rankIdx][bankIdx]->numSets; set++ )
+                    {
+                        cpt_handle.read( (char *)(functionalCache[rankIdx][bankIdx]->cacheEntry[set]), 
+                                          sizeof(CacheEntry)*functionalCache[rankIdx][bankIdx]->numAssoc );
+                    }
+
+                    cpt_handle.close( );
+
+                    std::cout << "LO_Cache: Checkpoint read " << (sizeof(CacheEntry)*functionalCache[rankIdx][bankIdx]->numAssoc*functionalCache[rankIdx][bankIdx]->numSets) << " bytes." << std::endl;
+                }
+            }
+        }
+    }
 }

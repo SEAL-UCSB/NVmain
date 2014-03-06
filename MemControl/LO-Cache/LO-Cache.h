@@ -72,6 +72,9 @@ class LO_Cache : public AbstractDRAMCache
     void RegisterStats( );
     void CalculateStats( );
 
+    void CreateCheckpoint( std::string dir );
+    void RestoreCheckpoint( std::string dir );
+
   private:
     NVMTransactionQueue *drcQueue;
     NVMain *mainMemory;
@@ -80,6 +83,7 @@ class LO_Cache : public AbstractDRAMCache
 
     ncounter_t starvationThreshold;
     ncounter_t drcQueueSize;
+    ncounter_t ranks, banks;
 
     ncounter_t drc_hits, drc_miss;
     ncounter_t drc_evicts, drc_fills;
