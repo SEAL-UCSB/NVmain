@@ -33,6 +33,8 @@
 
 #include "include/NVMHelpers.h"
 
+#include <sstream>
+
 namespace NVM {
 
 int mlog2( int num )
@@ -65,25 +67,28 @@ std::string PyDictHistogram( std::map<uint64_t, uint64_t> iiMap )
 {
 
     /* Print a histogram as a python-style dict. */
-    std::string pyHisto = "{";
+    std::stringstream pyHistoSS;
+
+    pyHistoSS.str("");
+    pyHistoSS << "{";
 
     bool outputComma = false;
     for( std::map<uint64_t, uint64_t>::iterator iter = iiMap.begin();
          iter != iiMap.end(); ++iter )
     {
         if( outputComma )
-            pyHisto += ", ";
+            pyHistoSS << ", ";
 
-        pyHisto += std::to_string(iter->first);
-        pyHisto += ": ";
-        pyHisto += std::to_string(iter->second);
+        pyHistoSS << iter->first;
+        pyHistoSS << ": ";
+        pyHistoSS << iter->second;
 
         outputComma = true;
     }
 
-    pyHisto += "}";
+    pyHistoSS << "}";
 
-    return pyHisto;
+    return pyHistoSS.str();
 }
 
 };
