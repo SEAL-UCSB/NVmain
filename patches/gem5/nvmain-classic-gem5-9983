@@ -105,7 +105,10 @@ diff -r 7e0ba8f1b109 src/mem/NVMainMemory.py
 +            if arg[:9] == "--nvmain-":
 +                param_pair = arg.split('=', 1)
 +                param_name = (param_pair[0])[9:]
-+                param_value = param_pair[1]
++                if len(param_pair) > 1:
++                    param_value = param_pair[1]
++                else:
++                    param_value = ""
 +
 +                # Handle special cases
 +                if param_name == "atomic":
@@ -852,31 +855,33 @@ diff -r 7e0ba8f1b109 src/mem/nvmain_mem.cc
 +
 +void NVMainMemory::serialize(std::ostream& os)
 +{
-+    std::string nvmain_chkpt_file = "";
++    std::string nvmain_chkpt_dir = "";
 +
 +    if( m_nvmainConfig->KeyExists( "CheckpointDirectory" ) )
-+        nvmain_chkpt_file += m_nvmainConfig->GetString( "CheckpointDirectory" ) + "/";
-+    if( m_nvmainConfig->KeyExists( "CheckpointName" ) )
-+        nvmain_chkpt_file += m_nvmainConfig->GetString( "CheckpointName" );
++        nvmain_chkpt_dir = m_nvmainConfig->GetString( "CheckpointDirectory" );
 +
-+    std::cout << "NVMainMemory: Writing to checkpoint file " << nvmain_chkpt_file << std::endl;
++    std::cout << "NVMainMemory: Writing to checkpoint directory " << nvmain_chkpt_dir << std::endl;
 +
-+    // TODO: Add checkpoint to nvmain itself.
-+    //m_nvmainPtr->Checkpoint( nvmain_chkpt_file );
++    if( nvmain_chkpt_dir != "" )
++    {
++        m_nvmainPtr->CreateCheckpoint( nvmain_chkpt_dir );
++    }
 +}
 +
 +
 +void NVMainMemory::unserialize(Checkpoint *cp, const std::string& section)
 +{
-+    std::string nvmain_chkpt_file = "";
++    std::string nvmain_chkpt_dir = "";
 +
 +    if( m_nvmainConfig->KeyExists( "CheckpointDirectory" ) )
-+        nvmain_chkpt_file += m_nvmainConfig->GetString( "CheckpointDirectory" ) + "/";
-+    if( m_nvmainConfig->KeyExists( "CheckpointName" ) )
-+        nvmain_chkpt_file += m_nvmainConfig->GetString( "CheckpointName" );
++        nvmain_chkpt_dir = m_nvmainConfig->GetString( "CheckpointDirectory" );
 +
-+    // TODO: Add checkpoint to nvmain itself
-+    //m_nvmainPtr->Restore( nvmain_chkpt_file );
++    std::cout << "NVMainMemory: Reading from checkpoint directory " << nvmain_chkpt_dir << std::endl;
++
++    if( nvmain_chkpt_dir != "" )
++    {
++        m_nvmainPtr->RestoreCheckpoint( nvmain_chkpt_dir );
++    }
 +}
 +
 +
@@ -969,6 +974,7 @@ diff -r 7e0ba8f1b109 src/mem/nvmain_mem.hh
 +#include "src/EventQueue.h"
 +#include "src/NVMObject.h"
 +#include "src/SimInterface.h"
++#include "sim/serialize.hh"
 +
 +class NVMainMemory : public AbstractMemory, public NVM::NVMObject
 +{

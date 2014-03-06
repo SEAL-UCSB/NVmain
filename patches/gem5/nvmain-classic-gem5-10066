@@ -1,10 +1,10 @@
 # HG changeset patch
-# Parent 9c55c0214404636c37216c79a653c0d3bd6503b8
+# Parent 0315032083da50149698b3ffa769c52af50aab0d
 Use IsIssuable and don't call hooks unless true is returned
 
-diff -r 9c55c0214404 configs/common/MemConfig.py
---- a/configs/common/MemConfig.py	Mon Feb 24 20:50:06 2014 -0600
-+++ b/configs/common/MemConfig.py	Wed Feb 26 15:28:08 2014 -0500
+diff -r 0315032083da configs/common/MemConfig.py
+--- a/configs/common/MemConfig.py	Wed Mar 05 17:31:24 2014 -0500
++++ b/configs/common/MemConfig.py	Thu Mar 06 14:07:28 2014 -0500
 @@ -49,6 +49,7 @@
  # fina; list. A target may be specified as a tuple, in which case the
  # first available memory controller model in the tuple will be used.
@@ -13,9 +13,9 @@ diff -r 9c55c0214404 configs/common/MemConfig.py
      ("simple_mem", "SimpleMemory"),
      ("ddr3_1600_x64", "DDR3_1600_x64"),
      ("lpddr2_s4_1066_x32", "LPDDR2_S4_1066_x32"),
-diff -r 9c55c0214404 configs/common/Options.py
---- a/configs/common/Options.py	Mon Feb 24 20:50:06 2014 -0600
-+++ b/configs/common/Options.py	Wed Feb 26 15:28:08 2014 -0500
+diff -r 0315032083da configs/common/Options.py
+--- a/configs/common/Options.py	Wed Mar 05 17:31:24 2014 -0500
++++ b/configs/common/Options.py	Thu Mar 06 14:07:28 2014 -0500
 @@ -209,6 +209,24 @@
                        help="ARM instruction set.")
  
@@ -41,10 +41,10 @@ diff -r 9c55c0214404 configs/common/Options.py
  def addSEOptions(parser):
      # Benchmark options
      parser.add_option("-c", "--cmd", default="",
-diff -r 9c55c0214404 src/mem/NVMainMemory.py
+diff -r 0315032083da src/mem/NVMainMemory.py
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/NVMainMemory.py	Wed Feb 26 15:28:08 2014 -0500
-@@ -0,0 +1,87 @@
++++ b/src/mem/NVMainMemory.py	Thu Mar 06 14:07:28 2014 -0500
+@@ -0,0 +1,90 @@
 +# Copyright (c) 2012-2013 Pennsylvania State University
 +# All rights reserved.
 +#
@@ -105,7 +105,10 @@ diff -r 9c55c0214404 src/mem/NVMainMemory.py
 +            if arg[:9] == "--nvmain-":
 +                param_pair = arg.split('=', 1)
 +                param_name = (param_pair[0])[9:]
-+                param_value = param_pair[1]
++                if len(param_pair) > 1:
++                    param_value = param_pair[1]
++                else:
++                    param_value = ""
 +
 +                # Handle special cases
 +                if param_name == "atomic":
@@ -132,9 +135,9 @@ diff -r 9c55c0214404 src/mem/NVMainMemory.py
 +        self.configparams = config_params
 +        self.configvalues = config_values
 +
-diff -r 9c55c0214404 src/mem/SConscript
---- a/src/mem/SConscript	Mon Feb 24 20:50:06 2014 -0600
-+++ b/src/mem/SConscript	Wed Feb 26 15:28:08 2014 -0500
+diff -r 0315032083da src/mem/SConscript
+--- a/src/mem/SConscript	Wed Mar 05 17:31:24 2014 -0500
++++ b/src/mem/SConscript	Thu Mar 06 14:07:28 2014 -0500
 @@ -43,6 +43,7 @@
  SimObject('MemObject.py')
  SimObject('SimpleMemory.py')
@@ -160,10 +163,10 @@ diff -r 9c55c0214404 src/mem/SConscript
  
  DebugFlag("DRAMSim2")
  
-diff -r 9c55c0214404 src/mem/nvmain_mem.cc
+diff -r 0315032083da src/mem/nvmain_mem.cc
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/nvmain_mem.cc	Wed Feb 26 15:28:08 2014 -0500
-@@ -0,0 +1,738 @@
++++ b/src/mem/nvmain_mem.cc	Thu Mar 06 14:07:28 2014 -0500
+@@ -0,0 +1,740 @@
 +/*
 + * Copyright (c) 2012-2013 Pennsylvania State University
 + * All rights reserved.
@@ -852,31 +855,33 @@ diff -r 9c55c0214404 src/mem/nvmain_mem.cc
 +
 +void NVMainMemory::serialize(std::ostream& os)
 +{
-+    std::string nvmain_chkpt_file = "";
++    std::string nvmain_chkpt_dir = "";
 +
 +    if( m_nvmainConfig->KeyExists( "CheckpointDirectory" ) )
-+        nvmain_chkpt_file += m_nvmainConfig->GetString( "CheckpointDirectory" ) + "/";
-+    if( m_nvmainConfig->KeyExists( "CheckpointName" ) )
-+        nvmain_chkpt_file += m_nvmainConfig->GetString( "CheckpointName" );
++        nvmain_chkpt_dir = m_nvmainConfig->GetString( "CheckpointDirectory" );
 +
-+    std::cout << "NVMainMemory: Writing to checkpoint file " << nvmain_chkpt_file << std::endl;
++    std::cout << "NVMainMemory: Writing to checkpoint directory " << nvmain_chkpt_dir << std::endl;
 +
-+    // TODO: Add checkpoint to nvmain itself.
-+    //m_nvmainPtr->Checkpoint( nvmain_chkpt_file );
++    if( nvmain_chkpt_dir != "" )
++    {
++        m_nvmainPtr->CreateCheckpoint( nvmain_chkpt_dir );
++    }
 +}
 +
 +
 +void NVMainMemory::unserialize(Checkpoint *cp, const std::string& section)
 +{
-+    std::string nvmain_chkpt_file = "";
++    std::string nvmain_chkpt_dir = "";
 +
 +    if( m_nvmainConfig->KeyExists( "CheckpointDirectory" ) )
-+        nvmain_chkpt_file += m_nvmainConfig->GetString( "CheckpointDirectory" ) + "/";
-+    if( m_nvmainConfig->KeyExists( "CheckpointName" ) )
-+        nvmain_chkpt_file += m_nvmainConfig->GetString( "CheckpointName" );
++        nvmain_chkpt_dir = m_nvmainConfig->GetString( "CheckpointDirectory" );
 +
-+    // TODO: Add checkpoint to nvmain itself
-+    //m_nvmainPtr->Restore( nvmain_chkpt_file );
++    std::cout << "NVMainMemory: Reading from checkpoint directory " << nvmain_chkpt_dir << std::endl;
++
++    if( nvmain_chkpt_dir != "" )
++    {
++        m_nvmainPtr->RestoreCheckpoint( nvmain_chkpt_dir );
++    }
 +}
 +
 +
@@ -902,10 +907,10 @@ diff -r 9c55c0214404 src/mem/nvmain_mem.cc
 +    return new NVMainMemory(this);
 +}
 +
-diff -r 9c55c0214404 src/mem/nvmain_mem.hh
+diff -r 0315032083da src/mem/nvmain_mem.hh
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/nvmain_mem.hh	Wed Feb 26 15:28:08 2014 -0500
-@@ -0,0 +1,189 @@
++++ b/src/mem/nvmain_mem.hh	Thu Mar 06 14:07:28 2014 -0500
+@@ -0,0 +1,190 @@
 +/*
 + * Copyright (c) 2012-2013 Pennsylvania State University
 + * All rights reserved.
@@ -969,6 +974,7 @@ diff -r 9c55c0214404 src/mem/nvmain_mem.hh
 +#include "src/EventQueue.h"
 +#include "src/NVMObject.h"
 +#include "src/SimInterface.h"
++#include "sim/serialize.hh"
 +
 +class NVMainMemory : public AbstractMemory, public NVM::NVMObject
 +{
