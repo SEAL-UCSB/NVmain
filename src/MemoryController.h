@@ -102,7 +102,8 @@ class MemoryController : public NVMObject
 
     virtual void Cycle( ncycle_t steps ); 
 
-    virtual void SetConfig( Config *conf );
+    virtual void SetConfig( Config *conf, bool createChildren = true );
+    void SetMappingScheme( );
     void SetParams( Params *params ) { p = params; }
     Config *GetConfig( );
 

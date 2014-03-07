@@ -118,7 +118,7 @@ SubArray::~SubArray( )
 {
 }
 
-void SubArray::SetConfig( Config *c )
+void SubArray::SetConfig( Config *c, bool createChildren )
 {
     conf = c;
 
@@ -151,10 +151,13 @@ void SubArray::SetConfig( Config *c )
         }
     }
 
-    /* We need to create an endurance model at a sub-array level */
-    endrModel = EnduranceModelFactory::CreateEnduranceModel( p->EnduranceModel );
-    if( endrModel )
-        endrModel->SetConfig( conf );
+    if( createChildren )
+    {
+        /* We need to create an endurance model at a sub-array level */
+        endrModel = EnduranceModelFactory::CreateEnduranceModel( p->EnduranceModel );
+        if( endrModel )
+            endrModel->SetConfig( conf, createChildren );
+    }
 }
 
 void SubArray::RegisterStats( )

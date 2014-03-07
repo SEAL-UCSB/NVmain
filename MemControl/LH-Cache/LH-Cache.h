@@ -55,7 +55,7 @@ class LH_Cache : public AbstractDRAMCache
     LH_Cache( );
     virtual ~LH_Cache( );
 
-    void SetConfig( Config *conf );
+    void SetConfig( Config *conf, bool createChildren = true );
     void SetMainMemory( NVMain *mm );
 
     bool IssueAtomic( NVMainRequest *req );

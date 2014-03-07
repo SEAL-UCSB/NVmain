@@ -56,7 +56,7 @@ class MissMap : public MemoryController
     MissMap( );
     ~MissMap( );
 
-    void SetConfig( Config *conf );
+    void SetConfig( Config *conf, bool createChildren = true );
 
     bool QueueFull( NVMainRequest *request );
 

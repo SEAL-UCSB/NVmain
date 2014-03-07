@@ -80,7 +80,7 @@ FRFCFS::~FRFCFS( )
               << " commands still in memory queue." << std::endl;
 }
 
-void FRFCFS::SetConfig( Config *conf )
+void FRFCFS::SetConfig( Config *conf, bool createChildren )
 {
     if( conf->KeyExists( "StarvationThreshold" ) )
     {
@@ -92,7 +92,7 @@ void FRFCFS::SetConfig( Config *conf )
         queueSize = static_cast<unsigned int>( conf->GetValue( "QueueSize" ) );
     }
 
-    MemoryController::SetConfig( conf );
+    MemoryController::SetConfig( conf, createChildren );
 
     SetDebugName( "FRFCFS", conf );
 }

@@ -126,7 +126,7 @@ Bank::~Bank( )
     delete [] subArrays;
 }
 
-void Bank::SetConfig( Config *c )
+void Bank::SetConfig( Config *c, bool createChildren )
 {
     conf = c;
     
@@ -138,43 +138,46 @@ void Bank::SetConfig( Config *c )
     params->SetParams( c );
     SetParams( params );
 
-    /* When selecting a child, use the subarray field from the decoder. */
-    AddressTranslator *bankAT = DecoderFactory::CreateDecoderNoWarn( c->GetString( "Decoder" ) );
-    TranslationMethod *method = GetParent()->GetTrampoline()->GetDecoder()->GetTranslationMethod();
-    bankAT->SetTranslationMethod( method );
-    bankAT->SetDefaultField( SUBARRAY_FIELD );
-    SetDecoder( bankAT );
-
     MATHeight = p->MATHeight;
-
     subArrayNum = p->ROWS / MATHeight;
-    subArrays = new SubArray*[subArrayNum];
 
-    for( ncounter_t i = 0; i < subArrayNum; i++ )
+    if( createChildren )
     {
-        subArrays[i] = new SubArray;
+        /* When selecting a child, use the subarray field from the decoder. */
+        AddressTranslator *bankAT = DecoderFactory::CreateDecoderNoWarn( c->GetString( "Decoder" ) );
+        TranslationMethod *method = GetParent()->GetTrampoline()->GetDecoder()->GetTranslationMethod();
+        bankAT->SetTranslationMethod( method );
+        bankAT->SetDefaultField( SUBARRAY_FIELD );
+        SetDecoder( bankAT );
 
-        std::stringstream formatter;
+        subArrays = new SubArray*[subArrayNum];
 
-        formatter << i;
-        subArrays[i]->SetName ( formatter.str() );
-        subArrays[i]->SetId( i );
+        for( ncounter_t i = 0; i < subArrayNum; i++ )
+        {
+            subArrays[i] = new SubArray;
 
-        formatter.str( "" );
-        formatter<< statName << ".subarray" << i;
-        subArrays[i]->StatName (formatter.str( ) );
+            std::stringstream formatter;
 
-        subArrays[i]->SetParent( this );
-        AddChild( subArrays[i] );
+            formatter << i;
+            subArrays[i]->SetName ( formatter.str() );
+            subArrays[i]->SetId( i );
 
-        subArrays[i]->SetConfig( c );
-        subArrays[i]->RegisterStats( );
+            formatter.str( "" );
+            formatter<< statName << ".subarray" << i;
+            subArrays[i]->StatName (formatter.str( ) );
+
+            subArrays[i]->SetParent( this );
+            AddChild( subArrays[i] );
+
+            subArrays[i]->SetConfig( c, createChildren );
+            subArrays[i]->RegisterStats( );
+        }
+
+        /* We need to create an endurance model on a bank-by-bank basis */
+        endrModel = EnduranceModelFactory::CreateEnduranceModel( p->EnduranceModel );
+        if( endrModel )
+            endrModel->SetConfig( conf, createChildren );
     }
-
-    /* We need to create an endurance model on a bank-by-bank basis */
-    endrModel = EnduranceModelFactory::CreateEnduranceModel( p->EnduranceModel );
-    if( endrModel )
-        endrModel->SetConfig( conf );
 
     if( p->InitPD )
         state = BANK_PDPF;

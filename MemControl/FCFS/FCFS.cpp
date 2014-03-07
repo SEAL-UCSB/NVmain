@@ -72,14 +72,14 @@ FCFS::FCFS( )
     InitQueues( 1 );
 }
 
-void FCFS::SetConfig( Config *conf )
+void FCFS::SetConfig( Config *conf, bool createChildren )
 {
     if( conf->KeyExists( "QueueSize" ) )
     {
         queueSize = static_cast<unsigned int>( conf->GetValue( "QueueSize" ) );
     }
 
-    MemoryController::SetConfig( conf );
+    MemoryController::SetConfig( conf, createChildren );
 
     SetDebugName( "FCFS", conf );
 }

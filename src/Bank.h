@@ -93,7 +93,7 @@ class Bank : public NVMObject
     bool IsIssuable( NVMainRequest *req, FailReason *reason = NULL );
     bool IssueCommand( NVMainRequest *req );
 
-    void SetConfig( Config *c );
+    void SetConfig( Config *c, bool createChildren = true );
     void SetParams( Params *params ) { p = params; }
 
     BankState GetState( );

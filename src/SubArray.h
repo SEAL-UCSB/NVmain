@@ -93,7 +93,7 @@ class SubArray : public NVMObject
     bool IssueCommand( NVMainRequest *req );
     bool RequestComplete( NVMainRequest *req );
 
-    void SetConfig( Config *c );
+    void SetConfig( Config *c, bool createChildren = true );
     void SetParams( Params *params ) { p = params; }
 
     SubArrayState GetState( );

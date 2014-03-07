@@ -125,7 +125,7 @@ FRFCFS_WQF::~FRFCFS_WQF( )
 {
 }
 
-void FRFCFS_WQF::SetConfig( Config *conf )
+void FRFCFS_WQF::SetConfig( Config *conf, bool createChildren )
 {
     if( conf->KeyExists( "StarvationThreshold" ) )
         starvationThreshold = static_cast<unsigned int>( 
@@ -167,7 +167,7 @@ void FRFCFS_WQF::SetConfig( Config *conf )
             watermark. Has reset it to 0." << std::endl;
     }
 
-    MemoryController::SetConfig( conf );
+    MemoryController::SetConfig( conf, createChildren );
 
     SetDebugName( "FRFCFS-WQF", conf );
 }

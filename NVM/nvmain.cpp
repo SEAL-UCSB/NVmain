@@ -95,7 +95,7 @@ Config *NVMain::GetConfig( )
     return config;
 }
 
-void NVMain::SetConfig( Config *conf, std::string memoryName )
+void NVMain::SetConfig( Config *conf, std::string memoryName, bool createChildren )
 {
     TranslationMethod *method;
     int channels, ranks, banks, rows, cols, subarrays;
@@ -106,97 +106,102 @@ void NVMain::SetConfig( Config *conf, std::string memoryName )
 
     config = conf;
     if( config->GetSimInterface( ) != NULL )
-        config->GetSimInterface( )->SetConfig( conf );
+        config->GetSimInterface( )->SetConfig( conf, createChildren );
     else
       std::cout << "Warning: Sim Interface should be allocated before configuration!" << std::endl;
 
-    if( conf->KeyExists( "MATHeight" ) )
+
+    if( createChildren )
     {
-        rows = static_cast<int>(p->MATHeight);
-        subarrays = static_cast<int>( p->ROWS / p->MATHeight );
-    }
-    else
-    {
-        rows = static_cast<int>(p->ROWS);
-        subarrays = 1;
-    }
-    cols = static_cast<int>(p->COLS);
-    banks = static_cast<int>(p->BANKS);
-    ranks = static_cast<int>(p->RANKS);
-    channels = static_cast<int>(p->CHANNELS);
-
-    if( config->KeyExists( "Decoder" ) )
-        translator = DecoderFactory::CreateNewDecoder( config->GetString( "Decoder" ) );
-    else
-        translator = new AddressTranslator( );
-
-    method = new TranslationMethod( );
-
-    method->SetBitWidths( NVM::mlog2( rows ), 
-          		NVM::mlog2( cols ), 
-          		NVM::mlog2( banks ), 
-          		NVM::mlog2( ranks ), 
-          		NVM::mlog2( channels ), 
-                        NVM::mlog2( subarrays )
-          		);
-    method->SetCount( rows, cols, banks, ranks, channels, subarrays );
-    translator->SetTranslationMethod( method );
-    translator->SetDefaultField( CHANNEL_FIELD );
-
-    SetDecoder( translator );
-
-    memoryControllers = new MemoryController* [channels];
-    channelConfig = new Config* [channels];
-    for( int i = 0; i < channels; i++ )
-    {
-        std::stringstream confString;
-        std::string channelConfigFile;
-
-        channelConfig[i] = new Config( *config );
-
-        channelConfig[i]->SetSimInterface( config->GetSimInterface( ) );
-
-        confString << "CONFIG_CHANNEL" << i;
-
-        if( config->GetString( confString.str( ) ) != "" )
+        if( conf->KeyExists( "MATHeight" ) )
         {
-            channelConfigFile  = config->GetString( confString.str( ) );
+            rows = static_cast<int>(p->MATHeight);
+            subarrays = static_cast<int>( p->ROWS / p->MATHeight );
+        }
+        else
+        {
+            rows = static_cast<int>(p->ROWS);
+            subarrays = 1;
+        }
+        cols = static_cast<int>(p->COLS);
+        banks = static_cast<int>(p->BANKS);
+        ranks = static_cast<int>(p->RANKS);
+        channels = static_cast<int>(p->CHANNELS);
 
-            if( channelConfigFile[0] != '/' )
+        if( config->KeyExists( "Decoder" ) )
+            translator = DecoderFactory::CreateNewDecoder( config->GetString( "Decoder" ) );
+        else
+            translator = new AddressTranslator( );
+
+        method = new TranslationMethod( );
+
+        method->SetBitWidths( NVM::mlog2( rows ), 
+                    NVM::mlog2( cols ), 
+                    NVM::mlog2( banks ), 
+                    NVM::mlog2( ranks ), 
+                    NVM::mlog2( channels ), 
+                            NVM::mlog2( subarrays )
+                    );
+        method->SetCount( rows, cols, banks, ranks, channels, subarrays );
+        translator->SetTranslationMethod( method );
+        translator->SetDefaultField( CHANNEL_FIELD );
+
+        SetDecoder( translator );
+
+        memoryControllers = new MemoryController* [channels];
+        channelConfig = new Config* [channels];
+        for( int i = 0; i < channels; i++ )
+        {
+            std::stringstream confString;
+            std::string channelConfigFile;
+
+            channelConfig[i] = new Config( *config );
+
+            channelConfig[i]->SetSimInterface( config->GetSimInterface( ) );
+
+            confString << "CONFIG_CHANNEL" << i;
+
+            if( config->GetString( confString.str( ) ) != "" )
             {
-                channelConfigFile  = NVM::GetFilePath( config->GetFileName( ) );
-                channelConfigFile += config->GetString( confString.str( ) );
-            }
-            
-            std::cout << "Reading channel config file: " << channelConfigFile << std::endl;
+                channelConfigFile  = config->GetString( confString.str( ) );
 
-            channelConfig[i]->Read( channelConfigFile );
+                if( channelConfigFile[0] != '/' )
+                {
+                    channelConfigFile  = NVM::GetFilePath( config->GetFileName( ) );
+                    channelConfigFile += config->GetString( confString.str( ) );
+                }
+                
+                std::cout << "Reading channel config file: " << channelConfigFile << std::endl;
+
+                channelConfig[i]->Read( channelConfigFile );
+            }
+
+            /* Initialize memory controller */
+            memoryControllers[i] = 
+                MemoryControllerFactory::CreateNewController( channelConfig[i]->GetString( "MEM_CTL" ) );
+
+            /* When selecting a MC child, use no field from the decoder (only-child). */
+
+            confString.str( "" );
+            confString << memoryName << ".channel" << i << "." 
+                << channelConfig[i]->GetString( "MEM_CTL" ); 
+            memoryControllers[i]->StatName( confString.str( ) );
+            memoryControllers[i]->SetID( i );
+
+            AddChild( memoryControllers[i] );
+            memoryControllers[i]->SetParent( this );
+
+            /* Set Config recursively. */
+            memoryControllers[i]->SetConfig( channelConfig[i], createChildren );
+
+            /* Register statistics. */
+            memoryControllers[i]->RegisterStats( );
         }
 
-        /* Initialize memory controller */
-        memoryControllers[i] = 
-            MemoryControllerFactory::CreateNewController( channelConfig[i]->GetString( "MEM_CTL" ) );
-
-        /* When selecting a MC child, use no field from the decoder (only-child). */
-
-        confString.str( "" );
-        confString << memoryName << ".channel" << i << "." 
-            << channelConfig[i]->GetString( "MEM_CTL" ); 
-        memoryControllers[i]->StatName( confString.str( ) );
-        memoryControllers[i]->SetID( i );
-
-        AddChild( memoryControllers[i] );
-        memoryControllers[i]->SetParent( this );
-
-        /* Set Config recursively. */
-        memoryControllers[i]->SetConfig( channelConfig[i] );
-
-        /* Register statistics. */
-        memoryControllers[i]->RegisterStats( );
     }
-    
-    numChannels = static_cast<unsigned int>(channels);
 
+    numChannels = static_cast<unsigned int>(p->CHANNELS);
+    
     std::string pretraceFile;
 
     if( p->PrintPreTrace || p->EchoPreTrace )

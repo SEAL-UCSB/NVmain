@@ -56,7 +56,7 @@ class EnduranceModel : public NVMObject
 
     virtual bool Write( NVMAddress address, NVMDataBlock oldData, NVMDataBlock newData ) = 0;
 
-    virtual void SetConfig( Config *conf );
+    virtual void SetConfig( Config *conf, bool createChildren = true );
     Config *GetConfig( );
 
     uint64_t GetWorstLife( );

@@ -54,11 +54,11 @@ RowModel::~RowModel( )
      */
 }
 
-void RowModel::SetConfig( Config *conf )
+void RowModel::SetConfig( Config *conf, bool createChildren )
 {
     SetGranularity( conf->GetValue( "COLS" ) * 8 );
 
-    EnduranceModel::SetConfig( conf );
+    EnduranceModel::SetConfig( conf, createChildren );
 }
 
 bool RowModel::Write( NVMAddress address, NVMDataBlock /*oldData*/, 

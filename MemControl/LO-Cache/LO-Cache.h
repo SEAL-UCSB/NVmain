@@ -59,7 +59,7 @@ class LO_Cache : public AbstractDRAMCache
     LO_Cache( );
     virtual ~LO_Cache( );
 
-    void SetConfig( Config *conf );
+    void SetConfig( Config *conf, bool createChildren = true );
     void SetMainMemory( NVMain *mm );
 
     bool IssueAtomic( NVMainRequest *req );
