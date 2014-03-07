@@ -119,7 +119,7 @@ uint64_t AddressTranslator::ReverseTranslate( const uint64_t& row,
 
             case MEM_COL:
                   phyAddr += ( col * unitAddr ); 
-                  unitAddr <<= ( colBits - lowColBits );
+                  unitAddr <<= ( colBits /*- lowColBits*/ );
                   break;
 
             case MEM_BANK:
@@ -281,7 +281,7 @@ uint64_t AddressTranslator::Divide( uint64_t partSize, MemoryPartition partition
     if( partition == MEM_ROW )
         retSize >>= rowBits;
     else if( partition == MEM_COL )
-        retSize >>= ( colBits - lowColBits );
+        retSize >>= ( colBits /*- lowColBits*/ );
     else if( partition == MEM_BANK )
         retSize >>= bankBits;
     else if( partition == MEM_RANK )
@@ -312,7 +312,7 @@ uint64_t AddressTranslator::Modulo( uint64_t partialAddr, MemoryPartition partit
     if( partition == MEM_ROW )
         moduloSize <<= rowBits;
     else if( partition == MEM_COL )
-        moduloSize <<= ( colBits - lowColBits );
+        moduloSize <<= ( colBits /*- lowColBits*/ );
     else if( partition == MEM_BANK )
         moduloSize <<= bankBits;
     else if( partition == MEM_RANK )
