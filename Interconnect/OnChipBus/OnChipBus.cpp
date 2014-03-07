@@ -90,7 +90,7 @@ void OnChipBus::SetConfig( Config *c, bool createChildren )
             ranks[i] = new Rank( );
 
             formatter.str( "" );
-            formatter << statName << ".rank" << i;
+            formatter << StatName( ) << ".rank" << i;
             ranks[i]->StatName( formatter.str( ) );
 
             formatter.str( "" );

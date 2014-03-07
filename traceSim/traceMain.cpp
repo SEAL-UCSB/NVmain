@@ -143,6 +143,7 @@ int main( int argc, char *argv[] )
     simInterface->SetConfig( config, true );
     nvmain->SetConfig( config, "defaultMemory", true );
 
+    nvmain->PrintHierarchy( );
 
     if( config->KeyExists( "TraceReader" ) )
         trace = TraceReaderFactory::CreateNewTraceReader( 

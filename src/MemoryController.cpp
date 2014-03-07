@@ -183,7 +183,7 @@ void MemoryController::SetConfig( Config *conf, bool createChildren )
         memory = InterconnectFactory::CreateInterconnect( conf->GetString( "INTERCONNECT" ) );
 
         confString.str( "" );
-        confString << statName << ".channel" << GetID( );
+        confString << StatName( ) << ".channel" << GetID( );
         memory->StatName( confString.str( ) );
 
         memory->SetParent( this );
@@ -201,7 +201,7 @@ void MemoryController::SetConfig( Config *conf, bool createChildren )
      *  number of devices = bus width / device width
      *  Total channel size is: loglcal bank size * BANKS * RANKS
      */
-    std::cout << statName << " capacity is " << ((p->ROWS * p->COLS * p->DeviceWidth * p->tBURST * p->RATE * (p->BusWidth / p->DeviceWidth) * p->BANKS * p->RANKS) / (8*1024*1024)) << " MB." << std::endl;
+    std::cout << StatName( ) << " capacity is " << ((p->ROWS * p->COLS * p->DeviceWidth * p->tBURST * p->RATE * (p->BusWidth / p->DeviceWidth) * p->BANKS * p->RANKS) / (8*1024*1024)) << " MB." << std::endl;
 
     if( conf->KeyExists( "MATHeight" ) )
     {
