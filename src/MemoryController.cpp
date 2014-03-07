@@ -155,7 +155,13 @@ bool MemoryController::IsIssuable( NVMainRequest * /*request*/, FailReason * /*f
     return true;
 }
 
-void MemoryController::SetConfig( Config *conf )
+void MemoryController::SetMappingScheme( )
+{
+    /* Configure common memory controller parameters. */
+    GetDecoder( )->GetTranslationMethod( )->SetAddressMappingScheme( p->AddressMappingScheme );
+}
+
+void MemoryController::SetConfig( Config *conf, bool createChildren )
 {
     this->config = conf;
 
@@ -163,29 +169,31 @@ void MemoryController::SetConfig( Config *conf )
     params->SetParams( conf );
     SetParams( params );
 
-    /* When selecting a child, use the bank field from the decoder. */
-    AddressTranslator *mcAT = DecoderFactory::CreateDecoderNoWarn( conf->GetString( "Decoder" ) );
-    mcAT->SetTranslationMethod( GetParent( )->GetTrampoline( )->GetDecoder( )->GetTranslationMethod( ) );
-    mcAT->SetDefaultField( NO_FIELD );
-    SetDecoder( mcAT );
+    if( createChildren )
+    {
+        /* When selecting a child, use the bank field from the decoder. */
+        AddressTranslator *mcAT = DecoderFactory::CreateDecoderNoWarn( conf->GetString( "Decoder" ) );
+        mcAT->SetTranslationMethod( GetParent( )->GetTrampoline( )->GetDecoder( )->GetTranslationMethod( ) );
+        mcAT->SetDefaultField( NO_FIELD );
+        SetDecoder( mcAT );
 
-    /* Initialize interconnect */
-    std::stringstream confString;
+        /* Initialize interconnect */
+        std::stringstream confString;
 
-    memory = InterconnectFactory::CreateInterconnect( conf->GetString( "INTERCONNECT" ) );
+        memory = InterconnectFactory::CreateInterconnect( conf->GetString( "INTERCONNECT" ) );
 
-    confString.str( "" );
-    confString << statName << ".channel" << GetID( );
-    memory->StatName( confString.str( ) );
+        confString.str( "" );
+        confString << statName << ".channel" << GetID( );
+        memory->StatName( confString.str( ) );
 
-    memory->SetParent( this );
-    AddChild( memory );
+        memory->SetParent( this );
+        AddChild( memory );
 
-    memory->SetConfig( conf );
-    memory->RegisterStats( );
-    
-    /* Configure common memory controller parameters. */
-    GetDecoder( )->GetTranslationMethod( )->SetAddressMappingScheme( p->AddressMappingScheme );
+        memory->SetConfig( conf, createChildren );
+        memory->RegisterStats( );
+        
+        SetMappingScheme( );
+    }
 
     /*
      *  The logical bank size is: ROWS * COLS * memory word size (in bytes). 

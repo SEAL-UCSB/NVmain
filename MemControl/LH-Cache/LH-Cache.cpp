@@ -104,7 +104,7 @@ LH_Cache::~LH_Cache( )
 {
 }
 
-void LH_Cache::SetConfig( Config *conf )
+void LH_Cache::SetConfig( Config *conf, bool createChildren )
 {
     /* Defaults */
     starvationThreshold = 4;
@@ -147,7 +147,7 @@ void LH_Cache::SetConfig( Config *conf )
         }
     }
 
-    MemoryController::SetConfig( conf );
+    MemoryController::SetConfig( conf, createChildren );
 }
 
 void LH_Cache::RegisterStats( )

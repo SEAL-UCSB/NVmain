@@ -85,7 +85,7 @@ LO_Cache::~LO_Cache( )
 
 }
 
-void LO_Cache::SetConfig( Config *conf )
+void LO_Cache::SetConfig( Config *conf, bool createChildren )
 {
     ncounter_t ranks, banks, rows;
 
@@ -124,7 +124,7 @@ void LO_Cache::SetConfig( Config *conf )
         }
     }
 
-    MemoryController::SetConfig( conf );
+    MemoryController::SetConfig( conf, createChildren );
 
     SetDebugName( "LO-Cache", conf );
 }

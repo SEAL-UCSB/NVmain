@@ -99,7 +99,7 @@ Rank::~Rank( )
     delete [] lastActivate;
 }
 
-void Rank::SetConfig( Config *c )
+void Rank::SetConfig( Config *c, bool createChildren )
 {
     conf = c;
 
@@ -107,13 +107,6 @@ void Rank::SetConfig( Config *c )
     params->SetParams( c );
     SetParams( params );
 
-    /* When selecting a child, use the bank field from the decoder. */
-    AddressTranslator *rankAT = DecoderFactory::CreateDecoderNoWarn( conf->GetString( "Decoder" ) );
-    rankAT->SetTranslationMethod( GetParent( )->GetTrampoline( )->GetDecoder( )->GetTranslationMethod( ) );
-    rankAT->SetDefaultField( BANK_FIELD );
-    SetDecoder( rankAT );
-
-    bankCount = p->BANKS;
     deviceWidth = p->DeviceWidth;
     busWidth = p->BusWidth;
 
@@ -138,31 +131,42 @@ void Rank::SetConfig( Config *c )
         deviceCount++;
     }
 
-    std::cout << "Creating " << bankCount << " banks in all " 
-        << deviceCount << " devices.\n";
+    bankCount = p->BANKS;
 
-    banks = new Bank*[bankCount];
-    
-    for( ncounter_t i = 0; i < bankCount; i++ )
+    if( createChildren )
     {
-        std::stringstream formatter;
+        /* When selecting a child, use the bank field from the decoder. */
+        AddressTranslator *rankAT = DecoderFactory::CreateDecoderNoWarn( conf->GetString( "Decoder" ) );
+        rankAT->SetTranslationMethod( GetParent( )->GetTrampoline( )->GetDecoder( )->GetTranslationMethod( ) );
+        rankAT->SetDefaultField( BANK_FIELD );
+        SetDecoder( rankAT );
 
-        banks[i] = new Bank;
+        std::cout << "Creating " << bankCount << " banks in all " 
+            << deviceCount << " devices.\n";
 
-        formatter << i;
-        banks[i]->SetName( formatter.str( ) );
-        banks[i]->SetId( i );
-        formatter.str( "" );
+        banks = new Bank*[bankCount];
+        
+        for( ncounter_t i = 0; i < bankCount; i++ )
+        {
+            std::stringstream formatter;
 
-        formatter << statName << ".bank" << i;
-        banks[i]->StatName( formatter.str( ) );
+            banks[i] = new Bank;
 
-        banks[i]->SetParent( this );
-        AddChild( banks[i] );
+            formatter << i;
+            banks[i]->SetName( formatter.str( ) );
+            banks[i]->SetId( i );
+            formatter.str( "" );
 
-        /* SetConfig recursively. */
-        banks[i]->SetConfig( c );
-        banks[i]->RegisterStats( );
+            formatter << statName << ".bank" << i;
+            banks[i]->StatName( formatter.str( ) );
+
+            banks[i]->SetParent( this );
+            AddChild( banks[i] );
+
+            /* SetConfig recursively. */
+            banks[i]->SetConfig( c, createChildren );
+            banks[i]->RegisterStats( );
+        }
     }
 
     /* 

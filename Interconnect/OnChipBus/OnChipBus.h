@@ -47,7 +47,7 @@ class OnChipBus : public Interconnect
     OnChipBus( );
     ~OnChipBus( );
 
-    void SetConfig( Config *c );
+    void SetConfig( Config *c, bool createChildren = true );
     void SetParams( Params *params ) { p = params; }
 
     bool IssueCommand( NVMainRequest *mop );

@@ -58,41 +58,44 @@ PredictorDRC::~PredictorDRC( )
 {
 }
 
-void PredictorDRC::SetConfig( Config *conf )
+void PredictorDRC::SetConfig( Config *conf, bool createChildren )
 {
-    /* Initialize access predictor. */
-    if( !conf->KeyExists( "DRCPredictor" ) )
+    if( createChildren )
     {
-        std::cout << "Error: No DRC predictor specified." << std::endl;
+        /* Initialize access predictor. */
+        if( !conf->KeyExists( "DRCPredictor" ) )
+        {
+            std::cout << "Error: No DRC predictor specified." << std::endl;
+        }
+
+        predictor = AccessPredictorFactory::CreateAccessPredictor( conf->GetString( "DRCPredictor" ) );
+        predictor->SetParent( this );
+        SetDecoder( predictor );
+
+        /* Initialize DRAM cache */
+        std::stringstream formatter;
+
+        DRC = new DRAMCache( );
+
+        formatter.str( "" );
+        formatter << this->statName << ".DRC";
+        DRC->StatName( formatter.str() );
+
+        DRC->SetParent( this );
+        AddChild( DRC );
+
+        DRC->SetConfig( conf, createChildren );
+        DRC->RegisterStats( );
+
+        /* Add DRC's backing memory as a child to allow for bypass. */
+        AddChild( DRC->GetMainMemory() );
+
+        /* Set predictor children IDs match our child IDs. */
+        predictor->SetHitDestination( GetChildId(DRC) );
+        predictor->SetMissDestination( GetChildId(DRC->GetMainMemory()) );
     }
 
-    predictor = AccessPredictorFactory::CreateAccessPredictor( conf->GetString( "DRCPredictor" ) );
-    predictor->SetParent( this );
-    SetDecoder( predictor );
-
-    /* Initialize DRAM cache */
-    std::stringstream formatter;
-
-    DRC = new DRAMCache( );
-
-    formatter.str( "" );
-    formatter << this->statName << ".DRC";
-    DRC->StatName( formatter.str() );
-
-    DRC->SetParent( this );
-    AddChild( DRC );
-
-    DRC->SetConfig( conf );
-    DRC->RegisterStats( );
-
-    /* Add DRC's backing memory as a child to allow for bypass. */
-    AddChild( DRC->GetMainMemory() );
-
-    /* Set predictor children IDs match our child IDs. */
-    predictor->SetHitDestination( GetChildId(DRC) );
-    predictor->SetMissDestination( GetChildId(DRC->GetMainMemory()) );
-
-    //MemoryController::SetConfig( conf );
+    //MemoryController::SetConfig( conf, createChildren );
 
     SetDebugName( "PredictorDRC", conf );
 }

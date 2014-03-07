@@ -47,7 +47,7 @@ class Interconnect : public NVMObject
     Interconnect( ) { }
     virtual ~Interconnect( ) { }
 
-    virtual void SetConfig( Config *c ) = 0;
+    virtual void SetConfig( Config *c, bool createChildren = true ) = 0;
 
     void StatName( std::string name ) { statName = name; }
     virtual void RegisterStats( ) { }

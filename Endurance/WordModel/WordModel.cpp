@@ -55,11 +55,11 @@ WordModel::~WordModel( )
      */
 }
 
-void WordModel::SetConfig( Config *conf )
+void WordModel::SetConfig( Config *conf, bool createChildren )
 {
     SetGranularity( conf->GetValue( "BusWidth" ) * 8 );
 
-    EnduranceModel::SetConfig( conf );
+    EnduranceModel::SetConfig( conf, createChildren );
 }
 
 bool WordModel::Write( NVMAddress address, NVMDataBlock /*oldData*/, 

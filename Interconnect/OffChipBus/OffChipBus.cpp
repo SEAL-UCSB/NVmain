@@ -64,10 +64,8 @@ OffChipBus::~OffChipBus( )
     }
 }
 
-void OffChipBus::SetConfig( Config *c )
+void OffChipBus::SetConfig( Config *c, bool createChildren )
 {
-    std::stringstream formatter;
-
     Params *params = new Params( );
     params->SetParams( c );
     SetParams( params );
@@ -75,39 +73,44 @@ void OffChipBus::SetConfig( Config *c )
     conf = c;
     configSet = true;
 
-    /* When selecting a child, use the rank field from the decoder. */
-    AddressTranslator *incAT = DecoderFactory::CreateDecoderNoWarn( c->GetString( "Decoder" ) );
-    TranslationMethod *method = GetParent()->GetTrampoline()->GetDecoder()->GetTranslationMethod();
-    incAT->SetTranslationMethod( method );
-    incAT->SetDefaultField( RANK_FIELD );
-    SetDecoder( incAT );
+    numRanks = p->RANKS;
 
     if( p->OffChipLatency_set )
         offChipDelay = p->OffChipLatency;
     else
         offChipDelay = 10;
 
-    numRanks = p->RANKS;
-
-    ranks = new Rank * [numRanks];
-    for( ncounter_t i = 0; i < numRanks; i++ )
+    if( createChildren )
     {
-        ranks[i] = new Rank( );
+        /* When selecting a child, use the rank field from the decoder. */
+        AddressTranslator *incAT = DecoderFactory::CreateDecoderNoWarn( c->GetString( "Decoder" ) );
+        TranslationMethod *method = GetParent()->GetTrampoline()->GetDecoder()->GetTranslationMethod();
+        incAT->SetTranslationMethod( method );
+        incAT->SetDefaultField( RANK_FIELD );
+        SetDecoder( incAT );
 
-        formatter.str( "" );
-        formatter << statName << ".rank" << i;
-        ranks[i]->StatName( formatter.str( ) );
+        ranks = new Rank * [numRanks];
+        for( ncounter_t i = 0; i < numRanks; i++ )
+        {
+            std::stringstream formatter;
 
-        formatter.str( "" );
-        formatter << i;
-        ranks[i]->SetName( formatter.str( ) );
+            ranks[i] = new Rank( );
 
-        ranks[i]->SetParent( this );
-        AddChild( ranks[i] );
+            formatter.str( "" );
+            formatter << statName << ".rank" << i;
+            ranks[i]->StatName( formatter.str( ) );
 
-        /* SetConfig recursively. */
-        ranks[i]->SetConfig( conf );
-        ranks[i]->RegisterStats( );
+            formatter.str( "" );
+            formatter << i;
+            ranks[i]->SetName( formatter.str( ) );
+
+            ranks[i]->SetParent( this );
+            AddChild( ranks[i] );
+
+            /* SetConfig recursively. */
+            ranks[i]->SetConfig( conf, createChildren );
+            ranks[i]->RegisterStats( );
+        }
     }
 
     SetDebugName( "OffChipBus", c );
