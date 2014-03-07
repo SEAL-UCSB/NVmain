@@ -137,12 +137,13 @@ void DRAMCache::SetConfig( Config *conf, bool createChildren )
             drcChannels[i]->SetMainMemory( mainMemory );
 
             formatter.str( "" );
-            formatter << this->statName << "." << conf->GetString( "DRCVariant" ) << i;
+            formatter << StatName( ) << "." << conf->GetString( "DRCVariant" ) << i;
             drcChannels[i]->SetID( static_cast<int>(i) );
             drcChannels[i]->StatName( formatter.str() ); 
 
             drcChannels[i]->SetParent( this );
             AddChild( drcChannels[i] );
+            AddChild( mainMemory );
 
             drcChannels[i]->SetConfig( conf, createChildren );
             drcChannels[i]->RegisterStats( );

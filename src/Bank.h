@@ -117,7 +117,6 @@ class Bank : public NVMObject
 
     void SetName( std::string );
     void SetId( ncounter_t );
-    void StatName( std::string name ) { statName = name; }
 
     void RegisterStats( );
     void CalculateStats( );
@@ -131,7 +130,6 @@ class Bank : public NVMObject
 
   private:
     Config *conf;
-    std::string statName;
     ncounter_t psInterval;
 
     std::deque<ncounter_t> activeSubArrayQueue;

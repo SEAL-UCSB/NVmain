@@ -96,7 +96,6 @@ class MemoryController : public NVMObject
     virtual bool RequestComplete( NVMainRequest *request );
     virtual bool IsIssuable( NVMainRequest *request, FailReason *fail );
 
-    void StatName( std::string name ) { statName = name; }
     virtual void RegisterStats( );
     virtual void CalculateStats( );
 
@@ -113,7 +112,6 @@ class MemoryController : public NVMObject
   protected:
     Interconnect *memory;
     Config *config;
-    std::string statName;
     ncounter_t psInterval;
 
     std::list<NVMainRequest *> *transactionQueues;

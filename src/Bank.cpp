@@ -163,7 +163,7 @@ void Bank::SetConfig( Config *c, bool createChildren )
             subArrays[i]->SetId( i );
 
             formatter.str( "" );
-            formatter<< statName << ".subarray" << i;
+            formatter<< StatName( ) << ".subarray" << i;
             subArrays[i]->StatName (formatter.str( ) );
 
             subArrays[i]->SetParent( this );

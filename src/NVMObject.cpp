@@ -180,6 +180,11 @@ void NVMObject_hook::ResetStats( )
     trampoline->ResetStats( );
 }
 
+void NVMObject_hook::PrintHierarchy( int depth )
+{
+    trampoline->PrintHierarchy( depth );
+}
+
 void NVMObject_hook::SetStats( Stats *s )
 {
     trampoline->SetStats( s );
@@ -193,6 +198,16 @@ Stats *NVMObject_hook::GetStats( )
 void NVMObject_hook::RegisterStats( )
 {
     trampoline->RegisterStats( );
+}
+
+void NVMObject_hook::StatName( std::string name )
+{
+    trampoline->StatName( name );
+}
+
+std::string NVMObject_hook::StatName( )
+{
+    return trampoline->StatName( );
 }
 
 void NVMObject_hook::Cycle( ncycle_t steps )
@@ -413,6 +428,25 @@ void NVMObject::ResetStats( )
     }
 }
 
+void NVMObject::PrintHierarchy( int depth )
+{
+    std::vector<NVMObject_hook *>::iterator it;
+
+    if( depth > 0 )
+    {
+        std::cout << std::string(depth*2, '-') << " " << StatName( ) << std::endl;
+    }
+    else
+    {
+        std::cout << StatName( ) << std::endl;
+    }
+
+    for( it = children.begin(); it != children.end(); it++ )
+    {
+        (*it)->PrintHierarchy( depth + 1 );
+    }
+}
+
 void NVMObject::SetStats( Stats *s )
 {
     stats = s;
@@ -425,6 +459,16 @@ Stats *NVMObject::GetStats( )
 
 void NVMObject::RegisterStats( )
 {
+}
+
+void NVMObject::StatName( std::string name )
+{
+    statName = name;
+}
+
+std::string NVMObject::StatName( )
+{
+    return statName;
 }
 
 HookType NVMObject::GetHookType( )

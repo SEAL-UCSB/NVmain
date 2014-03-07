@@ -88,9 +88,14 @@ class NVMObject_hook
     void CalculateStats( );
     void ResetStats( );
 
+    void PrintHierarchy( int depth );
+
     void SetStats( Stats* );
     Stats* GetStats( );
     void RegisterStats( );
+
+    void StatName( std::string name );
+    std::string StatName( );
 
     NVMObject *GetTrampoline( );
 
@@ -141,9 +146,14 @@ class NVMObject
     virtual void CalculateStats( );
     virtual void ResetStats( );
 
+    void PrintHierarchy( int depth = 0 );
+
     void SetStats( Stats* );
     Stats* GetStats( );
     virtual void RegisterStats( );
+
+    void StatName( std::string name );
+    std::string StatName( );
 
     HookType GetHookType( );
     void SetHookType( HookType );
@@ -157,6 +167,7 @@ class NVMObject
     NVMObject_hook *parent;
     AddressTranslator *decoder;
     Stats *stats;
+    std::string statName;
     std::vector<NVMObject_hook *> children;
     std::vector<NVMObject *> *hooks;
     EventQueue *eventQueue;

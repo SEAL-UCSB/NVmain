@@ -104,6 +104,8 @@ void NVMain::SetConfig( Config *conf, std::string memoryName, bool createChildre
     params->SetParams( conf );
     SetParams( params );
 
+    StatName( memoryName );
+
     config = conf;
     if( config->GetSimInterface( ) != NULL )
         config->GetSimInterface( )->SetConfig( conf, createChildren );

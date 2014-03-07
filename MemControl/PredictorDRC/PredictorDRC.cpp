@@ -78,7 +78,7 @@ void PredictorDRC::SetConfig( Config *conf, bool createChildren )
         DRC = new DRAMCache( );
 
         formatter.str( "" );
-        formatter << this->statName << ".DRC";
+        formatter << StatName( ) << ".DRC";
         DRC->StatName( formatter.str() );
 
         DRC->SetParent( this );

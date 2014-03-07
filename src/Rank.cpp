@@ -157,7 +157,7 @@ void Rank::SetConfig( Config *c, bool createChildren )
             banks[i]->SetId( i );
             formatter.str( "" );
 
-            formatter << statName << ".bank" << i;
+            formatter << StatName( ) << ".bank" << i;
             banks[i]->StatName( formatter.str( ) );
 
             banks[i]->SetParent( this );
