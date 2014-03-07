@@ -1,10 +1,10 @@
 # HG changeset patch
-# Parent 7e0ba8f1b109c3566dbd03497d4d081f93263c03
+# Parent d70124a5d59403fcc4d7e86cd4e7cf838915493f
 Use IsIssuable and don't call hooks unless true is returned
 
-diff -r 7e0ba8f1b109 configs/common/MemConfig.py
---- a/configs/common/MemConfig.py	Tue Jan 07 15:22:41 2014 -0500
-+++ b/configs/common/MemConfig.py	Mon Jan 13 12:45:21 2014 -0500
+diff -r d70124a5d594 configs/common/MemConfig.py
+--- a/configs/common/MemConfig.py	Tue Nov 26 17:51:07 2013 +0100
++++ b/configs/common/MemConfig.py	Fri Mar 07 16:34:48 2014 -0500
 @@ -54,6 +54,7 @@
      ("lpddr2_s4_1066_x32", "LPDDR2_S4_1066_x32"),
      ("lpddr3_1600_x32", "LPDDR3_1600_x32"),
@@ -13,9 +13,9 @@ diff -r 7e0ba8f1b109 configs/common/MemConfig.py
      ]
  
  # Filtered list of aliases. Only aliases for existing memory
-diff -r 7e0ba8f1b109 configs/common/Options.py
---- a/configs/common/Options.py	Tue Jan 07 15:22:41 2014 -0500
-+++ b/configs/common/Options.py	Mon Jan 13 12:45:21 2014 -0500
+diff -r d70124a5d594 configs/common/Options.py
+--- a/configs/common/Options.py	Tue Nov 26 17:51:07 2013 +0100
++++ b/configs/common/Options.py	Fri Mar 07 16:34:48 2014 -0500
 @@ -198,6 +198,24 @@
          help="""Treat value of --checkpoint-restore or --take-checkpoint as a
                  number of instructions.""")
@@ -41,9 +41,9 @@ diff -r 7e0ba8f1b109 configs/common/Options.py
  def addSEOptions(parser):
      # Benchmark options
      parser.add_option("-c", "--cmd", default="",
-diff -r 7e0ba8f1b109 src/mem/NVMainMemory.py
+diff -r d70124a5d594 src/mem/NVMainMemory.py
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/NVMainMemory.py	Mon Jan 13 12:45:21 2014 -0500
++++ b/src/mem/NVMainMemory.py	Fri Mar 07 16:34:48 2014 -0500
 @@ -0,0 +1,87 @@
 +# Copyright (c) 2012-2013 Pennsylvania State University
 +# All rights reserved.
@@ -132,12 +132,9 @@ diff -r 7e0ba8f1b109 src/mem/NVMainMemory.py
 +                    else:
 +                        config_values = config_values + "," + param_value
 +
-+        self.configparams = config_params
-+        self.configvalues = config_values
-+
-diff -r 7e0ba8f1b109 src/mem/SConscript
---- a/src/mem/SConscript	Tue Jan 07 15:22:41 2014 -0500
-+++ b/src/mem/SConscript	Mon Jan 13 12:45:21 2014 -0500
+diff -r d70124a5d594 src/mem/SConscript
+--- a/src/mem/SConscript	Tue Nov 26 17:51:07 2013 +0100
++++ b/src/mem/SConscript	Fri Mar 07 16:34:48 2014 -0500
 @@ -43,6 +43,7 @@
  SimObject('MemObject.py')
  SimObject('SimpleMemory.py')
@@ -163,10 +160,10 @@ diff -r 7e0ba8f1b109 src/mem/SConscript
  
  DebugFlag('ProtocolTrace')
  DebugFlag('RubyCache')
-diff -r 7e0ba8f1b109 src/mem/nvmain_mem.cc
+diff -r d70124a5d594 src/mem/nvmain_mem.cc
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/nvmain_mem.cc	Mon Jan 13 12:45:21 2014 -0500
-@@ -0,0 +1,738 @@
++++ b/src/mem/nvmain_mem.cc	Fri Mar 07 16:34:48 2014 -0500
+@@ -0,0 +1,740 @@
 +/*
 + * Copyright (c) 2012-2013 Pennsylvania State University
 + * All rights reserved.
@@ -907,9 +904,9 @@ diff -r 7e0ba8f1b109 src/mem/nvmain_mem.cc
 +    return new NVMainMemory(this);
 +}
 +
-diff -r 7e0ba8f1b109 src/mem/nvmain_mem.hh
+diff -r d70124a5d594 src/mem/nvmain_mem.hh
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/nvmain_mem.hh	Mon Jan 13 12:45:21 2014 -0500
++++ b/src/mem/nvmain_mem.hh	Fri Mar 07 16:34:48 2014 -0500
 @@ -0,0 +1,189 @@
 +/*
 + * Copyright (c) 2012-2013 Pennsylvania State University
@@ -1100,4 +1097,3 @@ diff -r 7e0ba8f1b109 src/mem/nvmain_mem.hh
 +};
 +
 +#endif
-+
