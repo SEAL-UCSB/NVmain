@@ -518,6 +518,8 @@ void LO_Cache::CreateCheckpoint( std::string dir )
             }
         }
     }
+
+    NVMObject::CreateCheckpoint( dir );
 }
 
 void LO_Cache::RestoreCheckpoint( std::string dir )
@@ -566,4 +568,6 @@ void LO_Cache::RestoreCheckpoint( std::string dir )
             }
         }
     }
+
+    NVMObject::RestoreCheckpoint( dir );
 }
