@@ -481,7 +481,7 @@ void LO_Cache::CreateCheckpoint( std::string dir )
 
             std::ofstream cpt_handle;
             
-            cpt_handle.open( cpt_file.str(), std::ofstream::out | std::ofstream::trunc | std::ofstream::binary );
+            cpt_handle.open( cpt_file.str().c_str(), std::ofstream::out | std::ofstream::trunc | std::ofstream::binary );
 
             if( !cpt_handle.is_open( ) )
             {
@@ -503,7 +503,7 @@ void LO_Cache::CreateCheckpoint( std::string dir )
             /* Note: For future compatability only at the memory. This is not read during restoration. */
             std::string cpt_info = cpt_file.str() + ".json";
 
-            cpt_handle.open( cpt_info, std::ofstream::out | std::ofstream::trunc | std::ofstream::binary );
+            cpt_handle.open( cpt_info.c_str(), std::ofstream::out | std::ofstream::trunc | std::ofstream::binary );
 
             if( !cpt_handle.is_open() )
             {
@@ -533,7 +533,7 @@ void LO_Cache::RestoreCheckpoint( std::string dir )
 
             std::ifstream cpt_handle;
 
-            cpt_handle.open( cpt_file.str(), std::ifstream::ate | std::ifstream::binary );
+            cpt_handle.open( cpt_file.str().c_str(), std::ifstream::ate | std::ifstream::binary );
 
             if( !cpt_handle.is_open( ) )
             {
@@ -550,7 +550,7 @@ void LO_Cache::RestoreCheckpoint( std::string dir )
                 {
                     cpt_handle.close( );
 
-                    cpt_handle.open( cpt_file.str(), std::ifstream::in | std::ifstream::binary );
+                    cpt_handle.open( cpt_file.str().c_str(), std::ifstream::in | std::ifstream::binary );
 
                     /* Iterate over cache sets, since they may not be allocated contiguously. */
                     for( uint64_t set = 0; set < functionalCache[rankIdx][bankIdx]->numSets; set++ )
