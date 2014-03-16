@@ -44,6 +44,8 @@ class BitModel : public EnduranceModel
     BitModel( );
     ~BitModel( );
 
+    void SetConfig( Config *config );
+
     bool Write( NVMAddress address, NVMDataBlock oldData, 
                 NVMDataBlock newData );
 };

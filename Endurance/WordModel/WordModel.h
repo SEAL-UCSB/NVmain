@@ -44,9 +44,9 @@ class WordModel : public EnduranceModel
     WordModel( );
     ~WordModel( );
 
-    bool Write( NVMAddress address, NVMDataBlock oldData, NVMDataBlock newData );
-
     void SetConfig( Config *conf );
+
+    bool Write( NVMAddress address, NVMDataBlock oldData, NVMDataBlock newData );
 };
 
 };

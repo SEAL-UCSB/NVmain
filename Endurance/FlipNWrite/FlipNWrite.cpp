@@ -65,6 +65,22 @@ FlipNWrite::~FlipNWrite( )
      */
 }
 
+void FlipNWrite::SetConfig( Config *config )
+{
+    Params *params = new Params( );
+    params->SetParams( config );
+    SetParams( params );
+
+    /* Cache granularity size. */
+    fpSize = GetConfig( )->GetValue( "FlipNWriteGranularity" );
+
+    /* Some default size if the parameter is not specified */
+    if( fpSize == -1 )
+        fpSize = 32; 
+
+    EnduranceModel::SetConfig( config );
+}
+
 void FlipNWrite::RegisterStats( )
 {
     AddStat(bitsFlipped);
@@ -78,9 +94,8 @@ void FlipNWrite::InvertData( NVMDataBlock& data, uint64_t startBit, uint64_t end
     uint64_t wordSize;
     int startByte, endByte;
 
-    wordSize = GetConfig( )->GetValue( "BusWidth" );
-    wordSize *= GetConfig( )->GetValue( "tBURST" ) 
-                    * GetConfig( )->GetValue( "RATE" );
+    wordSize = p->BusWidth;
+    wordSize *= p->tBURST * p->RATE;
     wordSize /= 8;
 
     startByte = (int)(startBit / 8);
@@ -142,7 +157,6 @@ bool FlipNWrite::Write( NVMAddress address, NVMDataBlock oldData,
     uint64_t wordSize;
     uint64_t partitionCount;
     uint64_t currentBit;
-    int fpSize;
     uint64_t flipPartitions;
     int *modifyCount;
 
@@ -151,19 +165,12 @@ bool FlipNWrite::Write( NVMAddress address, NVMDataBlock oldData,
     std::vector< NVMAddress > *nonInvertedFaultAddr;
     std::vector< NVMAddress > *invertedFaultAddr;
 
-    MATHeight = GetConfig( )->GetValue( "MATHeight" );
-    rowSize = GetConfig( )->GetValue( "COLS" );
+    MATHeight = p->MATHeight;
+    rowSize = p->COLS;
     
-    wordSize = GetConfig( )->GetValue( "BusWidth" );
-    wordSize *= GetConfig( )->GetValue( "tBURST" ) 
-                    * GetConfig( )->GetValue( "RATE" );
+    wordSize = p->BusWidth;
+    wordSize *= p->tBURST * p->RATE;
     wordSize /= 8;
-
-    fpSize = GetConfig( )->GetValue( "FlipNWriteGranularity" );
-    /* Some default size if the parameter is not specified */
-    if( fpSize == -1 )
-        fpSize = 32; 
-
 
     flipPartitions = ( wordSize * 8 ) / fpSize; 
 

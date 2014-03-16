@@ -45,6 +45,8 @@ class FlipNWrite : public EnduranceModel
     FlipNWrite( );
     ~FlipNWrite( );
 
+    void SetConfig( Config *config );
+
     bool Write( NVMAddress address, NVMDataBlock oldData, NVMDataBlock newData );
 
     void StatName( std::string name ) { statName = name; }
@@ -60,6 +62,7 @@ class FlipNWrite : public EnduranceModel
     uint64_t bitsFlipped;
     uint64_t bitCompareSwapWrites;
     double flipNWriteReduction;
+    int fpSize;
 
     void InvertData( NVMDataBlock &data, uint64_t startBit, uint64_t endBit );
 };

@@ -57,7 +57,11 @@ WordModel::~WordModel( )
 
 void WordModel::SetConfig( Config *conf )
 {
-    SetGranularity( conf->GetValue( "BusWidth" ) * 8 );
+    Params *params = new Params( );
+    params->SetParams( config );
+    SetParams( params );
+
+    SetGranularity( p->BusWidth * 8 );
 
     EnduranceModel::SetConfig( conf );
 }
@@ -93,9 +97,9 @@ bool WordModel::Write( NVMAddress address, NVMDataBlock /*oldData*/,
     uint64_t partitionCount;
     uint64_t MATHeight;
 
-    rowSize = GetConfig( )->GetValue( "COLS" );
-    wordSize = GetConfig( )->GetValue( "BusWidth" );
-    MATHeight = GetConfig( )->GetValue( "MATHeight" );
+    rowSize = p->COLS;
+    wordSize = p->BusWidth;
+    MATHeight = p->MATHeight;
 
     /*
      *  Think of each row being partitioned into 64-bit divisions (or
