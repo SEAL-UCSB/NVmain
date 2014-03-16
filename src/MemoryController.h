@@ -53,6 +53,7 @@ namespace NVM {
 
 
 enum ProcessorOp { LOAD, STORE };
+enum QueueModel { PerRankQueues, PerBankQueues, PerSubArrayQueues };
 
 class SchedulingPredicate
 {
@@ -125,7 +126,11 @@ class MemoryController : public NVMObject
     ncounter_t psInterval;
 
     std::list<NVMainRequest *> *transactionQueues;
-    std::deque<NVMainRequest *> **bankQueues;
+    std::deque<NVMainRequest *> *commandQueues;
+    ncounter_t commandQueueCount;
+    QueueModel queueModel;
+
+    ncounter_t GetCommandQueueId( NVMAddress addr );
 
     bool **activateQueued;
     ncounter_t ***effectiveRow;
@@ -176,10 +181,10 @@ class MemoryController : public NVMObject
     bool FindClosedBankRequests( std::list<NVMainRequest *>& transactionQueue, std::vector<NVMainRequest *>& closedRequests, NVM::SchedulingPredicate& p  );
     /* IsLastRequest() tells whether no other request has the row buffer hit in the transaction queue */
     virtual bool IsLastRequest( std::list<NVMainRequest *>& transactionQueue, NVMainRequest *request); 
-    /* curRank and curBank record the starting rank (bank) index for the rank-(bank-) level scheduling */
-    ncounter_t curRank, curBank; 
-    /* MoveRankBank() increment the curRank and/or curBank according to the scheduling scheme */
-    void MoveRankBank(); 
+    /* curQueue records the starting index for queue round-robin level scheduling */
+    ncounter_t curQueue;
+    /* MoveCurrentQueue() increment curQueue */
+    void MoveCurrentQueue( ); 
     /* record how many refresh should be handled */
     ncounter_t **delayedRefreshCounter; 
 

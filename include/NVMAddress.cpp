@@ -38,12 +38,19 @@ using namespace NVM;
 NVMAddress::NVMAddress( )
 {
     translated = false;
+    hasPhysicalAddress = false;
     physicalAddress = 0;
     subarray = row = col = bank = rank = channel = 0;
 }
 
 NVMAddress::~NVMAddress( )
 {
+}
+
+NVMAddress::NVMAddress( uint64_t addrRow, uint64_t addrCol, uint64_t addrBank,
+                        uint64_t addrRank, uint64_t addrChannel, uint64_t addrSA )
+{
+    SetTranslatedAddress( addrRow, addrCol, addrBank, addrRank, addrChannel, addrSA );
 }
 
 void NVMAddress::SetTranslatedAddress( uint64_t addrRow, uint64_t addrCol, uint64_t addrBank, 
@@ -60,6 +67,7 @@ void NVMAddress::SetTranslatedAddress( uint64_t addrRow, uint64_t addrCol, uint6
 
 void NVMAddress::SetPhysicalAddress( uint64_t pAddress )
 {
+    hasPhysicalAddress = true;
     physicalAddress = pAddress;
 }
 
@@ -114,7 +122,7 @@ uint64_t NVMAddress::GetChannel( )
     return channel;
 }
 
-uint64_t NVMAddress::GetSubarray( )
+uint64_t NVMAddress::GetSubArray( )
 {
     return subarray;
 }
@@ -124,9 +132,15 @@ bool NVMAddress::IsTranslated( )
     return translated;
 }
 
+bool NVMAddress::HasPhysicalAddress( )
+{
+    return hasPhysicalAddress;
+}
+
 NVMAddress& NVMAddress::operator=( const NVMAddress& m )
 {
     translated = m.translated;
+    hasPhysicalAddress = m.hasPhysicalAddress;
     physicalAddress = m.physicalAddress;
     row = m.row;
     col = m.col;
