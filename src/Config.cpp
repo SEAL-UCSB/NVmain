@@ -38,6 +38,7 @@
 #include <cstring>
 #include <cstdlib>
 #include <assert.h>
+#include <limits>
 #include "src/Config.h"
 
 using namespace NVM;
@@ -194,6 +195,21 @@ bool Config::KeyExists( std::string key )
 }
 
 
+void Config::GetString( std::string key, std::string& value )
+{
+    if( !KeyExists( key ) && !warned.count( key ) )
+    {   
+        std::cout << "Config: Warning: Key " << key << " is not set. Using '" << value 
+                  << "' as the default. Please configure this value if this is wrong." << std::endl;
+        warned.insert( key );
+    }
+    else if( KeyExists( key ) )
+    {
+        value = GetString( key );
+    }
+}
+
+
 std::string Config::GetString( std::string key )
 {
     std::map<std::string, std::string>::iterator i;
@@ -233,6 +249,68 @@ std::string Config::GetString( std::string key )
 void Config::SetString( std::string key, std::string value )
 {
     values.insert( std::pair<std::string, std::string>( key, value ) );
+}
+
+void Config::GetValueUL( std::string key, uint64_t& value )
+{
+    if( !KeyExists( key ) && !warned.count( key ) )
+    {
+        std::cout << "Config: Warning: Key " << key << " is not set. Using '" << value
+                  << "' as the default. Please configure this value if this is wrong." << std::endl;
+        warned.insert( key );
+    }
+    else if( KeyExists( key ) )
+    {
+        value = GetValueUL( key );
+    }
+}
+
+uint64_t Config::GetValueUL( std::string key )
+{
+    std::map<std::string, std::string>::iterator i;
+    uint64_t value;
+
+    if( values.empty( ) )
+    {
+        std::cerr << "Configuration has not been read yet." << std::endl;
+        return std::numeric_limits<uint64_t>::max( );
+    }
+
+    i = values.find( key );
+
+    if( !KeyExists( key ) && !warned.count( key ) )
+    {
+        std::cout << "Config: Warning: Key " << key << " is not set. Using '-1' as the default. Please configure this value if this is wrong." << std::endl;
+        warned.insert( key );
+    }
+
+    /*
+     *  Find returns map::end if the element is not found. We will use -1 as
+     *  the error code. Functions calling this function should check for -1
+     *  for possible configuration file problems.
+     *
+     *  If the key is found, return the second element (the key value).
+     */
+    if( i == values.end( ) )
+        value = std::numeric_limits<uint64_t>::max( );
+    else
+        value = strtoul( i->second.c_str( ), NULL, 10 );
+
+    return value;
+}
+
+void Config::GetValue( std::string key, int& value )
+{
+    if( !KeyExists( key ) && !warned.count( key ) )
+    {
+        std::cout << "Config: Warning: Key " << key << " is not set. Using '" << value
+                  << "' as the default. Please configure this value if this is wrong." << std::endl;
+        warned.insert( key );
+    }
+    else if( KeyExists( key ) )
+    {
+        value = GetValue( key );
+    }
 }
 
 int Config::GetValue( std::string key )
@@ -281,6 +359,20 @@ void Config::SetValue( std::string key, std::string value )
     values.insert( std::pair<std::string, std::string>( key, value ) );
 }
 
+void Config::GetEnergy( std::string key, double& value )
+{
+    if( !KeyExists( key ) && !warned.count( key ) )
+    {
+        std::cout << "Config: Warning: Key " << key << " is not set. Using '" << value
+                  << "' as the default. Please configure this value if this is wrong." << std::endl;
+        warned.insert( key );
+    }
+    else if( KeyExists( key ) )
+    {
+        value = GetEnergy( key );
+    }
+}
+
 double Config::GetEnergy( std::string key )
 {
     std::map<std::string, std::string>::iterator i;
@@ -318,6 +410,21 @@ double Config::GetEnergy( std::string key )
 void Config::SetEnergy( std::string key, std::string energy )
 {
     values.insert( std::pair<std::string, std::string>( key, energy ) );
+}
+
+void Config::GetBool( std::string key, bool& value )
+{
+    if( !KeyExists( key ) && !warned.count( key ) )
+    {
+        std::string defaultValue = (value ? "true" : "false");
+        std::cout << "Config: Warning: Key " << key << " is not set. Using '" << defaultValue
+                  << "' as the default. Please configure this value if this is wrong." << std::endl;
+        warned.insert( key );
+    }
+    else if( KeyExists( key ) )
+    {
+        value = GetBool( key );
+    }
 }
 
 bool Config::GetBool( std::string key )

@@ -89,23 +89,16 @@ class Params
     double Epdps;
     double Voltage;
 
-    unsigned int Rtt_nom;
-    unsigned int Rtt_wr;
-    unsigned int Rtt_cont;
+    int Rtt_nom;
+    int Rtt_wr;
+    int Rtt_cont;
     double Vddq;
     double Vssq;
-    bool Rtt_nom_set;
-    bool Rtt_wr_set;
-    bool Rtt_cont_set;
-    bool Vddq_set;
-    bool Vssq_set;
 
-    unsigned int RanksPerDIMM;
-    bool RanksPerDIMM_set;
+    int RanksPerDIMM;
 
     std::string EnduranceModel;
     std::string EnergyModel;
-    bool EnergyModel_set;
 
     bool UseLowPower;
     std::string PowerDownMode;
@@ -113,7 +106,6 @@ class Params
 
     bool PrintGraphs;
     bool PrintAllDevices;
-    bool PrintAllDevices_set;
     bool PrintConfig;
 
     bool PrintPreTrace;
@@ -121,26 +113,20 @@ class Params
 
     ncounter_t RefreshRows;
     bool UseRefresh;
-    bool UseRefresh_set;
     bool StaggerRefresh;
-    bool StaggerRefresh_set;
 
     ncounter_t OffChipLatency;
-    bool OffChipLatency_set;
 
     ncounter_t PeriodicStatsInterval;
-    bool PeriodicStatsInterval_set;
 
     ncounter_t ROWS;
-    ncounter_t RBSize;
-    bool RBSize_set;
     ncounter_t COLS;
     ncounter_t CHANNELS;
     ncounter_t RANKS;
     ncounter_t BANKS;
     ncounter_t RAW;
     ncounter_t MATHeight;
-    bool MATHeight_set;
+    ncounter_t RBSize;
 
     ncycle_t tAL;
     ncycle_t tBURST;
@@ -168,17 +154,15 @@ class Params
     ncycle_t tXS;
     ncycle_t tXSDLL;
 
-    bool tWP_set;
-
     ncycle_t tRDPDEN; // interval between Read/ReadA and PowerDown
     ncycle_t tWRPDEN; // interval between Write and PowerDown
     ncycle_t tWRAPDEN; // interval between WriteA and PowerDown
     ncycle_t ClosePage; // enable close-page management policy
-    unsigned ScheduleScheme; // command scheduling policy 
-    unsigned HighWaterMark; // write drain high watermark
-    unsigned LowWaterMark; // write drain low watermark
-    unsigned BanksPerRefresh; // the number of banks in a refresh (in lockstep)
-    unsigned DelayedRefreshThreshold; // the threshold that indicates how many refresh can be delayed
+    int ScheduleScheme; // command scheduling policy 
+    int HighWaterMark; // write drain high watermark
+    int LowWaterMark; // write drain low watermark
+    ncounter_t BanksPerRefresh; // the number of banks in a refresh (in lockstep)
+    ncounter_t DelayedRefreshThreshold; // the threshold that indicates how many refresh can be delayed
     std::string AddressMappingScheme; // the address mapping scheme
 
     ProgramMode programMode;
@@ -199,7 +183,7 @@ class Params
     ncycle_t nWP11;
 
     /* 2-level MLC variance (01 and 10 only). */
-    ncycle_t nWPVar;
+    ncycle_t WPMaxVariance;
 
     /* Configurable deadlock timer. */
     ncycle_t DeadlockTimer;
@@ -209,6 +193,7 @@ class Params
     std::set<std::string> debugClasses;
 
   private:
+    void ConvertTiming( Config *conf, std::string param, ncycle_t& value );
     ncycle_t ConvertTiming( Config *conf, std::string param );
 };
 

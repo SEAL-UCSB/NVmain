@@ -75,10 +75,7 @@ void OffChipBus::SetConfig( Config *c )
     conf = c;
     configSet = true;
 
-    if( p->OffChipLatency_set )
-        offChipDelay = p->OffChipLatency;
-    else
-        offChipDelay = 10;
+    offChipDelay = p->OffChipLatency;
 
     numRanks = p->RANKS;
 
@@ -251,47 +248,14 @@ double OffChipBus::CalculateIOPower( bool isRead, unsigned int bitValue )
 
     Pdq = 0.0f;
 
-    if( p->Rtt_nom_set && p->Rtt_wr_set && p->Rtt_cont_set && p->Vddq_set && p->Vssq_set )
-    {
-        Rtt_nom  = p->Rtt_nom;
-        Rtt_wr   = p->Rtt_wr;
-        Rtt_cont = p->Rtt_cont;
+    Rtt_nom  = p->Rtt_nom;
+    Rtt_wr   = p->Rtt_wr;
+    Rtt_cont = p->Rtt_cont;
 
-        VDDQ = p->Vddq;
-        VSSQ = p->Vssq;
-    }
-    else
-    {
-        /* 
-         * Default to 30 ohms for read. This means 60 ohms for 
-         * pull up and pull down. 
-         */
-        Rtt_nom  = 30; 
-        /*
-         * Default to 120 ohms for write. This means 240 ohms for 
-         * pull up and pull down. 
-         */
-        Rtt_wr   = 60; 
-        /* 
-         * Default to 75 ohms for termination at the controller. 
-         * This means 150 ohms for pull up and pull down. 
-         */
-        Rtt_cont = 75; 
+    VDDQ = p->Vddq;
+    VSSQ = p->Vssq;
 
-        /* Default 1.5 Volts */
-        VDDQ = 1.5; 
-        /* Default 0 Volts */
-        VSSQ = 0.0; 
-    }
-
-    if( p->RanksPerDIMM_set )
-    {
-        ranksPerDimm = p->RanksPerDIMM;
-    }
-    else
-    {
-        ranksPerDimm = 1;
-    }
+    ranksPerDimm = p->RanksPerDIMM;
 
     if( ranksPerDimm == 1 )
     {

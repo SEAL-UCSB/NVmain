@@ -45,46 +45,145 @@ using namespace NVM;
 
 Params::Params( )
 {
-    PrintAllDevices_set = false;
-    EnergyModel_set = false;
-    UseRefresh_set = false;
-    StaggerRefresh_set = false;
-    OffChipLatency_set = false;
-    PeriodicStatsInterval_set = false;
-    Rtt_nom_set = false;
-    Rtt_wr_set = false;
-    Rtt_cont_set = false;
-    Vddq_set = false;
-    Vssq_set = false;
-    MATHeight_set = false;
-    RBSize_set = false;
-    tWP_set = false;
+    BPC = 8;
+    BusWidth = 64;
+    DeviceWidth = 8;
+    CLK = 666;
+    MULT = 4;
+    RATE = 2;
+    CPUFreq = 2000;
 
-    /* Defaults */
-    PrintPreTrace = false;
-    EchoPreTrace = false;
+    EIDD0 = 85;
+    EIDD1 = 54;
+    EIDD2P0 = 30;
+    EIDD2P1 = 30;
+    EIDD2N = 37;
+    EIDD3P = 35;
+    EIDD3N = 40;
+    EIDD4R = 160;
+    EIDD4W = 165;
+    EIDD5B = 200;
+    EIDD6 = 12;
+    // TODO: Update these
+    Eclosed = 0.0;
+    Eopen = 0.0;
+    Eopenrd = 0.001616;
+    Erd = 0.0812;
+    Eref = 0;
+    Ewr = 1.684811;
+    Eleak = 3120.202;
+    Epda = 0.0;
+    Epdpf = 0.0;
+    Epdps = 0.0;
+    Voltage = 1.5;
+
+    /* 
+     * Default to 30 ohms for read. This means 60 ohms for 
+     * pull up and pull down. 
+     */
+    Rtt_nom  = 30; 
+    /*
+     * Default to 120 ohms for write. This means 240 ohms for 
+     * pull up and pull down. 
+     */
+    Rtt_wr   = 60; 
+    /* 
+     * Default to 75 ohms for termination at the controller. 
+     * This means 150 ohms for pull up and pull down. 
+     */
+    Rtt_cont = 75; 
+
+    /* Default 1.5 Volts */
+    Vddq = 1.5; 
+    /* Default 0 Volts */
+    Vssq = 0.0; 
+
+    RanksPerDIMM = 1;
+
+    EnduranceModel = "NullModel";
+    EnergyModel = "current";
+
+    UseLowPower = true;
+    PowerDownMode = "FASTEXIT";
+    InitPD = false;
+
+    PrintGraphs = false;
+    PrintAllDevices = false;
     PrintConfig = false;
 
+    PrintPreTrace = false;
+    EchoPreTrace = false;
+
+    RefreshRows = 4;
+    UseRefresh = true;
     StaggerRefresh = false;
 
-    ROWS = 32768;
+    OffChipLatency = 10;
 
+    PeriodicStatsInterval = 0;
+
+    ROWS = 65536;
+    COLS = 32;
+    CHANNELS = 2;
+    RANKS = 2;
+    BANKS = 8;
+    RAW = 4;
+    MATHeight = ROWS;
+    RBSize = COLS;
+
+    tAL = 0;
+    tBURST = 4;
+    tCAS = 10;
+    tCCD = 4;
+    tCMD = 1;
+    tCWD = 7;
+    tRAW = 20;
+    tOST = 1;
+    tPD = 6;
+    tRAS = 24;
+    tRCD = 9;
+    tREFW = 42666667;
+    tRFC = 107;
+    tRP = 9;
+    tRRDR = 5;
+    tRRDW = 5;
+    tRTP = 5;
+    tRTRS = 1;
     tWP = 0;
+    tWR = 10;
+    tWTR = 5;
+    tXP = 6;
+    tXPDLL = 17;
+    tXS = 5;
+    tXSDLL = 512;
 
-    /* MLC params. */
-    UniformWrites = true; // Disable MLC by default
+    tRDPDEN = 24;
+    tWRPDEN = 19;
+    tWRAPDEN = 22;
+    ClosePage = 1;
+    ScheduleScheme = 1;
+    HighWaterMark = 32;
+    LowWaterMark = 16;
+    BanksPerRefresh = BANKS;
+    DelayedRefreshThreshold = 1;
+    AddressMappingScheme = "R:SA:RK:BK:CH:C";
+
     programMode = ProgramMode_SRMS;
     MLCLevels = 1;
     WPVariance = 1;
-    Ereset = 0.3;
-    Eset = 0.2;
-    tWP0 = 100;
-    tWP1 = 50;
+    UniformWrites = true; // Disable MLC by default
+
+    Ereset = 0.054331;
+    Eset = 0.101581;
+    tWP0 = 40;
+    tWP1 = 60;
+
     nWP00 = 0;
     nWP01 = 7;
     nWP10 = 5;
     nWP11 = 1;
-    nWPVar = 2;
+
+    WPMaxVariance = 2;
 
     DeadlockTimer = 10000000;
 
@@ -94,6 +193,14 @@ Params::Params( )
 
 Params::~Params( )
 {
+}
+
+void Params::ConvertTiming( Config *conf, std::string param, ncycle_t& value )
+{
+    if( conf->KeyExists( param ) )
+    {
+        value = ConvertTiming( conf, param );
+    }
 }
 
 ncycle_t Params::ConvertTiming( Config *conf, std::string param )
@@ -133,132 +240,113 @@ ncycle_t Params::ConvertTiming( Config *conf, std::string param )
 /* This can be called whenever timings change. (Will not update the "next" vars) */
 void Params::SetParams( Config *c )
 {
-    BPC = c->GetValue( "BPC" );
-    BusWidth = c->GetValue( "BusWidth" );
-    DeviceWidth = c->GetValue( "DeviceWidth" );
-    CLK = c->GetValue( "CLK" );
-    MULT = c->GetValue( "MULT" );
-    RATE = c->GetValue( "RATE" );
-    CPUFreq = c->GetValue( "CPUFreq" );
+    c->GetValueUL( "BPC", BPC );
+    c->GetValueUL( "BusWidth", BusWidth );
+    c->GetValueUL( "DeviceWidth", DeviceWidth );
+    c->GetValueUL( "CLK", CLK );
+    c->GetValueUL( "MULT", MULT );
+    c->GetValueUL( "RATE", RATE );
+    c->GetValueUL( "CPUFreq", CPUFreq );
 
-    EIDD0 = c->GetEnergy( "EIDD0" );
-    EIDD2P0 = c->GetEnergy( "EIDD2P0" );
-    EIDD2P1 = c->GetEnergy( "EIDD2P1" );
-    EIDD2N = c->GetEnergy( "EIDD2N" );
-    EIDD3P = c->GetEnergy( "EIDD3P" );
-    EIDD3N = c->GetEnergy( "EIDD3N" );
-    EIDD4R = c->GetEnergy( "EIDD4R" );
-    EIDD4W = c->GetEnergy( "EIDD4W" );
-    EIDD5B = c->GetEnergy( "EIDD5B" );
-    EIDD6 = c->GetEnergy( "EIDD6" );
-    Eclosed = c->GetEnergy( "Eclosed" );
-    Eopen = c->GetEnergy( "Eopen" );
-    Eopenrd = c->GetEnergy( "Eopenrd" );
-    Erd = c->GetEnergy( "Erd" );
-    Eref = c->GetEnergy( "Eref" );
-    Ewr = c->GetEnergy( "Ewr" );
-    Eleak = c->GetEnergy( "Eleak" );
-    Epda = c->GetEnergy( "Epda" );
-    Epdpf = c->GetEnergy( "Epdpf" );
-    Epdps = c->GetEnergy( "Epdps" );
-    Voltage = c->GetEnergy( "Voltage" );
+    c->GetEnergy( "EIDD0", EIDD0 );
+    c->GetEnergy( "EIDD1", EIDD1 );
+    c->GetEnergy( "EIDD2P0", EIDD2P0 );
+    c->GetEnergy( "EIDD2P1", EIDD2P1 );
+    c->GetEnergy( "EIDD2N", EIDD2N );
+    c->GetEnergy( "EIDD3P", EIDD3P );
+    c->GetEnergy( "EIDD3N", EIDD3N );
+    c->GetEnergy( "EIDD4R", EIDD4R );
+    c->GetEnergy( "EIDD4W", EIDD4W );
+    c->GetEnergy( "EIDD5B", EIDD5B );
+    c->GetEnergy( "EIDD6", EIDD6 );
+    c->GetEnergy( "Eclosed", Eclosed );
+    c->GetEnergy( "Eopen", Eopen );
+    c->GetEnergy( "Eopenrd", Eopenrd );
+    c->GetEnergy( "Erd", Erd );
+    c->GetEnergy( "Eref", Eref );
+    c->GetEnergy( "Ewr", Ewr );
+    c->GetEnergy( "Eleak", Eleak );
+    c->GetEnergy( "Epda", Epda );
+    c->GetEnergy( "Epdpf", Epdpf );
+    c->GetEnergy( "Epdps", Epdps );
+    c->GetEnergy( "Voltage", Voltage );
 
-    Rtt_nom = (unsigned int)c->GetValue( "Rtt_nom" );
-    Rtt_wr = (unsigned int)c->GetValue( "Rtt_wr" );
-    Rtt_cont = (unsigned int)c->GetValue( "Rtt_cont" );
-    Vddq = c->GetEnergy( "VDDQ" );
-    Vssq = c->GetEnergy( "VSSQ" );
-    Rtt_nom_set = c->KeyExists( "Rtt_nom" );
-    Rtt_wr_set = c->KeyExists( "Rtt_wr" );
-    Rtt_cont_set = c->KeyExists( "Rtt_cont" );
-    Vddq_set = c->KeyExists( "VDDQ" );
-    Vssq_set = c->KeyExists( "VSSQ" );
+    c->GetValue( "Rtt_nom", Rtt_nom );
+    c->GetValue( "Rtt_wr", Rtt_wr );
+    c->GetValue( "Rtt_cont", Rtt_cont );
+    c->GetEnergy( "VDDQ", Vddq );
+    c->GetEnergy( "VSSQ", Vssq );
 
-    RanksPerDIMM = (unsigned int)c->GetValue( "RanksPerDIMM" );
-    RanksPerDIMM_set = c->KeyExists( "RanksPerDIMM" );
+    c->GetValue( "RanksPerDIMM", RanksPerDIMM );
 
-    EnduranceModel = c->GetString( "EnduranceModel" );
-    EnergyModel = c->GetString( "EnergyModel" );
-    EnergyModel_set = c->KeyExists( "EnergyModel" );
+    c->GetString( "EnduranceModel", EnduranceModel );
+    c->GetString( "EnergyModel", EnergyModel );
 
-    UseLowPower = ( c->GetString( "UseLowPower" ) == "true" );
-    PowerDownMode = c->GetString( "PowerDownMode" );
-    InitPD = ( c->GetString( "InitPD" ) == "true" );
+    c->GetBool( "UseLowPower", UseLowPower );
+    c->GetString( "PowerDownMode", PowerDownMode );
+    c->GetBool( "InitPD", InitPD );
 
-    PrintGraphs = ( c->GetString( "PrintGraphs" ) == "true" );
-    PrintAllDevices = ( c->GetString( "PrintAllDevices" ) == "true" );
-    PrintAllDevices_set = c->KeyExists( "PrintAllDevices" );
-    PrintConfig = ( c->GetString( "PrintConfig" ) == "true" );
+    c->GetBool( "PrintGraphs", PrintGraphs );
+    c->GetBool( "PrintAllDevices", PrintAllDevices );
+    c->GetBool( "PrintConfig", PrintConfig );
 
-    PrintPreTrace = ( c->GetString( "PrintPreTrace" ) == "true" );
-    EchoPreTrace = ( c->GetString( "EchoPreTrace" ) == "true" );
+    c->GetBool( "PrintPreTrace", PrintPreTrace );
+    c->GetBool( "EchoPreTrace", EchoPreTrace );
 
-    RefreshRows = c->GetValue( "RefreshRows" );
-    UseRefresh = ( c->GetString( "UseRefresh" ) == "true" );
-    UseRefresh_set = ( c->KeyExists( "UseRefresh" ) );
-    StaggerRefresh = ( c->GetString( "StaggerRefresh" ) == "true" );
-    StaggerRefresh_set = ( c->KeyExists( "StaggerRefresh" ) );
+    c->GetValueUL( "RefreshRows", RefreshRows );
+    c->GetBool( "UseRefresh", UseRefresh );
+    c->GetBool( "StaggerRefresh", StaggerRefresh );
 
-    OffChipLatency = c->GetValue( "OffChipLatency" );
-    OffChipLatency_set = c->KeyExists( "OffChipLatency" );
+    c->GetValueUL( "OffChipLatency", OffChipLatency );
 
-    PeriodicStatsInterval = c->GetValue( "PeriodicStatsInterval" );
-    PeriodicStatsInterval_set = c->KeyExists( "PeriodicStatsInterval" );
+    c->GetValueUL( "PeriodicStatsInterval", PeriodicStatsInterval );
 
-    ROWS = c->GetValue( "ROWS" );
-    COLS = c->GetValue( "COLS" );
-    CHANNELS = c->GetValue( "CHANNELS" );
-    RANKS = c->GetValue( "RANKS" );
-    BANKS = c->GetValue( "BANKS" );
-    RAW = c->GetValue( "RAW" );
-    MATHeight = c->GetValue( "MATHeight" );
-    MATHeight_set = c->KeyExists( "MATHeight" );
-    RBSize = c->GetValue( "RBSize" );
-    RBSize_set = c->KeyExists( "RBSize" );
+    c->GetValueUL( "ROWS", ROWS );
+    c->GetValueUL( "COLS", COLS );
+    c->GetValueUL( "CHANNELS", CHANNELS );
+    c->GetValueUL( "RANKS", RANKS );
+    c->GetValueUL( "BANKS", BANKS );
+    c->GetValueUL( "RAW", RAW );
+    c->GetValueUL( "MATHeight", MATHeight );
+    c->GetValueUL( "RBSize", RBSize );
 
-    tAL = ConvertTiming( c, "tAL" );
-    tBURST = ConvertTiming( c, "tBURST" );
-    tCAS = ConvertTiming( c, "tCAS" );
-    tCCD = ConvertTiming( c, "tCCD" );
-    tCMD = ConvertTiming( c, "tCMD" );
-    tCWD = ConvertTiming( c, "tCWD" );
-    tRAW = ConvertTiming( c, "tRAW" );
-    tOST = ConvertTiming( c, "tOST" );
-    tPD = ConvertTiming( c, "tPD" );
-    tRAS = ConvertTiming( c, "tRAS" );
-    tRCD = ConvertTiming( c, "tRCD" );
-    tREFW = ConvertTiming( c, "tREFW" );
-    tRFC = ConvertTiming( c, "tRFC" );
-    tRP = ConvertTiming( c, "tRP" );
-    tRRDR = ConvertTiming( c, "tRRDR" );
-    tRRDW = ConvertTiming( c, "tRRDW" );
-    tRTP = ConvertTiming( c, "tRTP" );
-    tRTRS = ConvertTiming( c, "tRTRS" );
-    if( c->KeyExists( "tWP" ) ) { tWP = ConvertTiming( c, "tWP" ); tWP_set = true; }
-    tWR = ConvertTiming( c, "tWR" );
-    tWTR = ConvertTiming( c, "tWTR" );
-    tXP = ConvertTiming( c, "tXP" );
-    tXPDLL = ConvertTiming( c, "tXPDLL" );
-    tXS = ConvertTiming( c, "tXS" );
-    tXSDLL = ConvertTiming( c, "tXSDLL" );
-    tWP0 = ConvertTiming( c, "tWP0" );
-    tWP1 = ConvertTiming( c, "tWP1" );
+    ConvertTiming( c, "tAL", tAL );
+    ConvertTiming( c, "tBURST", tBURST );
+    ConvertTiming( c, "tCAS", tCAS );
+    ConvertTiming( c, "tCCD", tCCD );
+    ConvertTiming( c, "tCMD", tCMD );
+    ConvertTiming( c, "tCWD", tCWD );
+    ConvertTiming( c, "tRAW", tRAW );
+    ConvertTiming( c, "tOST", tOST );
+    ConvertTiming( c, "tPD", tPD );
+    ConvertTiming( c, "tRAS", tRAS );
+    ConvertTiming( c, "tRCD", tRCD );
+    ConvertTiming( c, "tREFW", tREFW );
+    ConvertTiming( c, "tRFC", tRFC );
+    ConvertTiming( c, "tRP", tRP );
+    ConvertTiming( c, "tRRDR", tRRDR );
+    ConvertTiming( c, "tRRDW", tRRDW );
+    ConvertTiming( c, "tRTP", tRTP );
+    ConvertTiming( c, "tRTRS", tRTRS );
+    ConvertTiming( c, "tWP", tWP );
+    ConvertTiming( c, "tWR", tWR );
+    ConvertTiming( c, "tWTR", tWTR );
+    ConvertTiming( c, "tXP", tXP );
+    ConvertTiming( c, "tXPDLL", tXPDLL );
+    ConvertTiming( c, "tXS", tXS );
+    ConvertTiming( c, "tXSDLL", tXSDLL );
 
-    tRDPDEN = c->GetValue( "tRDPDEN" );
-    tWRPDEN = c->GetValue( "tWRPDEN" );
-    tWRAPDEN = c->GetValue( "tWRAPDEN" );
-    ClosePage = c->GetValue( "ClosePage" );
-    ScheduleScheme = c->GetValue ( "ScheduleScheme" );
-    HighWaterMark = c->GetValue ( "HighWaterMark" );
-    LowWaterMark = c->GetValue ( "LowWaterMark" );
-    BanksPerRefresh = c->GetValue ( "BanksPerRefresh" );
-    DelayedRefreshThreshold = c->GetValue ( "DelayedRefreshThreshold" );
-    AddressMappingScheme = c->GetString ( "AddressMappingScheme" );
+    c->GetValueUL( "tRDPDEN", tRDPDEN );
+    c->GetValueUL( "tWRPDEN", tWRPDEN );
+    c->GetValueUL( "tWRAPDEN", tWRAPDEN );
+    c->GetValueUL( "ClosePage", ClosePage );
+    c->GetValue( "ScheduleScheme", ScheduleScheme );
+    c->GetValue( "HighWaterMark", HighWaterMark );
+    c->GetValue( "LowWaterMark", LowWaterMark );
+    c->GetValueUL( "BanksPerRefresh", BanksPerRefresh );
+    c->GetValueUL( "DelayedRefreshThreshold", DelayedRefreshThreshold );
+    c->GetString( "AddressMappingScheme", AddressMappingScheme );
 
-    if( c->KeyExists( "MLCLevels" ) ) MLCLevels = c->GetValue( "MLCLevels" );
-    if( c->KeyExists( "WPVariance" ) ) WPVariance = c->GetValue( "WPVariance" );
-    if( c->KeyExists( "UniformWrites" ) && c->GetString( "UniformWrites" ) == "false" )
-        UniformWrites = false;
     if( c->KeyExists( "ProgramMode" ) )
     {
         if( c->GetString( "ProgramMode" ) == "SRMS" )
@@ -269,20 +357,25 @@ void Params::SetParams( Config *c )
             std::cout << "Unknown ProgramMode: " << c->GetString( "ProgramMode" )
                       << ". Defaulting to SRMS" << std::endl;
     }
+    c->GetValueUL( "MLCLevels", MLCLevels );
+    c->GetValueUL( "WPVariance",  WPVariance );
+    c->GetBool( "UniformWrites", UniformWrites );
 
-    if( c->KeyExists( "Ereset" ) ) Ereset = c->GetEnergy( "Ereset" );
-    if( c->KeyExists( "Eset" ) )   Eset = c->GetEnergy( "Eset" );
+    c->GetEnergy( "Ereset", Ereset );
+    c->GetEnergy( "Eset", Eset );
+    ConvertTiming( c, "tWP0", tWP0 );
+    ConvertTiming( c, "tWP1", tWP1 );
 
-    if( c->KeyExists( "nWP00" ) ) nWP00 = c->GetValue( "nWP00" );
-    if( c->KeyExists( "nWP01" ) ) nWP01 = c->GetValue( "nWP01" );
-    if( c->KeyExists( "nWP10" ) ) nWP10 = c->GetValue( "nWP10" );
-    if( c->KeyExists( "nWP11" ) ) nWP11 = c->GetValue( "nWP11" );
-    if( c->KeyExists( "nWPVar" ) ) nWPVar = c->GetValue( "nWPVar" );
+    c->GetValueUL( "nWP00", nWP00 );
+    c->GetValueUL( "nWP01", nWP01 );
+    c->GetValueUL( "nWP10", nWP10 );
+    c->GetValueUL( "nWP11", nWP11 );
 
-    if( c->KeyExists( "DeadlockTimer" ) ) DeadlockTimer = c->GetValue( "DeadlockTimer" );
+    c->GetValueUL( "WPMaxVariance", WPMaxVariance );
 
-    if( c->KeyExists( "EnableDebug" ) && c->GetString( "EnableDebug" ) == "true" )
-        debugOn = true;
+    c->GetValueUL( "DeadlockTimer", DeadlockTimer );
+
+    c->GetBool( "EnableDebug", debugOn );
     if( c->KeyExists( "DebugClasses" ) )
     {
         std::string debugClassList = c->GetString( "DebugClasses" );
@@ -296,11 +389,5 @@ void Params::SetParams( Config *c )
             debugClasses.insert( debugClass );
         }
     }
-
-    /* Check for uninitialized parameters. */
-    if( !MATHeight_set ) MATHeight = ROWS;
-    if( !RBSize_set ) RBSize = COLS;
-    
-    if( !tWP_set ) tWP = 0;
 }
 

@@ -55,16 +55,22 @@ class Config
     void Read( std::string filename );
     std::string GetFileName( );
 
+    uint64_t GetValueUL( std::string key );
+    void     GetValueUL( std::string Key, uint64_t& value );
     int  GetValue( std::string key );
+    void GetValue( std::string key, int& value );
     void SetValue( std::string key, std::string value );
 
     double GetEnergy( std::string key );
-    void  SetEnergy( std::string key, std::string energy );
+    void   GetEnergy( std::string key, double &energy );
+    void   SetEnergy( std::string key, std::string energy );
 
     std::string GetString( std::string key );
+    void  GetString( std::string key, std::string& value );
     void  SetString( std::string key, std::string );
 
     bool  GetBool( std::string key );
+    void  GetBool( std::string key, bool& value );
     void  SetBool( std::string key, bool value );
 
     bool KeyExists( std::string key );
