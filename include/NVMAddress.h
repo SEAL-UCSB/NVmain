@@ -43,6 +43,9 @@ class NVMAddress
   public:
     NVMAddress( );
     ~NVMAddress( );
+
+    NVMAddress( uint64_t addrRow, uint64_t addrCol, uint64_t addrBank,
+                uint64_t addrRank, uint64_t addrChannel, uint64_t addrSA );
     
     void SetTranslatedAddress( uint64_t addrRow, uint64_t addrCol, uint64_t addrBank, 
                                uint64_t addrRank, uint64_t addrChannel, uint64_t addrSA );
@@ -59,14 +62,16 @@ class NVMAddress
     uint64_t GetBank( );
     uint64_t GetRank( );
     uint64_t GetChannel( );
-    uint64_t GetSubarray( );
+    uint64_t GetSubArray( );
     
     bool IsTranslated( );
+    bool HasPhysicalAddress( );
 
     NVMAddress& operator=( const NVMAddress& m );
   
  private:
     bool translated;
+    bool hasPhysicalAddress;
     uint64_t physicalAddress;
     uint64_t subarray;
     uint64_t row;

@@ -279,6 +279,7 @@ bool LH_Cache::RequestComplete( NVMainRequest *req )
         bool miss;
         uint64_t rank, bank;
         NVMainRequest *originalRequest = static_cast<NVMainRequest *>(req->reqInfo);
+        ncounter_t queueId = GetCommandQueueId( req->address );
 
         req->address.GetTranslatedAddress( NULL, NULL, &bank, &rank, NULL, NULL );
 
@@ -291,7 +292,7 @@ bool LH_Cache::RequestComplete( NVMainRequest *req )
         /* If it is a hit, issue a request to the bank for the cache line */
         if( !miss )
         {
-            bankQueues[rank][bank].push_back( MakeDRCRequest( req ) );
+            commandQueues[queueId].push_back( MakeDRCRequest( req ) );
 
             drcHits++;
         }
@@ -549,10 +550,11 @@ bool LH_Cache::IssueDRCCommands( NVMainRequest *req )
 {
     bool rv = false;
     uint64_t rank, bank, row, subarray;
+    ncounter_t queueId = GetCommandQueueId( req->address );
 
     req->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL, &subarray );
 
-    if( !activateQueued[rank][bank] && bankQueues[rank][bank].empty() )
+    if( !activateQueued[rank][bank] && commandQueues[queueId].empty() )
     {
         /* Any activate will request the starvation counter */
         starvationCounter[rank][bank] = 0;
@@ -561,15 +563,15 @@ bool LH_Cache::IssueDRCCommands( NVMainRequest *req )
 
         req->issueCycle = GetEventQueue()->GetCurrentCycle();
 
-        bankQueues[rank][bank].push_back( MakeActivateRequest( req ) );
-        bankQueues[rank][bank].push_back( MakeTagRequest( req, DRC_TAGREAD1 ) );
-        bankQueues[rank][bank].push_back( MakeTagRequest( req, DRC_TAGREAD2 ) );
-        bankQueues[rank][bank].push_back( MakeTagRequest( req, DRC_TAGREAD3 ) );
+        commandQueues[queueId].push_back( MakeActivateRequest( req ) );
+        commandQueues[queueId].push_back( MakeTagRequest( req, DRC_TAGREAD1 ) );
+        commandQueues[queueId].push_back( MakeTagRequest( req, DRC_TAGREAD2 ) );
+        commandQueues[queueId].push_back( MakeTagRequest( req, DRC_TAGREAD3 ) );
         bankLocked[rank][bank] = true;
 
         rv = true;
     }
-    else if( activateQueued[rank][bank] && effectiveRow[rank][bank][subarray] != row && bankQueues[rank][bank].empty() )
+    else if( activateQueued[rank][bank] && effectiveRow[rank][bank][subarray] != row && commandQueues[queueId].empty() )
     {
         /* Any activate will request the starvation counter */
         starvationCounter[rank][bank] = 0;
@@ -578,11 +580,11 @@ bool LH_Cache::IssueDRCCommands( NVMainRequest *req )
 
         req->issueCycle = GetEventQueue()->GetCurrentCycle();
 
-        bankQueues[rank][bank].push_back( MakePrechargeRequest( req ) );
-        bankQueues[rank][bank].push_back( MakeActivateRequest( req ) );
-        bankQueues[rank][bank].push_back( MakeTagRequest( req, DRC_TAGREAD1 ) );
-        bankQueues[rank][bank].push_back( MakeTagRequest( req, DRC_TAGREAD2 ) );
-        bankQueues[rank][bank].push_back( MakeTagRequest( req, DRC_TAGREAD3 ) );
+        commandQueues[queueId].push_back( MakePrechargeRequest( req ) );
+        commandQueues[queueId].push_back( MakeActivateRequest( req ) );
+        commandQueues[queueId].push_back( MakeTagRequest( req, DRC_TAGREAD1 ) );
+        commandQueues[queueId].push_back( MakeTagRequest( req, DRC_TAGREAD2 ) );
+        commandQueues[queueId].push_back( MakeTagRequest( req, DRC_TAGREAD3 ) );
         bankLocked[rank][bank] = true;
 
         rv = true;
@@ -593,9 +595,9 @@ bool LH_Cache::IssueDRCCommands( NVMainRequest *req )
 
         req->issueCycle = GetEventQueue()->GetCurrentCycle();
 
-        bankQueues[rank][bank].push_back( MakeTagRequest( req, DRC_TAGREAD1 ) );
-        bankQueues[rank][bank].push_back( MakeTagRequest( req, DRC_TAGREAD2 ) );
-        bankQueues[rank][bank].push_back( MakeTagRequest( req, DRC_TAGREAD3 ) );
+        commandQueues[queueId].push_back( MakeTagRequest( req, DRC_TAGREAD1 ) );
+        commandQueues[queueId].push_back( MakeTagRequest( req, DRC_TAGREAD2 ) );
+        commandQueues[queueId].push_back( MakeTagRequest( req, DRC_TAGREAD3 ) );
         bankLocked[rank][bank] = true;
 
         rv = true;
@@ -612,10 +614,11 @@ bool LH_Cache::IssueFillCommands( NVMainRequest *req )
 {
     bool rv = false;
     uint64_t rank, bank, row, subarray;
+    ncounter_t queueId = GetCommandQueueId( req->address );
 
     req->address.GetTranslatedAddress( &row, NULL, &bank, &rank, NULL, &subarray );
 
-    if( !activateQueued[rank][bank] && bankQueues[rank][bank].empty() )
+    if( !activateQueued[rank][bank] && commandQueues[queueId].empty() )
     {
         /* Any activate will request the starvation counter */
         starvationCounter[rank][bank] = 0;
@@ -624,14 +627,14 @@ bool LH_Cache::IssueFillCommands( NVMainRequest *req )
 
         req->issueCycle = GetEventQueue()->GetCurrentCycle();
 
-        bankQueues[rank][bank].push_back( MakeActivateRequest( req ) );
-        bankQueues[rank][bank].push_back( MakeTagWriteRequest( req ) );
-        bankQueues[rank][bank].push_back( req );
+        commandQueues[queueId].push_back( MakeActivateRequest( req ) );
+        commandQueues[queueId].push_back( MakeTagWriteRequest( req ) );
+        commandQueues[queueId].push_back( req );
 
         rv = true;
     }
     else if( activateQueued[rank][bank] && effectiveRow[rank][bank][subarray] != row 
-            && bankQueues[rank][bank].empty() )
+            && commandQueues[queueId].empty() )
     {
         /* Any activate will request the starvation counter */
         starvationCounter[rank][bank] = 0;
@@ -640,10 +643,10 @@ bool LH_Cache::IssueFillCommands( NVMainRequest *req )
 
         req->issueCycle = GetEventQueue()->GetCurrentCycle();
 
-        bankQueues[rank][bank].push_back( MakePrechargeRequest( req ) );
-        bankQueues[rank][bank].push_back( MakeActivateRequest( req ) );
-        bankQueues[rank][bank].push_back( MakeTagWriteRequest( req ) );
-        bankQueues[rank][bank].push_back( req );
+        commandQueues[queueId].push_back( MakePrechargeRequest( req ) );
+        commandQueues[queueId].push_back( MakeActivateRequest( req ) );
+        commandQueues[queueId].push_back( MakeTagWriteRequest( req ) );
+        commandQueues[queueId].push_back( req );
 
         rv = true;
     }
@@ -653,8 +656,8 @@ bool LH_Cache::IssueFillCommands( NVMainRequest *req )
 
         req->issueCycle = GetEventQueue()->GetCurrentCycle();
 
-        bankQueues[rank][bank].push_back( MakeTagWriteRequest( req ) );
-        bankQueues[rank][bank].push_back( req );
+        commandQueues[queueId].push_back( MakeTagWriteRequest( req ) );
+        commandQueues[queueId].push_back( req );
 
         rv = true;
     }
