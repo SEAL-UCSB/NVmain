@@ -313,7 +313,8 @@ void MemoryController::SetConfig( Config *conf )
         }
     }
 
-    //this->config->Print();
+    if( p->PrintConfig )
+        config->Print();
 
     SetDebugName( "MemoryController", conf );
 }
