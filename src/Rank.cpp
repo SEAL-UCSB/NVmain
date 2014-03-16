@@ -190,7 +190,7 @@ void Rank::SetConfig( Config *c )
 
 void Rank::RegisterStats( )
 {
-    if( p->EnergyModel_set && p->EnergyModel == "current" )
+    if( p->EnergyModel == "current" )
     {
         AddUnitStat(totalEnergy, "mA*t");
         AddUnitStat(backgroundEnergy, "mA*t");
@@ -865,7 +865,7 @@ void Rank::Cycle( ncycle_t steps )
         /* active powerdown */
         case RANK_PDA:
             fastExitCycles += steps;
-            if( p->EnergyModel_set && p->EnergyModel == "current" )
+            if( p->EnergyModel == "current" )
                 backgroundEnergy += ( p->EIDD3P * (double)steps );  
             else
                 backgroundEnergy += ( p->Epda * (double)steps );  
@@ -874,7 +874,7 @@ void Rank::Cycle( ncycle_t steps )
         /* precharge powerdown fast exit */
         case RANK_PDPF:
             fastExitCycles += steps;
-            if( p->EnergyModel_set && p->EnergyModel == "current" )
+            if( p->EnergyModel == "current" )
                 backgroundEnergy += ( p->EIDD2P1 * (double)steps );  
             else 
                 backgroundEnergy += ( p->Epdpf * (double)steps );  
@@ -883,7 +883,7 @@ void Rank::Cycle( ncycle_t steps )
         /* precharge powerdown slow exit */
         case RANK_PDPS:
             slowExitCycles += steps;
-            if( p->EnergyModel_set && p->EnergyModel == "current" )
+            if( p->EnergyModel == "current" )
                 backgroundEnergy += ( p->EIDD2P0 * (double)steps );  
             else 
                 backgroundEnergy += ( p->Epdps * (double)steps );  
@@ -893,7 +893,7 @@ void Rank::Cycle( ncycle_t steps )
         case RANK_REFRESHING:
         case RANK_OPEN:
             activeCycles += steps;
-            if( p->EnergyModel_set && p->EnergyModel == "current" )
+            if( p->EnergyModel == "current" )
                 backgroundEnergy += ( p->EIDD3N * (double)steps );  
             else
                 backgroundEnergy += ( p->Eleak * (double)steps );  
@@ -902,14 +902,14 @@ void Rank::Cycle( ncycle_t steps )
         /* precharge standby */
         case RANK_CLOSED:
             standbyCycles += steps;
-            if( p->EnergyModel_set && p->EnergyModel == "current" )
+            if( p->EnergyModel == "current" )
                 backgroundEnergy += ( p->EIDD2N * (double)steps );  
             else
                 backgroundEnergy += ( p->Eleak * (double)steps );  
             break;
 
         default:
-            if( p->EnergyModel_set && p->EnergyModel == "current" )
+            if( p->EnergyModel == "current" )
                 backgroundEnergy += ( p->EIDD2N * (double)steps );  
             else
                 backgroundEnergy += ( p->Eleak * (double)steps );  
