@@ -1307,7 +1307,7 @@ void MemoryController::CycleCommandQueues( )
         if( !commandQueues[queueId].empty( )
             && memory->IsIssuable( commandQueues[queueId].at( 0 ), &fail ) )
         {
-            std::cout << GetEventQueue()->GetCurrentCycle() << "MemoryContoller: Issued request type "
+            *debugStream << GetEventQueue()->GetCurrentCycle() << " MemoryController: Issued request type "
                          << commandQueues[queueId].at(0)->type << " for address Ox" << std::hex 
                          << commandQueues[queueId].at(0)->address.GetPhysicalAddress()
                          << std::dec << " for queue " << queueId << std::endl;
