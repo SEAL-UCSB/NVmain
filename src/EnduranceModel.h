@@ -38,6 +38,7 @@
 #include <map>
 #include <stdint.h>
 #include "src/Config.h"
+#include "src/Params.h"
 #include "src/NVMObject.h"
 #include "src/EnduranceDistribution.h"
 #include "include/NVMDataBlock.h"
@@ -59,6 +60,8 @@ class EnduranceModel : public NVMObject
     virtual void SetConfig( Config *conf );
     Config *GetConfig( );
 
+    void SetParams( Params *params ) { p = params; }
+
     uint64_t GetWorstLife( );
     uint64_t GetAverageLife( );
 
@@ -71,6 +74,7 @@ class EnduranceModel : public NVMObject
     EnduranceDistribution *enduranceDist;
     FaultModel *faultModel;
     std::map<uint64_t, uint64_t> life;
+    Params *p;
     
     bool DecrementLife( uint64_t addr, NVMAddress faultAddr );
 

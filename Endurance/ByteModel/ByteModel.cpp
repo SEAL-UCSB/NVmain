@@ -57,6 +57,15 @@ ByteModel::~ByteModel( )
    */
 }
 
+void ByteModel::SetConfig( Config *config )
+{
+    Params *params = new Params( );
+    params->SetParams( config );
+    SetParams( params );
+
+    EnduranceModel::SetConfig( config );
+}
+
 bool ByteModel::Write( NVMAddress address, NVMDataBlock oldData, 
                        NVMDataBlock newData )
 {
@@ -87,18 +96,17 @@ bool ByteModel::Write( NVMAddress address, NVMDataBlock oldData,
     uint64_t wordSize;
     uint64_t partitionCount;
 
-    MATHeight = GetConfig( )->GetValue( "MATHeight" );
+    MATHeight = p->MATHeight;
 
     /* Size of a row in bytes */
-    rowSize = GetConfig( )->GetValue( "COLS" );
+    rowSize = p->COLS;
 
     /* 
      * wordSize is the size of a word written to memory, usually a cacheline. 
      * This size is in bytes 
      */
-    wordSize = GetConfig( )->GetValue( "BusWidth" );
-    wordSize *= GetConfig( )->GetValue( "tBURST" ) 
-                    * GetConfig( )->GetValue( "RATE" );
+    wordSize = p->BusWidth;
+    wordSize *= p->tBURST * p->RATE;
     wordSize /= 8;
 
     /* Check each byte to see if it was modified */
