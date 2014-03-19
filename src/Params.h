@@ -192,6 +192,9 @@ class Params
     bool debugOn;
     std::set<std::string> debugClasses;
 
+    bool WritePausing;
+    double PauseThreshold;
+
   private:
     void ConvertTiming( Config *conf, std::string param, ncycle_t& value );
     ncycle_t ConvertTiming( Config *conf, std::string param );

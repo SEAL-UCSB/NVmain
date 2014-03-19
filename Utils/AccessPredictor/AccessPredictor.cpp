@@ -55,3 +55,26 @@ void AccessPredictor::Cycle( ncycle_t )
 }
 
 
+void AccessPredictor::SetHitDestination( ncounter_t childId )
+{
+    hitChildId = childId;
+}
+
+
+void AccessPredictor::SetMissDestination( ncounter_t childId )
+{
+    missChildId = childId;
+}
+
+ncounter_t AccessPredictor::GetHitDestination( )
+{
+    return hitChildId;
+}
+
+ncounter_t AccessPredictor::GetMissDestination( )
+{
+    return missChildId;
+}
+
+
+

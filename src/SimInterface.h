@@ -58,7 +58,7 @@ class SimInterface
     int  GetDataAtAddress( uint64_t address, NVMDataBlock *data );
     void SetDataAtAddress( uint64_t address, NVMDataBlock data );
 
-    void SetConfig( Config *conf );
+    void SetConfig( Config *conf, bool createChildren = true );
     Config *GetConfig( );
 
   private:

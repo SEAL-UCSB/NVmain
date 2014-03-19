@@ -46,12 +46,9 @@
 using namespace NVM;
 
 
-LO_Cache::LO_Cache( Interconnect *memory, AddressTranslator *decoder )
+LO_Cache::LO_Cache( )
 {
-    decoder->GetTranslationMethod( )->SetOrder( 5, 1, 4, 3, 2, 6 );
-
-    SetMemory( memory );
-    SetTranslator( decoder );
+    //decoder->GetTranslationMethod( )->SetOrder( 5, 1, 4, 3, 2, 6 );
 
     std::cout << "Created a Latency Optimized DRAM Cache!" << std::endl;
 
@@ -89,7 +86,7 @@ LO_Cache::~LO_Cache( )
 
 }
 
-void LO_Cache::SetConfig( Config *conf )
+void LO_Cache::SetConfig( Config *conf, bool createChildren )
 {
     ncounter_t rows;
 
@@ -128,7 +125,7 @@ void LO_Cache::SetConfig( Config *conf )
         }
     }
 
-    MemoryController::SetConfig( conf );
+    MemoryController::SetConfig( conf, createChildren );
 
     SetDebugName( "LO-Cache", conf );
 }
@@ -206,6 +203,11 @@ bool LO_Cache::IssueFunctional( NVMainRequest *req )
 
     req->address.GetTranslatedAddress( NULL, NULL, &bank, &rank, NULL, NULL );
 
+    /* Write always hits. */
+    if( req->type == WRITE || req->type == WRITE_PRECHARGE )
+        return true;
+
+    /* Reads hit if they are in the cache. */
     return functionalCache[rank][bank]->Present( req->address );
 }
 

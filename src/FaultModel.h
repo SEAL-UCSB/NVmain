@@ -51,7 +51,7 @@ class FaultModel : public NVMObject
     /* Fault returns true if the fault could be fixed. */
     virtual bool Fault( NVMAddress faultAddr ); 
 
-    virtual void SetConfig( Config *conf );
+    virtual void SetConfig( Config *conf, bool createChildren = true );
     Config *GetConfig( );
 
     void Cycle( ncycle_t steps );

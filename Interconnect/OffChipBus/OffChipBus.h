@@ -46,7 +46,7 @@ class OffChipBus : public Interconnect
     OffChipBus( );
     ~OffChipBus( );
 
-    void SetConfig( Config *c );
+    void SetConfig( Config *c, bool createChildren = true );
     void SetParams( Params *params ) { p = params; }
 
     bool IssueCommand( NVMainRequest *req );

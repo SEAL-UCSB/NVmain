@@ -51,7 +51,7 @@
                                       static_cast<void *>(__resetValue),    \
                                       typeid(STAT).name(),                  \
                                       sizeof(STAT),                         \
-                                      statName + "." + #STAT,               \
+                                      StatName() + "." + #STAT,             \
                                       UNITS);                               \
         }
 #define RemoveStat(STAT) (this->GetStats()->removeStat(static_cast<void *>(&STAT)))

@@ -93,7 +93,7 @@ class Bank : public NVMObject
     bool IsIssuable( NVMainRequest *req, FailReason *reason = NULL );
     bool IssueCommand( NVMainRequest *req );
 
-    void SetConfig( Config *c );
+    void SetConfig( Config *c, bool createChildren = true );
     void SetParams( Params *params ) { p = params; }
 
     BankState GetState( );
@@ -117,7 +117,6 @@ class Bank : public NVMObject
 
     void SetName( std::string );
     void SetId( ncounter_t );
-    void StatName( std::string name ) { statName = name; }
 
     void RegisterStats( );
     void CalculateStats( );
@@ -127,12 +126,12 @@ class Bank : public NVMObject
 
     void Cycle( ncycle_t steps );
 
+    SubArray **subArrays;
+
   private:
     Config *conf;
-    std::string statName;
     ncounter_t psInterval;
 
-    SubArray **subArrays;
     std::deque<ncounter_t> activeSubArrayQueue;
     ncounter_t MATWidth;
     ncounter_t MATHeight;
