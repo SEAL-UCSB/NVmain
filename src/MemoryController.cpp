@@ -576,14 +576,17 @@ void MemoryController::HandleLowPower( )
     for( ncounter_t rankId = 0; rankId < p->RANKS; rankId++ )
     {
         bool needRefresh = false;
-        for( ncounter_t bankId = 0; bankId < m_refreshBankNum; bankId++ )
+        if( p->UseRefresh )
         {
-            ncounter_t bankGroupHead = bankId * p->BanksPerRefresh;
-
-            if( NeedRefresh( bankGroupHead, rankId ) )
+            for( ncounter_t bankId = 0; bankId < m_refreshBankNum; bankId++ )
             {
-                needRefresh = true;
-                break;
+                ncounter_t bankGroupHead = bankId * p->BanksPerRefresh;
+
+                if( NeedRefresh( bankGroupHead, rankId ) )
+                {
+                    needRefresh = true;
+                    break;
+                }
             }
         }
 
@@ -789,6 +792,8 @@ bool MemoryController::FindStarvedRequest( std::list<NVMainRequest *>& transacti
     bool rv = false;
     std::list<NVMainRequest *>::iterator it;
 
+    *starvedRequest = NULL;
+
     for( it = transactionQueue.begin(); it != transactionQueue.end(); it++ )
     {
         ncounter_t rank, bank, row, subarray, col;
@@ -915,6 +920,8 @@ bool MemoryController::FindRowBufferHit( std::list<NVMainRequest *>& transaction
     bool rv = false;
     std::list<NVMainRequest *>::iterator it;
 
+    *hitRequest = NULL;
+
     for( it = transactionQueue.begin(); it != transactionQueue.end(); it++ )
     {
         ncounter_t rank, bank, row, subarray, col;
@@ -971,6 +978,8 @@ bool MemoryController::FindOldestReadyRequest( std::list<NVMainRequest *>& trans
     bool rv = false;
     std::list<NVMainRequest *>::iterator it;
 
+    *oldestRequest = NULL;
+
     for( it = transactionQueue.begin(); it != transactionQueue.end(); it++ )
     {
         ncounter_t rank, bank;
@@ -1019,6 +1028,8 @@ bool MemoryController::FindClosedBankRequest( std::list<NVMainRequest *>& transa
 {
     bool rv = false;
     std::list<NVMainRequest *>::iterator it;
+
+    *closedRequest = NULL;
 
     for( it = transactionQueue.begin(); it != transactionQueue.end(); it++ )
     {
