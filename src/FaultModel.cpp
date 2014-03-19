@@ -44,7 +44,7 @@ FaultModel::~FaultModel( )
 {
 }
 
-void FaultModel::SetConfig( Config *conf )
+void FaultModel::SetConfig( Config *conf, bool /*createChildren*/ )
 {
     config = conf;
 }

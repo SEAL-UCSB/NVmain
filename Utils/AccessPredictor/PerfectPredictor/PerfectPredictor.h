@@ -49,23 +49,8 @@ class PerfectPredictor : public AccessPredictor
     PerfectPredictor( );
     ~PerfectPredictor( );
 
-    void Cycle( ncycle_t steps );
+    uint64_t Translate( NVMainRequest *request );
 
-    void SetHitDestination( NVMain *hitMemory );
-    void SetHitDestination( MemoryController *hitController );
-
-    void SetMissDestination( NVMain *missMemory );
-    void SetMissDestination( MemoryController *missController );
-
-    bool IssueCommand( NVMainRequest *req );
-    bool IssueAtomic( NVMainRequest *req );
-    bool RequestComplete( NVMainRequest *req );
-
-  private:
-    NVMain *hitMemory, *missMemory;
-    MemoryController *hitController, *missController;
-
-    std::set<uint64_t> outstandingMisses;
 };
 
 

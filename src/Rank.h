@@ -76,7 +76,7 @@ class Rank : public NVMObject
     Rank( );
     ~Rank( );
 
-    void SetConfig( Config *c );
+    void SetConfig( Config *c, bool createChildren = true );
     void SetParams( Params *params ) { p = params; }
 
     bool IssueCommand( NVMainRequest *mop );
@@ -85,7 +85,6 @@ class Rank : public NVMObject
     bool RequestComplete( NVMainRequest* );
 
     void SetName( std::string name );
-    void StatName( std::string name ) { statName = name; }
 
     bool PowerDown( const OpType& pdOp );
     bool PowerUp( );
@@ -104,15 +103,14 @@ class Rank : public NVMObject
 
     void RegisterStats( );
     void CalculateStats( );
+    Bank **banks;
 
   private:
     Config *conf;
     ncounter_t stateTimeout;
-    std::string statName;
     uint64_t psInterval;
     RankState state;
 
-    Bank **banks;
     ncounter_t bankCount;
     ncounter_t deviceWidth;
     ncounter_t deviceCount;

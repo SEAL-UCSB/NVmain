@@ -185,6 +185,9 @@ Params::Params( )
 
     WPMaxVariance = 2;
 
+    WritePausing = false;
+    PauseThreshold = 0.4;
+
     DeadlockTimer = 10000000;
 
     debugOn = false;
@@ -389,5 +392,10 @@ void Params::SetParams( Config *c )
             debugClasses.insert( debugClass );
         }
     }
+
+    if( c->KeyExists( "WritePausing" ) && c->GetString( "WritePausing" ) == "true" )
+        WritePausing = true;
+    if( c->KeyExists( "PauseThrehold" ) )
+        PauseThreshold = c->GetEnergy( "PauseThreshold" );
 }
 

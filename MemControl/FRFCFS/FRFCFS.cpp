@@ -33,6 +33,7 @@
 
 #include "MemControl/FRFCFS/FRFCFS.h"
 #include "src/EventQueue.h"
+#include "include/NVMainRequest.h"
 #ifndef TRACE
   #include "SimInterface/Gem5Interface/Gem5Interface.h"
   #include "base/statistics.hh"
@@ -46,16 +47,8 @@
 
 using namespace NVM;
 
-FRFCFS::FRFCFS( Interconnect *memory, AddressTranslator *translator )
+FRFCFS::FRFCFS( )
 {
-    /*
-     *  We'll need these classes later, so copy them. the "memory" and 
-     *  "translator" variables are *  defined in the protected section of 
-     *  the MemoryController base class. 
-     */
-    SetMemory( memory );
-    SetTranslator( translator );
-
     std::cout << "Created a First Ready First Come First Serve memory controller!"
         << std::endl;
 
@@ -74,6 +67,8 @@ FRFCFS::FRFCFS( Interconnect *memory, AddressTranslator *translator )
     rb_hits = 0;
     rb_miss = 0;
 
+    write_pauses = 0;
+
     starvation_precharges = 0;
 
     psInterval = 0;
@@ -85,7 +80,7 @@ FRFCFS::~FRFCFS( )
               << " commands still in memory queue." << std::endl;
 }
 
-void FRFCFS::SetConfig( Config *conf )
+void FRFCFS::SetConfig( Config *conf, bool createChildren )
 {
     if( conf->KeyExists( "StarvationThreshold" ) )
     {
@@ -97,7 +92,7 @@ void FRFCFS::SetConfig( Config *conf )
         queueSize = static_cast<unsigned int>( conf->GetValue( "QueueSize" ) );
     }
 
-    MemoryController::SetConfig( conf );
+    MemoryController::SetConfig( conf, createChildren );
 
     SetDebugName( "FRFCFS", conf );
 }
@@ -113,6 +108,7 @@ void FRFCFS::RegisterStats( )
    AddStat(averageQueueLatency);
    AddStat(measuredLatencies);
    AddStat(measuredQueueLatencies);
+   AddStat(write_pauses);
 }
 
 bool FRFCFS::IsIssuable( NVMainRequest * /*request*/, FailReason * /*fail*/ )
@@ -162,6 +158,23 @@ bool FRFCFS::IssueCommand( NVMainRequest *req )
 
 bool FRFCFS::RequestComplete( NVMainRequest * request )
 {
+    if( request->type == WRITE || request->type == WRITE_PRECHARGE )
+    {
+        /* 
+         *  Put cancelled requests at the head of the write queue
+         *  like nothing ever happened.
+         */
+        if( request->flags & NVMainRequest::FLAG_CANCELLED )
+        {
+            memQueue.push_front( request );
+            request->flags &= ~NVMainRequest::FLAG_CANCELLED; 
+        }
+        else if( request->flags & NVMainRequest::FLAG_PAUSED )
+        {
+            memQueue.push_front( request );
+        }
+    }
+
     /* Only reads and writes are sent back to NVMain and checked for in the transaction queue. */
     if( request->type == READ 
         || request->type == READ_PRECHARGE 
@@ -212,6 +225,12 @@ void FRFCFS::Cycle( ncycle_t steps )
     else if( FindClosedBankRequest( memQueue, &nextRequest ) )
     {
         rb_miss++;
+    }
+    else if( FindWriteStalledRead( memQueue, &nextRequest ) )
+    {
+        //rb_hits++;
+        //write_pauses++;
+        //std::cout << "Found a read that can go." << std::endl;
     }
     else
     {
