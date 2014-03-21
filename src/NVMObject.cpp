@@ -229,6 +229,7 @@ NVMObject::NVMObject( )
     hookType = NVMHOOK_NONE;
     hooks = new std::vector<NVMObject *> [NVMHOOK_COUNT];
     debugStream = NULL;
+    tagGen = NULL;
 }
 
 void NVMObject::Init( Config * )
@@ -306,6 +307,7 @@ void NVMObject::SetParent( NVMObject *p )
     parent = hook;
     SetEventQueue( p->GetEventQueue( ) );
     SetStats( p->GetStats( ) );
+    SetTagGenerator( p->GetTagGenerator( ) );
 }
 
 void NVMObject::AddChild( NVMObject *c )
@@ -489,6 +491,16 @@ void NVMObject::StatName( std::string name )
 std::string NVMObject::StatName( )
 {
     return statName;
+}
+
+void NVMObject::SetTagGenerator( TagGenerator *tg )
+{
+    tagGen = tg;
+}
+
+TagGenerator *NVMObject::GetTagGenerator( )
+{
+    return tagGen;
 }
 
 HookType NVMObject::GetHookType( )

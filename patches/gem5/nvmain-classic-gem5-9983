@@ -4,7 +4,7 @@ Use IsIssuable and don't call hooks unless true is returned
 
 diff -r d70124a5d594 configs/common/MemConfig.py
 --- a/configs/common/MemConfig.py	Tue Nov 26 17:51:07 2013 +0100
-+++ b/configs/common/MemConfig.py	Mon Mar 17 20:07:11 2014 -0400
++++ b/configs/common/MemConfig.py	Fri Mar 21 15:32:09 2014 -0400
 @@ -54,6 +54,7 @@
      ("lpddr2_s4_1066_x32", "LPDDR2_S4_1066_x32"),
      ("lpddr3_1600_x32", "LPDDR3_1600_x32"),
@@ -15,7 +15,7 @@ diff -r d70124a5d594 configs/common/MemConfig.py
  # Filtered list of aliases. Only aliases for existing memory
 diff -r d70124a5d594 configs/common/Options.py
 --- a/configs/common/Options.py	Tue Nov 26 17:51:07 2013 +0100
-+++ b/configs/common/Options.py	Mon Mar 17 20:07:11 2014 -0400
++++ b/configs/common/Options.py	Fri Mar 21 15:32:09 2014 -0400
 @@ -198,6 +198,24 @@
          help="""Treat value of --checkpoint-restore or --take-checkpoint as a
                  number of instructions.""")
@@ -43,7 +43,7 @@ diff -r d70124a5d594 configs/common/Options.py
      parser.add_option("-c", "--cmd", default="",
 diff -r d70124a5d594 src/mem/NVMainMemory.py
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/NVMainMemory.py	Mon Mar 17 20:07:11 2014 -0400
++++ b/src/mem/NVMainMemory.py	Fri Mar 21 15:32:09 2014 -0400
 @@ -0,0 +1,90 @@
 +# Copyright (c) 2012-2013 Pennsylvania State University
 +# All rights reserved.
@@ -137,7 +137,7 @@ diff -r d70124a5d594 src/mem/NVMainMemory.py
 +
 diff -r d70124a5d594 src/mem/SConscript
 --- a/src/mem/SConscript	Tue Nov 26 17:51:07 2013 +0100
-+++ b/src/mem/SConscript	Mon Mar 17 20:07:11 2014 -0400
++++ b/src/mem/SConscript	Fri Mar 21 15:32:09 2014 -0400
 @@ -43,6 +43,7 @@
  SimObject('MemObject.py')
  SimObject('SimpleMemory.py')
@@ -165,8 +165,8 @@ diff -r d70124a5d594 src/mem/SConscript
  DebugFlag('RubyCache')
 diff -r d70124a5d594 src/mem/nvmain_mem.cc
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/nvmain_mem.cc	Mon Mar 17 20:07:11 2014 -0400
-@@ -0,0 +1,740 @@
++++ b/src/mem/nvmain_mem.cc	Fri Mar 21 15:32:09 2014 -0400
+@@ -0,0 +1,742 @@
 +/*
 + * Copyright (c) 2012-2013 Pennsylvania State University
 + * All rights reserved.
@@ -293,6 +293,7 @@ diff -r d70124a5d594 src/mem/nvmain_mem.cc
 +    m_statsPtr = new NVM::Stats( );
 +    m_nvmainSimInterface = new NVM::Gem5Interface( );
 +    m_nvmainEventQueue = new NVM::EventQueue( );
++    m_tagGenerator = new NVM::TagGenerator( 1000 );
 +
 +    m_nvmainConfig->SetSimInterface( m_nvmainSimInterface );
 +
@@ -318,6 +319,7 @@ diff -r d70124a5d594 src/mem/nvmain_mem.cc
 +
 +    SetEventQueue( m_nvmainEventQueue );
 +    SetStats( m_statsPtr );
++    SetTagGenerator( m_tagGenerator );
 +
 +    /*  Add any specified hooks */
 +    std::vector<std::string>& hookList = m_nvmainConfig->GetHooks( );
@@ -909,8 +911,8 @@ diff -r d70124a5d594 src/mem/nvmain_mem.cc
 +
 diff -r d70124a5d594 src/mem/nvmain_mem.hh
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/nvmain_mem.hh	Mon Mar 17 20:07:11 2014 -0400
-@@ -0,0 +1,189 @@
++++ b/src/mem/nvmain_mem.hh	Fri Mar 21 15:32:09 2014 -0400
+@@ -0,0 +1,191 @@
 +/*
 + * Copyright (c) 2012-2013 Pennsylvania State University
 + * All rights reserved.
@@ -975,6 +977,7 @@ diff -r d70124a5d594 src/mem/nvmain_mem.hh
 +#include "src/EventQueue.h"
 +#include "src/NVMObject.h"
 +#include "src/SimInterface.h"
++#include "src/TagGenerator.h"
 +
 +class NVMainMemory : public AbstractMemory, public NVM::NVMObject
 +{
@@ -1036,6 +1039,7 @@ diff -r d70124a5d594 src/mem/nvmain_mem.hh
 +    NVM::EventQueue *m_nvmainEventQueue;
 +    NVM::Config *m_nvmainConfig;
 +    NVM::SimInterface *m_nvmainSimInterface;
++    NVM::TagGenerator *m_tagGenerator;
 +    std::string m_nvmainConfigPath;
 +
 +    bool m_awake;
