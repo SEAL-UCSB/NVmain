@@ -40,6 +40,7 @@
 #include "include/FailReasons.h"
 #include "Decoders/DecoderFactory.h"
 #include "src/Stats.h"
+#include "src/TagGenerator.h"
 
 #include <ostream>
 #include <vector>
@@ -158,6 +159,9 @@ class NVMObject
     void StatName( std::string name );
     std::string StatName( );
 
+    void SetTagGenerator( TagGenerator *tg );
+    TagGenerator *GetTagGenerator( );
+
     HookType GetHookType( );
     void SetHookType( HookType );
 
@@ -175,6 +179,7 @@ class NVMObject
     std::vector<NVMObject *> *hooks;
     EventQueue *eventQueue;
     std::ostream *debugStream;
+    TagGenerator *tagGen;
     HookType hookType;
     ncycle_t MAX( const ncycle_t, const ncycle_t );
 };

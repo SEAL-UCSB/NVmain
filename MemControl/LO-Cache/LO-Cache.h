@@ -46,8 +46,8 @@
 namespace NVM {
 
 
-#define DRC_MEMREAD 20
-#define DRC_FILL    30
+#define DRC_MEMREAD tagGen->CreateTag("DRC_MEMREAD")
+#define DRC_FILL    tagGen->CreateTag("DRC_FILL")
 
 
 class NVMain;
