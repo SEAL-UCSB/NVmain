@@ -320,11 +320,12 @@ bool StandardRank::Read( NVMainRequest *request )
     /* Even though the command may be READ_PRECHARGE, it still works */
     nextRead = MAX( nextRead, 
                     GetEventQueue()->GetCurrentCycle() 
-                        + MAX( p->tBURST, p->tCCD ) );
+                    + MAX( p->tBURST, p->tCCD ) * request->burstCount );
 
     nextWrite = MAX( nextWrite, 
                      GetEventQueue()->GetCurrentCycle() 
-                         + p->tCAS + p->tBURST + p->tRTRS - p->tCWD ); 
+                     + MAX( p->tBURST, p->tCCD ) * (request->burstCount - 1)
+                     + p->tCAS + p->tBURST + p->tRTRS - p->tCWD ); 
 
     /* if it has implicit precharge, insert the precharge to close the rank */ 
     if( request->type == READ_PRECHARGE )
@@ -334,7 +335,8 @@ bool StandardRank::Read( NVMainRequest *request )
         dupPRE->owner = this;
 
         GetEventQueue( )->InsertEvent( EventResponse, this, dupPRE, 
-            GetEventQueue( )->GetCurrentCycle( ) + p->tAL + p->tRTP );
+            MAX( p->tBURST, p->tCCD ) * (request->burstCount - 1)
+            + GetEventQueue( )->GetCurrentCycle( ) + p->tAL + p->tRTP );
     }
 
     if( success == false )
@@ -373,11 +375,12 @@ bool StandardRank::Write( NVMainRequest *request )
     /* Even though the command may be WRITE_PRECHARGE, it still works */
     nextRead = MAX( nextRead, 
                     GetEventQueue()->GetCurrentCycle() 
-                        + p->tCWD + p->tBURST + p->tWTR );
+                    + MAX( p->tBURST, p->tCCD ) * (request->burstCount - 1)
+                    + p->tCWD + p->tBURST + p->tWTR );
 
     nextWrite = MAX( nextWrite, 
                      GetEventQueue()->GetCurrentCycle() 
-                         + MAX( p->tBURST, p->tCCD ) );
+                     + MAX( p->tBURST, p->tCCD ) * request->burstCount );
 
     /* if it has implicit precharge, insert the precharge to close the rank */ 
     if( request->type == WRITE_PRECHARGE )
@@ -387,8 +390,9 @@ bool StandardRank::Write( NVMainRequest *request )
         dupPRE->owner = this;
 
         GetEventQueue( )->InsertEvent( EventResponse, this, dupPRE, 
-            GetEventQueue( )->GetCurrentCycle( ) 
-                + p->tAL + p->tCWD + p->tBURST + p->tWR );
+                        GetEventQueue( )->GetCurrentCycle( ) 
+                        + MAX( p->tBURST, p->tCCD ) * (request->burstCount - 1)
+                        + p->tAL + p->tCWD + p->tBURST + p->tWR );
     }
 
     if( success == false )
