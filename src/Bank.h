@@ -36,165 +36,41 @@
 #ifndef __BANK_H__
 #define __BANK_H__
 
-#include <stdint.h>
-#include <map>
-
 #include "src/NVMObject.h"
 #include "src/Config.h"
-#include "src/EnduranceModel.h"
-#include "include/NVMAddress.h"
-#include "include/NVMainRequest.h"
-#include "src/Params.h"
-#include "src/SubArray.h"
-#include "src/Stats.h"
-
-#include <iostream>
 
 namespace NVM {
-
-/*
- *  We only use five bank states because our timing and energy parameters
- *  only tell us the delay of the entire read/write cycle to one bank.
- *  Even though all banks should be powered down in lockstep, we use three
- *  bank states to indicate different PowerDown modes. In addition, as all
- *  banks are powered up, some banks may be active directly according to
- *  different PowerDown states.
- *
- *  In the case of non-volatile memory, consecutive reads and writes do
- *  not need to consider the case when reads occur before tRAS, since
- *  data is not destroyed during read, and thus does not need to be
- *  written back to the row.
- */
-enum BankState 
-{ 
-    BANK_UNKNOWN,  /***< Unknown state. Uh oh. */
-    BANK_OPEN,     /***< Bank has an active subarray  */
-    BANK_CLOSED,   /***< Bank is idle. */
-    BANK_PDPF,     /***< Bank is in precharge powered down, fast exit mode */
-    BANK_PDA,      /***< Bank is in active powered down mode */
-    BANK_PDPS      /***< Bank is in precharge powered down, slow exit mode */
-};
 
 class Bank : public NVMObject
 {
   public:
-    Bank( );
-    ~Bank( );
+    Bank( ) { }
+    ~Bank( ) { }
 
-    bool Activate( NVMainRequest *request );
-    bool Read( NVMainRequest *request );
-    bool Write( NVMainRequest *request );
-    bool Precharge( NVMainRequest *request );
-    bool Refresh( NVMainRequest *request );
-    bool PowerUp( );
-    bool PowerDown( OpType );
+    virtual bool PowerUp( );
+    virtual bool PowerDown( OpType pdType );
 
-    bool WouldConflict( uint64_t checkRow, uint64_t checkSA );
-    bool IsIssuable( NVMainRequest *req, FailReason *reason = NULL );
-    bool IssueCommand( NVMainRequest *req );
+    virtual void SetConfig( Config * /*config*/, bool /*createChildren*/ ) { }
 
-    void SetConfig( Config *c, bool createChildren = true );
-    void SetParams( Params *params ) { p = params; }
+    virtual bool Idle( ) = 0;
+    virtual void GetEnergy( double& , double& , double&, double& ) { } 
+    virtual ncounter_t GetReads( ) { return 0; }
+    virtual ncounter_t GetWrites( ) { return 0; }
 
-    BankState GetState( );
+    virtual ncycle_t GetNextActivate( ) { return 0; }
+    virtual ncycle_t GetNextRead( ) { return 0; }
+    virtual ncycle_t GetNextWrite( ) { return 0; }
+    virtual ncycle_t GetNextPrecharge( ) { return 0; }
+    virtual ncycle_t GetNextRefresh( ) { return 0; }
+    virtual ncycle_t GetNextPowerDown( ) { return 0; }
 
-    bool Idle( );
-    ncycle_t GetDataCycles( ) { return dataCycles; }
-    void CalculatePower( );
-    double GetPower( ); 
-    void GetEnergy( double& , double& , double&, double& ); 
-    ncounter_t GetReads( ) { return reads; }
-    ncounter_t GetWrites( ) { return writes; }
+    virtual void SetId( ncounter_t );
+    virtual ncounter_t GetId( );
 
-    ncycle_t GetNextActivate( ) { return nextActivate; }
-    ncycle_t GetNextRead( ) { return nextRead; }
-    ncycle_t GetNextWrite( ) { return nextWrite; }
-    ncycle_t GetNextPrecharge( ) { return nextPrecharge; }
-    ncycle_t GetNextRefresh( ) { return nextRefresh; }
-    ncycle_t GetNextPowerDown( ) { return nextPowerDown; }
-    uint64_t GetOpenRow( ) { return openRow; }
-    std::deque<ncounter_t>& GetOpenSubArray( ) { return activeSubArrayQueue; }
-
-    void SetName( std::string );
-    void SetId( ncounter_t );
-
-    void RegisterStats( );
-    void CalculateStats( );
-
-    ncounter_t GetId( );
-    std::string GetName( );
-
-    void Cycle( ncycle_t steps );
-
-    SubArray **subArrays;
-
-  private:
-    Config *conf;
-    ncounter_t psInterval;
-
-    std::deque<ncounter_t> activeSubArrayQueue;
-    ncounter_t MATWidth;
-    ncounter_t MATHeight;
-    ncounter_t subArrayNum;
-
-    BankState state;
-    BulkCommand nextCommand;
-    NVMainRequest lastOperation;
-
-    ncounter_t dataCycles;
-    ncounter_t activeCycles;
-    ncounter_t standbyCycles;
-    ncounter_t fastExitActiveCycles;
-    ncounter_t fastExitPrechargeCycles;
-    ncounter_t slowExitPrechargeCycles;
-    ncounter_t powerCycles;
-
-    ncycle_t lastActivate;
-    ncycle_t nextActivate;
-    ncycle_t nextPrecharge;
-    ncycle_t nextRead;
-    ncycle_t nextWrite;
-    ncycle_t nextRefresh;
-    ncycle_t nextRefreshDone;
-    ncycle_t nextPowerDown;
-    ncycle_t nextPowerDownDone;
-    ncycle_t nextPowerUp;
-    bool writeCycle;
-    WriteMode writeMode;
-
-    ncounter_t actWaits;
-    ncounter_t actWaitTotal;
-    double actWaitAverage;
-
-    uint64_t worstLife;
-    uint64_t averageLife;
-
-    double bankEnergy;
-    double activeEnergy;
-    double burstEnergy;
-    double refreshEnergy;
-    double bankPower;
-    double activePower;
-    double burstPower;
-    double refreshPower;
-
-    double utilization;
-    double bandwidth;
-    
-    int dummyStat;
-
-    ncounter_t reads, writes, activates, precharges, refreshes;
-    ncounter_t idleTimer;
-
-    uint64_t openRow;
-
-    EnduranceModel *endrModel;
-
+  protected:
     ncounter_t bankId;
- 
-    Params *p;
+    std::string bankName;
 
-    void UpdateEndurance( NVMainRequest *request );
 };
 
 };

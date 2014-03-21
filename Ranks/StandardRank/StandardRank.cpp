@@ -33,20 +33,19 @@
 *                     Website: http://www.cse.psu.edu/~tzz106 )
 *******************************************************************************/
 
-#include "src/Rank.h"
-//#include "src/EventQueue.h"
-//#include "Banks/BankFactory.h"
+#include "Ranks/StandardRank/StandardRank.h"
+#include "src/EventQueue.h"
+#include "Banks/BankFactory.h"
 
-//#include <iostream>
-//#include <sstream>
-//nclude <cassert>
+#include <iostream>
+#include <sstream>
+#include <cassert>
 
 using namespace NVM;
 
-#if 0
 std::string GetFilePath( std::string file );
 
-Rank::Rank( )
+StandardRank::StandardRank( )
 {
     activeCycles = 0;
     standbyCycles = 0;
@@ -85,13 +84,13 @@ Rank::Rank( )
 
     conf = NULL;
 
-    state = RANK_CLOSED;
+    state = STANDARDRANK_CLOSED;
     backgroundEnergy = 0.0f;
 
     psInterval = 0;
 }
 
-Rank::~Rank( )
+StandardRank::~StandardRank( )
 {
     for( ncounter_t i = 0; i < bankCount; i++ )
         delete banks[i];
@@ -101,7 +100,7 @@ Rank::~Rank( )
     delete [] lastActivate;
 }
 
-void Rank::SetConfig( Config *c, bool createChildren )
+void StandardRank::SetConfig( Config *c, bool createChildren )
 {
     conf = c;
 
@@ -193,7 +192,7 @@ void Rank::SetConfig( Config *c, bool createChildren )
     actWaitTotal = 0;
 }
 
-void Rank::RegisterStats( )
+void StandardRank::RegisterStats( )
 {
     if( p->EnergyModel == "current" )
     {
@@ -239,7 +238,7 @@ void Rank::RegisterStats( )
     AddStat(fawWaitAverage);
 }
 
-bool Rank::Idle( )
+bool StandardRank::Idle( )
 {
     bool rankIdle = true;
     for( ncounter_t i = 0; i < bankCount; i++ )
@@ -254,7 +253,7 @@ bool Rank::Idle( )
     return rankIdle;
 }
 
-bool Rank::Activate( NVMainRequest *request )
+bool StandardRank::Activate( NVMainRequest *request )
 {
     uint64_t activateBank;
 
@@ -277,8 +276,8 @@ bool Rank::Activate( NVMainRequest *request )
         /* issue ACTIVATE to target bank */
         GetChild( request )->IssueCommand( request );
 
-        if( state == RANK_CLOSED )
-            state = RANK_OPEN;
+        if( state == STANDARDRANK_CLOSED )
+            state = STANDARDRANK_OPEN;
 
         /* move to the next counter */
         RAWindex = (RAWindex + 1) % rawNum;
@@ -295,7 +294,7 @@ bool Rank::Activate( NVMainRequest *request )
     return true;
 }
 
-bool Rank::Read( NVMainRequest *request )
+bool StandardRank::Read( NVMainRequest *request )
 {
     uint64_t readBank;
 
@@ -348,7 +347,7 @@ bool Rank::Read( NVMainRequest *request )
 }
 
 
-bool Rank::Write( NVMainRequest *request )
+bool StandardRank::Write( NVMainRequest *request )
 {
     uint64_t writeBank;
 
@@ -401,7 +400,7 @@ bool Rank::Write( NVMainRequest *request )
     return success;
 }
 
-bool Rank::Precharge( NVMainRequest *request )
+bool StandardRank::Precharge( NVMainRequest *request )
 {
     uint64_t preBank;
 
@@ -422,7 +421,7 @@ bool Rank::Precharge( NVMainRequest *request )
     bool success = GetChild( request )->IssueCommand( request );
 
     if( Idle( ) )
-        state = RANK_CLOSED;
+        state = STANDARDRANK_CLOSED;
 
     if( success == false )
     {
@@ -433,13 +432,13 @@ bool Rank::Precharge( NVMainRequest *request )
     return success;
 }
 
-bool Rank::CanPowerDown( const OpType& pdOp )
+bool StandardRank::CanPowerDown( const OpType& pdOp )
 {
     bool issuable = true;
     NVMainRequest req;
     NVMAddress address;
 
-    if( state == RANK_REFRESHING )
+    if( state == STANDARDRANK_REFRESHING )
         return false;
 
     /* Create a dummy operation to determine if we can issue */
@@ -459,7 +458,7 @@ bool Rank::CanPowerDown( const OpType& pdOp )
     return issuable;
 }
 
-bool Rank::PowerDown( const OpType& pdOp )
+bool StandardRank::PowerDown( const OpType& pdOp )
 {
     /* TODO: use hooker to issue POWERDOWN?? */
     /* 
@@ -472,15 +471,15 @@ bool Rank::PowerDown( const OpType& pdOp )
     switch( pdOp )
     {
         case POWERDOWN_PDA:
-            state = RANK_PDA;
+            state = STANDARDRANK_PDA;
             break;
 
         case POWERDOWN_PDPF:
-            state = RANK_PDPF;
+            state = STANDARDRANK_PDPF;
             break;
 
         case POWERDOWN_PDPS:
-            state = RANK_PDPS;
+            state = STANDARDRANK_PDPS;
             break;
 
         default:
@@ -492,7 +491,7 @@ bool Rank::PowerDown( const OpType& pdOp )
     return true;
 }
 
-bool Rank::CanPowerUp()
+bool StandardRank::CanPowerUp()
 {
     bool issuable = true;
     NVMainRequest req;
@@ -510,7 +509,7 @@ bool Rank::CanPowerUp()
     return issuable;
 }
 
-bool Rank::PowerUp( )
+bool StandardRank::PowerUp( )
 {
     /* TODO: use hooker to issue POWERDOWN?? */
     /* 
@@ -522,13 +521,13 @@ bool Rank::PowerUp( )
 
     switch( state )
     {
-        case RANK_PDA:
-            state = RANK_OPEN;
+        case STANDARDRANK_PDA:
+            state = STANDARDRANK_OPEN;
             break;
 
-        case RANK_PDPF:
-        case RANK_PDPS:
-            state = RANK_CLOSED;
+        case STANDARDRANK_PDPF:
+        case STANDARDRANK_PDPS:
+            state = STANDARDRANK_CLOSED;
             break;
 
         default:
@@ -545,7 +544,7 @@ bool Rank::PowerUp( )
  * refresh is issued to those banks that start from the bank specified by the
  * request.  
  */
-bool Rank::Refresh( NVMainRequest *request )
+bool StandardRank::Refresh( NVMainRequest *request )
 {
     assert( nextActivate <= ( GetEventQueue()->GetCurrentCycle() ) );
     uint64_t refreshBankGroupHead;
@@ -562,7 +561,7 @@ bool Rank::Refresh( NVMainRequest *request )
         banks[refreshBankGroupHead + i]->IssueCommand( refReq );
     }
 
-    state = RANK_REFRESHING;
+    state = STANDARDRANK_REFRESHING;
 
     request->owner = this;
     GetEventQueue( )->InsertEvent( EventResponse, this, request, 
@@ -579,60 +578,36 @@ bool Rank::Refresh( NVMainRequest *request )
 
     return true;
 }
-#endif
 
-bool Rank::PowerDown( const OpType& /*pdOp*/ )
+ncycle_t StandardRank::GetNextActivate( uint64_t bank )
 {
-    return true;
+    return MAX( 
+                MAX( nextActivate, banks[bank]->GetNextActivate( ) ),
+                lastActivate[( RAWindex + 1 ) % rawNum] + p->tRAW 
+              );
 }
 
-bool Rank::PowerUp( )
+ncycle_t StandardRank::GetNextRead( uint64_t bank )
 {
-    return true;
+    return MAX( nextRead, banks[bank]->GetNextRead( ) );
 }
 
-bool Rank::CanPowerDown( const OpType& /*pdOp*/ )
+ncycle_t StandardRank::GetNextWrite( uint64_t bank )
 {
-    return true;
+    return MAX( nextWrite, banks[bank]->GetNextWrite( ) );
 }
 
-bool Rank::CanPowerUp( )
+ncycle_t StandardRank::GetNextPrecharge( uint64_t bank )
 {
-    return true;
+    return MAX( nextPrecharge, banks[bank]->GetNextPrecharge( ) );
 }
 
-bool Rank::Idle( )
+ncycle_t StandardRank::GetNextRefresh( uint64_t bank )
 {
-    return true;
+    return banks[bank]->GetNextRefresh( );
 }
 
-ncycle_t Rank::GetNextActivate( uint64_t /*bank*/ )
-{
-    return 0;
-}
-
-ncycle_t Rank::GetNextRead( uint64_t /*bank*/ )
-{
-    return 0;
-}
-
-ncycle_t Rank::GetNextWrite( uint64_t /*bank*/ )
-{
-    return 0;
-}
-
-ncycle_t Rank::GetNextPrecharge( uint64_t /*bank*/ )
-{
-    return 0;
-}
-
-ncycle_t Rank::GetNextRefresh( uint64_t /*bank*/ )
-{
-    return 0;
-}
-
-#if 0
-bool Rank::IsIssuable( NVMainRequest *req, FailReason *reason )
+bool StandardRank::IsIssuable( NVMainRequest *req, FailReason *reason )
 {
     uint64_t opBank;
     bool rv;
@@ -767,7 +742,7 @@ bool Rank::IsIssuable( NVMainRequest *req, FailReason *reason )
     return rv;
 }
 
-bool Rank::IssueCommand( NVMainRequest *req )
+bool StandardRank::IssueCommand( NVMainRequest *req )
 {
     bool rv = false;
 
@@ -832,7 +807,7 @@ bool Rank::IssueCommand( NVMainRequest *req )
  *  Other ranks should notify us when they read/write so we can ensure minimum 
  *  timings are met.
  */
-void Rank::Notify( OpType op )
+void StandardRank::Notify( OpType op )
 {
     /* We only care if other ranks are reading/writing (to avoid bus contention) */
     if( op == READ || op == READ_PRECHARGE )
@@ -853,7 +828,7 @@ void Rank::Notify( OpType op )
     }
 }
 
-bool Rank::RequestComplete( NVMainRequest* req )
+bool StandardRank::RequestComplete( NVMainRequest* req )
 {
     if( req->owner == this )
     {
@@ -867,7 +842,7 @@ bool Rank::RequestComplete( NVMainRequest* req )
             case REFRESH:
                 {
                     if( Idle( ) )
-                        state = RANK_CLOSED;
+                        state = STANDARDRANK_CLOSED;
 
                     break;
                 }
@@ -883,7 +858,7 @@ bool Rank::RequestComplete( NVMainRequest* req )
         return GetParent( )->RequestComplete( req );
 }
 
-void Rank::Cycle( ncycle_t steps )
+void StandardRank::Cycle( ncycle_t steps )
 {
     for( unsigned bankIdx = 0; bankIdx < bankCount; bankIdx++ )
         banks[bankIdx]->Cycle( steps );
@@ -892,7 +867,7 @@ void Rank::Cycle( ncycle_t steps )
     switch( state )
     {
         /* active powerdown */
-        case RANK_PDA:
+        case STANDARDRANK_PDA:
             fastExitCycles += steps;
             if( p->EnergyModel == "current" )
                 backgroundEnergy += ( p->EIDD3P * (double)steps );  
@@ -901,7 +876,7 @@ void Rank::Cycle( ncycle_t steps )
             break;
 
         /* precharge powerdown fast exit */
-        case RANK_PDPF:
+        case STANDARDRANK_PDPF:
             fastExitCycles += steps;
             if( p->EnergyModel == "current" )
                 backgroundEnergy += ( p->EIDD2P1 * (double)steps );  
@@ -910,7 +885,7 @@ void Rank::Cycle( ncycle_t steps )
             break;
 
         /* precharge powerdown slow exit */
-        case RANK_PDPS:
+        case STANDARDRANK_PDPS:
             slowExitCycles += steps;
             if( p->EnergyModel == "current" )
                 backgroundEnergy += ( p->EIDD2P0 * (double)steps );  
@@ -919,8 +894,8 @@ void Rank::Cycle( ncycle_t steps )
             break;
 
         /* active standby */
-        case RANK_REFRESHING:
-        case RANK_OPEN:
+        case STANDARDRANK_REFRESHING:
+        case STANDARDRANK_OPEN:
             activeCycles += steps;
             if( p->EnergyModel == "current" )
                 backgroundEnergy += ( p->EIDD3N * (double)steps );  
@@ -929,7 +904,7 @@ void Rank::Cycle( ncycle_t steps )
             break;
 
         /* precharge standby */
-        case RANK_CLOSED:
+        case STANDARDRANK_CLOSED:
             standbyCycles += steps;
             if( p->EnergyModel == "current" )
                 backgroundEnergy += ( p->EIDD2N * (double)steps );  
@@ -946,14 +921,7 @@ void Rank::Cycle( ncycle_t steps )
     }
 }
 
-/*
- *  Assign a name to this rank (used in graph outputs)
- */
-void Rank::SetName( std::string )
-{
-}
-
-void Rank::CalculateStats( )
+void StandardRank::CalculateStats( )
 {
     double bankE, actE, bstE, refE;
 
@@ -1010,6 +978,3 @@ void Rank::CalculateStats( )
 
     NVMObject::CalculateStats( );
 }
-
-#endif
-

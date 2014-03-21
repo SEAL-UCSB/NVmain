@@ -33,15 +33,15 @@
 *                     Website: http://www.cse.psu.edu/~tzz106 )
 *******************************************************************************/
 
-#ifndef __RANK_H__
-#define __RANK_H__
+#ifndef __STANDARDRANK_H__
+#define __STANDARDRANK_H__
 
-#include <stdint.h>
-#include <list>
+#include "src/Rank.h"
 #include "src/Bank.h"
-//#include "src/Device.h"
 #include "src/Params.h"
-#include "src/NVMObject.h"
+
+#include <cstdint>
+#include <list>
 #include <iostream>
 
 namespace NVM {
@@ -59,58 +59,57 @@ namespace NVM {
  *  data is not destroyed during read, and thus does not need to be
  *  written back to the row.
  */
-enum RankState 
+enum StandardRank_State 
 { 
-    RANK_UNKNOWN,   /***< Unknown state. Uh oh. */
-    RANK_OPEN,      /***< Rank has at least one open bank  */
-    RANK_CLOSED,    /***< all banks in the rank are closed (standby) */
-    RANK_REFRESHING,/***< some banks in the rank are refreshing */
-    RANK_PDPF,      /***< Rank is in precharge powered down, fast exit mode */
-    RANK_PDA,       /***< Rank is in active powered down mode */
-    RANK_PDPS       /***< Rank is in precharge powered down, slow exit mode */
+    STANDARDRANK_UNKNOWN,   /***< Unknown state. Uh oh. */
+    STANDARDRANK_OPEN,      /***< Rank has at least one open bank  */
+    STANDARDRANK_CLOSED,    /***< all banks in the rank are closed (standby) */
+    STANDARDRANK_REFRESHING,/***< some banks in the rank are refreshing */
+    STANDARDRANK_PDPF,      /***< Rank is in precharge powered down, fast exit mode */
+    STANDARDRANK_PDA,       /***< Rank is in active powered down mode */
+    STANDARDRANK_PDPS       /***< Rank is in precharge powered down, slow exit mode */
 };
 
-class Rank : public NVMObject
+class StandardRank : public Rank
 {
   public:
-    Rank( ) { }
-    ~Rank( ) { }
+    StandardRank( );
+    ~StandardRank( );
 
-    virtual void SetConfig( Config * /*c*/, bool /*createChildren*/ = true ) { }
-    //void SetParams( Params *params ) { p = params; }
+    void SetConfig( Config *c, bool createChildren = true );
+    void SetParams( Params *params ) { p = params; }
 
-    //bool IssueCommand( NVMainRequest *mop );
-    //bool IsIssuable( NVMainRequest *mop, FailReason *reason = NULL );
-    virtual void Notify( OpType /*op*/ ) { }
-    //bool RequestComplete( NVMainRequest* );
+    bool IssueCommand( NVMainRequest *mop );
+    bool IsIssuable( NVMainRequest *mop, FailReason *reason = NULL );
+    void Notify( OpType op );
+    bool RequestComplete( NVMainRequest* );
 
-    //void SetName( std::string name );
+    void SetName( std::string name );
 
-    virtual bool PowerDown( const OpType& pdOp );
-    virtual bool PowerUp( );
-    virtual bool CanPowerDown( const OpType& pdOp );
-    virtual bool CanPowerUp( );
+    bool PowerDown( const OpType& pdOp );
+    bool PowerUp( );
+    bool CanPowerDown( const OpType& pdOp );
+    bool CanPowerUp( );
 
-    virtual bool Idle( );
+    bool Idle( );
 
-    virtual ncycle_t GetNextActivate( uint64_t bank );
-    virtual ncycle_t GetNextRead( uint64_t bank );
-    virtual ncycle_t GetNextWrite( uint64_t bank );
-    virtual ncycle_t GetNextPrecharge( uint64_t bank );
-    virtual ncycle_t GetNextRefresh( uint64_t bank );
+    ncycle_t GetNextActivate( uint64_t bank );
+    ncycle_t GetNextRead( uint64_t bank );
+    ncycle_t GetNextWrite( uint64_t bank );
+    ncycle_t GetNextPrecharge( uint64_t bank );
+    ncycle_t GetNextRefresh( uint64_t bank );
 
-    //void Cycle( ncycle_t steps );
+    void Cycle( ncycle_t steps );
 
-    //void RegisterStats( );
-    //void CalculateStats( );
-    //Bank **banks;
+    void RegisterStats( );
+    void CalculateStats( );
+    Bank **banks;
 
   private:
-  /*
     Config *conf;
     ncounter_t stateTimeout;
     uint64_t psInterval;
-    RankState state;
+    StandardRank_State state;
 
     ncounter_t bankCount;
     ncounter_t deviceWidth;
@@ -152,7 +151,6 @@ class Rank : public NVMObject
     bool Precharge( NVMainRequest *request );
     bool Refresh( NVMainRequest *request );
     Params *p;
-    */
 };
 
 };

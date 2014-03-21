@@ -29,48 +29,29 @@
 * Author list: 
 *   Matt Poremba    ( Email: mrp5060 at psu dot edu 
 *                     Website: http://www.cse.psu.edu/~poremba/ )
-*   Tao Zhang       ( Email: tzz106 at cse dot psu dot edu
-*                     Website: http://www.cse.psu.edu/~tzz106 )
 *******************************************************************************/
 
+#ifndef __BANKFACTORY_H__
+#define __BANKFACTORY_H__
+
 #include "src/Bank.h"
+#include <string>
 
-using namespace NVM;
+namespace NVM {
 
-/*
- * PowerDown() power the bank down along with different modes
- */
-bool Bank::PowerDown( OpType /*pdType*/ )
+class BankFactory
 {
-    return true;
-}
+  public:
+    BankFactory( ) { }
+    ~BankFactory( ) { }
 
-/*
- * PowerUp() force bank to leave powerdown mode and return to either
- * BANK_CLOSE or BANK_OPEN 
- */
-bool Bank::PowerUp( )
-{
-    return true;
-}
+    static Bank *CreateNewBank( std::string bankName );
+    static Bank *CreateBankNoWarn( std::string bankName );
 
-/* 
- * Corresponds to physical bank id 
- * if this bank logically spans multiple devices, the id corresponds to the device, 
- * NOT the logical bank id within a single device.
- */
-void Bank::SetId( ncounter_t id )
-{
-    bankId = id;
-}
+  private:
+    static Bank *CreateBank( std::string bankName );
+};
 
-ncounter_t Bank::GetId( )
-{
-    return bankId;
-}
+};
 
-bool Bank::Idle( )
-{
-    return true;
-}
-
+#endif
