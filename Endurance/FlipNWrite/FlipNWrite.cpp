@@ -65,7 +65,7 @@ FlipNWrite::~FlipNWrite( )
      */
 }
 
-void FlipNWrite::SetConfig( Config *config )
+void FlipNWrite::SetConfig( Config *config, bool createChildren )
 {
     Params *params = new Params( );
     params->SetParams( config );
@@ -78,7 +78,7 @@ void FlipNWrite::SetConfig( Config *config )
     if( fpSize == -1 )
         fpSize = 32; 
 
-    EnduranceModel::SetConfig( config );
+    EnduranceModel::SetConfig( config, createChildren );
 }
 
 void FlipNWrite::RegisterStats( )

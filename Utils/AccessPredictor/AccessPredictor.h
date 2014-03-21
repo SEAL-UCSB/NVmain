@@ -49,6 +49,8 @@ class AccessPredictor : public AddressTranslator, public NVMObject
     AccessPredictor( );
     ~AccessPredictor( );
 
+    using AddressTranslator::Translate;
+
     /* Translate is request for system traversal via GetChild() */
     virtual uint64_t Translate( NVMainRequest *request ) = 0;
 

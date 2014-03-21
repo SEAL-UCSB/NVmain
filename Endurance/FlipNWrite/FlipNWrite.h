@@ -45,7 +45,7 @@ class FlipNWrite : public EnduranceModel
     FlipNWrite( );
     ~FlipNWrite( );
 
-    void SetConfig( Config *config );
+    void SetConfig( Config *config, bool createChildren = true );
 
     bool Write( NVMAddress address, NVMDataBlock oldData, NVMDataBlock newData );
 
