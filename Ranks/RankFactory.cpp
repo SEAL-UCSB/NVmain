@@ -29,48 +29,53 @@
 * Author list: 
 *   Matt Poremba    ( Email: mrp5060 at psu dot edu 
 *                     Website: http://www.cse.psu.edu/~poremba/ )
-*   Tao Zhang       ( Email: tzz106 at cse dot psu dot edu
-*                     Website: http://www.cse.psu.edu/~tzz106 )
 *******************************************************************************/
 
-#include "src/Bank.h"
+#include "Ranks/RankFactory.h"
+#include <iostream>
+
+/* Add your decoder's include file below. */
+#include "Ranks/StandardRank/StandardRank.h"
 
 using namespace NVM;
 
-/*
- * PowerDown() power the bank down along with different modes
- */
-bool Bank::PowerDown( OpType /*pdType*/ )
+Rank *RankFactory::CreateRank( std::string rankName )
 {
-    return true;
+    Rank *rank = NULL;
+
+    if( rankName == "StandardRank" ) rank = new StandardRank( );
+    //else if( rankName == "CachedRank" ) rank = new CachedRank( );
+
+    return rank;
 }
 
-/*
- * PowerUp() force bank to leave powerdown mode and return to either
- * BANK_CLOSE or BANK_OPEN 
- */
-bool Bank::PowerUp( )
+Rank *RankFactory::CreateNewRank( std::string rankName )
 {
-    return true;
+    Rank *rank = NULL;
+
+    rank = CreateRank( rankName );
+
+    /* If rank isn't found, default to the standard rank. */
+    if( rank == NULL )
+    {
+        rank = new StandardRank( );
+        
+        std::cout << "Could not find Rank named `" << rankName
+                  << "'. Using StandardRank." << std::endl;
+    }
+
+    return rank;
 }
 
-/* 
- * Corresponds to physical bank id 
- * if this bank logically spans multiple devices, the id corresponds to the device, 
- * NOT the logical bank id within a single device.
- */
-void Bank::SetId( ncounter_t id )
+Rank *RankFactory::CreateRankNoWarn( std::string rankName )
 {
-    bankId = id;
-}
+    Rank *rank = NULL;
 
-ncounter_t Bank::GetId( )
-{
-    return bankId;
-}
+    rank = CreateRank( rankName );
 
-bool Bank::Idle( )
-{
-    return true;
+    if( rank == NULL ) 
+        rank = new StandardRank( );
+
+    return rank;
 }
 

@@ -29,48 +29,29 @@
 * Author list: 
 *   Matt Poremba    ( Email: mrp5060 at psu dot edu 
 *                     Website: http://www.cse.psu.edu/~poremba/ )
-*   Tao Zhang       ( Email: tzz106 at cse dot psu dot edu
-*                     Website: http://www.cse.psu.edu/~tzz106 )
 *******************************************************************************/
 
-#include "src/Bank.h"
+#ifndef __RANKFACTORY_H__
+#define __RANKFACTORY_H__
 
-using namespace NVM;
+#include "src/Rank.h"
+#include <string>
 
-/*
- * PowerDown() power the bank down along with different modes
- */
-bool Bank::PowerDown( OpType /*pdType*/ )
+namespace NVM {
+
+class RankFactory
 {
-    return true;
-}
+  public:
+    RankFactory( ) { }
+    ~RankFactory( ) { }
 
-/*
- * PowerUp() force bank to leave powerdown mode and return to either
- * BANK_CLOSE or BANK_OPEN 
- */
-bool Bank::PowerUp( )
-{
-    return true;
-}
+    static Rank *CreateNewRank( std::string rankName );
+    static Rank *CreateRankNoWarn( std::string rankName );
 
-/* 
- * Corresponds to physical bank id 
- * if this bank logically spans multiple devices, the id corresponds to the device, 
- * NOT the logical bank id within a single device.
- */
-void Bank::SetId( ncounter_t id )
-{
-    bankId = id;
-}
+  private:
+    static Rank *CreateRank( std::string rankName );
+};
 
-ncounter_t Bank::GetId( )
-{
-    return bankId;
-}
+};
 
-bool Bank::Idle( )
-{
-    return true;
-}
-
+#endif

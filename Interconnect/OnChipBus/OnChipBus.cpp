@@ -32,6 +32,7 @@
 *******************************************************************************/
 
 #include "Interconnect/OnChipBus/OnChipBus.h"
+#include "Ranks/RankFactory.h"
 #include "src/EventQueue.h"
 
 #include <sstream>
@@ -87,15 +88,11 @@ void OnChipBus::SetConfig( Config *c, bool createChildren )
         {
             std::stringstream formatter;
 
-            ranks[i] = new Rank( );
+            ranks[i] = RankFactory::CreateRankNoWarn( c->GetString( "RankType" ) );
 
             formatter.str( "" );
             formatter << StatName( ) << ".rank" << i;
             ranks[i]->StatName( formatter.str( ) );
-
-            formatter.str( "" );
-            formatter << i;
-            ranks[i]->SetName( formatter.str( ) );
 
             ranks[i]->SetParent( this );
             AddChild( ranks[i] );

@@ -29,48 +29,54 @@
 * Author list: 
 *   Matt Poremba    ( Email: mrp5060 at psu dot edu 
 *                     Website: http://www.cse.psu.edu/~poremba/ )
-*   Tao Zhang       ( Email: tzz106 at cse dot psu dot edu
-*                     Website: http://www.cse.psu.edu/~tzz106 )
 *******************************************************************************/
 
-#include "src/Bank.h"
+#include "Banks/BankFactory.h"
+#include <iostream>
+
+/* Add your decoder's include file below. */
+#include "Banks/DDR3Bank/DDR3Bank.h"
 
 using namespace NVM;
 
-/*
- * PowerDown() power the bank down along with different modes
- */
-bool Bank::PowerDown( OpType /*pdType*/ )
+Bank *BankFactory::CreateBank( std::string bankName )
 {
-    return true;
+    Bank *bank = NULL;
+
+    if( bankName == "DDR3" ) bank = new DDR3Bank( );
+    //else if( bankName == "LPDDR2" ) bank = new LPDDR2Bank( );
+    //else if( bankName == "LPDDR2-N" ) bank = new LPDDR2NBank( );
+
+    return bank;
 }
 
-/*
- * PowerUp() force bank to leave powerdown mode and return to either
- * BANK_CLOSE or BANK_OPEN 
- */
-bool Bank::PowerUp( )
+Bank *BankFactory::CreateNewBank( std::string bankName )
 {
-    return true;
+    Bank *bank = NULL;
+
+    bank = CreateBank( bankName );
+
+    /* If bank isn't found, default to a DDR3-style bank. */
+    if( bank == NULL )
+    {
+        bank = new DDR3Bank( );
+        
+        std::cout << "Could not find Bank named `" << bankName
+            << "'. Using DDR3Bank." << std::endl;
+    }
+
+    return bank;
 }
 
-/* 
- * Corresponds to physical bank id 
- * if this bank logically spans multiple devices, the id corresponds to the device, 
- * NOT the logical bank id within a single device.
- */
-void Bank::SetId( ncounter_t id )
+Bank *BankFactory::CreateBankNoWarn( std::string bankName )
 {
-    bankId = id;
-}
+    Bank *bank = NULL;
 
-ncounter_t Bank::GetId( )
-{
-    return bankId;
-}
+    bank = CreateBank( bankName );
 
-bool Bank::Idle( )
-{
-    return true;
+    if( bank == NULL ) 
+        bank = new DDR3Bank( );
+
+    return bank;
 }
 
