@@ -380,13 +380,13 @@ double CacheBank::GetCacheOccupancy( )
     valid = 0;
     total = numSets*numAssoc;
 
-    for( uint64_t i = 0; i < numSets; i++ )
+    for( uint64_t setIdx = 0; setIdx < numSets; setIdx++ )
     {
-        CacheEntry *set = cacheEntry[i];
+        CacheEntry *set = cacheEntry[setIdx];
 
-        for( uint64_t j = 0; j < numAssoc; j++ )
+        for( uint64_t assocIdx = 0; assocIdx < numAssoc; assocIdx++ )
         {
-            if( set[i].flags & CACHE_ENTRY_VALID )
+            if( set[assocIdx].flags & CACHE_ENTRY_VALID )
                 valid++;
         }
     }
