@@ -48,7 +48,6 @@ AccessPredictor::~AccessPredictor( )
 
 }
 
-
 void AccessPredictor::Cycle( ncycle_t )
 {
 

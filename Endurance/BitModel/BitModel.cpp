@@ -57,13 +57,13 @@ BitModel::~BitModel( )
      */
 }
 
-void BitModel::SetConfig( Config *config )
+void BitModel::SetConfig( Config *config, bool createChildren )
 {
     Params *params = new Params( );
     params->SetParams( config );
     SetParams( params );
 
-    EnduranceModel::SetConfig( config );
+    EnduranceModel::SetConfig( config, createChildren );
 }
 
 bool BitModel::Write( NVMAddress address, NVMDataBlock oldData, 
