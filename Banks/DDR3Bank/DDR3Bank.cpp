@@ -410,19 +410,26 @@ bool DDR3Bank::Read( NVMainRequest *request )
 
     /* Update timing constraints */
     if( request->type == READ_PRECHARGE )
+    {
         nextPowerDown = MAX( nextPowerDown, 
                              GetEventQueue()->GetCurrentCycle() 
+                                 + MAX( p->tBURST, p->tCCD ) * (request->burstCount - 1)
                                  + p->tAL + p->tRTP + p->tRP );
+    }
     else
+    {
         nextPowerDown = MAX( nextPowerDown, 
-                             GetEventQueue()->GetCurrentCycle() + p->tRDPDEN );
+                             MAX( p->tBURST, p->tCCD ) * (request->burstCount - 1)
+                             + GetEventQueue()->GetCurrentCycle() + p->tRDPDEN );
+    }
 
     nextRead = MAX( nextRead, 
                     GetEventQueue()->GetCurrentCycle() 
-                        + MAX( p->tBURST, p->tCCD ) );
+                        + MAX( p->tBURST, p->tCCD ) * request->burstCount );
 
     nextWrite = MAX( nextWrite, 
-                     GetEventQueue()->GetCurrentCycle() 
+                     GetEventQueue()->GetCurrentCycle()
+                         + MAX( p->tBURST, p->tCCD ) * (request->burstCount - 1)
                          + p->tCAS + p->tBURST + p->tRTRS - p->tCWD );
 
     /* issue READ/READ_RECHARGE to the target subarray */
@@ -488,23 +495,29 @@ bool DDR3Bank::Write( NVMainRequest *request )
     /* Update timing constraints */
     /* if implicit precharge is enabled, do the precharge */
     if( request->type == WRITE_PRECHARGE )
+    {
         nextPowerDown = MAX( nextActivate, 
-                            GetEventQueue()->GetCurrentCycle()
-                                + p->tAL + p->tCWD + p->tBURST + p->tWR 
-                                + p->tRP );
-
+                             GetEventQueue()->GetCurrentCycle()
+                             + MAX( p->tBURST, p->tCCD ) * (request->burstCount - 1)
+                             + p->tAL + p->tCWD + p->tBURST + p->tWR 
+                             + p->tRP );
+    }
     /* else, no implicit precharge is enabled, simply update the timing */
     else
+    {
         nextPowerDown = MAX( nextPowerDown, 
-                             GetEventQueue()->GetCurrentCycle() + p->tWRPDEN );
+                             MAX( p->tBURST, p->tCCD ) * (request->burstCount - 1)
+                             + GetEventQueue()->GetCurrentCycle() + p->tWRPDEN );
+    }
 
     nextRead = MAX( nextRead, 
                     GetEventQueue()->GetCurrentCycle() 
-                        + p->tCWD + p->tBURST + p->tWTR );
+                    + MAX( p->tBURST, p->tCCD ) * (request->burstCount - 1)
+                    + p->tCWD + p->tBURST + p->tWTR );
 
     nextWrite = MAX( nextWrite, 
                      GetEventQueue()->GetCurrentCycle() 
-                         + MAX( p->tBURST, p->tCCD ) );
+                     + MAX( p->tBURST, p->tCCD ) * request->burstCount );
 
     /* issue WRITE/WRITE_PRECHARGE to the target subarray */
     bool success = subArrays[writeSubArray]->IssueCommand( request );

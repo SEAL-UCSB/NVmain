@@ -129,6 +129,7 @@ class NVMainRequest
         completionCycle = 0; 
         isPrefetch = false; 
         programCounter = 0; 
+        burstCount = 1;
         owner = NULL;
     };
 
@@ -149,6 +150,7 @@ class NVMainRequest
     bool isPrefetch;               //< Whether request is a prefetch or not
     NVMAddress pfTrigger;          //< Address that triggered this prefetch
     uint64_t programCounter;       //< Program counter of CPU issuing request
+    ncounter_t burstCount;         //< Number of bursts (used for variable-size requests.
     NVMObject *owner;              //< Pointer to the object that created this request
 
     ncycle_t arrivalCycle;         //< When the request arrived at the memory controller

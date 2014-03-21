@@ -366,6 +366,7 @@ bool SubArray::Read( NVMainRequest *request )
     {
         nextActivate = MAX( nextActivate, 
                             GetEventQueue()->GetCurrentCycle()
+                                + MAX( p->tBURST, p->tCCD ) * (request->burstCount - 1)
                                 + p->tAL + p->tRTP + p->tRP );
 
         nextPrecharge = MAX( nextPrecharge, nextActivate );
@@ -378,20 +379,23 @@ bool SubArray::Read( NVMainRequest *request )
 
         /* insert the event to issue the implicit precharge */ 
         GetEventQueue( )->InsertEvent( EventResponse, this, preReq, 
-            GetEventQueue()->GetCurrentCycle() + p->tAL + p->tRTP );
+                        GetEventQueue()->GetCurrentCycle() + p->tAL + p->tRTP 
+                        + MAX( p->tBURST, p->tCCD ) * (request->burstCount - 1) );
     }
     else
     {
         nextPrecharge = MAX( nextPrecharge, 
                              GetEventQueue()->GetCurrentCycle() 
+                                 + MAX( p->tBURST, p->tCCD ) * (request->burstCount - 1)
                                  + p->tAL + p->tBURST + p->tRTP - p->tCCD );
 
         nextRead = MAX( nextRead, 
                         GetEventQueue()->GetCurrentCycle() 
-                            + MAX( p->tBURST, p->tCCD ) );
+                            + MAX( p->tBURST, p->tCCD ) * request->burstCount );
 
         nextWrite = MAX( nextWrite, 
                          GetEventQueue()->GetCurrentCycle() 
+                             + MAX( p->tBURST, p->tCCD ) * (request->burstCount  - 1)
                              + p->tCAS + p->tBURST + p->tRTRS - p->tCWD );
     }
 
@@ -534,8 +538,9 @@ bool SubArray::Write( NVMainRequest *request )
     {
         nextActivate = MAX( nextActivate, 
                             GetEventQueue()->GetCurrentCycle()
-                                + p->tAL + p->tCWD + p->tBURST 
-                                + writeTimer + p->tWR + p->tRP );
+                            + MAX( p->tBURST, p->tCCD ) * (request->burstCount - 1)
+                            + p->tAL + p->tCWD + p->tBURST 
+                            + writeTimer + p->tWR + p->tRP );
 
         nextPrecharge = MAX( nextPrecharge, nextActivate );
         nextRead = MAX( nextRead, nextActivate );
@@ -549,29 +554,34 @@ bool SubArray::Write( NVMainRequest *request )
         /* insert the event to issue the implicit precharge */ 
         GetEventQueue( )->InsertEvent( EventResponse, this, preReq, 
             GetEventQueue()->GetCurrentCycle() 
+            + MAX( p->tBURST, p->tCCD ) * (request->burstCount - 1)
             + p->tAL + p->tCWD + p->tBURST + writeTimer + p->tWR );
     }
     else
     {
         nextPrecharge = MAX( nextPrecharge, 
                              GetEventQueue()->GetCurrentCycle() 
-                                 + p->tAL + p->tCWD + p->tBURST + writeTimer + p->tWR );
+                             + MAX( p->tBURST, p->tCCD ) * (request->burstCount - 1)
+                             + p->tAL + p->tCWD + p->tBURST + writeTimer + p->tWR );
 
         nextRead = MAX( nextRead, 
                         GetEventQueue()->GetCurrentCycle() 
-                            + p->tCWD + p->tBURST + p->tWTR + writeTimer );
+                        + MAX( p->tBURST, p->tCCD ) * (request->burstCount - 1)
+                        + p->tCWD + p->tBURST + p->tWTR + writeTimer );
 
         nextWrite = MAX( nextWrite, 
                          GetEventQueue()->GetCurrentCycle() 
-                             + MAX( p->tBURST, p->tCCD ) + writeTimer );
+                         + MAX( p->tBURST, p->tCCD ) * request->burstCount + writeTimer );
     }
 
     /* Mark that a write is in progress in cause we want to pause/cancel. */
     isWriting = true;
     writeRequest = request;
+    // TODO: Should we disallow pausing during the data burst?
     writeStart = GetEventQueue()->GetCurrentCycle();
     writeEnd = GetEventQueue()->GetCurrentCycle() + writeTimer;
-    writeEventTime = GetEventQueue()->GetCurrentCycle() + p->tCWD + p->tBURST + writeTimer;
+    writeEventTime = GetEventQueue()->GetCurrentCycle() + p->tCWD 
+                     + MAX( p->tBURST, p->tCCD ) * request->burstCount + writeTimer;
 
     /* The parent has our hook in the children list, we need to find this. */
     std::vector<NVMObject_hook *>& children = GetParent( )->GetTrampoline( )->GetChildren( );
