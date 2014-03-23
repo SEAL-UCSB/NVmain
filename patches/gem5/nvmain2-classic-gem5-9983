@@ -4,7 +4,7 @@ Use IsIssuable and don't call hooks unless true is returned
 
 diff -r d70124a5d594 configs/common/MemConfig.py
 --- a/configs/common/MemConfig.py	Tue Nov 26 17:51:07 2013 +0100
-+++ b/configs/common/MemConfig.py	Fri Mar 21 15:32:09 2014 -0400
++++ b/configs/common/MemConfig.py	Sun Mar 23 16:06:49 2014 -0400
 @@ -54,6 +54,7 @@
      ("lpddr2_s4_1066_x32", "LPDDR2_S4_1066_x32"),
      ("lpddr3_1600_x32", "LPDDR3_1600_x32"),
@@ -15,7 +15,7 @@ diff -r d70124a5d594 configs/common/MemConfig.py
  # Filtered list of aliases. Only aliases for existing memory
 diff -r d70124a5d594 configs/common/Options.py
 --- a/configs/common/Options.py	Tue Nov 26 17:51:07 2013 +0100
-+++ b/configs/common/Options.py	Fri Mar 21 15:32:09 2014 -0400
++++ b/configs/common/Options.py	Sun Mar 23 16:06:49 2014 -0400
 @@ -198,6 +198,24 @@
          help="""Treat value of --checkpoint-restore or --take-checkpoint as a
                  number of instructions.""")
@@ -43,7 +43,7 @@ diff -r d70124a5d594 configs/common/Options.py
      parser.add_option("-c", "--cmd", default="",
 diff -r d70124a5d594 src/mem/NVMainMemory.py
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/NVMainMemory.py	Fri Mar 21 15:32:09 2014 -0400
++++ b/src/mem/NVMainMemory.py	Sun Mar 23 16:06:49 2014 -0400
 @@ -0,0 +1,90 @@
 +# Copyright (c) 2012-2013 Pennsylvania State University
 +# All rights reserved.
@@ -137,7 +137,7 @@ diff -r d70124a5d594 src/mem/NVMainMemory.py
 +
 diff -r d70124a5d594 src/mem/SConscript
 --- a/src/mem/SConscript	Tue Nov 26 17:51:07 2013 +0100
-+++ b/src/mem/SConscript	Fri Mar 21 15:32:09 2014 -0400
++++ b/src/mem/SConscript	Sun Mar 23 16:06:49 2014 -0400
 @@ -43,6 +43,7 @@
  SimObject('MemObject.py')
  SimObject('SimpleMemory.py')
@@ -165,8 +165,8 @@ diff -r d70124a5d594 src/mem/SConscript
  DebugFlag('RubyCache')
 diff -r d70124a5d594 src/mem/nvmain_mem.cc
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/nvmain_mem.cc	Fri Mar 21 15:32:09 2014 -0400
-@@ -0,0 +1,742 @@
++++ b/src/mem/nvmain_mem.cc	Sun Mar 23 16:06:49 2014 -0400
+@@ -0,0 +1,743 @@
 +/*
 + * Copyright (c) 2012-2013 Pennsylvania State University
 + * All rights reserved.
@@ -301,12 +301,6 @@ diff -r d70124a5d594 src/mem/nvmain_mem.cc
 +        port.sendRangeChange();
 +    }
 +
-+    if( NVMainWarmUp )
-+    {
-+        schedule(clockEvent, clockEdge());
-+        m_awake = true;
-+    }
-+
 +    statPrinter.nvmainPtr = m_nvmainPtr;
 +
 +    if( m_nvmainConfig->KeyExists( "StatsFile" ) )
@@ -354,7 +348,6 @@ diff -r d70124a5d594 src/mem/nvmain_mem.cc
 +{
 +    DPRINTF(NVMain, "NVMainMemory: startup() called.\n");
 +    DPRINTF(NVMainMin, "NVMainMemory: startup() called.\n");
-+    //wakeup();
 +}
 +
 +
@@ -363,6 +356,14 @@ diff -r d70124a5d594 src/mem/nvmain_mem.cc
 +    DPRINTF(NVMain, "NVMainMemory: wakeup() called.\n");
 +    DPRINTF(NVMainMin, "NVMainMemory: wakeup() called.\n");
 +    schedule(clockEvent, clockEdge());
++
++    /*
++     *  Schedule the initial event. Needed for warmup and timing mode.
++     *  If we are in atomic/fast-forward, wakeup will be disabled upon
++     *  the first atomic request receieved in recvAtomic().
++     */
++    schedule(clockEvent, curTick() + clock);
++    m_awake = true;
 +}
 +
 +
@@ -911,7 +912,7 @@ diff -r d70124a5d594 src/mem/nvmain_mem.cc
 +
 diff -r d70124a5d594 src/mem/nvmain_mem.hh
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/nvmain_mem.hh	Fri Mar 21 15:32:09 2014 -0400
++++ b/src/mem/nvmain_mem.hh	Sun Mar 23 16:06:49 2014 -0400
 @@ -0,0 +1,191 @@
 +/*
 + * Copyright (c) 2012-2013 Pennsylvania State University
