@@ -1,10 +1,10 @@
 # HG changeset patch
-# Parent 0315032083da50149698b3ffa769c52af50aab0d
+# Parent 85098187a01ba77e66286f6bab9d72941db4cf43
 Use IsIssuable and don't call hooks unless true is returned
 
-diff -r 0315032083da configs/common/MemConfig.py
---- a/configs/common/MemConfig.py	Wed Mar 05 17:31:24 2014 -0500
-+++ b/configs/common/MemConfig.py	Sat Mar 15 16:22:04 2014 -0400
+diff -r 85098187a01b configs/common/MemConfig.py
+--- a/configs/common/MemConfig.py	Fri Mar 21 12:08:33 2014 -0400
++++ b/configs/common/MemConfig.py	Sun Mar 23 19:07:24 2014 -0400
 @@ -49,6 +49,7 @@
  # fina; list. A target may be specified as a tuple, in which case the
  # first available memory controller model in the tuple will be used.
@@ -13,9 +13,9 @@ diff -r 0315032083da configs/common/MemConfig.py
      ("simple_mem", "SimpleMemory"),
      ("ddr3_1600_x64", "DDR3_1600_x64"),
      ("lpddr2_s4_1066_x32", "LPDDR2_S4_1066_x32"),
-diff -r 0315032083da configs/common/Options.py
---- a/configs/common/Options.py	Wed Mar 05 17:31:24 2014 -0500
-+++ b/configs/common/Options.py	Sat Mar 15 16:22:04 2014 -0400
+diff -r 85098187a01b configs/common/Options.py
+--- a/configs/common/Options.py	Fri Mar 21 12:08:33 2014 -0400
++++ b/configs/common/Options.py	Sun Mar 23 19:07:24 2014 -0400
 @@ -209,6 +209,24 @@
                        help="ARM instruction set.")
  
@@ -41,9 +41,9 @@ diff -r 0315032083da configs/common/Options.py
  def addSEOptions(parser):
      # Benchmark options
      parser.add_option("-c", "--cmd", default="",
-diff -r 0315032083da src/mem/NVMainMemory.py
+diff -r 85098187a01b src/mem/NVMainMemory.py
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/NVMainMemory.py	Sat Mar 15 16:22:04 2014 -0400
++++ b/src/mem/NVMainMemory.py	Sun Mar 23 19:07:24 2014 -0400
 @@ -0,0 +1,90 @@
 +# Copyright (c) 2012-2013 Pennsylvania State University
 +# All rights reserved.
@@ -135,9 +135,9 @@ diff -r 0315032083da src/mem/NVMainMemory.py
 +        self.configparams = config_params
 +        self.configvalues = config_values
 +
-diff -r 0315032083da src/mem/SConscript
---- a/src/mem/SConscript	Wed Mar 05 17:31:24 2014 -0500
-+++ b/src/mem/SConscript	Sat Mar 15 16:22:04 2014 -0400
+diff -r 85098187a01b src/mem/SConscript
+--- a/src/mem/SConscript	Fri Mar 21 12:08:33 2014 -0400
++++ b/src/mem/SConscript	Sun Mar 23 19:07:24 2014 -0400
 @@ -43,6 +43,7 @@
  SimObject('MemObject.py')
  SimObject('SimpleMemory.py')
@@ -163,10 +163,10 @@ diff -r 0315032083da src/mem/SConscript
  
  DebugFlag("DRAMSim2")
  
-diff -r 0315032083da src/mem/nvmain_mem.cc
+diff -r 85098187a01b src/mem/nvmain_mem.cc
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/nvmain_mem.cc	Sat Mar 15 16:22:04 2014 -0400
-@@ -0,0 +1,740 @@
++++ b/src/mem/nvmain_mem.cc	Sun Mar 23 19:07:24 2014 -0400
+@@ -0,0 +1,741 @@
 +/*
 + * Copyright (c) 2012-2013 Pennsylvania State University
 + * All rights reserved.
@@ -300,12 +300,6 @@ diff -r 0315032083da src/mem/nvmain_mem.cc
 +        port.sendRangeChange();
 +    }
 +
-+    if( NVMainWarmUp )
-+    {
-+        schedule(clockEvent, clockEdge());
-+        m_awake = true;
-+    }
-+
 +    statPrinter.nvmainPtr = m_nvmainPtr;
 +
 +    if( m_nvmainConfig->KeyExists( "StatsFile" ) )
@@ -352,7 +346,14 @@ diff -r 0315032083da src/mem/nvmain_mem.cc
 +{
 +    DPRINTF(NVMain, "NVMainMemory: startup() called.\n");
 +    DPRINTF(NVMainMin, "NVMainMemory: startup() called.\n");
-+    //wakeup();
++
++    /*
++     *  Schedule the initial event. Needed for warmup and timing mode.
++     *  If we are in atomic/fast-forward, wakeup will be disabled upon
++     *  the first atomic request receieved in recvAtomic().
++     */
++    schedule(clockEvent, curTick() + clock);
++    m_awake = true;
 +}
 +
 +
@@ -907,9 +908,9 @@ diff -r 0315032083da src/mem/nvmain_mem.cc
 +    return new NVMainMemory(this);
 +}
 +
-diff -r 0315032083da src/mem/nvmain_mem.hh
+diff -r 85098187a01b src/mem/nvmain_mem.hh
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/nvmain_mem.hh	Sat Mar 15 16:22:04 2014 -0400
++++ b/src/mem/nvmain_mem.hh	Sun Mar 23 19:07:24 2014 -0400
 @@ -0,0 +1,190 @@
 +/*
 + * Copyright (c) 2012-2013 Pennsylvania State University
