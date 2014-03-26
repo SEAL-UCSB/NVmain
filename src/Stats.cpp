@@ -96,6 +96,8 @@ void Stats::PrintAll( std::ostream& stream )
     {
         (*it)->Print( stream );
     }
+
+    psInterval++;
 }
 
 void Stats::ResetAll( )
@@ -129,8 +131,6 @@ void StatBase::Print( std::ostream& stream )
     else stream << "?????";
 
     stream << units << std::endl;
-
-    psInterval++;
 }
 
 
