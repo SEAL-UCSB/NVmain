@@ -39,7 +39,6 @@
 #include <stdint.h>
 #include <list>
 #include "src/Bank.h"
-//#include "src/Device.h"
 #include "src/Params.h"
 #include "src/NVMObject.h"
 #include <iostream>
@@ -77,14 +76,8 @@ class Rank : public NVMObject
     ~Rank( ) { }
 
     virtual void SetConfig( Config * /*c*/, bool /*createChildren*/ = true ) { }
-    //void SetParams( Params *params ) { p = params; }
 
-    //bool IssueCommand( NVMainRequest *mop );
-    //bool IsIssuable( NVMainRequest *mop, FailReason *reason = NULL );
     virtual void Notify( OpType /*op*/ ) { }
-    //bool RequestComplete( NVMainRequest* );
-
-    //void SetName( std::string name );
 
     virtual bool PowerDown( const OpType& pdOp );
     virtual bool PowerUp( );
@@ -99,60 +92,6 @@ class Rank : public NVMObject
     virtual ncycle_t GetNextPrecharge( uint64_t bank );
     virtual ncycle_t GetNextRefresh( uint64_t bank );
 
-    //void Cycle( ncycle_t steps );
-
-    //void RegisterStats( );
-    //void CalculateStats( );
-    //Bank **banks;
-
-  private:
-  /*
-    Config *conf;
-    ncounter_t stateTimeout;
-    uint64_t psInterval;
-    RankState state;
-
-    ncounter_t bankCount;
-    ncounter_t deviceWidth;
-    ncounter_t deviceCount;
-    ncounter_t busWidth;
-    ncycle_t* lastActivate;
-    ncounter_t RAWindex;
-    ncounter_t rawNum;
-    ncounter_t banksPerRefresh;
-
-    ncycle_t nextRead;
-    ncycle_t nextWrite;
-    ncycle_t nextActivate;
-    ncycle_t nextPrecharge;
-
-    ncounter_t activeCycles;
-    ncounter_t standbyCycles;
-    ncounter_t fastExitCycles;
-    ncounter_t slowExitCycles;
-
-    ncounter_t rrdWaits;
-    ncounter_t rrdWaitTotal;
-    double rrdWaitAverage;
-    ncounter_t fawWaits;
-    ncounter_t fawWaitTotal;
-    double fawWaitAverage;
-    ncounter_t actWaits;
-    ncounter_t actWaitTotal;
-    double actWaitAverage;
-
-    ncounter_t reads, writes;
-
-    double totalEnergy, backgroundEnergy, activateEnergy, burstEnergy, refreshEnergy;
-    double totalPower, backgroundPower, activatePower, burstPower, refreshPower;
-
-    bool Activate( NVMainRequest *request );
-    bool Read( NVMainRequest *request );
-    bool Write( NVMainRequest *request );
-    bool Precharge( NVMainRequest *request );
-    bool Refresh( NVMainRequest *request );
-    Params *p;
-    */
 };
 
 };
