@@ -164,14 +164,12 @@ bool FRFCFS::RequestComplete( NVMainRequest * request )
          *  Put cancelled requests at the head of the write queue
          *  like nothing ever happened.
          */
-        if( request->flags & NVMainRequest::FLAG_CANCELLED )
+        if( request->flags & NVMainRequest::FLAG_CANCELLED 
+            || request->flags & NVMainRequest::FLAG_PAUSED )
         {
             memQueue.push_front( request );
-            request->flags &= ~NVMainRequest::FLAG_CANCELLED; 
-        }
-        else if( request->flags & NVMainRequest::FLAG_PAUSED )
-        {
-            memQueue.push_front( request );
+
+            return true;
         }
     }
 
@@ -216,6 +214,11 @@ void FRFCFS::Cycle( ncycle_t steps )
     {
         rb_hits++;
     }
+    else if( FindWriteStalledRead( memQueue, &nextRequest ) )
+    {
+        if( nextRequest != NULL )
+            write_pauses++;
+    }
     /* Find the oldest request that can be issued. */
     else if( FindOldestReadyRequest( memQueue, &nextRequest ) )
     {
@@ -225,12 +228,6 @@ void FRFCFS::Cycle( ncycle_t steps )
     else if( FindClosedBankRequest( memQueue, &nextRequest ) )
     {
         rb_miss++;
-    }
-    else if( FindWriteStalledRead( memQueue, &nextRequest ) )
-    {
-        //rb_hits++;
-        //write_pauses++;
-        //std::cout << "Found a read that can go." << std::endl;
     }
     else
     {

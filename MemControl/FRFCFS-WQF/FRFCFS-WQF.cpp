@@ -272,14 +272,12 @@ bool FRFCFS_WQF::RequestComplete( NVMainRequest * request )
          *  Put cancelled requests at the head of the write queue
          *  like nothing ever happened.
          */
-        if( request->flags & NVMainRequest::FLAG_CANCELLED )
+        if( request->flags & NVMainRequest::FLAG_CANCELLED 
+            || request->flags & NVMainRequest::FLAG_PAUSED )
         {
             writeQueue.push_front( request );
-            request->flags &= ~NVMainRequest::FLAG_CANCELLED; 
-        }
-        else if( request->flags & NVMainRequest::FLAG_PAUSED )
-        {
-            writeQueue.push_front( request );
+
+            return true;
         }
     }
 

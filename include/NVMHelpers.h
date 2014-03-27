@@ -37,12 +37,42 @@
 #include <string>
 #include <map>
 #include <cstdint>
+#include <sstream>
 
 namespace NVM {
 
 int mlog2( int num );
 std::string GetFilePath( std::string file );
-std::string PyDictHistogram( std::map<uint64_t, uint64_t> );
+
+template <typename T1, typename T2>
+std::string PyDictHistogram( std::map<T1, T2> iiMap )
+{
+
+    /* Print a histogram as a python-style dict. */
+    std::stringstream pyHistoSS;
+
+    pyHistoSS.str("");
+    pyHistoSS << "{";
+
+    bool outputComma = false;
+    for( typename std::map<T1, T2>::iterator iter = iiMap.begin();
+         iter != iiMap.end(); ++iter )
+    {
+        if( outputComma )
+            pyHistoSS << ", ";
+
+        pyHistoSS << iter->first;
+        pyHistoSS << ": ";
+        pyHistoSS << iter->second;
+
+        outputComma = true;
+    }
+
+    pyHistoSS << "}";
+
+    return pyHistoSS.str();
+}
+
 
 };
 

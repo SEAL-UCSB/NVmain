@@ -434,7 +434,7 @@ bool MemoryController::HandleRefresh( )
                 /* create a refresh command that will be sent to ranks */
                 NVMainRequest* cmdRefresh = MakeRefreshRequest( 0, 0, j, i, 0 );
 
-                if( GetChild( )->IsIssuable( cmdRefresh, &fail ) == false )
+                if( GetChild( )->IsIssuable( cmdRefresh, &fail ) == false && p->UsePrecharge )
                 {
                     for( ncounter_t tmpBank = 0; tmpBank < p->BanksPerRefresh; tmpBank++ ) 
                     {
@@ -850,6 +850,8 @@ bool MemoryController::FindWriteStalledRead( std::list<NVMainRequest *>& transac
     bool rv = false;
     std::list<NVMainRequest *>::iterator it;
 
+    *hitRequest = NULL;
+
     if( !p->WritePausing )
         return false;
 
@@ -859,32 +861,41 @@ bool MemoryController::FindWriteStalledRead( std::list<NVMainRequest *>& transac
             continue;
 
         ncounter_t rank, bank, row, subarray, col;
+        ncounter_t queueId = GetCommandQueueId( (*it)->address );
 
         (*it)->address.GetTranslatedAddress( &row, &col, &bank, &rank, NULL, &subarray );
-
-        /* By design, mux level can only be a subset of the selected columns. */
-        ncounter_t muxLevel = static_cast<ncounter_t>(col / p->RBSize);
 
         /* Find the requests's SubArray destination. */
         SubArray *writingArray = FindChild( (*it), SubArray );
 
-        //if( writingArray->isWriting )
+        //if( writingArray->IsWriting( ) )
         //{
         //    std::cout << "Subarray is writing!" << std::endl;
         //}
 
+        NVMainRequest *testActivate = MakeActivateRequest( (*it) );
+        testActivate->flags |= NVMainRequest::FLAG_PRIORITY; 
 
-        if( activateQueued[rank][bank]                    /* The bank is active */ 
-            && activeSubArray[rank][bank][subarray]       /* The subarray is open */
-            && effectiveRow[rank][bank][subarray] == row  /* The effective row is the row of this request */ 
-            && effectiveMuxedRow[rank][bank][subarray] == muxLevel  /* Subset of row buffer is currently at the sense amps */
-            && !bankNeedRefresh[rank][bank]               /* The bank is not waiting for a refresh */
-            && writingArray->isWriting                    /* There needs to be a write to cancel. */
-            && GetChild( )->IsIssuable( (*it ) )          /* Make sure we can actually send this right away, otherwise we may skip starvation/other checks in MC. */
-            && pred( (*it) ) )                            /* User-defined predicate is true */
+        if( !bankNeedRefresh[rank][bank]                 /* The bank is not waiting for a refresh */
+            && writingArray->IsWriting( )                /* There needs to be a write to cancel. */
+            && ( GetChild( )->IsIssuable( (*it ) )       /* Check for RB hit pause */
+            || GetChild( )->IsIssuable( testActivate ) ) /* See if we can activate to pause. */
+            && commandQueues[queueId].empty()            /* The request queue is empty */
+            && pred( (*it) ) )                           /* User-defined predicate is true */
         {
+            if( !writingArray->BetweenWriteIterations( ) && p->pauseMode == PauseMode_Normal )
+            {
+                delete testActivate;
+
+                /* Stall the scheduler by returning true. */
+                rv = true;
+                break;
+            }
+
             *hitRequest = (*it);
             transactionQueue.erase( it );
+
+            delete testActivate;
 
             /* Different row buffer management policy has different behavior */ 
 
@@ -901,6 +912,8 @@ bool MemoryController::FindWriteStalledRead( std::list<NVMainRequest *>& transac
 
             break;
         }
+
+        delete testActivate;
     }
 
     return rv;
@@ -1241,6 +1254,8 @@ bool MemoryController::IssueMemoryCommands( NVMainRequest *req )
 
     req->address.GetTranslatedAddress( &row, &col, &bank, &rank, NULL, &subarray );
 
+    SubArray *writingArray = FindChild( req, SubArray );
+
     ncounter_t muxLevel = static_cast<ncounter_t>(col / p->RBSize);
     ncounter_t queueId = GetCommandQueueId( req->address );
 
@@ -1260,7 +1275,9 @@ bool MemoryController::IssueMemoryCommands( NVMainRequest *req )
 
         req->issueCycle = GetEventQueue()->GetCurrentCycle();
 
-        commandQueues[queueId].push_back( MakeActivateRequest( req ) );
+        NVMainRequest *actRequest = MakeActivateRequest( req );
+        actRequest->flags |= writingArray->IsWriting( ) ? NVMainRequest::FLAG_PRIORITY : 0;
+        commandQueues[queueId].push_back( actRequest );
 
         /* Different row buffer management policy has different behavior */ 
         /*
@@ -1269,7 +1286,7 @@ bool MemoryController::IssueMemoryCommands( NVMainRequest *req )
          * buffer hit
          * or 2) ClosePage == 2, the request is always the last request
          */
-        if( req->flags & NVMainRequest::FLAG_LAST_REQUEST )
+        if( req->flags & NVMainRequest::FLAG_LAST_REQUEST && p->UsePrecharge )
         {
             commandQueues[queueId].push_back( MakeImplicitPrechargeRequest( req ) );
             activeSubArray[rank][bank][subarray] = false;
@@ -1296,13 +1313,15 @@ bool MemoryController::IssueMemoryCommands( NVMainRequest *req )
 
         req->issueCycle = GetEventQueue()->GetCurrentCycle();
 
-        if( activeSubArray[rank][bank][subarray] )
+        if( activeSubArray[rank][bank][subarray] && p->UsePrecharge )
         {
             commandQueues[queueId].push_back( 
                     MakePrechargeRequest( effectiveRow[rank][bank][subarray], 0, bank, rank, subarray ) );
         }
 
-        commandQueues[queueId].push_back( MakeActivateRequest( req ) );
+        NVMainRequest *actRequest = MakeActivateRequest( req );
+        actRequest->flags |= writingArray->IsWriting( ) ? NVMainRequest::FLAG_PRIORITY : 0;
+        commandQueues[queueId].push_back( actRequest );
         commandQueues[queueId].push_back( req );
         activeSubArray[rank][bank][subarray] = true;
         effectiveRow[rank][bank][subarray] = row;
@@ -1326,7 +1345,7 @@ bool MemoryController::IssueMemoryCommands( NVMainRequest *req )
          * buffer hit
          * or 2) ClosePage == 2, the request is always the last request
          */
-        if( req->flags & NVMainRequest::FLAG_LAST_REQUEST )
+        if( req->flags & NVMainRequest::FLAG_LAST_REQUEST && p->UsePrecharge )
         {
             /* if Restricted Close-Page is applied, we should never be here */
             assert( p->ClosePage != 2 );
