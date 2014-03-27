@@ -814,6 +814,15 @@ bool DDR3Bank::IsIssuable( NVMainRequest *req, FailReason *reason )
             if( reason ) 
                 reason->reason = BANK_TIMING;
         }
+
+        for( ncounter_t saIdx = 0; saIdx < subArrayNum; saIdx++ )
+        {
+            if( !subArrays[saIdx]->IsIssuable( req ) )
+            {
+                rv = false;
+                break;
+            }
+        }
     }
     else if( req->type == POWERUP )
     {
@@ -823,6 +832,15 @@ bool DDR3Bank::IsIssuable( NVMainRequest *req, FailReason *reason )
             rv = false;
             if( reason ) 
                 reason->reason = BANK_TIMING;
+        }
+
+        for( ncounter_t saIdx = 0; saIdx < subArrayNum; saIdx++ )
+        {
+            if( !subArrays[saIdx]->IsIssuable( req ) )
+            {
+                rv = false;
+                break;
+            }
         }
     }
     else if( req->type == REFRESH )

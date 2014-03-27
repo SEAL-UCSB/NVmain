@@ -130,6 +130,8 @@ class NVMainRequest
         isPrefetch = false; 
         programCounter = 0; 
         burstCount = 1;
+        writeProgress = 0;
+        cancellations = 0;
         owner = NULL;
     };
 
@@ -172,6 +174,7 @@ class NVMainRequest
         FLAG_CANCELLED = 8,             // This write was cancelled
         FLAG_PAUSED = 16,               // This write was paused
         FLAG_FORCED = 32,               // This write can not be paused or cancelled
+        FLAG_PRIORITY = 64,             // Request (or precursor) that takes priority over write
         FLAG_COUNT
     };
 

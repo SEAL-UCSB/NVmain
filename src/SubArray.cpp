@@ -54,6 +54,7 @@ SubArray::SubArray( )
     nextPrecharge = 0;
     nextRead = 0;
     nextWrite = 0;
+    nextPowerDown = 0;
     nextCommand = CMD_NOP;
 
     state = SUBARRAY_CLOSED;
@@ -80,16 +81,24 @@ SubArray::SubArray( )
     writeEnd = 0;
     writeStart = 0;
     writeEventTime = 0;
+    writeEvent = NULL;
     writeRequest = NULL;
     nextActivatePreWrite = 0;
     nextPrechargePreWrite = 0;
     nextReadPreWrite = 0;
     nextWritePreWrite = 0;
+    nextPowerDownPreWrite = 0;
     idleTimer = 0;
 
     cancelledWrites = 0;
     cancelledWriteTime = 0;
     pausedWrites = 0;
+
+    averagePausesPerRequest = 0.0;
+    measuredPauses = 0;
+
+    averagePausedRequestProgress = 0.0;
+    measuredProgresses = 0;
 
     reads = 0;
     writes = 0;
@@ -106,8 +115,12 @@ SubArray::SubArray( )
     num10Writes = 0;
     num11Writes = 0;
     mlcTimingHisto = "";
+    cancelCountHisto = "";
+    wpPauseHisto = "";
+    wpCancelHisto = "";
     averageWriteTime = 0.0;
     measuredWriteTimes = 0;
+    averageWriteIterations = 1;
 
     subArrayId = -1;
 
@@ -151,6 +164,9 @@ void SubArray::SetConfig( Config *c, bool createChildren )
         }
     }
 
+    ncounter_t totalWritePulses = p->nWP00 + p->nWP01 + p->nWP10 + p->nWP11;
+    averageWriteIterations = static_cast<ncounter_t>( (totalWritePulses+2)/4 );
+
     if( createChildren )
     {
         /* We need to create an endurance model at a sub-array level */
@@ -182,6 +198,12 @@ void SubArray::RegisterStats( )
     AddStat(cancelledWriteTime);
     AddStat(pausedWrites);
 
+    AddStat(averagePausesPerRequest);
+    AddStat(measuredPauses);
+
+    AddStat(averagePausedRequestProgress);
+    AddStat(measuredProgresses);
+
     AddStat(reads);
     AddStat(writes);
     AddStat(activates);
@@ -203,9 +225,13 @@ void SubArray::RegisterStats( )
     AddStat(num01Writes);
     AddStat(num10Writes);
     AddStat(num11Writes);
-    AddStat(mlcTimingHisto);
     AddStat(averageWriteTime);
     AddStat(measuredWriteTimes);
+
+    AddStat(mlcTimingHisto);
+    AddStat(cancelCountHisto);
+    AddStat(wpPauseHisto);
+    AddStat(wpCancelHisto);
 }
 
 /*
@@ -217,6 +243,9 @@ bool SubArray::Activate( NVMainRequest *request )
 
     request->address.GetTranslatedAddress( &activateRow, NULL, NULL, NULL, NULL, NULL );
 
+    /* Check if we need to cancel or pause a write to service this request. */
+    CheckWritePausing( );
+
     /* TODO: Can we remove this sanity check and totally trust IsIssuable()? */
     /* sanity check */
     if( nextActivate > GetEventQueue()->GetCurrentCycle() )
@@ -225,7 +254,7 @@ bool SubArray::Activate( NVMainRequest *request )
             << std::endl;
         return false;
     }
-    else if( state != SUBARRAY_CLOSED )
+    else if( p->UsePrecharge && state != SUBARRAY_CLOSED )
     {
         std::cerr << "NVMain Error: try to open a subarray that is not idle!"
             << std::endl;
@@ -244,6 +273,10 @@ bool SubArray::Activate( NVMainRequest *request )
     nextWrite = MAX( nextWrite, 
                      GetEventQueue()->GetCurrentCycle() 
                          + p->tRCD - p->tAL );
+
+    nextPowerDown = MAX( nextPowerDown, 
+                         GetEventQueue()->GetCurrentCycle() 
+                             + MAX( p->tRCD, p->tRAS ) );
 
     /* the request is deleted by RequestComplete() */
     request->owner = this;
@@ -297,48 +330,7 @@ bool SubArray::Read( NVMainRequest *request )
     request->address.GetTranslatedAddress( &readRow, NULL, NULL, NULL, NULL, NULL );
 
     /* Check if we need to cancel or pause a write to service this request. */
-    if( p->WritePausing && isWriting )
-    {
-        ncycle_t writeProgress = writeEnd - GetEventQueue()->GetCurrentCycle();
-        ncycle_t writeTimer = writeEnd - writeStart;
-
-        /* Update write progress. */
-        writeRequest->writeProgress = writeProgress;
-        float writePercent = 1.0f - (static_cast<float>(writeProgress) / static_cast<float>(writeTimer));
-
-        std::cout << "GOT A READ DURING WRITE; PROGRESS IS " << writePercent << std::endl;
-
-        /* Pause after 40%, cancel otherwise. */
-        if( writePercent > p->PauseThreshold )
-        {
-            writeRequest->flags |= NVMainRequest::FLAG_PAUSED;
-            pausedWrites++;
-        }
-        else
-        {
-            writeRequest->flags |= NVMainRequest::FLAG_CANCELLED;
-
-            /* Force writes to be completed after several cancellations to ensure forward progress. */
-            if( writeRequest->cancellations++ > 4 )
-                writeRequest->flags |= NVMainRequest::FLAG_FORCED;
-
-            cancelledWrites++;
-            cancelledWriteTime += GetEventQueue()->GetCurrentCycle() - writeStart;
-        }
-
-        /* Delete the old event indicating write completion. */
-        GetEventQueue( )->RemoveEvent( writeEvent, writeEventTime );
-
-        /* Return this write as paused/cancelled. */
-        GetEventQueue( )->InsertEvent( EventResponse, this, writeRequest,
-                                    GetEventQueue()->GetCurrentCycle() + 1 );
-
-        /* Restore the old next* state. */
-        nextActivate = nextActivatePreWrite;
-        nextPrecharge = nextPrechargePreWrite;
-        nextWrite = nextWritePreWrite;
-        nextRead = nextReadPreWrite;
-    }
+    CheckWritePausing( );
 
     /* TODO: Can we remove this sanity check and totally trust IsIssuable()? */
     /* sanity check */
@@ -398,6 +390,12 @@ bool SubArray::Read( NVMainRequest *request )
                              + MAX( p->tBURST, p->tCCD ) * (request->burstCount  - 1)
                              + p->tCAS + p->tBURST + p->tRTRS - p->tCWD );
     }
+
+    /* Read->Powerdown is typical the same for READ and READ_PRECHARGE. */
+    nextPowerDown = MAX( nextPowerDown,
+                         GetEventQueue()->GetCurrentCycle()
+                            + MAX( p->tBURST, p->tCCD ) * (request->burstCount  - 1)
+                            + p->tCAS + p->tAL + p->tBURST + 1 );
 
     /*
      *  Data is placed on the bus starting from tCAS and is complete after tBURST.
@@ -505,10 +503,21 @@ bool SubArray::Write( NVMainRequest *request )
     {
         writeTimer = request->writeProgress;
         request->flags &= ~NVMainRequest::FLAG_PAUSED; // unpause this
+
+        //std::cout << "Restarted request 0x" << std::hex << request->address.GetPhysicalAddress( )
+        //          << std::dec << " with " << writeTimer << " cycles left." << std::endl;
     }
     else
     {
         writeTimer = WriteCellData( request ); // Assume write-through.
+    }
+
+    if( request->flags & NVMainRequest::FLAG_CANCELLED )
+    {
+        request->flags &= ~NVMainRequest::FLAG_CANCELLED; // restart this
+
+        //std::cout << "Restarted CANCELLED request 0x" << std::hex << request->address.GetPhysicalAddress( )
+        //          << std::dec << "... " << request->cancellations << " cancels so far" << std::endl;
     }
 
     if( writeMode == WRITE_BACK && writeCycle )
@@ -525,6 +534,7 @@ bool SubArray::Write( NVMainRequest *request )
     nextPrechargePreWrite = nextPrecharge;
     nextReadPreWrite = nextRead;
     nextWritePreWrite = nextWrite;
+    nextPowerDownPreWrite = nextPowerDown;
 
     if( writeMode == WRITE_THROUGH )
     {
@@ -574,6 +584,8 @@ bool SubArray::Write( NVMainRequest *request )
                          + MAX( p->tBURST, p->tCCD ) * request->burstCount + writeTimer );
     }
 
+    nextPowerDown = MAX( nextPowerDown, nextPrecharge );
+
     /* Mark that a write is in progress in cause we want to pause/cancel. */
     isWriting = true;
     writeRequest = request;
@@ -582,6 +594,10 @@ bool SubArray::Write( NVMainRequest *request )
     writeEnd = GetEventQueue()->GetCurrentCycle() + writeTimer;
     writeEventTime = GetEventQueue()->GetCurrentCycle() + p->tCWD 
                      + MAX( p->tBURST, p->tCCD ) * request->burstCount + writeTimer;
+
+    //std::cout << GetEventQueue()->GetCurrentCycle() << " write start 0x" << std::hex
+    //          << request->address.GetPhysicalAddress( ) << std::dec << " done at "
+    //          << writeEnd << std::endl;
 
     /* The parent has our hook in the children list, we need to find this. */
     std::vector<NVMObject_hook *>& children = GetParent( )->GetTrampoline( )->GetChildren( );
@@ -740,10 +756,123 @@ bool SubArray::Refresh( NVMainRequest* request )
     return true;
 }
 
+void SubArray::CheckWritePausing( )
+{
+    if( p->WritePausing && isWriting )
+    {
+        /* Optimal write progress; no issues pausing at any time. */
+        ncycle_t writeProgress = writeEnd - GetEventQueue()->GetCurrentCycle();
+        ncycle_t writeTimer = writeEnd - writeStart;
+
+        /* 
+         *  Realistically, we need to cancel the current iteration and go back to
+         *  the start of the previous one
+         */
+        if( p->pauseMode != PauseMode_Optimal )
+        {
+            ncycle_t nextIterationStart = writeStart;
+            std::set<ncycle_t>::iterator iter;
+
+            for( iter = writeIterationStarts.begin(); iter != writeIterationStarts.end(); iter++ )
+            {
+                if( (*iter) > GetEventQueue()->GetCurrentCycle() )
+                {
+                    break;
+                }
+                
+                nextIterationStart = (*iter);
+            }
+
+            writeProgress = writeEnd - nextIterationStart;
+        }
+
+        /* Update write progress. */
+        writeRequest->writeProgress = writeProgress;
+        float writePercent = 1.0f - (static_cast<float>(writeProgress) / static_cast<float>(writeTimer));
+
+        averagePausedRequestProgress = ((averagePausedRequestProgress * static_cast<double>(measuredProgresses)) 
+                                     + writePercent) / static_cast<double>(measuredProgresses + 1);
+        measuredProgresses++;
+
+        //std::cout << "GOT A READ DURING WRITE; PROGRESS IS " << writePercent << std::endl;
+
+        /* Pause after 40%, cancel otherwise. */
+        if( writePercent > p->PauseThreshold )
+        {
+            /* If optimal is paused on last iteration, it's done. */
+            if( writeProgress != writeEnd )
+            {
+                writeRequest->flags |= NVMainRequest::FLAG_PAUSED;
+                pausedWrites++;
+            }
+
+            if( wpPauseMap.count( writePercent ) )
+                wpPauseMap[writePercent]++;
+            else
+                wpPauseMap[writePercent] = 1;
+        }
+        else
+        {
+            writeRequest->flags |= NVMainRequest::FLAG_CANCELLED;
+
+            /* Force writes to be completed after several cancellations to ensure forward progress. */
+            if( ++writeRequest->cancellations >= p->MaxCancellations )
+                writeRequest->flags |= NVMainRequest::FLAG_FORCED;
+
+            cancelledWrites++;
+            cancelledWriteTime += GetEventQueue()->GetCurrentCycle() - writeStart;
+
+            if( wpCancelMap.count( writePercent ) )
+                wpCancelMap[writePercent]++;
+            else
+                wpCancelMap[writePercent] = 1;
+        }
+
+        /* Delete the old event indicating write completion. */
+        GetEventQueue( )->RemoveEvent( writeEvent, writeEventTime );
+        delete writeEvent;
+        writeEvent = NULL;
+
+        /* Return this write as paused/cancelled. */
+        GetEventQueue( )->InsertEvent( EventResponse, this, writeRequest,
+                                    GetEventQueue()->GetCurrentCycle() + 1 );
+
+        /* Restore the old next* state. */
+        nextActivate = nextActivatePreWrite;
+        nextPrecharge = nextPrechargePreWrite;
+        nextWrite = nextWritePreWrite;
+        nextRead = nextReadPreWrite;
+        nextPowerDown = nextPowerDownPreWrite;
+    }
+}
+
+bool SubArray::BetweenWriteIterations( )
+{
+    bool rv = false;
+
+    if( isWriting && writeIterationStarts.count( GetEventQueue()->GetCurrentCycle() ) != 0 )
+    {
+        rv = true;
+    }
+
+    return rv;
+}
+
 ncycle_t SubArray::WriteCellData( NVMainRequest *request )
 {
     if( p->UniformWrites )
+    {
+        writeIterationStarts.clear( );
+
+        for( ncounter_t iter = 0; iter < averageWriteIterations; iter++ )
+        {
+            ncycle_t iterStart = GetEventQueue( )->GetCurrentCycle( );
+            iterStart += iter * static_cast<ncycle_t>(p->tWP / averageWriteIterations);
+            writeIterationStarts.insert( iterStart );
+        }
+
         return p->tWP;
+    }
 
     ncycle_t maxDelay = 0;
 
@@ -796,6 +925,8 @@ ncycle_t SubArray::WriteCellData( NVMainRequest *request )
                 writePulseTime = p->tWP0;
             else
                 writePulseTime = p->tWP1;
+
+            writeIterationStarts.insert( GetEventQueue( )->GetCurrentCycle( ) );
         }
         else if( p->MLCLevels == 2 )
         {
@@ -849,12 +980,42 @@ ncycle_t SubArray::WriteCellData( NVMainRequest *request )
                     programPulseCount = minPulseCount;
 
                 if( p->programMode == ProgramMode_SRMS )
+                {
+                    writeIterationStarts.clear( );
+                    ncycle_t iterStart = GetEventQueue( )->GetCurrentCycle( );
+
                     writePulseTime = p->tWP0 + programPulseCount * p->tWP1;
+                    writeIterationStarts.insert( iterStart );
+                    iterStart += p->tWP0;
+
+                    for( ncounter_t iter = 0; iter < programPulseCount; iter++ )
+                    {
+                        writeIterationStarts.insert( iterStart );
+                        iterStart += p->tWP1;
+                    }
+                }
                 else // SSMR
+                {
+                    writeIterationStarts.clear( );
+                    ncycle_t iterStart = GetEventQueue( )->GetCurrentCycle( );
+
                     writePulseTime = p->tWP1 + programPulseCount * p->tWP0;
+                    writeIterationStarts.insert( iterStart );
+                    iterStart += p->tWP1;
+
+                    for( ncounter_t iter = 0; iter < programPulseCount; iter++ )
+                    {
+                        writeIterationStarts.insert( iterStart );
+                        iterStart += p->tWP0;
+                    }
+                }
             }
             else
             {
+                writeIterationStarts.clear( );
+                ncycle_t iterStart = GetEventQueue( )->GetCurrentCycle( );
+                writeIterationStarts.insert( iterStart );
+
                 writePulseTime = p->tWP0;
             }
 
@@ -898,7 +1059,9 @@ bool SubArray::IsIssuable( NVMainRequest *req, FailReason *reason )
     if( req->type == ACTIVATE )
     {
         if( nextActivate > (GetEventQueue()->GetCurrentCycle()) /* if it is too early to open */
-            || state != SUBARRAY_CLOSED )   /* or, the subarray is not idle */
+            || (p->UsePrecharge && state != SUBARRAY_CLOSED)   /* or, the subarray needs a precharge */
+            || (p->WritePausing && isWriting && writeRequest->flags & NVMainRequest::FLAG_FORCED) /* or, write can't be paused. */
+            || (p->WritePausing && isWriting && !(req->flags & NVMainRequest::FLAG_PRIORITY)) ) /* Prevent normal row buffer misses from pausing writes at odd times. */
         {
             rv = false;
             if( reason ) 
@@ -948,6 +1111,22 @@ bool SubArray::IsIssuable( NVMainRequest *req, FailReason *reason )
             if( reason ) 
                 reason->reason = SUBARRAY_TIMING;
         }
+    }
+    else if( req->type == POWERDOWN_PDA 
+             || req->type == POWERDOWN_PDPF 
+             || req->type == POWERDOWN_PDPS )
+    {
+        /* Bank doesn't know write time, so we need to check the subarray */
+        if( nextPowerDown > (GetEventQueue()->GetCurrentCycle()) || isWriting )
+        {
+            rv = false;
+            if( reason )
+                reason->reason = SUBARRAY_TIMING;
+        }
+    }
+    else if( req->type == POWERUP )
+    {
+        /* We assume subarray can always power up, as it is under bank control. */
     }
     else if( req->type == REFRESH )
     {
@@ -1025,9 +1204,32 @@ bool SubArray::IssueCommand( NVMainRequest *req )
 
 bool SubArray::RequestComplete( NVMainRequest *req )
 {
-    if( req->type == WRITE )
+    if( req->type == WRITE || req->type == WRITE_PRECHARGE )
     {
-        isWriting = false;
+        //std::cout << GetEventQueue()->GetCurrentCycle() << " write done 0x" << std::hex
+        //          << req->address.GetPhysicalAddress( ) << std::dec << std::endl;
+
+        /*  
+         *  Write-to-write timing causes new writes to come in before the previous completes.
+         *  Don't set writing to false unless this hasn't happened (writeRequest would be the
+         *  same).
+         */
+        if( writeRequest == req )
+        {
+            isWriting = false;
+        }
+
+        if( !( req->flags & NVMainRequest::FLAG_PAUSED || req->flags & NVMainRequest::FLAG_CANCELLED ) )
+        {
+            averagePausesPerRequest = ((averagePausesPerRequest * static_cast<double>(measuredPauses))
+                                    + req->cancellations) / static_cast<double>(measuredPauses + 1.0);
+            measuredPauses++;
+
+            if( cancelCountMap.count( req->cancellations ) == 0 )
+                cancelCountMap[req->cancellations] = 0;
+            else
+                cancelCountMap[req->cancellations]++;
+        }
     }
 
     if( req->owner == this )
@@ -1134,7 +1336,10 @@ void SubArray::CalculateStats( )
     actWaitAverage = static_cast<double>(actWaitTotal) / static_cast<double>(actWaits);
 
     /* Print a histogram as a python-style dict. */
-    mlcTimingHisto = PyDictHistogram( mlcTimingMap );
+    mlcTimingHisto = PyDictHistogram<uint64_t, uint64_t>( mlcTimingMap );
+    cancelCountHisto = PyDictHistogram<uint64_t, uint64_t>( cancelCountMap );
+    wpPauseHisto = PyDictHistogram<double, uint64_t>( wpPauseMap );
+    wpCancelHisto = PyDictHistogram<double, uint64_t>( wpCancelMap );
 }
 
 bool SubArray::Idle( )

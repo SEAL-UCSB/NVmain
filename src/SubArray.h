@@ -98,6 +98,8 @@ class SubArray : public NVMObject
 
     SubArrayState GetState( );
 
+    bool BetweenWriteIterations( );
+
     bool Idle( );
     ncycle_t GetDataCycles( ) { return dataCycles; }
     void GetEnergy( double&, double&, double&, double& );
@@ -121,7 +123,7 @@ class SubArray : public NVMObject
     std::string GetName( );
 
     void Cycle( ncycle_t );
-    bool isWriting;
+    bool IsWriting( ) { return isWriting; }
 
   private:
     Config *conf;
@@ -139,9 +141,12 @@ class SubArray : public NVMObject
     ncycle_t nextPrecharge;
     ncycle_t nextRead;
     ncycle_t nextWrite;
+    ncycle_t nextPowerDown;
     bool writeCycle;
+    bool isWriting;
     ncycle_t writeEnd;
     ncycle_t writeStart;
+    std::set<ncycle_t> writeIterationStarts;
     NVMainRequest *writeRequest;
     NVM::Event *writeEvent;
     ncycle_t writeEventTime;
@@ -150,6 +155,7 @@ class SubArray : public NVMObject
     ncycle_t nextPrechargePreWrite;
     ncycle_t nextReadPreWrite;
     ncycle_t nextWritePreWrite;
+    ncycle_t nextPowerDownPreWrite;
     ncounter_t dataCycles;
     ncycle_t worstCaseWrite;
     ncounter_t num00Writes;
@@ -158,6 +164,11 @@ class SubArray : public NVMObject
     ncounter_t num11Writes;
     double averageWriteTime;
     ncounter_t measuredWriteTimes;
+    ncounter_t averageWriteIterations;
+    double averagePausesPerRequest;
+    ncounter_t measuredPauses;
+    double averagePausedRequestProgress;
+    ncounter_t measuredProgresses;
 
     ncounter_t cancelledWrites;
     ncounter_t cancelledWriteTime;
@@ -186,10 +197,17 @@ class SubArray : public NVMObject
  
     Params *p;
 
-    ncycle_t WriteCellData( NVMainRequest *request );
-
     std::map<uint64_t, uint64_t> mlcTimingMap;
+    std::map<uint64_t, uint64_t> cancelCountMap;
+    std::map<double, uint64_t> wpPauseMap;
+    std::map<double, uint64_t> wpCancelMap;
     std::string mlcTimingHisto;
+    std::string cancelCountHisto;
+    std::string wpPauseHisto;
+    std::string wpCancelHisto;
+
+    ncycle_t WriteCellData( NVMainRequest *request );
+    void CheckWritePausing( );
 
 };
 
