@@ -148,6 +148,7 @@ void DDR3Bank::SetConfig( Config *c, bool createChildren )
         TranslationMethod *method = GetParent()->GetTrampoline()->GetDecoder()->GetTranslationMethod();
         bankAT->SetTranslationMethod( method );
         bankAT->SetDefaultField( SUBARRAY_FIELD );
+        bankAT->SetConfig( c, createChildren );
         SetDecoder( bankAT );
 
         subArrays = new SubArray*[subArrayNum];

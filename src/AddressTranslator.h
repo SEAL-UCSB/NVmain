@@ -37,6 +37,7 @@
 #define __ADDRESSTRANSLATOR_H__
 
 #include "src/TranslationMethod.h"
+#include "src/Config.h"
 #include "include/NVMainRequest.h"
 
 namespace NVM {
@@ -57,6 +58,8 @@ class AddressTranslator
   public:
     AddressTranslator( );
     virtual ~AddressTranslator( );
+
+    virtual void SetConfig( Config * /*config*/, bool /*createChildren*/ = true ) { }
 
     void SetBusWidth( int );
     void SetBurstLength( int );

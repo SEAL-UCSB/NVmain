@@ -174,6 +174,7 @@ void MemoryController::SetConfig( Config *conf, bool createChildren )
         AddressTranslator *mcAT = DecoderFactory::CreateDecoderNoWarn( conf->GetString( "Decoder" ) );
         mcAT->SetTranslationMethod( GetParent( )->GetTrampoline( )->GetDecoder( )->GetTranslationMethod( ) );
         mcAT->SetDefaultField( NO_FIELD );
+        mcAT->SetConfig( conf, createChildren );
         SetDecoder( mcAT );
 
         /* Initialize interconnect */
