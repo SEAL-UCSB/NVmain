@@ -145,6 +145,7 @@ void NVMain::SetConfig( Config *conf, std::string memoryName, bool createChildre
                             NVM::mlog2( subarrays )
                     );
         method->SetCount( rows, cols, banks, ranks, channels, subarrays );
+        translator->SetConfig( config, createChildren );
         translator->SetTranslationMethod( method );
         translator->SetDefaultField( CHANNEL_FIELD );
 

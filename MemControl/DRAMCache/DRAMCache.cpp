@@ -129,6 +129,7 @@ void DRAMCache::SetConfig( Config *conf, bool createChildren )
             
             /* When selecting a child, use the channel field from a DRC decoder. */
             DRCDecoder *drcDecoder = new DRCDecoder( );
+            drcDecoder->SetConfig( config, createChildren );
             drcDecoder->SetTranslationMethod( drcMethod );
             drcDecoder->SetDefaultField( CHANNEL_FIELD );
             SetDecoder( drcDecoder );

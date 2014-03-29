@@ -81,6 +81,7 @@ void OnChipBus::SetConfig( Config *c, bool createChildren )
         TranslationMethod *method = GetParent()->GetTrampoline()->GetDecoder()->GetTranslationMethod();
         incAT->SetTranslationMethod( method );
         incAT->SetDefaultField( RANK_FIELD );
+        incAT->SetConfig( c, createChildren );
         SetDecoder( incAT );
 
         ranks = new Rank * [numRanks];

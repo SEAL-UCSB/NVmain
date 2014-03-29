@@ -140,6 +140,7 @@ void StandardRank::SetConfig( Config *c, bool createChildren )
         AddressTranslator *rankAT = DecoderFactory::CreateDecoderNoWarn( conf->GetString( "Decoder" ) );
         rankAT->SetTranslationMethod( GetParent( )->GetTrampoline( )->GetDecoder( )->GetTranslationMethod( ) );
         rankAT->SetDefaultField( BANK_FIELD );
+        rankAT->SetConfig( c, createChildren );
         SetDecoder( rankAT );
 
         std::cout << "Creating " << bankCount << " banks in all " 
