@@ -988,7 +988,7 @@ ncycle_t SubArray::WriteCellData( NVMainRequest *request )
                     writeIterationStarts.insert( iterStart );
                     iterStart += p->tWP0;
 
-                    for( ncounter_t iter = 0; iter < programPulseCount; iter++ )
+                    for( ncounters_t iter = 0; iter < programPulseCount; iter++ )
                     {
                         writeIterationStarts.insert( iterStart );
                         iterStart += p->tWP1;
@@ -1003,7 +1003,7 @@ ncycle_t SubArray::WriteCellData( NVMainRequest *request )
                     writeIterationStarts.insert( iterStart );
                     iterStart += p->tWP1;
 
-                    for( ncounter_t iter = 0; iter < programPulseCount; iter++ )
+                    for( ncounters_t iter = 0; iter < programPulseCount; iter++ )
                     {
                         writeIterationStarts.insert( iterStart );
                         iterStart += p->tWP0;
