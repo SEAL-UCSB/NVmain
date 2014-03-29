@@ -335,6 +335,12 @@ NVMObject *NVMObject::_FindChild( NVMainRequest *req, const char *childClass )
 
     while( curChild != NULL && NVMClass(*curChild) != childClass )
     {
+        NVMObject_hook *curHook = curChild->GetChild( req );
+
+        /* This object has no child objects. */
+        if( curHook == NULL )
+            return NULL;
+
         curChild = curChild->GetChild( req )->GetTrampoline();
     }
 
@@ -394,6 +400,9 @@ NVMObject_hook *NVMObject::GetChild( ncounter_t child )
 
 NVMObject_hook *NVMObject::GetChild( void )
 {
+    if( children.size() == 0 )
+        return NULL;
+
     /* This should only be used if there is gauranteed to be only one child. */
     assert( children.size() == 1 );
 

@@ -868,6 +868,10 @@ bool MemoryController::FindWriteStalledRead( std::list<NVMainRequest *>& transac
         /* Find the requests's SubArray destination. */
         SubArray *writingArray = FindChild( (*it), SubArray );
 
+        /* Assume the memory has no subarrays if we don't find the destination. */
+        if( writingArray == NULL )
+            return false;
+
         //if( writingArray->IsWriting( ) )
         //{
         //    std::cout << "Subarray is writing!" << std::endl;
@@ -1276,7 +1280,7 @@ bool MemoryController::IssueMemoryCommands( NVMainRequest *req )
         req->issueCycle = GetEventQueue()->GetCurrentCycle();
 
         NVMainRequest *actRequest = MakeActivateRequest( req );
-        actRequest->flags |= writingArray->IsWriting( ) ? NVMainRequest::FLAG_PRIORITY : 0;
+        actRequest->flags |= (writingArray != NULL && writingArray->IsWriting( )) ? NVMainRequest::FLAG_PRIORITY : 0;
         commandQueues[queueId].push_back( actRequest );
 
         /* Different row buffer management policy has different behavior */ 
@@ -1320,7 +1324,7 @@ bool MemoryController::IssueMemoryCommands( NVMainRequest *req )
         }
 
         NVMainRequest *actRequest = MakeActivateRequest( req );
-        actRequest->flags |= writingArray->IsWriting( ) ? NVMainRequest::FLAG_PRIORITY : 0;
+        actRequest->flags |= (writingArray != NULL && writingArray->IsWriting( )) ? NVMainRequest::FLAG_PRIORITY : 0;
         commandQueues[queueId].push_back( actRequest );
         commandQueues[queueId].push_back( req );
         activeSubArray[rank][bank][subarray] = true;
