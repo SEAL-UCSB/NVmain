@@ -58,6 +58,9 @@ NVMain::NVMain( )
     channelConfig = NULL;
     syncValue = 0.0f;
     preTracer = NULL;
+
+    totalReadRequests = 0;
+    totalWriteRequests = 0;
 }
 
 NVMain::~NVMain( )
@@ -232,6 +235,8 @@ void NVMain::SetConfig( Config *conf, std::string memoryName, bool createChildre
         if( p->EchoPreTrace )
             preTracer->SetEcho( true );
     }
+
+    RegisterStats( );
 }
 
 bool NVMain::IsIssuable( NVMainRequest *request, FailReason *reason )
@@ -289,7 +294,18 @@ bool NVMain::IssueCommand( NVMainRequest *request )
     assert( GetChild( request )->GetTrampoline( ) == memoryControllers[channel] );
     mc_rv = GetChild( request )->IssueCommand( request );
     if( mc_rv == true )
+    {
+        if( request->type == READ ) 
+        {
+            totalReadRequests++;
+        }
+        else
+        {
+            totalWriteRequests++;
+        }
+
         PrintPreTrace( request );
+    }
 
     return mc_rv;
 }
@@ -313,7 +329,18 @@ bool NVMain::IssueAtomic( NVMainRequest *request )
 
     mc_rv = memoryControllers[channel]->IssueAtomic( request );
     if( mc_rv == true )
+    {
+        if( request->type == READ ) 
+        {
+            totalReadRequests++;
+        }
+        else
+        {
+            totalWriteRequests++;
+        }
+
         PrintPreTrace( request );
+    }
     
     return mc_rv;
 }
@@ -348,6 +375,12 @@ void NVMain::Cycle( ncycle_t )
     }
 
     GetEventQueue()->Loop( );
+}
+
+void NVMain::RegisterStats( )
+{
+    AddStat(totalReadRequests);
+    AddStat(totalWriteRequests);
 }
 
 void NVMain::CalculateStats( )

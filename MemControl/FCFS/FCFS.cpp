@@ -94,6 +94,8 @@ void FCFS::RegisterStats( )
     AddStat(averageQueueLatency);
     AddStat(measuredLatencies);
     AddStat(measuredQueueLatencies);
+
+    MemoryController::RegisterStats( );
 }
 
 bool FCFS::RequestComplete( NVMainRequest * request )
