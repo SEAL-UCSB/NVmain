@@ -67,6 +67,7 @@ class NVMain : public NVMObject
     bool IssueAtomic( NVMainRequest *request );
     bool IsIssuable( NVMainRequest *request, FailReason *reason );
 
+    void RegisterStats( );
     void CalculateStats( );
 
     void Cycle( ncycle_t steps );
@@ -77,6 +78,9 @@ class NVMain : public NVMObject
     MemoryController **memoryControllers;
     AddressTranslator *translator;
     SimInterface *simInterface;
+
+    ncounter_t totalReadRequests;
+    ncounter_t totalWriteRequests;
 
     unsigned int numChannels;
     double syncValue;

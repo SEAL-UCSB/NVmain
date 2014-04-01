@@ -217,6 +217,8 @@ void FRFCFS_WQF::RegisterStats( )
     AddStat(averageQueueLatency);
     AddStat(measuredLatencies);
     AddStat(measuredQueueLatencies);
+
+    MemoryController::RegisterStats( );
 }
 
 bool FRFCFS_WQF::IsIssuable( NVMainRequest *request, FailReason * /*fail*/ )

@@ -99,16 +99,18 @@ void FRFCFS::SetConfig( Config *conf, bool createChildren )
 
 void FRFCFS::RegisterStats( )
 {
-   AddStat(mem_reads);
-   AddStat(mem_writes);
-   AddStat(rb_hits);
-   AddStat(rb_miss);
-   AddStat(starvation_precharges);
-   AddStat(averageLatency);
-   AddStat(averageQueueLatency);
-   AddStat(measuredLatencies);
-   AddStat(measuredQueueLatencies);
-   AddStat(write_pauses);
+    AddStat(mem_reads);
+    AddStat(mem_writes);
+    AddStat(rb_hits);
+    AddStat(rb_miss);
+    AddStat(starvation_precharges);
+    AddStat(averageLatency);
+    AddStat(averageQueueLatency);
+    AddStat(measuredLatencies);
+    AddStat(measuredQueueLatencies);
+    AddStat(write_pauses);
+
+    MemoryController::RegisterStats( );
 }
 
 bool FRFCFS::IsIssuable( NVMainRequest * /*request*/, FailReason * /*fail*/ )

@@ -140,6 +140,8 @@ void LO_Cache::RegisterStats( )
     AddStat(rb_hits);
     AddStat(rb_miss);
     AddStat(starvation_precharges);
+
+    MemoryController::RegisterStats( );
 }
 
 void LO_Cache::SetMainMemory( NVMain *mm )
