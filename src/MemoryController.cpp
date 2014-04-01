@@ -800,6 +800,8 @@ bool MemoryController::FindStarvedRequest( std::list<NVMainRequest *>& transacti
         ncounter_t rank, bank, row, subarray, col;
         ncounter_t queueId = GetCommandQueueId( (*it)->address );
 
+        if( !commandQueues[queueId].empty() ) continue;
+
         (*it)->address.GetTranslatedAddress( &row, &col, &bank, &rank, NULL, &subarray );
         
         /* By design, mux level can only be a subset of the selected columns. */
@@ -863,6 +865,8 @@ bool MemoryController::FindWriteStalledRead( std::list<NVMainRequest *>& transac
 
         ncounter_t rank, bank, row, subarray, col;
         ncounter_t queueId = GetCommandQueueId( (*it)->address );
+
+        if( !commandQueues[queueId].empty() ) continue;
 
         (*it)->address.GetTranslatedAddress( &row, &col, &bank, &rank, NULL, &subarray );
 
@@ -945,6 +949,8 @@ bool MemoryController::FindRowBufferHit( std::list<NVMainRequest *>& transaction
         ncounter_t rank, bank, row, subarray, col;
         ncounter_t queueId = GetCommandQueueId( (*it)->address );
 
+        if( !commandQueues[queueId].empty() ) continue;
+
         (*it)->address.GetTranslatedAddress( &row, &col, &bank, &rank, NULL, &subarray );
 
         /* By design, mux level can only be a subset of the selected columns. */
@@ -1003,6 +1009,8 @@ bool MemoryController::FindOldestReadyRequest( std::list<NVMainRequest *>& trans
         ncounter_t rank, bank;
         ncounter_t queueId = GetCommandQueueId( (*it)->address );
 
+        if( !commandQueues[queueId].empty() ) continue;
+
         (*it)->address.GetTranslatedAddress( NULL, NULL, &bank, &rank, NULL, NULL );
 
         if( activateQueued[rank][bank]         /* The bank is active */ 
@@ -1053,6 +1061,8 @@ bool MemoryController::FindClosedBankRequest( std::list<NVMainRequest *>& transa
     {
         ncounter_t rank, bank;
         ncounter_t queueId = GetCommandQueueId( (*it)->address );
+
+        if( !commandQueues[queueId].empty() ) continue;
 
         (*it)->address.GetTranslatedAddress( NULL, NULL, &bank, &rank, NULL, NULL );
 
@@ -1107,6 +1117,8 @@ bool MemoryController::FindStarvedRequests( std::list<NVMainRequest *>& transact
         ncounter_t rank, bank, row, subarray, col;
         ncounter_t queueId = GetCommandQueueId( (*it)->address );
 
+        if( !commandQueues[queueId].empty() ) continue;
+
         (*it)->address.GetTranslatedAddress( &row, &col, &bank, &rank, NULL, &subarray );
 
         ncounter_t muxLevel = static_cast<ncounter_t>(col / p->RBSize);
@@ -1151,6 +1163,8 @@ bool MemoryController::FindRowBufferHits( std::list<NVMainRequest *>& transactio
         ncounter_t rank, bank, row, subarray, col;
         ncounter_t queueId = GetCommandQueueId( (*it)->address );
 
+        if( !commandQueues[queueId].empty() ) continue;
+
         (*it)->address.GetTranslatedAddress( &row, &col, &bank, &rank, NULL, &subarray );
 
         ncounter_t muxLevel= static_cast<ncounter_t>(col / p->RBSize);
@@ -1193,6 +1207,8 @@ bool MemoryController::FindOldestReadyRequests( std::list<NVMainRequest *>& tran
         ncounter_t rank, bank;
         ncounter_t queueId = GetCommandQueueId( (*it)->address );
 
+        if( !commandQueues[queueId].empty() ) continue;
+
         (*it)->address.GetTranslatedAddress( NULL, NULL, &bank, &rank, NULL, NULL );
 
         if( activateQueued[rank][bank]         /* The bank is active */
@@ -1228,6 +1244,8 @@ bool MemoryController::FindClosedBankRequests( std::list<NVMainRequest *>& trans
     {
         ncounter_t rank, bank;
         ncounter_t queueId = GetCommandQueueId( (*it)->address );
+
+        if( !commandQueues[queueId].empty() ) continue;
 
         (*it)->address.GetTranslatedAddress( NULL, NULL, &bank, &rank, NULL, NULL );
 
