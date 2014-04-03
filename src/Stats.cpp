@@ -33,7 +33,6 @@
 
 
 #include "src/Stats.h"
-#include "include/NVMTypes.h"
 
 
 using namespace NVM;
@@ -41,7 +40,7 @@ using namespace NVM;
 
 Stats::Stats( )
 {
-
+    psInterval = 0;
 }
 
 Stats::~Stats( )
@@ -94,7 +93,7 @@ void Stats::PrintAll( std::ostream& stream )
 
     for( it = statList.begin(); it != statList.end(); it++ )
     {
-        (*it)->Print( stream );
+        (*it)->Print( stream, psInterval );
     }
 
     psInterval++;
@@ -116,7 +115,7 @@ void StatBase::Reset( )
     std::memcpy( value, resetValue, typeSize );
 }
 
-void StatBase::Print( std::ostream& stream )
+void StatBase::Print( std::ostream& stream, ncounter_t psInterval )
 {
     stream << "i" << psInterval << "." << name << " ";
 

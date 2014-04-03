@@ -63,6 +63,7 @@
 #include <vector>
 #include <cstring>
 
+#include "include/NVMTypes.h"
 
 namespace NVM {
 
@@ -70,14 +71,11 @@ namespace NVM {
 class StatBase
 {
   public:
-    StatBase( ) 
-    { 
-        psInterval = 0;
-    }
+    StatBase( ) { }
     ~StatBase( ) { }
 
     void Reset( );
-    void Print( std::ostream& stream );
+    void Print( std::ostream& stream, ncounter_t psInterval );
 
     std::string GetName( ) { return name; }
     void SetName( std::string n ) { name = n; }
@@ -96,7 +94,6 @@ class StatBase
     std::string GetTypeName() { return statType; }
 
   private:
-    unsigned int psInterval;
     std::string name, statType, units;
     size_t typeSize;
     void *resetValue;
@@ -117,6 +114,7 @@ class Stats
 
   private: 
     std::vector<StatBase *> statList;
+    ncounter_t psInterval;
 };
 
 
