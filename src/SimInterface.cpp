@@ -64,7 +64,7 @@ void SimInterface::SetDataAtAddress( uint64_t address, NVMDataBlock data )
         accessCounts[ address ]++;
 }
 
-void SimInterface::SetConfig( Config *config )
+void SimInterface::SetConfig( Config *config, bool /*createChildren*/ )
 {
     conf = config;
 }

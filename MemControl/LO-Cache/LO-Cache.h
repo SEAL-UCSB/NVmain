@@ -46,8 +46,8 @@
 namespace NVM {
 
 
-#define DRC_MEMREAD 20
-#define DRC_FILL    30
+#define DRC_MEMREAD tagGen->CreateTag("DRC_MEMREAD")
+#define DRC_FILL    tagGen->CreateTag("DRC_FILL")
 
 
 class NVMain;
@@ -56,10 +56,10 @@ class NVMain;
 class LO_Cache : public AbstractDRAMCache
 {
   public:
-    LO_Cache( Interconnect *memory, AddressTranslator *decoder );
+    LO_Cache( );
     virtual ~LO_Cache( );
 
-    void SetConfig( Config *conf );
+    void SetConfig( Config *conf, bool createChildren = true );
     void SetMainMemory( NVMain *mm );
 
     bool IssueAtomic( NVMainRequest *req );

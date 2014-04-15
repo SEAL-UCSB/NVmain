@@ -55,7 +55,7 @@ WordModel::~WordModel( )
      */
 }
 
-void WordModel::SetConfig( Config *conf )
+void WordModel::SetConfig( Config *conf, bool createChildren )
 {
     Params *params = new Params( );
     params->SetParams( config );
@@ -63,7 +63,7 @@ void WordModel::SetConfig( Config *conf )
 
     SetGranularity( p->BusWidth * 8 );
 
-    EnduranceModel::SetConfig( conf );
+    EnduranceModel::SetConfig( conf, createChildren );
 }
 
 bool WordModel::Write( NVMAddress address, NVMDataBlock /*oldData*/, 

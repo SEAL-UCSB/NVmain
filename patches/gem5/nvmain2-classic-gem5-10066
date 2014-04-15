@@ -1,23 +1,24 @@
 # HG changeset patch
-# Parent 172902212ffce89ef1ff5eb6f9f4554876260e77
+# Parent 85098187a01ba77e66286f6bab9d72941db4cf43
+Use IsIssuable and don't call hooks unless true is returned
 
-diff -r 172902212ffc configs/common/MemConfig.py
---- a/configs/common/MemConfig.py	Mon Oct 21 13:28:16 2013 -0400
-+++ b/configs/common/MemConfig.py	Mon Oct 21 15:08:28 2013 -0400
-@@ -54,6 +54,7 @@
-     ("lpddr2_s4_1066_x32", "LPDDR2_S4_1066_x32"),
-     ("lpddr3_1600_x32", "LPDDR3_1600_x32"),
-     ("wio_200_x128", "WideIO_200_x128"),
+diff -r 85098187a01b configs/common/MemConfig.py
+--- a/configs/common/MemConfig.py	Fri Mar 21 12:08:33 2014 -0400
++++ b/configs/common/MemConfig.py	Sun Mar 23 15:59:57 2014 -0400
+@@ -49,6 +49,7 @@
+ # fina; list. A target may be specified as a tuple, in which case the
+ # first available memory controller model in the tuple will be used.
+ _mem_aliases_all = [
 +    ("nvmain", "NVMainMemory"),
-     ]
+     ("simple_mem", "SimpleMemory"),
+     ("ddr3_1600_x64", "DDR3_1600_x64"),
+     ("lpddr2_s4_1066_x32", "LPDDR2_S4_1066_x32"),
+diff -r 85098187a01b configs/common/Options.py
+--- a/configs/common/Options.py	Fri Mar 21 12:08:33 2014 -0400
++++ b/configs/common/Options.py	Sun Mar 23 15:59:57 2014 -0400
+@@ -209,6 +209,24 @@
+                       help="ARM instruction set.")
  
- # Filtered list of aliases. Only aliases for existing memory
-diff -r 172902212ffc configs/common/Options.py
---- a/configs/common/Options.py	Mon Oct 21 13:28:16 2013 -0400
-+++ b/configs/common/Options.py	Mon Oct 21 15:08:28 2013 -0400
-@@ -198,6 +198,24 @@
-         help="""Treat value of --checkpoint-restore or --take-checkpoint as a
-                 number of instructions.""")
  
 +    # Options for nvmain
 +    parser.add_option("--nvmain-PARAM", type="string", default="NULL", help="Set NVMain configuration value for PARAM (e.g., --nvmain-RANKS=4, --nvmain-BANKS=8, etc.)") # Only provided for --help, does nothing
@@ -40,10 +41,10 @@ diff -r 172902212ffc configs/common/Options.py
  def addSEOptions(parser):
      # Benchmark options
      parser.add_option("-c", "--cmd", default="",
-diff -r 172902212ffc src/mem/NVMainMemory.py
+diff -r 85098187a01b src/mem/NVMainMemory.py
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/NVMainMemory.py	Mon Oct 21 15:08:28 2013 -0400
-@@ -0,0 +1,87 @@
++++ b/src/mem/NVMainMemory.py	Sun Mar 23 15:59:57 2014 -0400
+@@ -0,0 +1,90 @@
 +# Copyright (c) 2012-2013 Pennsylvania State University
 +# All rights reserved.
 +#
@@ -104,7 +105,10 @@ diff -r 172902212ffc src/mem/NVMainMemory.py
 +            if arg[:9] == "--nvmain-":
 +                param_pair = arg.split('=', 1)
 +                param_name = (param_pair[0])[9:]
-+                param_value = param_pair[1]
++                if len(param_pair) > 1:
++                    param_value = param_pair[1]
++                else:
++                    param_value = ""
 +
 +                # Handle special cases
 +                if param_name == "atomic":
@@ -131,9 +135,9 @@ diff -r 172902212ffc src/mem/NVMainMemory.py
 +        self.configparams = config_params
 +        self.configvalues = config_values
 +
-diff -r 172902212ffc src/mem/SConscript
---- a/src/mem/SConscript	Mon Oct 21 13:28:16 2013 -0400
-+++ b/src/mem/SConscript	Mon Oct 21 15:08:28 2013 -0400
+diff -r 85098187a01b src/mem/SConscript
+--- a/src/mem/SConscript	Fri Mar 21 12:08:33 2014 -0400
++++ b/src/mem/SConscript	Sun Mar 23 15:59:57 2014 -0400
 @@ -43,6 +43,7 @@
  SimObject('MemObject.py')
  SimObject('SimpleMemory.py')
@@ -150,18 +154,19 @@ diff -r 172902212ffc src/mem/SConscript
  Source('physical.cc')
  Source('simple_dram.cc')
  
-@@ -81,6 +83,7 @@
+@@ -85,6 +87,8 @@
  DebugFlag('MMU')
  DebugFlag('MemoryAccess')
  DebugFlag('PacketQueue')
 +DebugFlag('NVMain')
++DebugFlag('NVMainMin')
  
- DebugFlag('ProtocolTrace')
- DebugFlag('RubyCache')
-diff -r 172902212ffc src/mem/nvmain_mem.cc
+ DebugFlag("DRAMSim2")
+ 
+diff -r 85098187a01b src/mem/nvmain_mem.cc
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/nvmain_mem.cc	Mon Oct 21 15:08:28 2013 -0400
-@@ -0,0 +1,670 @@
++++ b/src/mem/nvmain_mem.cc	Sun Mar 23 15:59:57 2014 -0400
+@@ -0,0 +1,743 @@
 +/*
 + * Copyright (c) 2012-2013 Pennsylvania State University
 + * All rights reserved.
@@ -210,14 +215,15 @@ diff -r 172902212ffc src/mem/nvmain_mem.cc
 +#include "Utils/HookFactory.h"
 +#include "base/random.hh"
 +#include "debug/NVMain.hh"
++#include "debug/NVMainMin.hh"
 +#include "mem/nvmain_mem.hh"
 +
 +using namespace NVM;
 +
 +
 +NVMainMemory::NVMainMemory(const Params *p)
-+    : AbstractMemory(p), port(name() + ".port", *this),
-+      lat(p->atomic_latency), lat_var(p->atomic_variance),
++    : AbstractMemory(p), clockEvent(this), port(name() + ".port", *this),
++      drainManager(NULL), lat(p->atomic_latency), lat_var(p->atomic_variance),
 +      nvmain_atomic(p->atomic_mode), NVMainWarmUp(p->NVMainWarmUp)
 +{
 +    char *cfgparams;
@@ -245,6 +251,7 @@ diff -r 172902212ffc src/mem/nvmain_mem.cc
 +
 +    retryRead = false;
 +    retryWrite = false;
++    retryResp = false;
 +    m_requests_outstanding = 0;
 +
 +    /*
@@ -264,8 +271,6 @@ diff -r 172902212ffc src/mem/nvmain_mem.cc
 +        std::cout << "NVMain: Overriding parameter `" << cparam << "' with `" << cvalue << "'" << std::endl;
 +        m_nvmainConfig->SetValue( cparam, cvalue );
 +    }
-+
-+   eventManager = new NVMainMemoryEventManager(&mainEventQueue, *this);
 +
 +   BusWidth = m_nvmainConfig->GetValue( "BusWidth" );
 +   tBURST = m_nvmainConfig->GetValue( "tBURST" );
@@ -288,17 +293,12 @@ diff -r 172902212ffc src/mem/nvmain_mem.cc
 +    m_statsPtr = new NVM::Stats( );
 +    m_nvmainSimInterface = new NVM::Gem5Interface( );
 +    m_nvmainEventQueue = new NVM::EventQueue( );
++    m_tagGenerator = new NVM::TagGenerator( 1000 );
 +
 +    m_nvmainConfig->SetSimInterface( m_nvmainSimInterface );
 +
 +    if (port.isConnected()) {
 +        port.sendRangeChange();
-+    }
-+
-+    if( NVMainWarmUp )
-+    {
-+        eventManager->scheduleWakeup( );
-+        m_awake = true;
 +    }
 +
 +    statPrinter.nvmainPtr = m_nvmainPtr;
@@ -313,6 +313,7 @@ diff -r 172902212ffc src/mem/nvmain_mem.cc
 +
 +    SetEventQueue( m_nvmainEventQueue );
 +    SetStats( m_statsPtr );
++    SetTagGenerator( m_tagGenerator );
 +
 +    /*  Add any specified hooks */
 +    std::vector<std::string>& hookList = m_nvmainConfig->GetHooks( );
@@ -343,6 +344,29 @@ diff -r 172902212ffc src/mem/nvmain_mem.cc
 +}
 +
 +
++void NVMainMemory::startup()
++{
++    DPRINTF(NVMain, "NVMainMemory: startup() called.\n");
++    DPRINTF(NVMainMin, "NVMainMemory: startup() called.\n");
++
++    /*
++     *  Schedule the initial event. Needed for warmup and timing mode.
++     *  If we are in atomic/fast-forward, wakeup will be disabled upon
++     *  the first atomic request receieved in recvAtomic().
++     */
++    schedule(clockEvent, curTick() + clock);
++    m_awake = true;
++}
++
++
++void NVMainMemory::wakeup()
++{
++    DPRINTF(NVMain, "NVMainMemory: wakeup() called.\n");
++    DPRINTF(NVMainMin, "NVMainMemory: wakeup() called.\n");
++    schedule(clockEvent, clockEdge());
++}
++
++
 +BaseSlavePort &
 +NVMainMemory::getSlavePort(const std::string& if_name, PortID idx)
 +{
@@ -365,8 +389,7 @@ diff -r 172902212ffc src/mem/nvmain_mem.cc
 +
 +
 +NVMainMemory::MemoryPort::MemoryPort(const std::string& _name, NVMainMemory& _memory)
-+    : QueuedSlavePort(_name, &_memory, queueImpl),
-+      queueImpl(_memory, *this), memory(_memory)
++    : SlavePort(_name, &_memory), memory(_memory)
 +{
 +
 +}
@@ -470,9 +493,11 @@ diff -r 172902212ffc src/mem/nvmain_mem.cc
 +{
 +    pkt->pushLabel(memory.name());
 +
-+    if (!queue.checkFunctional(pkt)) {
-+        memory.doFunctionalAccess(pkt);
-+    }
++    memory.doFunctionalAccess(pkt);
++
++    for( std::deque<PacketPtr>::iterator i = memory.responseQueue.begin();
++         i != memory.responseQueue.end(); ++i )
++        pkt->checkFunctional(*i);
 +
 +    pkt->popLabel();
 +}
@@ -495,7 +520,8 @@ diff -r 172902212ffc src/mem/nvmain_mem.cc
 +
 +
 +    if (!pkt->isRead() && !pkt->isWrite()) {
-+        DPRINTF(NVMain, "NVMainMemory: Received a packet that is neither read nor write");
++        DPRINTF(NVMain, "NVMainMemory: Received a packet that is neither read nor write.\n");
++        DPRINTF(NVMainMin, "NVMainMemory: Received a packet that is neither read nor write.\n");
 +
 +        bool needsResponse = pkt->needsResponse();
 +
@@ -504,7 +530,7 @@ diff -r 172902212ffc src/mem/nvmain_mem.cc
 +            assert(pkt->isResponse());
 +
 +            pkt->busFirstWordDelay = pkt->busLastWordDelay = 0;
-+            queue.schedSendTiming(pkt, curTick() + 1);
++            memory.responseQueue.push_back(pkt);
 +        } else {
 +            memory.pendingDelete.push_back(pkt);
 +        }
@@ -516,6 +542,7 @@ diff -r 172902212ffc src/mem/nvmain_mem.cc
 +    if (memory.retryRead || memory.retryWrite)
 +    {
 +        DPRINTF(NVMain, "nvmain_mem.cc: Received request while waiting for retry!\n");
++        DPRINTF(NVMainMin, "nvmain_mem.cc: Received request while waiting for retry!\n");
 +        return false;
 +    }
 +
@@ -523,7 +550,7 @@ diff -r 172902212ffc src/mem/nvmain_mem.cc
 +    if( !memory.m_awake )
 +    {
 +        memory.m_awake = true;
-+        memory.eventManager->scheduleWakeup( );
++        memory.wakeup();
 +    }
 +
 +    // Bus latency is modeled in NVMain.
@@ -531,7 +558,7 @@ diff -r 172902212ffc src/mem/nvmain_mem.cc
 +
 +    NVMainRequest *request = new NVMainRequest( );
 +
-+    bool enqueued;
++    bool canQueue, enqueued = false;
 +    unsigned int transfer_size;
 +    uint8_t *hostAddr;
 +
@@ -578,17 +605,20 @@ diff -r 172902212ffc src/mem/nvmain_mem.cc
 +    std::vector<NVMObject *>& postHooks = memory.GetHooks( NVMHOOK_POSTISSUE );
 +    std::vector<NVMObject *>::iterator it;
 +
-+    /* Call pre-issue hooks */
-+    // TODO: Figure out what to do if it's not enqueued.
-+    for( it = preHooks.begin(); it != preHooks.end(); it++ )
-+    {
-+        (*it)->SetParent( &memory );
-+        (*it)->IssueCommand( request );
-+    }
++    canQueue = memory.GetChild( )->IsIssuable( request );
 +
-+    enqueued = memory.GetChild( )->IssueCommand(request);
-+    if(enqueued)
++    if( canQueue )
 +    {
++        /* Call pre-issue hooks */
++        for( it = preHooks.begin(); it != preHooks.end(); it++ )
++        {
++            (*it)->SetParent( &memory );
++            (*it)->IssueCommand( request );
++        }
++
++        enqueued = memory.GetChild( )->IssueCommand(request);
++        assert( enqueued == true );
++
 +        NVMainMemoryRequest *memRequest = new NVMainMemoryRequest;
 +
 +        memRequest->request = request;
@@ -622,10 +652,21 @@ diff -r 172902212ffc src/mem/nvmain_mem.cc
 +
 +            memory.RequestComplete( requestCopy->request );
 +          }
++
++        /* Call post-issue hooks. */
++        if( request != NULL )
++        {
++            for( it = postHooks.begin(); it != postHooks.end(); it++ )
++            {
++                (*it)->SetParent( &memory );
++                (*it)->IssueCommand( request );
++            }
++        }
 +    }
 +    else
 +    {
-+        DPRINTF(NVMain, "nvmain_mem.cc: FAILED enqueue Mem request for 0x%x of type %s\n", request->address.GetPhysicalAddress( ), ((pkt->isRead()) ? "READ" : "WRITE") );
++        DPRINTF(NVMain, "nvmain_mem.cc: Can not enqueue Mem request for 0x%x of type %s\n", request->address.GetPhysicalAddress( ), ((pkt->isRead()) ? "READ" : "WRITE") );
++        DPRINTF(NVMainMin, "nvmain_mem.cc: Can not enqueue Mem request for 0x%x of type %s\n", request->address.GetPhysicalAddress( ), ((pkt->isRead()) ? "READ" : "WRITE") );
 +
 +        if (pkt->isRead())
 +        {
@@ -638,18 +679,6 @@ diff -r 172902212ffc src/mem/nvmain_mem.cc
 +
 +        delete request;
 +        request = NULL;
-+    }
-+
-+    //memory.Sync();
-+
-+    /* Call post-issue hooks. */
-+    if( request != NULL )
-+    {
-+        for( it = postHooks.begin(); it != postHooks.end(); it++ )
-+        {
-+            (*it)->SetParent( &memory );
-+            (*it)->IssueCommand( request );
-+        }
 +    }
 +
 +    return enqueued;
@@ -671,26 +700,39 @@ diff -r 172902212ffc src/mem/nvmain_mem.cc
 +}
 +
 +
-+void NVMainMemory::NVMainMemoryEvent::process()
++unsigned int NVMainMemory::drain(DrainManager *dm)
 +{
-+    // Cycle memory controller
-+    memory.m_nvmainPtr->Cycle( 1 );
++    unsigned int rv= 0;
 +
-+    // Don't schedule event in atomic mode unless there are incomplete requests
-+    if( memory.m_awake || !memory.m_request_map.empty() )
++    if( !m_request_map.empty() )
 +    {
-+        memory.eventManager->scheduleWakeup( );
++        setDrainState(Drainable::Draining);
++        drainManager = dm;
++        rv = 1;
 +    }
++    else
++    {
++        setDrainState(Drainable::Drained);
++        rv = 0;
++    }
++
++    return rv;
 +}
 +
 +
-+unsigned int NVMainMemory::drain(DrainManager *dm)
++void NVMainMemory::MemoryPort::recvRetry( )
 +{
-+    unsigned int count = port.drain(dm);
++    memory.recvRetry( );
++}
 +
-+    std::cout << "NVMainMemory: drain() was called." << std::endl;
 +
-+    return count;
++void NVMainMemory::recvRetry( )
++{
++    DPRINTF(NVMain, "NVMainMemory: recvRetry() called.\n");
++    DPRINTF(NVMainMin, "NVMainMemory: recvRetry() called.\n");
++
++    retryResp = false;
++    SendResponses( );
 +}
 +
 +
@@ -714,7 +756,6 @@ diff -r 172902212ffc src/mem/nvmain_mem.cc
 +    iter = m_request_map.find(req);
 +    memRequest = iter->second;
 +
-+    //if(memRequest->packet && !memRequest->atomic)
 +    if(!memRequest->atomic)
 +    {
 +        bool respond = false;
@@ -746,17 +787,18 @@ diff -r 172902212ffc src/mem/nvmain_mem.cc
 +
 +        if(respond)
 +        {
-+            port.queue.schedSendTiming(memRequest->packet, curTick() + 1);
++            responseQueue.push_back(memRequest->packet);
 +
 +            delete req;
 +            delete memRequest;
 +        }
 +        else
 +        {
-+            /* modified by Tao @ 01/24/2013 */
 +            if( memRequest->packet )
 +                pendingDelete.push_back(memRequest->packet);
-+            //delete memRequest->packet;
++
++            CheckDrainState( );
++
 +            delete req;
 +            delete memRequest;
 +        }
@@ -775,54 +817,90 @@ diff -r 172902212ffc src/mem/nvmain_mem.cc
 +}
 +
 +
++void NVMainMemory::SendResponses( )
++{
++    if( responseQueue.empty() || retryResp == true )
++        return;
++
++
++    bool success = port.sendTimingResp( responseQueue.front() );
++
++    if( success )
++    {
++        DPRINTF(NVMain, "NVMainMemory: Sending response.\n");
++
++        responseQueue.pop_front( );
++
++        CheckDrainState( );
++    }
++    else
++    {
++        DPRINTF(NVMain, "NVMainMemory: Retrying response.\n");
++        DPRINTF(NVMainMin, "NVMainMemory: Retrying response.\n");
++
++        retryResp = true;
++    }
++}
++
++
++void NVMainMemory::CheckDrainState( )
++{
++    if( drainManager != NULL && m_request_map.empty() )
++    {
++        DPRINTF(NVMain, "NVMainMemory: Drain completed.\n");
++        DPRINTF(NVMainMin, "NVMainMemory: Drain completed.\n");
++
++        drainManager->signalDrainDone( );
++        drainManager = NULL;
++    }
++}
++
++
 +void NVMainMemory::serialize(std::ostream& os)
 +{
-+    std::string nvmain_chkpt_file = "";
++    std::string nvmain_chkpt_dir = "";
 +
 +    if( m_nvmainConfig->KeyExists( "CheckpointDirectory" ) )
-+        nvmain_chkpt_file += m_nvmainConfig->GetString( "CheckpointDirectory" ) + "/";
-+    if( m_nvmainConfig->KeyExists( "CheckpointName" ) )
-+        nvmain_chkpt_file += m_nvmainConfig->GetString( "CheckpointName" );
++        nvmain_chkpt_dir = m_nvmainConfig->GetString( "CheckpointDirectory" );
 +
-+    std::cout << "NVMainMemory: Writing to checkpoint file " << nvmain_chkpt_file << std::endl;
++    std::cout << "NVMainMemory: Writing to checkpoint directory " << nvmain_chkpt_dir << std::endl;
 +
-+    // TODO: Add checkpoint to nvmain itself.
-+    //m_nvmainPtr->Checkpoint( nvmain_chkpt_file );
++    if( nvmain_chkpt_dir != "" )
++    {
++        m_nvmainPtr->CreateCheckpoint( nvmain_chkpt_dir );
++    }
 +}
 +
 +
 +void NVMainMemory::unserialize(Checkpoint *cp, const std::string& section)
 +{
-+    std::string nvmain_chkpt_file = "";
++    std::string nvmain_chkpt_dir = "";
 +
 +    if( m_nvmainConfig->KeyExists( "CheckpointDirectory" ) )
-+        nvmain_chkpt_file += m_nvmainConfig->GetString( "CheckpointDirectory" ) + "/";
-+    if( m_nvmainConfig->KeyExists( "CheckpointName" ) )
-+        nvmain_chkpt_file += m_nvmainConfig->GetString( "CheckpointName" );
++        nvmain_chkpt_dir = m_nvmainConfig->GetString( "CheckpointDirectory" );
 +
-+    // TODO: Add checkpoint to nvmain itself
-+    //m_nvmainPtr->Restore( nvmain_chkpt_file );
++    std::cout << "NVMainMemory: Reading from checkpoint directory " << nvmain_chkpt_dir << std::endl;
 +
-+    // If we are restoring from a checkpoint, we need to reschedule the wake up
-+    // so it is not in the past.
-+    if( eventManager->memEvent->scheduled() && eventManager->memEvent->when() <= curTick() )
++    if( nvmain_chkpt_dir != "" )
 +    {
-+        eventManager->deschedule( eventManager->memEvent );
-+        eventManager->scheduleWakeup();
++        m_nvmainPtr->RestoreCheckpoint( nvmain_chkpt_dir );
 +    }
 +}
 +
 +
-+NVMainMemory::NVMainMemoryEventManager::NVMainMemoryEventManager(::EventQueue* eventq, NVMainMemory &_memory)
-+    : EventManager(eventq), memory(_memory)
++void NVMainMemory::tick( )
 +{
-+    memEvent = new NVMainMemoryEvent(_memory);
-+}
++    // Cycle memory controller
++    m_nvmainPtr->Cycle( 1 );
 +
++    if( retryResp == false )
++        SendResponses( );
 +
-+void NVMainMemory::NVMainMemoryEventManager::scheduleWakeup( )
-+{
-+    schedule(memEvent, curTick() + memory.clock);
++    // Don't schedule event in atomic mode unless there are incomplete requests
++    if( m_awake || !m_request_map.empty() )
++    {
++        schedule(clockEvent, curTick() + clock);
++    }
 +}
 +
 +
@@ -832,10 +910,10 @@ diff -r 172902212ffc src/mem/nvmain_mem.cc
 +    return new NVMainMemory(this);
 +}
 +
-diff -r 172902212ffc src/mem/nvmain_mem.hh
+diff -r 85098187a01b src/mem/nvmain_mem.hh
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/nvmain_mem.hh	Mon Oct 21 15:08:28 2013 -0400
-@@ -0,0 +1,210 @@
++++ b/src/mem/nvmain_mem.hh	Sun Mar 23 15:59:57 2014 -0400
+@@ -0,0 +1,192 @@
 +/*
 + * Copyright (c) 2012-2013 Pennsylvania State University
 + * All rights reserved.
@@ -895,20 +973,22 @@ diff -r 172902212ffc src/mem/nvmain_mem.hh
 +#include "mem/tport.hh"
 +#include "params/NVMainMemory.hh"
 +#include "sim/eventq.hh"
++#include "sim/serialize.hh"
 +#include "src/Config.h"
 +#include "src/EventQueue.h"
 +#include "src/NVMObject.h"
 +#include "src/SimInterface.h"
++#include "src/TagGenerator.h"
 +
 +class NVMainMemory : public AbstractMemory, public NVM::NVMObject
 +{
 +  private:
 +
-+    class MemoryPort : public QueuedSlavePort
++    class MemoryPort : public SlavePort
 +    {
 +        friend class NVMainMemory;
 +
-+        SlavePacketQueue queueImpl;
++//        SlavePacketQueue queueImpl;
 +        NVMainMemory& memory;
 +
 +      public:
@@ -923,39 +1003,17 @@ diff -r 172902212ffc src/mem/nvmain_mem.hh
 +
 +        bool recvTimingReq(PacketPtr pkt);
 +
++        void recvRetry( );
++
 +        AddrRangeList getAddrRanges() const;
 +
 +    };
 +
-+    class NVMainMemoryEvent : public Event
-+    {
-+        friend class NVMainMemory;
++    void tick();
++    EventWrapper<NVMainMemory, &NVMainMemory::tick> clockEvent;
 +
-+        NVMainMemory& memory;
-+
-+      public:
-+
-+        NVMainMemoryEvent(NVMainMemory &_memory) : memory(_memory) { }
-+        ~NVMainMemoryEvent() { }
-+
-+        void process();
-+    };
-+
-+    class NVMainMemoryEventManager : public EventManager
-+    {
-+        friend class NVMainMemory;
-+
-+        NVMainMemory& memory;
-+
-+        NVMainMemoryEvent *memEvent;
-+
-+      public:
-+
-+        NVMainMemoryEventManager(::EventQueue *eventq, NVMainMemory &_memory);
-+        ~NVMainMemoryEventManager( ) { }
-+
-+        void scheduleWakeup( );
-+    };
++    void SendResponses( );
++    void CheckDrainState( );
 +
 +    class NVMainStatPrinter : public Callback
 +    {
@@ -975,13 +1033,14 @@ diff -r 172902212ffc src/mem/nvmain_mem.hh
 +    };
 +
 +    MemoryPort port;
-+    NVMainMemoryEventManager *eventManager;
++    DrainManager *drainManager;
 +
 +    NVM::NVMain *m_nvmainPtr;
 +    NVM::Stats *m_statsPtr;
 +    NVM::EventQueue *m_nvmainEventQueue;
 +    NVM::Config *m_nvmainConfig;
 +    NVM::SimInterface *m_nvmainSimInterface;
++    NVM::TagGenerator *m_tagGenerator;
 +    std::string m_nvmainConfigPath;
 +
 +    bool m_awake;
@@ -993,7 +1052,7 @@ diff -r 172902212ffc src/mem/nvmain_mem.hh
 +    Tick lat;
 +    Tick lat_var;
 +    bool nvmain_atomic;
-+    bool retryRead, retryWrite;
++    bool retryRead, retryWrite, retryResp;
 +
 +    uint64_t BusWidth;
 +    uint64_t tBURST;
@@ -1005,10 +1064,9 @@ diff -r 172902212ffc src/mem/nvmain_mem.hh
 +    NVMainStatPrinter statPrinter;
 +    Tick lastWakeup;
 +
-+    std::list<NVMainMemoryRequest *> m_request_list;
-+
 +    std::map<NVM::NVMainRequest *, NVMainMemoryRequest *> m_request_map;
 +    uint64_t m_requests_outstanding;
++    std::deque<PacketPtr> responseQueue;
 +
 +  public:
 +
@@ -1019,6 +1077,8 @@ diff -r 172902212ffc src/mem/nvmain_mem.hh
 +    BaseSlavePort& getSlavePort(const std::string& if_name,
 +                                PortID idx = InvalidPortID);
 +    void init();
++    void startup();
++    void wakeup();
 +
 +    const Params *
 +    params() const
@@ -1040,7 +1100,7 @@ diff -r 172902212ffc src/mem/nvmain_mem.hh
 +
 +    Tick doAtomicAccess(PacketPtr pkt);
 +    void doFunctionalAccess(PacketPtr pkt);
-+    void Sync();
++    void recvRetry();
 +
 +};
 +

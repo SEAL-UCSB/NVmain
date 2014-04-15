@@ -46,11 +46,8 @@ using namespace NVM;
  * the sense that it only starts a drain when the write queue is completely full
  * and drains until empty.
  */
-FRFCFS_WQF::FRFCFS_WQF( Interconnect *memory, AddressTranslator *translator )
+FRFCFS_WQF::FRFCFS_WQF( )
 {
-    SetMemory( memory );
-    SetTranslator( translator );
-
     std::cout << "Created a First Ready First Come First Serve memory \
         controller with write queue!" << std::endl;
 
@@ -128,7 +125,7 @@ FRFCFS_WQF::~FRFCFS_WQF( )
 {
 }
 
-void FRFCFS_WQF::SetConfig( Config *conf )
+void FRFCFS_WQF::SetConfig( Config *conf, bool createChildren )
 {
     if( conf->KeyExists( "StarvationThreshold" ) )
         starvationThreshold = static_cast<unsigned int>( 
@@ -170,7 +167,7 @@ void FRFCFS_WQF::SetConfig( Config *conf )
             watermark. Has reset it to 0." << std::endl;
     }
 
-    MemoryController::SetConfig( conf );
+    MemoryController::SetConfig( conf, createChildren );
 
     SetDebugName( "FRFCFS-WQF", conf );
 }
@@ -220,6 +217,8 @@ void FRFCFS_WQF::RegisterStats( )
     AddStat(averageQueueLatency);
     AddStat(measuredLatencies);
     AddStat(measuredQueueLatencies);
+
+    MemoryController::RegisterStats( );
 }
 
 bool FRFCFS_WQF::IsIssuable( NVMainRequest *request, FailReason * /*fail*/ )
@@ -269,6 +268,21 @@ bool FRFCFS_WQF::IssueCommand( NVMainRequest *request )
 
 bool FRFCFS_WQF::RequestComplete( NVMainRequest * request )
 {
+    if( request->type == WRITE || request->type == WRITE_PRECHARGE )
+    {
+        /* 
+         *  Put cancelled requests at the head of the write queue
+         *  like nothing ever happened.
+         */
+        if( request->flags & NVMainRequest::FLAG_CANCELLED 
+            || request->flags & NVMainRequest::FLAG_PAUSED )
+        {
+            writeQueue.push_front( request );
+
+            return true;
+        }
+    }
+
     /* 
      * Only reads and writes are sent back to NVMain and checked for in the 
      * transaction queue 
@@ -465,6 +479,10 @@ void FRFCFS_WQF::Cycle( ncycle_t steps )
     /* Issue the memory transaction as a series of commands to the command queue. */
     if( nextRequest != NULL )
     {
+        /* If we are draining, do not allow write cancellation or pausing. */
+        if( m_draining == true )
+            nextRequest->flags |= NVMainRequest::FLAG_FORCED;
+
         IssueMemoryCommands( nextRequest );
     }
 

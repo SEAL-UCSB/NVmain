@@ -39,7 +39,6 @@
 #include <stdint.h>
 #include <list>
 #include "src/Bank.h"
-//#include "src/Device.h"
 #include "src/Params.h"
 #include "src/NVMObject.h"
 #include <iostream>
@@ -73,86 +72,26 @@ enum RankState
 class Rank : public NVMObject
 {
   public:
-    Rank( );
-    ~Rank( );
+    Rank( ) { }
+    ~Rank( ) { }
 
-    void SetConfig( Config *c );
-    void SetParams( Params *params ) { p = params; }
+    virtual void SetConfig( Config * /*c*/, bool /*createChildren*/ = true ) { }
 
-    bool IssueCommand( NVMainRequest *mop );
-    bool IsIssuable( NVMainRequest *mop, FailReason *reason = NULL );
-    void Notify( OpType op );
-    bool RequestComplete( NVMainRequest* );
+    virtual void Notify( OpType /*op*/ ) { }
 
-    void SetName( std::string name );
-    void StatName( std::string name ) { statName = name; }
+    virtual bool PowerDown( const OpType& pdOp );
+    virtual bool PowerUp( );
+    virtual bool CanPowerDown( const OpType& pdOp );
+    virtual bool CanPowerUp( );
 
-    bool PowerDown( const OpType& pdOp );
-    bool PowerUp( );
-    bool CanPowerDown( const OpType& pdOp );
-    bool CanPowerUp( );
+    virtual bool Idle( );
 
-    bool Idle( );
+    virtual ncycle_t GetNextActivate( uint64_t bank );
+    virtual ncycle_t GetNextRead( uint64_t bank );
+    virtual ncycle_t GetNextWrite( uint64_t bank );
+    virtual ncycle_t GetNextPrecharge( uint64_t bank );
+    virtual ncycle_t GetNextRefresh( uint64_t bank );
 
-    ncycle_t GetNextActivate( uint64_t bank );
-    ncycle_t GetNextRead( uint64_t bank );
-    ncycle_t GetNextWrite( uint64_t bank );
-    ncycle_t GetNextPrecharge( uint64_t bank );
-    ncycle_t GetNextRefresh( uint64_t bank );
-
-    void Cycle( ncycle_t steps );
-
-    void RegisterStats( );
-    void CalculateStats( );
-
-  private:
-    Config *conf;
-    ncounter_t stateTimeout;
-    std::string statName;
-    uint64_t psInterval;
-    RankState state;
-
-    Bank **banks;
-    ncounter_t bankCount;
-    ncounter_t deviceWidth;
-    ncounter_t deviceCount;
-    ncounter_t busWidth;
-    ncycle_t* lastActivate;
-    ncounter_t RAWindex;
-    ncounter_t rawNum;
-    ncounter_t banksPerRefresh;
-
-    ncycle_t nextRead;
-    ncycle_t nextWrite;
-    ncycle_t nextActivate;
-    ncycle_t nextPrecharge;
-
-    ncounter_t activeCycles;
-    ncounter_t standbyCycles;
-    ncounter_t fastExitCycles;
-    ncounter_t slowExitCycles;
-
-    ncounter_t rrdWaits;
-    ncounter_t rrdWaitTotal;
-    double rrdWaitAverage;
-    ncounter_t fawWaits;
-    ncounter_t fawWaitTotal;
-    double fawWaitAverage;
-    ncounter_t actWaits;
-    ncounter_t actWaitTotal;
-    double actWaitAverage;
-
-    ncounter_t reads, writes;
-
-    double totalEnergy, backgroundEnergy, activateEnergy, burstEnergy, refreshEnergy;
-    double totalPower, backgroundPower, activatePower, burstPower, refreshPower;
-
-    bool Activate( NVMainRequest *request );
-    bool Read( NVMainRequest *request );
-    bool Write( NVMainRequest *request );
-    bool Precharge( NVMainRequest *request );
-    bool Refresh( NVMainRequest *request );
-    Params *p;
 };
 
 };

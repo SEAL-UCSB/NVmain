@@ -108,6 +108,33 @@ bool NVMObject_hook::IssueAtomic( NVMainRequest *req )
     return rv;
 }
 
+bool NVMObject_hook::IssueFunctional( NVMainRequest *req )
+{
+    bool rv;
+    std::vector<NVMObject *>& preHooks  = trampoline->GetHooks( NVMHOOK_PREISSUE );
+    std::vector<NVMObject *>& postHooks = trampoline->GetHooks( NVMHOOK_POSTISSUE );
+    std::vector<NVMObject *>::iterator it;
+
+    /* Call pre-issue hooks */
+    for( it = preHooks.begin(); it != preHooks.end(); it++ )
+    {
+        (*it)->SetParent( trampoline );
+        (*it)->IssueAtomic( req );
+    }
+
+    /* Call IssueCommand. */
+    rv = trampoline->IssueFunctional( req );
+
+    /* Call post-issue hooks. */
+    for( it = postHooks.begin(); it != postHooks.end(); it++ )
+    {
+        (*it)->SetParent( trampoline );
+        (*it)->IssueAtomic( req );
+    }
+
+    return rv;
+}
+
 bool NVMObject_hook::RequestComplete( NVMainRequest *req )
 {
     bool rv;
@@ -153,6 +180,11 @@ void NVMObject_hook::ResetStats( )
     trampoline->ResetStats( );
 }
 
+void NVMObject_hook::PrintHierarchy( int depth )
+{
+    trampoline->PrintHierarchy( depth );
+}
+
 void NVMObject_hook::SetStats( Stats *s )
 {
     trampoline->SetStats( s );
@@ -166,6 +198,16 @@ Stats *NVMObject_hook::GetStats( )
 void NVMObject_hook::RegisterStats( )
 {
     trampoline->RegisterStats( );
+}
+
+void NVMObject_hook::StatName( std::string name )
+{
+    trampoline->StatName( name );
+}
+
+std::string NVMObject_hook::StatName( )
+{
+    return trampoline->StatName( );
 }
 
 void NVMObject_hook::Cycle( ncycle_t steps )
@@ -187,6 +229,7 @@ NVMObject::NVMObject( )
     hookType = NVMHOOK_NONE;
     hooks = new std::vector<NVMObject *> [NVMHOOK_COUNT];
     debugStream = NULL;
+    tagGen = NULL;
 }
 
 void NVMObject::Init( Config * )
@@ -194,6 +237,11 @@ void NVMObject::Init( Config * )
 }
 
 bool NVMObject::IssueAtomic( NVMainRequest * )
+{
+    return true;
+}
+
+bool NVMObject::IssueFunctional( NVMainRequest * )
 {
     return true;
 }
@@ -259,6 +307,7 @@ void NVMObject::SetParent( NVMObject *p )
     parent = hook;
     SetEventQueue( p->GetEventQueue( ) );
     SetStats( p->GetStats( ) );
+    SetTagGenerator( p->GetTagGenerator( ) );
 }
 
 void NVMObject::AddChild( NVMObject *c )
@@ -280,6 +329,44 @@ void NVMObject::AddChild( NVMObject *c )
     children.push_back( hook );
 }
 
+NVMObject *NVMObject::_FindChild( NVMainRequest *req, const char *childClass )
+{
+    NVMObject *curChild = this;
+
+    while( curChild != NULL && NVMClass(*curChild) != childClass )
+    {
+        NVMObject_hook *curHook = curChild->GetChild( req );
+
+        /* This object has no child objects. */
+        if( curHook == NULL )
+            return NULL;
+
+        curChild = curChild->GetChild( req )->GetTrampoline();
+    }
+
+    return curChild;
+}
+
+ncounter_t NVMObject::GetChildId( NVMObject *c )
+{
+    std::vector<NVMObject_hook *>::iterator it;
+    ncounter_t id = 0;
+    ncounter_t rv = 0;
+
+    for( it = children.begin(); it != children.end(); ++it )
+    {
+        if( (*it)->GetTrampoline() == c )
+        {
+            rv = id;
+            break;
+        }
+
+        ++id;
+    }
+
+    return rv;
+}
+
 NVMObject_hook* NVMObject::GetParent( )
 {
     return parent;
@@ -292,16 +379,30 @@ std::vector<NVMObject_hook *>& NVMObject::GetChildren( )
 
 NVMObject_hook *NVMObject::GetChild( NVMainRequest *req )
 {
+    /* If there is only one child (e.g., MC with interconnect child), use the other method. */
+    if( GetDecoder( ) == NULL )
+        return GetChild( );
+
     /*Use the specified decoder to choose the correct child. */
     uint64_t child;
 
-    child = GetDecoder( )->Translate( req->address.GetPhysicalAddress( ) );
+    child = GetDecoder( )->Translate( req );
+
+    return children[child];
+}
+
+NVMObject_hook *NVMObject::GetChild( ncounter_t child )
+{
+    assert( child < children.size() );
 
     return children[child];
 }
 
 NVMObject_hook *NVMObject::GetChild( void )
 {
+    if( children.size() == 0 )
+        return NULL;
+
     /* This should only be used if there is gauranteed to be only one child. */
     assert( children.size() == 1 );
 
@@ -358,6 +459,25 @@ void NVMObject::RestoreCheckpoint( std::string dir )
     }
 }
 
+void NVMObject::PrintHierarchy( int depth )
+{
+    std::vector<NVMObject_hook *>::iterator it;
+
+    if( depth > 0 )
+    {
+        std::cout << std::string(depth*2, '-') << " " << StatName( ) << std::endl;
+    }
+    else
+    {
+        std::cout << StatName( ) << std::endl;
+    }
+
+    for( it = children.begin(); it != children.end(); it++ )
+    {
+        (*it)->PrintHierarchy( depth + 1 );
+    }
+}
+
 void NVMObject::SetStats( Stats *s )
 {
     stats = s;
@@ -370,6 +490,26 @@ Stats *NVMObject::GetStats( )
 
 void NVMObject::RegisterStats( )
 {
+}
+
+void NVMObject::StatName( std::string name )
+{
+    statName = name;
+}
+
+std::string NVMObject::StatName( )
+{
+    return statName;
+}
+
+void NVMObject::SetTagGenerator( TagGenerator *tg )
+{
+    tagGen = tg;
+}
+
+TagGenerator *NVMObject::GetTagGenerator( )
+{
+    return tagGen;
 }
 
 HookType NVMObject::GetHookType( )

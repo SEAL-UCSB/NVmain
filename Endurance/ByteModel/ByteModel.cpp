@@ -57,13 +57,13 @@ ByteModel::~ByteModel( )
    */
 }
 
-void ByteModel::SetConfig( Config *config )
+void ByteModel::SetConfig( Config *config, bool createChildren )
 {
     Params *params = new Params( );
     params->SetParams( config );
     SetParams( params );
 
-    EnduranceModel::SetConfig( config );
+    EnduranceModel::SetConfig( config, createChildren );
 }
 
 bool ByteModel::Write( NVMAddress address, NVMDataBlock oldData, 

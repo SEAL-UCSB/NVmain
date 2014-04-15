@@ -176,6 +176,16 @@ void AddressTranslator::SetBurstLength( int beat )
  * Translate() translates the physical address and returns the corresponding
  * values of each memory domain 
  */
+void AddressTranslator::Translate( NVMainRequest *request, uint64_t *row, uint64_t *col, uint64_t *bank,
+				   uint64_t *rank, uint64_t *channel, uint64_t *subarray )
+{
+    return Translate( request->address.GetPhysicalAddress( ), row, col, bank, rank, channel, subarray );
+}
+
+/*
+ * Translate() translates the physical address and returns the corresponding
+ * values of each memory domain 
+ */
 void AddressTranslator::Translate( uint64_t address, uint64_t *row, uint64_t *col, uint64_t *bank,
 				   uint64_t *rank, uint64_t *channel, uint64_t *subarray )
 {
@@ -219,6 +229,52 @@ void AddressTranslator::Translate( uint64_t address, uint64_t *row, uint64_t *co
         refAddress = Divide( refAddress, part );
     }
 } 
+
+uint64_t AddressTranslator::Translate( NVMainRequest *request )
+{
+    uint64_t rv = 0;
+
+    if( request->address.IsTranslated( ) )
+    {
+        switch( defaultField )
+        {
+            case ROW_FIELD:
+                rv = request->address.GetRow( );
+                break;
+
+            case COL_FIELD:
+                rv = request->address.GetCol( );
+                break;
+
+            case BANK_FIELD:
+                rv = request->address.GetBank( );
+                break;
+
+            case RANK_FIELD:
+                rv = request->address.GetRank( );
+                break;
+
+            case CHANNEL_FIELD:
+                rv = request->address.GetChannel( );
+                break;
+
+            case SUBARRAY_FIELD:
+                rv = request->address.GetSubArray( );
+                break;
+
+            case NO_FIELD:
+            default:
+                rv = 0;
+                break;
+        }
+    }
+    else
+    {
+        rv = Translate( request->address.GetPhysicalAddress( ) );
+    }
+
+    return rv;
+}
 
 uint64_t AddressTranslator::Translate( uint64_t address )
 {

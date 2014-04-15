@@ -36,7 +36,11 @@
 #include "src/MemoryController.h"
 #include "include/NVMainRequest.h"
 #include "src/EventQueue.h"
+#include "src/Interconnect.h"
+#include "Interconnect/InterconnectFactory.h"
+#include "src/SubArray.h"
 
+#include <sstream>
 #include <cassert>
 #include <cstdlib>
 #include <csignal>
@@ -47,9 +51,6 @@ using namespace NVM;
 MemoryController::MemoryController( )
 {
     transactionQueues = NULL;
-    memory = NULL;
-    translator = NULL;
-
     commandQueues = NULL;
     commandQueueCount = 0;
 
@@ -112,19 +113,6 @@ MemoryController::~MemoryController( )
     
 }
 
-MemoryController::MemoryController( Interconnect *memory, AddressTranslator *translator )
-{
-    this->memory = memory;
-    this->translator = translator;
-
-    transactionQueues = NULL;
-}
-
-AddressTranslator *MemoryController::GetAddressTranslator( )
-{
-    return translator;
-}
-
 void MemoryController::InitQueues( unsigned int numQueues )
 {
     if( transactionQueues != NULL )
@@ -138,7 +126,7 @@ void MemoryController::InitQueues( unsigned int numQueues )
 
 void MemoryController::Cycle( ncycle_t steps )
 {
-    memory->Cycle( steps );
+    GetChild( )->Cycle( steps );
 }
 
 bool MemoryController::RequestComplete( NVMainRequest *request )
@@ -166,27 +154,13 @@ bool MemoryController::IsIssuable( NVMainRequest * /*request*/, FailReason * /*f
     return true;
 }
 
-void MemoryController::SetMemory( Interconnect *mem )
+void MemoryController::SetMappingScheme( )
 {
-    this->memory = mem;
+    /* Configure common memory controller parameters. */
+    GetDecoder( )->GetTranslationMethod( )->SetAddressMappingScheme( p->AddressMappingScheme );
 }
 
-Interconnect *MemoryController::GetMemory( )
-{
-    return (this->memory);
-}
-
-void MemoryController::SetTranslator( AddressTranslator *trans )
-{
-    this->translator = trans;
-}
-
-AddressTranslator *MemoryController::GetTranslator( )
-{
-    return (this->translator);
-}
-
-void MemoryController::SetConfig( Config *conf )
+void MemoryController::SetConfig( Config *conf, bool createChildren )
 {
     this->config = conf;
 
@@ -194,10 +168,32 @@ void MemoryController::SetConfig( Config *conf )
     params->SetParams( conf );
     SetParams( params );
     
-    translator->GetTranslationMethod( )->SetAddressMappingScheme( 
-            p->AddressMappingScheme );
+    if( createChildren )
+    {
+        /* When selecting a child, use the bank field from the decoder. */
+        AddressTranslator *mcAT = DecoderFactory::CreateDecoderNoWarn( conf->GetString( "Decoder" ) );
+        mcAT->SetTranslationMethod( GetParent( )->GetTrampoline( )->GetDecoder( )->GetTranslationMethod( ) );
+        mcAT->SetDefaultField( NO_FIELD );
+        mcAT->SetConfig( conf, createChildren );
+        SetDecoder( mcAT );
 
-    std::cout << "ScheduleScheme is " << p->ScheduleScheme << std::endl;
+        /* Initialize interconnect */
+        std::stringstream confString;
+
+        memory = InterconnectFactory::CreateInterconnect( conf->GetString( "INTERCONNECT" ) );
+
+        confString.str( "" );
+        confString << StatName( ) << ".channel" << GetID( );
+        memory->StatName( confString.str( ) );
+
+        memory->SetParent( this );
+        AddChild( memory );
+
+        memory->SetConfig( conf, createChildren );
+        memory->RegisterStats( );
+        
+        SetMappingScheme( );
+    }
 
     /*
      *  The logical bank size is: ROWS * COLS * memory word size (in bytes). 
@@ -205,7 +201,7 @@ void MemoryController::SetConfig( Config *conf )
      *  number of devices = bus width / device width
      *  Total channel size is: loglcal bank size * BANKS * RANKS
      */
-    std::cout << statName << " capacity is " << ((p->ROWS * p->COLS * p->DeviceWidth * p->tBURST * p->RATE * (p->BusWidth / p->DeviceWidth) * p->BANKS * p->RANKS) / (8*1024*1024)) << " MB." << std::endl;
+    std::cout << StatName( ) << " capacity is " << ((p->ROWS * p->COLS * p->DeviceWidth * p->tBURST * p->RATE * (p->BusWidth / p->DeviceWidth) * p->BANKS * p->RANKS) / (8*1024*1024)) << " MB." << std::endl;
 
     if( conf->KeyExists( "MATHeight" ) )
     {
@@ -439,7 +435,7 @@ bool MemoryController::HandleRefresh( )
                 /* create a refresh command that will be sent to ranks */
                 NVMainRequest* cmdRefresh = MakeRefreshRequest( 0, 0, j, i, 0 );
 
-                if( memory->IsIssuable( cmdRefresh, &fail ) == false )
+                if( GetChild( )->IsIssuable( cmdRefresh, &fail ) == false && p->UsePrecharge )
                 {
                     for( ncounter_t tmpBank = 0; tmpBank < p->BanksPerRefresh; tmpBank++ ) 
                     {
@@ -554,13 +550,13 @@ void MemoryController::PowerDown( const ncounter_t& rankId )
         std::cerr << "NVMain Error: Undefined low power mode" << std::endl;
 
     /* if some banks are active, active powerdown is applied */
-    if( memory->IsRankIdle( rankId ) == false )
+    if( ((Interconnect*)GetChild()->GetTrampoline())->IsRankIdle( rankId ) == false )
         pdOp = POWERDOWN_PDA;
 
-    if( memory->CanPowerDown( pdOp, rankId ) 
+    if( ((Interconnect*)GetChild()->GetTrampoline())->CanPowerDown( pdOp, rankId ) 
         && RankQueueEmpty( rankId ) )
     {
-        memory->PowerDown( pdOp, rankId );
+        ((Interconnect*)GetChild()->GetTrampoline())->PowerDown( pdOp, rankId );
         rankPowerDown[rankId] = true;
     }
 }
@@ -569,9 +565,9 @@ void MemoryController::PowerUp( const ncounter_t& rankId )
 {
     /* if some banks are active, active powerdown is applied */
     if( RankQueueEmpty( rankId ) == false 
-        && memory->CanPowerUp( rankId ) )
+        && ((Interconnect*)GetChild()->GetTrampoline())->CanPowerUp( rankId ) )
     {
-        memory->PowerUp( rankId );
+        ((Interconnect*)GetChild()->GetTrampoline())->PowerUp( rankId );
         rankPowerDown[rankId] = false;
     }
 }
@@ -599,9 +595,9 @@ void MemoryController::HandleLowPower( )
         if( needRefresh )
         {
             /* if the rank is powered down, power it up */
-            if( rankPowerDown[rankId] && memory->CanPowerUp( rankId ) )
+            if( rankPowerDown[rankId] && ((Interconnect*)GetChild()->GetTrampoline())->CanPowerUp( rankId ) )
             {
-                memory->PowerUp( rankId );
+                ((Interconnect*)GetChild()->GetTrampoline())->PowerUp( rankId );
                 rankPowerDown[rankId] = false;
             }
         }
@@ -626,6 +622,11 @@ void MemoryController::SetID( unsigned int id )
     this->id = id;
 }
 
+unsigned int MemoryController::GetID( )
+{
+    return this->id;
+}
+
 NVMainRequest *MemoryController::MakeActivateRequest( NVMainRequest *triggerRequest )
 {
     NVMainRequest *activateRequest = new NVMainRequest( );
@@ -647,7 +648,7 @@ NVMainRequest *MemoryController::MakeActivateRequest( const ncounter_t row,
     NVMainRequest *activateRequest = new NVMainRequest( );
 
     activateRequest->type = ACTIVATE;
-    ncounter_t actAddr = translator->ReverseTranslate( row, col, bank, rank, 0, subarray );
+    ncounter_t actAddr = GetDecoder( )->ReverseTranslate( row, col, bank, rank, 0, subarray );
     activateRequest->address.SetPhysicalAddress( actAddr );
     activateRequest->address.SetTranslatedAddress( row, col, bank, rank, 0, subarray );
     activateRequest->issueCycle = GetEventQueue()->GetCurrentCycle();
@@ -677,7 +678,7 @@ NVMainRequest *MemoryController::MakePrechargeRequest( const ncounter_t row,
     NVMainRequest *prechargeRequest = new NVMainRequest( );
 
     prechargeRequest->type = PRECHARGE;
-    ncounter_t preAddr = translator->ReverseTranslate( row, col, bank, rank, 0, subarray );
+    ncounter_t preAddr = GetDecoder( )->ReverseTranslate( row, col, bank, rank, 0, subarray );
     prechargeRequest->address.SetPhysicalAddress( preAddr );
     prechargeRequest->address.SetTranslatedAddress( row, col, bank, rank, 0, subarray );
     prechargeRequest->issueCycle = GetEventQueue()->GetCurrentCycle();
@@ -707,7 +708,7 @@ NVMainRequest *MemoryController::MakePrechargeAllRequest( const ncounter_t row,
     NVMainRequest *prechargeAllRequest = new NVMainRequest( );
 
     prechargeAllRequest->type = PRECHARGE_ALL;
-    ncounter_t preAddr = translator->ReverseTranslate( row, col, bank, rank, 0, subarray );
+    ncounter_t preAddr = GetDecoder( )->ReverseTranslate( row, col, bank, rank, 0, subarray );
     prechargeAllRequest->address.SetPhysicalAddress( preAddr );
     prechargeAllRequest->address.SetTranslatedAddress( row, col, bank, rank, 0, subarray );
     prechargeAllRequest->issueCycle = GetEventQueue()->GetCurrentCycle();
@@ -737,7 +738,7 @@ NVMainRequest *MemoryController::MakeRefreshRequest( const ncounter_t row,
     NVMainRequest *refreshRequest = new NVMainRequest( );
 
     refreshRequest->type = REFRESH;
-    ncounter_t preAddr = translator->ReverseTranslate( row, col, bank, rank, 0, subarray );
+    ncounter_t preAddr = GetDecoder( )->ReverseTranslate( row, col, bank, rank, 0, subarray );
     refreshRequest->address.SetPhysicalAddress( preAddr );
     refreshRequest->address.SetTranslatedAddress( row, col, bank, rank, 0, subarray );
     refreshRequest->issueCycle = GetEventQueue()->GetCurrentCycle();
@@ -799,6 +800,8 @@ bool MemoryController::FindStarvedRequest( std::list<NVMainRequest *>& transacti
         ncounter_t rank, bank, row, subarray, col;
         ncounter_t queueId = GetCommandQueueId( (*it)->address );
 
+        if( !commandQueues[queueId].empty() ) continue;
+
         (*it)->address.GetTranslatedAddress( &row, &col, &bank, &rank, NULL, &subarray );
         
         /* By design, mux level can only be a subset of the selected columns. */
@@ -836,6 +839,95 @@ bool MemoryController::FindStarvedRequest( std::list<NVMainRequest *>& transacti
     return rv;
 }
 
+bool MemoryController::FindWriteStalledRead( std::list<NVMainRequest *>& transactionQueue,
+                                             NVMainRequest **hitRequest )
+{
+    DummyPredicate pred;
+
+    return FindWriteStalledRead( transactionQueue, hitRequest, pred );
+}
+
+bool MemoryController::FindWriteStalledRead( std::list<NVMainRequest *>& transactionQueue, 
+                                             NVMainRequest **hitRequest, SchedulingPredicate& pred )
+{
+    bool rv = false;
+    std::list<NVMainRequest *>::iterator it;
+
+    *hitRequest = NULL;
+
+    if( !p->WritePausing )
+        return false;
+
+    for( it = transactionQueue.begin(); it != transactionQueue.end(); it++ )
+    {
+        if( (*it)->type != READ )
+            continue;
+
+        ncounter_t rank, bank, row, subarray, col;
+        ncounter_t queueId = GetCommandQueueId( (*it)->address );
+
+        if( !commandQueues[queueId].empty() ) continue;
+
+        (*it)->address.GetTranslatedAddress( &row, &col, &bank, &rank, NULL, &subarray );
+
+        /* Find the requests's SubArray destination. */
+        SubArray *writingArray = FindChild( (*it), SubArray );
+
+        /* Assume the memory has no subarrays if we don't find the destination. */
+        if( writingArray == NULL )
+            return false;
+
+        //if( writingArray->IsWriting( ) )
+        //{
+        //    std::cout << "Subarray is writing!" << std::endl;
+        //}
+
+        NVMainRequest *testActivate = MakeActivateRequest( (*it) );
+        testActivate->flags |= NVMainRequest::FLAG_PRIORITY; 
+
+        if( !bankNeedRefresh[rank][bank]                 /* The bank is not waiting for a refresh */
+            && writingArray->IsWriting( )                /* There needs to be a write to cancel. */
+            && ( GetChild( )->IsIssuable( (*it ) )       /* Check for RB hit pause */
+            || GetChild( )->IsIssuable( testActivate ) ) /* See if we can activate to pause. */
+            && commandQueues[queueId].empty()            /* The request queue is empty */
+            && pred( (*it) ) )                           /* User-defined predicate is true */
+        {
+            if( !writingArray->BetweenWriteIterations( ) && p->pauseMode == PauseMode_Normal )
+            {
+                delete testActivate;
+
+                /* Stall the scheduler by returning true. */
+                rv = true;
+                break;
+            }
+
+            *hitRequest = (*it);
+            transactionQueue.erase( it );
+
+            delete testActivate;
+
+            /* Different row buffer management policy has different behavior */ 
+
+            /* 
+             * if Relaxed Close-Page row buffer management policy is applied,
+             * we check whether there is another request has row buffer hit.
+             * if not, this request is the last request and we can close the
+             * row.
+             */
+            if( IsLastRequest( transactionQueue, (*hitRequest) ) )
+                (*hitRequest)->flags |= NVMainRequest::FLAG_LAST_REQUEST;
+
+            rv = true;
+
+            break;
+        }
+
+        delete testActivate;
+    }
+
+    return rv;
+}
+
 bool MemoryController::FindRowBufferHit( std::list<NVMainRequest *>& transactionQueue, 
                                          NVMainRequest **hitRequest )
 {
@@ -856,6 +948,8 @@ bool MemoryController::FindRowBufferHit( std::list<NVMainRequest *>& transaction
     {
         ncounter_t rank, bank, row, subarray, col;
         ncounter_t queueId = GetCommandQueueId( (*it)->address );
+
+        if( !commandQueues[queueId].empty() ) continue;
 
         (*it)->address.GetTranslatedAddress( &row, &col, &bank, &rank, NULL, &subarray );
 
@@ -915,6 +1009,8 @@ bool MemoryController::FindOldestReadyRequest( std::list<NVMainRequest *>& trans
         ncounter_t rank, bank;
         ncounter_t queueId = GetCommandQueueId( (*it)->address );
 
+        if( !commandQueues[queueId].empty() ) continue;
+
         (*it)->address.GetTranslatedAddress( NULL, NULL, &bank, &rank, NULL, NULL );
 
         if( activateQueued[rank][bank]         /* The bank is active */ 
@@ -965,6 +1061,8 @@ bool MemoryController::FindClosedBankRequest( std::list<NVMainRequest *>& transa
     {
         ncounter_t rank, bank;
         ncounter_t queueId = GetCommandQueueId( (*it)->address );
+
+        if( !commandQueues[queueId].empty() ) continue;
 
         (*it)->address.GetTranslatedAddress( NULL, NULL, &bank, &rank, NULL, NULL );
 
@@ -1019,6 +1117,8 @@ bool MemoryController::FindStarvedRequests( std::list<NVMainRequest *>& transact
         ncounter_t rank, bank, row, subarray, col;
         ncounter_t queueId = GetCommandQueueId( (*it)->address );
 
+        if( !commandQueues[queueId].empty() ) continue;
+
         (*it)->address.GetTranslatedAddress( &row, &col, &bank, &rank, NULL, &subarray );
 
         ncounter_t muxLevel = static_cast<ncounter_t>(col / p->RBSize);
@@ -1063,6 +1163,8 @@ bool MemoryController::FindRowBufferHits( std::list<NVMainRequest *>& transactio
         ncounter_t rank, bank, row, subarray, col;
         ncounter_t queueId = GetCommandQueueId( (*it)->address );
 
+        if( !commandQueues[queueId].empty() ) continue;
+
         (*it)->address.GetTranslatedAddress( &row, &col, &bank, &rank, NULL, &subarray );
 
         ncounter_t muxLevel= static_cast<ncounter_t>(col / p->RBSize);
@@ -1105,6 +1207,8 @@ bool MemoryController::FindOldestReadyRequests( std::list<NVMainRequest *>& tran
         ncounter_t rank, bank;
         ncounter_t queueId = GetCommandQueueId( (*it)->address );
 
+        if( !commandQueues[queueId].empty() ) continue;
+
         (*it)->address.GetTranslatedAddress( NULL, NULL, &bank, &rank, NULL, NULL );
 
         if( activateQueued[rank][bank]         /* The bank is active */
@@ -1141,6 +1245,8 @@ bool MemoryController::FindClosedBankRequests( std::list<NVMainRequest *>& trans
         ncounter_t rank, bank;
         ncounter_t queueId = GetCommandQueueId( (*it)->address );
 
+        if( !commandQueues[queueId].empty() ) continue;
+
         (*it)->address.GetTranslatedAddress( NULL, NULL, &bank, &rank, NULL, NULL );
 
         if( !activateQueued[rank][bank]        /* This bank is closed, anyone can issue. */
@@ -1171,6 +1277,8 @@ bool MemoryController::IssueMemoryCommands( NVMainRequest *req )
 
     req->address.GetTranslatedAddress( &row, &col, &bank, &rank, NULL, &subarray );
 
+    SubArray *writingArray = FindChild( req, SubArray );
+
     ncounter_t muxLevel = static_cast<ncounter_t>(col / p->RBSize);
     ncounter_t queueId = GetCommandQueueId( req->address );
 
@@ -1190,7 +1298,9 @@ bool MemoryController::IssueMemoryCommands( NVMainRequest *req )
 
         req->issueCycle = GetEventQueue()->GetCurrentCycle();
 
-        commandQueues[queueId].push_back( MakeActivateRequest( req ) );
+        NVMainRequest *actRequest = MakeActivateRequest( req );
+        actRequest->flags |= (writingArray != NULL && writingArray->IsWriting( )) ? NVMainRequest::FLAG_PRIORITY : 0;
+        commandQueues[queueId].push_back( actRequest );
 
         /* Different row buffer management policy has different behavior */ 
         /*
@@ -1199,7 +1309,7 @@ bool MemoryController::IssueMemoryCommands( NVMainRequest *req )
          * buffer hit
          * or 2) ClosePage == 2, the request is always the last request
          */
-        if( req->flags & NVMainRequest::FLAG_LAST_REQUEST )
+        if( req->flags & NVMainRequest::FLAG_LAST_REQUEST && p->UsePrecharge )
         {
             commandQueues[queueId].push_back( MakeImplicitPrechargeRequest( req ) );
             activeSubArray[rank][bank][subarray] = false;
@@ -1226,13 +1336,15 @@ bool MemoryController::IssueMemoryCommands( NVMainRequest *req )
 
         req->issueCycle = GetEventQueue()->GetCurrentCycle();
 
-        if( activeSubArray[rank][bank][subarray] )
+        if( activeSubArray[rank][bank][subarray] && p->UsePrecharge )
         {
             commandQueues[queueId].push_back( 
                     MakePrechargeRequest( effectiveRow[rank][bank][subarray], 0, bank, rank, subarray ) );
         }
 
-        commandQueues[queueId].push_back( MakeActivateRequest( req ) );
+        NVMainRequest *actRequest = MakeActivateRequest( req );
+        actRequest->flags |= (writingArray != NULL && writingArray->IsWriting( )) ? NVMainRequest::FLAG_PRIORITY : 0;
+        commandQueues[queueId].push_back( actRequest );
         commandQueues[queueId].push_back( req );
         activeSubArray[rank][bank][subarray] = true;
         effectiveRow[rank][bank][subarray] = row;
@@ -1256,7 +1368,7 @@ bool MemoryController::IssueMemoryCommands( NVMainRequest *req )
          * buffer hit
          * or 2) ClosePage == 2, the request is always the last request
          */
-        if( req->flags & NVMainRequest::FLAG_LAST_REQUEST )
+        if( req->flags & NVMainRequest::FLAG_LAST_REQUEST && p->UsePrecharge )
         {
             /* if Restricted Close-Page is applied, we should never be here */
             assert( p->ClosePage != 2 );
@@ -1316,7 +1428,7 @@ void MemoryController::CycleCommandQueues( )
         FailReason fail;
 
         if( !commandQueues[queueId].empty( )
-            && memory->IsIssuable( commandQueues[queueId].at( 0 ), &fail ) )
+            && GetChild( )->IsIssuable( commandQueues[queueId].at( 0 ), &fail ) )
         {
             *debugStream << GetEventQueue()->GetCurrentCycle() << " MemoryController: Issued request type "
                          << commandQueues[queueId].at(0)->type << " for address Ox" << std::hex 
@@ -1443,6 +1555,6 @@ void MemoryController::CalculateStats( )
 {
     simulation_cycles = GetEventQueue()->GetCurrentCycle();
 
-    memory->CalculateStats( );
-    translator->CalculateStats( );
+    GetChild( )->CalculateStats( );
+    GetDecoder( )->CalculateStats( );
 }

@@ -63,6 +63,7 @@ int main( int argc, char *argv[] )
     SimInterface *simInterface = new NullInterface( );
     NVMain *nvmain = new NVMain( );
     EventQueue *mainEventQueue = new EventQueue( );
+    TagGenerator *tagGenerator = new TagGenerator( 1000 );
     bool IgnoreData = false;
 
     unsigned int simulateCycles;
@@ -87,6 +88,7 @@ int main( int argc, char *argv[] )
     config->SetSimInterface( simInterface );
     nvmain->SetEventQueue( mainEventQueue );
     nvmain->SetStats( stats );
+    nvmain->SetTagGenerator( tagGenerator );
     std::ofstream statStream;
 
     /* Allow for overriding config parameter values for trace simulations from command line. */
@@ -140,9 +142,10 @@ int main( int argc, char *argv[] )
         }
     }
 
-    simInterface->SetConfig( config );
-    nvmain->SetConfig( config, "defaultMemory" );
+    simInterface->SetConfig( config, true );
+    nvmain->SetConfig( config, "defaultMemory", true );
 
+    nvmain->PrintHierarchy( );
 
     if( config->KeyExists( "TraceReader" ) )
         trace = TraceReaderFactory::CreateNewTraceReader( 

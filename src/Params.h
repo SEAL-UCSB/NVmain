@@ -50,6 +50,12 @@ enum ProgramMode {
     ProgramMode_SSMR
 };
 
+enum PauseMode {
+    PauseMode_Normal,   ///< Normal pause mode: Wait until write pulse before read
+    PauseMode_IIWC,     ///< Intra-Iteration Write Cancellation: allow cancel during write pulse
+    PauseMode_Optimal   ///< Optimal: Same as IIWC, but consider iteration complete
+};
+
 class Params
 {
   public:
@@ -114,6 +120,7 @@ class Params
     ncounter_t RefreshRows;
     bool UseRefresh;
     bool StaggerRefresh;
+    bool UsePrecharge;
 
     ncounter_t OffChipLatency;
 
@@ -191,6 +198,11 @@ class Params
     /* List of debug classes. */
     bool debugOn;
     std::set<std::string> debugClasses;
+
+    bool WritePausing;
+    double PauseThreshold;
+    ncounter_t MaxCancellations;
+    PauseMode pauseMode;
 
   private:
     void ConvertTiming( Config *conf, std::string param, ncycle_t& value );

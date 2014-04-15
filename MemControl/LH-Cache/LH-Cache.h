@@ -39,12 +39,12 @@
 
 namespace NVM {
 
-#define DRC_TAGREAD1 10
-#define DRC_TAGREAD2 11
-#define DRC_TAGREAD3 12
-#define DRC_MEMREAD  20
-#define DRC_FILL     30
-#define DRC_ACCESS   40
+#define DRC_TAGREAD1 tagGen->CreateTag("DRC_TAGREAD1")
+#define DRC_TAGREAD2 tagGen->CreateTag("DRC_TAGREAD2")
+#define DRC_TAGREAD3 tagGen->CreateTag("DRC_TAGREAD3")
+#define DRC_MEMREAD  tagGen->CreateTag("DRC_MEMREAD")
+#define DRC_FILL     tagGen->CreateTag("DRC_FILL")
+#define DRC_ACCESS   tagGen->CreateTag("DRC_ACCESS")
 
 class NVMain;
 
@@ -52,10 +52,10 @@ class NVMain;
 class LH_Cache : public AbstractDRAMCache 
 {
   public:
-    LH_Cache( Interconnect *memory, AddressTranslator *translator );
+    LH_Cache( );
     virtual ~LH_Cache( );
 
-    void SetConfig( Config *conf );
+    void SetConfig( Config *conf, bool createChildren = true );
     void SetMainMemory( NVMain *mm );
 
     bool IssueAtomic( NVMainRequest *req );
