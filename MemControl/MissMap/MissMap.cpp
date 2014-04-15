@@ -58,50 +58,13 @@ MissMap::~MissMap( )
 {
 }
 
-void MissMap::SetConfig( Config *conf )
+void MissMap::SetConfig( Config *conf, bool createChildren )
 {
-    /* Initialize off-chip memory */
-    std::string configFile;
-    Config *mainMemoryConfig;
-
-    configFile  = NVM::GetFilePath( conf->GetFileName( ) );
-    configFile += conf->GetString( "MM_CONFIG" );
-
-    mainMemoryConfig = new Config( );
-    mainMemoryConfig->Read( configFile );
-
-    mainMemory = new NVMain( );
-    mainMemory->SetConfig( mainMemoryConfig, "offChipMemory" );
-    mainMemory->SetParent( this ); 
-    /* TODO: Somehow this needs to have all the basic DRCs as parents.. */
-
     /* Initialize DRAM Cache channels */
     if( conf->KeyExists( "DRC_CHANNELS" ) )
         numChannels = static_cast<ncounter_t>( conf->GetValue( "DRC_CHANNELS" ) );
     else
         numChannels = 1;
-
-    std::string drcVariant = "LH_Cache";
-    if( conf->KeyExists( "DRCVariant" ) ) 
-        drcVariant = conf->GetString( "DRCVariant" );
-
-    drcChannels = new LH_Cache*[numChannels];
-    for( ncounter_t i = 0; i < numChannels; i++ )
-    {
-        drcChannels[i] = dynamic_cast<LH_Cache *>( 
-                MemoryControllerFactory::CreateNewController( 
-                    drcVariant, GetMemory(), GetTranslator() ));
-
-        drcChannels[i]->SetMainMemory( mainMemory );
-
-        drcChannels[i]->SetID( static_cast<unsigned int>(i) );
-        drcChannels[i]->StatName( this->statName ); 
-
-        drcChannels[i]->SetParent( this );
-        AddChild( drcChannels[i] );
-
-        drcChannels[i]->SetConfig( conf );
-    }
 
     /* MissMap Setup */
     uint64_t mmSets, mmAssoc;
@@ -114,12 +77,6 @@ void MissMap::SetConfig( Config *conf )
     if( conf->KeyExists( "MissMapAssoc" ) ) 
         mmAssoc = static_cast<uint64_t>( conf->GetValue( "MissMapAssoc" ) );
 
-    missMap = new CacheBank( mmSets, mmAssoc, 64 ); 
-    missMap->isMissMap = true;
-
-    missMap->SetParent( this );
-    AddChild( missMap );
-
     missMapQueueSize = 32;
     if( conf->KeyExists( "MissMapQueueSize" ) ) 
         missMapQueueSize = static_cast<uint64_t>( conf->GetValue( "MissMapQueueSize" ) );
@@ -128,8 +85,52 @@ void MissMap::SetConfig( Config *conf )
     if( conf->KeyExists( "MissMapLatency" ) ) 
         missMapLatency = static_cast<uint64_t>( conf->GetValue( "MissMapLatency" ) );
 
-    missMap->SetReadTime( missMapLatency );
-    missMap->SetWriteTime( missMapLatency );
+    if( createChildren )
+    {
+        /* Initialize off-chip memory */
+        std::string configFile;
+        Config *mainMemoryConfig;
+
+        configFile  = NVM::GetFilePath( conf->GetFileName( ) );
+        configFile += conf->GetString( "MM_CONFIG" );
+
+        mainMemoryConfig = new Config( );
+        mainMemoryConfig->Read( configFile );
+
+        mainMemory = new NVMain( );
+        mainMemory->SetConfig( mainMemoryConfig, "offChipMemory", createChildren );
+        mainMemory->SetParent( this ); 
+
+        std::string drcVariant = "LH_Cache";
+        if( conf->KeyExists( "DRCVariant" ) ) 
+            drcVariant = conf->GetString( "DRCVariant" );
+
+        drcChannels = new LH_Cache*[numChannels];
+        for( ncounter_t i = 0; i < numChannels; i++ )
+        {
+            drcChannels[i] = dynamic_cast<LH_Cache *>( 
+                    MemoryControllerFactory::CreateNewController( drcVariant ));
+
+            drcChannels[i]->SetMainMemory( mainMemory );
+
+            drcChannels[i]->SetID( static_cast<unsigned int>(i) );
+            drcChannels[i]->StatName( this->statName ); 
+
+            drcChannels[i]->SetParent( this );
+            AddChild( drcChannels[i] );
+
+            drcChannels[i]->SetConfig( conf, createChildren );
+        }
+
+        missMap = new CacheBank( mmSets, mmAssoc, 64 ); 
+        missMap->isMissMap = true;
+
+        missMap->SetParent( this );
+        AddChild( missMap );
+
+        missMap->SetReadTime( missMapLatency );
+        missMap->SetWriteTime( missMapLatency );
+    }
 
     std::cout << "Created a MissMap!" << std::endl;
 }

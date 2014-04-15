@@ -44,7 +44,7 @@ class RowModel : public EnduranceModel
     RowModel( );
     ~RowModel( );
 
-    void SetConfig( Config *conf );
+    void SetConfig( Config *conf, bool createChildren = true );
 
     bool Write( NVMAddress address, NVMDataBlock oldData, NVMDataBlock newData );
 };

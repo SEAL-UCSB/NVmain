@@ -44,14 +44,14 @@ namespace NVM {
 class FRFCFS_WQF : public MemoryController
 {
   public:
-    FRFCFS_WQF( Interconnect *memory, AddressTranslator *translator );
+    FRFCFS_WQF( );
     ~FRFCFS_WQF( );
 
     bool IssueCommand( NVMainRequest *request );
     bool IsIssuable( NVMainRequest *request, FailReason *fail = NULL );
     bool RequestComplete( NVMainRequest *request );
 
-    void SetConfig( Config *conf );
+    void SetConfig( Config *conf, bool createChildren = true );
 
     void Cycle( ncycle_t steps );
 

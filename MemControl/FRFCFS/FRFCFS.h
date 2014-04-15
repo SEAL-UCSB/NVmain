@@ -42,14 +42,14 @@ namespace NVM {
 class FRFCFS : public MemoryController
 {
   public:
-    FRFCFS( Interconnect *memory, AddressTranslator *translator );
+    FRFCFS( );
     ~FRFCFS( );
 
     bool IssueCommand( NVMainRequest *req );
     bool IsIssuable( NVMainRequest *request, FailReason *fail = NULL );
     bool RequestComplete( NVMainRequest * request );
 
-    void SetConfig( Config *conf );
+    void SetConfig( Config *conf, bool createChildren = true );
 
     void Cycle( ncycle_t steps );
 
@@ -70,6 +70,7 @@ class FRFCFS : public MemoryController
     uint64_t rb_miss;
     uint64_t starvation_precharges;
     uint64_t cpu_insts;
+    uint64_t write_pauses;
 };
 
 };

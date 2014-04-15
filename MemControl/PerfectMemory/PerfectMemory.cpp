@@ -52,42 +52,8 @@ using namespace NVM;
  *  - Commands are returned immediately to the simulator as if the memory access 
  *    latency is 0.
  */
-PerfectMemory::PerfectMemory( Interconnect *memory, AddressTranslator *translator )
+PerfectMemory::PerfectMemory( )
 {
-    /*
-     *  First, we need to define how the memory is translated. The main() 
-     *  function already *  sets the width of each partition based on the number 
-     *  of channels, ranks, banks, rows, and *  columns. 
-     *  For example, 4 banks *  would be 2-bits. 1 channel is 0-bits. 
-     *  1024 columns is 10 bits *  of the address. Here, you just need to 
-     *  specify what order the partitions are in.
-     *
-     *  In the set order function, you define the order of the row, column, 
-     *  bank, rank then channel.
-     *  For example, to set column as the lowest bits, it must be 1st in 
-     *  the order, so the second parameter should be set to 1.
-     *
-     *  In this system, the address is broken up as follows:
-     *
-     *  -------------------------------------------------------------------
-     *  |  CHANNEL   |  SUBARRAY  |   ROW  | RANK  | BANK |    COLUMN     |
-     *  -------------------------------------------------------------------
-     *
-     *  So the orders are column first, rank second, bank third, row fourth, 
-     *  channel fifth.
-     *
-     *  void SetOrder( int row, int col, int bank, int rank, int channel, int subarray );
-     */
-    translator->GetTranslationMethod( )->SetOrder( 4, 1, 2, 3, 6, 5 );
-
-    /*
-     *  We'll need these classes later, so copy them. the "memory" and 
-     *  "translator" variables are *  defined in the protected section of 
-     *  the MemoryController base class. 
-     */
-    SetMemory( memory );
-    SetTranslator( translator );
-
     std::cout << "Created a Perfect Memory memory controller!" << std::endl;
 }
 

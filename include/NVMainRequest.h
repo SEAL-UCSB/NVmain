@@ -129,6 +129,9 @@ class NVMainRequest
         completionCycle = 0; 
         isPrefetch = false; 
         programCounter = 0; 
+        burstCount = 1;
+        writeProgress = 0;
+        cancellations = 0;
         owner = NULL;
     };
 
@@ -149,12 +152,16 @@ class NVMainRequest
     bool isPrefetch;               //< Whether request is a prefetch or not
     NVMAddress pfTrigger;          //< Address that triggered this prefetch
     uint64_t programCounter;       //< Program counter of CPU issuing request
+    ncounter_t burstCount;         //< Number of bursts (used for variable-size requests.
     NVMObject *owner;              //< Pointer to the object that created this request
 
     ncycle_t arrivalCycle;         //< When the request arrived at the memory controller
     ncycle_t queueCycle;           //< When the memory controller accepted (queued) the request
     ncycle_t issueCycle;           //< When the memory controller issued the request to the interconnect (dequeued)
     ncycle_t completionCycle;      //< When the request was sent back to the requestor
+
+    ncycle_t writeProgress;        //< Number of cycles remaining for write request
+    ncycle_t cancellations;        //< Number of times this request was cancelled
 
     const NVMainRequest& operator=( const NVMainRequest& );
     bool operator<( NVMainRequest m ) const;
@@ -164,7 +171,11 @@ class NVMainRequest
         FLAG_LAST_REQUEST = 1,          // Last request for a row in the transaction queue
         FLAG_IS_READ = 2,               // Is a read (i.e., READ or READ_PRE, etc.)
         FLAG_IS_WRITE = 4,              // Is a write (i.e., WRITE or WRITE_PRE, etc.)
-        FLAG_COUNT = 1,
+        FLAG_CANCELLED = 8,             // This write was cancelled
+        FLAG_PAUSED = 16,               // This write was paused
+        FLAG_FORCED = 32,               // This write can not be paused or cancelled
+        FLAG_PRIORITY = 64,             // Request (or precursor) that takes priority over write
+        FLAG_COUNT
     };
 
 };

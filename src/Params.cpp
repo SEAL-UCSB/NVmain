@@ -117,6 +117,7 @@ Params::Params( )
     RefreshRows = 4;
     UseRefresh = true;
     StaggerRefresh = false;
+    UsePrecharge = true;
 
     OffChipLatency = 10;
 
@@ -184,6 +185,11 @@ Params::Params( )
     nWP11 = 1;
 
     WPMaxVariance = 2;
+
+    WritePausing = false;
+    PauseThreshold = 0.4;
+    MaxCancellations = 4;
+    pauseMode = PauseMode_Normal;
 
     DeadlockTimer = 10000000;
 
@@ -296,6 +302,7 @@ void Params::SetParams( Config *c )
     c->GetValueUL( "RefreshRows", RefreshRows );
     c->GetBool( "UseRefresh", UseRefresh );
     c->GetBool( "StaggerRefresh", StaggerRefresh );
+    c->GetBool( "UsePrecharge", UsePrecharge );
 
     c->GetValueUL( "OffChipLatency", OffChipLatency );
 
@@ -388,6 +395,22 @@ void Params::SetParams( Config *c )
             std::cout << "Will print debug information from \"" << debugClass << ".\"" << std::endl;
             debugClasses.insert( debugClass );
         }
+    }
+
+    c->GetBool( "WritePausing", WritePausing );
+    c->GetEnergy( "PauseThreshold", PauseThreshold );
+    c->GetValueUL( "MaxCancellations", MaxCancellations );
+    if( c->KeyExists( "PauseMode" ) )
+    {
+        if( c->GetString( "PauseMode" ) == "Normal" )
+            pauseMode = PauseMode_Normal;
+        else if( c->GetString( "PauseMode" ) == "IIWC" )
+            pauseMode = PauseMode_IIWC;
+        else if( c->GetString( "PauseMode" ) == "Optimal" )
+            pauseMode = PauseMode_Optimal;
+        else
+            std::cout << "Unknown PauseMode: " << c->GetString( "PauseMode" )
+                      << ". Defaulting to Normal" << std::endl;
     }
 }
 
