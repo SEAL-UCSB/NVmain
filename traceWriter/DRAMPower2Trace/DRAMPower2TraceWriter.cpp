@@ -179,6 +179,9 @@ void DRAMPower2TraceWriter::WriteTraceLine( std::ostream& stream, TraceLine *lin
 
     assert( addr.IsTranslated() );
 
+    /* The example trace seems to show relative time, but absolulte time provides correct result? */
+    lastCommand = 0;
+
     switch( line->GetOperation() )
     {
         case ACTIVATE:
@@ -219,7 +222,10 @@ void DRAMPower2TraceWriter::WriteTraceLine( std::ostream& stream, TraceLine *lin
         }
         case PRECHARGE_ALL:
         {
-            stream << (line->GetCycle() - lastCommand) << ",PREA,0" << std::endl;
+            //stream << (line->GetCycle() - lastCommand) << ",PREA,0" << std::endl;
+            // TODO: The PRECHARGE_ALL request generated before refresh is meant to precharge all
+            // subarrays -- We will need a different command for precharging all banks
+            stream << (line->GetCycle() - lastCommand) << ",PRE," << addr.GetBank() << std::endl;
             lastCommand = line->GetCycle();
             break;
         }

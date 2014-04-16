@@ -165,7 +165,7 @@ bool PostTrace::IssueCommand( NVMainRequest *request )
     /*
      *  Filter out everything but bank issues here.
      */
-    if( NVMObjectType == NVMClass(Bank) )
+    if( NVMTypeMatches(Bank) )
     {
         uint64_t rank, channel, rk, ch;
 

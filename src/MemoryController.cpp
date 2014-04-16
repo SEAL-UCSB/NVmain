@@ -447,6 +447,8 @@ bool MemoryController::HandleRefresh( )
                         if( activateQueued[i][refBank] == true && commandQueues[queueId].empty() )
                         {
                             /* issue a PRECHARGE_ALL command to close all subarrays */
+                            // TODO: The PRECHARGE_ALL request generated here is meant to precharge all
+                            // subarrays -- We will need a different command for precharging all banks
                             commandQueues[queueId].push_back( 
                                     MakePrechargeAllRequest( 0, 0, refBank, i, 0 ) );
 
@@ -648,9 +650,9 @@ NVMainRequest *MemoryController::MakeActivateRequest( const ncounter_t row,
     NVMainRequest *activateRequest = new NVMainRequest( );
 
     activateRequest->type = ACTIVATE;
-    ncounter_t actAddr = GetDecoder( )->ReverseTranslate( row, col, bank, rank, 0, subarray );
+    ncounter_t actAddr = GetDecoder( )->ReverseTranslate( row, col, bank, rank, id, subarray );
     activateRequest->address.SetPhysicalAddress( actAddr );
-    activateRequest->address.SetTranslatedAddress( row, col, bank, rank, 0, subarray );
+    activateRequest->address.SetTranslatedAddress( row, col, bank, rank, id, subarray );
     activateRequest->issueCycle = GetEventQueue()->GetCurrentCycle();
     activateRequest->owner = this;
 
@@ -678,9 +680,9 @@ NVMainRequest *MemoryController::MakePrechargeRequest( const ncounter_t row,
     NVMainRequest *prechargeRequest = new NVMainRequest( );
 
     prechargeRequest->type = PRECHARGE;
-    ncounter_t preAddr = GetDecoder( )->ReverseTranslate( row, col, bank, rank, 0, subarray );
+    ncounter_t preAddr = GetDecoder( )->ReverseTranslate( row, col, bank, rank, id, subarray );
     prechargeRequest->address.SetPhysicalAddress( preAddr );
-    prechargeRequest->address.SetTranslatedAddress( row, col, bank, rank, 0, subarray );
+    prechargeRequest->address.SetTranslatedAddress( row, col, bank, rank, id, subarray );
     prechargeRequest->issueCycle = GetEventQueue()->GetCurrentCycle();
     prechargeRequest->owner = this;
 
@@ -708,9 +710,9 @@ NVMainRequest *MemoryController::MakePrechargeAllRequest( const ncounter_t row,
     NVMainRequest *prechargeAllRequest = new NVMainRequest( );
 
     prechargeAllRequest->type = PRECHARGE_ALL;
-    ncounter_t preAddr = GetDecoder( )->ReverseTranslate( row, col, bank, rank, 0, subarray );
+    ncounter_t preAddr = GetDecoder( )->ReverseTranslate( row, col, bank, rank, id, subarray );
     prechargeAllRequest->address.SetPhysicalAddress( preAddr );
-    prechargeAllRequest->address.SetTranslatedAddress( row, col, bank, rank, 0, subarray );
+    prechargeAllRequest->address.SetTranslatedAddress( row, col, bank, rank, id, subarray );
     prechargeAllRequest->issueCycle = GetEventQueue()->GetCurrentCycle();
     prechargeAllRequest->owner = this;
 
@@ -738,9 +740,9 @@ NVMainRequest *MemoryController::MakeRefreshRequest( const ncounter_t row,
     NVMainRequest *refreshRequest = new NVMainRequest( );
 
     refreshRequest->type = REFRESH;
-    ncounter_t preAddr = GetDecoder( )->ReverseTranslate( row, col, bank, rank, 0, subarray );
+    ncounter_t preAddr = GetDecoder( )->ReverseTranslate( row, col, bank, rank, id, subarray );
     refreshRequest->address.SetPhysicalAddress( preAddr );
-    refreshRequest->address.SetTranslatedAddress( row, col, bank, rank, 0, subarray );
+    refreshRequest->address.SetTranslatedAddress( row, col, bank, rank, id, subarray );
     refreshRequest->issueCycle = GetEventQueue()->GetCurrentCycle();
     refreshRequest->owner = this;
 
