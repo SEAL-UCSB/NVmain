@@ -465,7 +465,6 @@ bool StandardRank::CanPowerDown( const OpType& pdOp )
 
 bool StandardRank::PowerDown( const OpType& pdOp )
 {
-    /* TODO: use hooker to issue POWERDOWN?? */
     /* 
      * PowerDown() should be completed to all banks, partial PowerDown is
      * incorrect. Therefore, call CanPowerDown() first before every PowerDown
@@ -516,7 +515,6 @@ bool StandardRank::CanPowerUp()
 
 bool StandardRank::PowerUp( )
 {
-    /* TODO: use hooker to issue POWERDOWN?? */
     /* 
      * PowerUp() should be completed to all banks, partial PowerUp is
      * incorrect. Therefore, call CanPowerUp() first before every PowerDown
@@ -558,12 +556,12 @@ bool StandardRank::Refresh( NVMainRequest *request )
 
     assert( (refreshBankGroupHead + banksPerRefresh) <= bankCount );
 
-    /* TODO: use hooker to issue REFRESH?? */
     for( ncounter_t i = 0; i < banksPerRefresh; i++ )
     {
         NVMainRequest* refReq = new NVMainRequest;
         *refReq = *request;
-        banks[refreshBankGroupHead + i]->IssueCommand( refReq );
+        assert( GetChild( refreshBankGroupHead+i )->GetTrampoline() == banks[refreshBankGroupHead+i] );
+        GetChild( refreshBankGroupHead+i )->IssueCommand( refReq );
     }
 
     state = STANDARDRANK_REFRESHING;

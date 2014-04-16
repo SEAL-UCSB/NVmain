@@ -48,9 +48,31 @@
 
 #define NVMObjectType (typeid(*(parent->GetTrampoline())).name())
 #define NVMClass(a) (typeid(a).name())
+#define NVMTypeMatches(a) ((dynamic_cast<a *>(parent->GetTrampoline())) != NULL)
 
 // a = NVMainRequest*, b=Class Name
 #define FindChild(a,b) (dynamic_cast<b *>(_FindChild(a,typeid(b).name())))
+
+// a = NVMainRequest*, b=Class Name, c=NVMObject*
+#define FindChildType(a,b,c)                                                 \
+{                                                                            \
+    NVMObject *curChild = this;                                              \
+                                                                             \
+    while( curChild != NULL && dynamic_cast<b *>(curChild) == NULL )         \
+    {                                                                        \
+        NVMObject_hook *curHook = curChild->GetChild( req )                  \
+                                                                             \
+        if( curHook == NULL )                                                \
+        {                                                                    \
+            c = NULL;                                                        \
+            break;                                                           \
+        }                                                                    \
+                                                                             \
+        curChild = curHook->GetTrampoline();                                 \
+    }                                                                        \
+                                                                             \
+    c = curChild;                                                            \
+}
 
 namespace NVM {
 

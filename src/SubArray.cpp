@@ -728,6 +728,10 @@ bool SubArray::Refresh( NVMainRequest* request )
     nextActivate = MAX( nextActivate, 
                         GetEventQueue()->GetCurrentCycle() + p->tRFC );
 
+    /* 
+     *  Copies of refresh requests are made at the rank level (in case of multi-bank refresh).
+     *  We'll claim ownership and delete the copy that was allocated in the rank.
+     */
     request->owner = this;
     GetEventQueue( )->InsertEvent( EventResponse, this, request, 
               GetEventQueue()->GetCurrentCycle() + p->tRFC );
