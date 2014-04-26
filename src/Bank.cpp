@@ -37,23 +37,6 @@
 
 using namespace NVM;
 
-/*
- * PowerDown() power the bank down along with different modes
- */
-bool Bank::PowerDown( OpType /*pdType*/ )
-{
-    return true;
-}
-
-/*
- * PowerUp() force bank to leave powerdown mode and return to either
- * BANK_CLOSE or BANK_OPEN 
- */
-bool Bank::PowerUp( )
-{
-    return true;
-}
-
 /* 
  * Corresponds to physical bank id 
  * if this bank logically spans multiple devices, the id corresponds to the device, 

@@ -79,11 +79,6 @@ class Rank : public NVMObject
 
     virtual void Notify( OpType /*op*/ ) { }
 
-    virtual bool PowerDown( const OpType& pdOp );
-    virtual bool PowerUp( );
-    virtual bool CanPowerDown( const OpType& pdOp );
-    virtual bool CanPowerUp( );
-
     virtual bool Idle( );
 
     virtual ncycle_t GetNextActivate( uint64_t bank );

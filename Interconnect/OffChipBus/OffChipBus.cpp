@@ -111,31 +111,6 @@ void OffChipBus::SetConfig( Config *c, bool createChildren )
     SetDebugName( "OffChipBus", c );
 }
 
-bool OffChipBus::CanPowerDown( const OpType& pdOp, const ncounter_t& rankId )
-{
-    return ranks[rankId]->CanPowerDown( pdOp );
-}
-
-bool OffChipBus::PowerDown( const OpType& pdOp, const ncounter_t& rankId )
-{
-    return ranks[rankId]->PowerDown( pdOp );
-}
-
-bool OffChipBus::CanPowerUp( const ncounter_t& rankId )
-{
-    return ranks[rankId]->CanPowerUp( );
-}
-
-bool OffChipBus::PowerUp( const ncounter_t& rankId )
-{
-    return ranks[rankId]->PowerUp( );
-}
-
-bool OffChipBus::IsRankIdle( const ncounter_t& rankId )
-{
-    return ranks[rankId]->Idle( );
-}
-
 bool OffChipBus::RequestComplete( NVMainRequest *request )
 {
     GetEventQueue( )->InsertEvent( EventResponse, GetParent( ), 
@@ -147,38 +122,24 @@ bool OffChipBus::RequestComplete( NVMainRequest *request )
 bool OffChipBus::IssueCommand( NVMainRequest *req )
 {
     ncounter_t opRank;
-
     bool success = false;
-
-    if( !configSet || numRanks == 0 )
-    {
-        std::cerr << "Error: Issued command before memory system was configured!"
-                  << std::endl;
-        return false;
-    }
 
     req->address.GetTranslatedAddress( NULL, NULL, NULL, &opRank, NULL, NULL );
 
-    if( ranks[opRank]->IsIssuable( req ) )
+    assert( GetChild( req )->IsIssuable( req ) );
+    assert( GetChild( req )->GetTrampoline() == ranks[opRank] );
+
+    success = GetChild( req )->IssueCommand( req );
+
+    /*
+     *  To preserve rank-to-rank switching time, we need to notify the
+     *  other ranks what the command sent was.
+     */
+    if( success )
     {
-        if( req->type == NOP )
-        {
-            std::cout << "OffChipBus got unknown op." << std::endl;
-        }
-
-        assert( GetChild( req )->GetTrampoline() == ranks[opRank] );
-        success = GetChild( req )->IssueCommand( req );
-
-        /*
-         *  To preserve rank-to-rank switching time, we need to notify the
-         *  other ranks what the command sent to opRank was.
-         */
-        if( success )
-        {
-            for( ncounter_t i = 0; i < numRanks; i++ )
-              if( (ncounter_t)(i) != opRank )
-                ranks[i]->Notify( req->type );
-        }
+        for( ncounter_t i = 0; i < numRanks; i++ )
+          if( (ncounter_t)(i) != opRank )
+            ranks[i]->Notify( req->type );
     }
 
     return success;
@@ -186,11 +147,7 @@ bool OffChipBus::IssueCommand( NVMainRequest *req )
 
 bool OffChipBus::IsIssuable( NVMainRequest *req, FailReason *reason )
 {
-    ncounter_t opRank;
-
-    req->address.GetTranslatedAddress( NULL, NULL, NULL, &opRank, NULL, NULL );
-
-    return ranks[opRank]->IsIssuable( req, reason );
+    return GetChild( req )->IsIssuable( req, reason );
 }
 
 ncycle_t OffChipBus::GetNextActivate( ncounter_t rank, ncounter_t bank )
@@ -235,16 +192,18 @@ ncycle_t OffChipBus::GetNextRefresh( ncounter_t rank, ncounter_t bank )
 
 void OffChipBus::CalculateStats( )
 {
-    for( ncounter_t i = 0; i < numRanks; i++ )
+    for( ncounter_t childIdx = 0; childIdx < GetChildren().size(); childIdx++ )
     {
-        ranks[i]->CalculateStats( );
+        GetChild(childIdx)->CalculateStats( );
     }
 }
 
 void OffChipBus::Cycle( ncycle_t steps )
 {
-    for( unsigned rankIdx = 0; rankIdx < numRanks; rankIdx++ )
-        ranks[rankIdx]->Cycle( steps );
+    for( ncounter_t childIdx = 0; childIdx < GetChildren().size(); childIdx++ )
+    {
+        GetChild(childIdx)->Cycle( steps );
+    }
 }
 
 double OffChipBus::CalculateIOPower( bool isRead, unsigned int bitValue )

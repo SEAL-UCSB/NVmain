@@ -38,6 +38,7 @@
 #include "src/EventQueue.h"
 #include "src/Interconnect.h"
 #include "Interconnect/InterconnectFactory.h"
+#include "src/Rank.h"
 #include "src/SubArray.h"
 
 #include <sstream>
@@ -543,7 +544,7 @@ bool MemoryController::IsRefreshBankQueueEmpty( const ncounter_t bank, const uin
 
 void MemoryController::PowerDown( const ncounter_t& rankId )
 {
-    OpType pdOp;
+    OpType pdOp = POWERDOWN_PDPF;
     if( p->PowerDownMode == "SLOWEXIT" )
         pdOp = POWERDOWN_PDPS;
     else if( p->PowerDownMode == "FASTEXIT" )
@@ -551,26 +552,47 @@ void MemoryController::PowerDown( const ncounter_t& rankId )
     else
         std::cerr << "NVMain Error: Undefined low power mode" << std::endl;
 
-    /* if some banks are active, active powerdown is applied */
-    if( ((Interconnect*)GetChild()->GetTrampoline())->IsRankIdle( rankId ) == false )
-        pdOp = POWERDOWN_PDA;
+    NVMainRequest *powerdownRequest = MakePowerdownRequest( pdOp, rankId );
 
-    if( ((Interconnect*)GetChild()->GetTrampoline())->CanPowerDown( pdOp, rankId ) 
-        && RankQueueEmpty( rankId ) )
+    /* if some banks are active, active powerdown is applied */
+    NVMObject *child;
+    FindChildType( powerdownRequest, Rank, child );
+    Rank *pdRank = dynamic_cast<Rank *>(child);
+
+    if( pdRank->Idle( ) == false )
     {
-        ((Interconnect*)GetChild()->GetTrampoline())->PowerDown( pdOp, rankId );
+        /* Remake request as PDA. */
+        delete powerdownRequest;
+
+        pdOp = POWERDOWN_PDA;
+        powerdownRequest = MakePowerdownRequest( pdOp, rankId );
+    }
+
+    if( RankQueueEmpty( rankId ) && GetChild()->IsIssuable( powerdownRequest ) )
+    {
+        GetChild()->IssueCommand( powerdownRequest );
         rankPowerDown[rankId] = true;
+    }
+    else
+    {
+        delete powerdownRequest;
     }
 }
 
 void MemoryController::PowerUp( const ncounter_t& rankId )
 {
-    /* if some banks are active, active powerdown is applied */
+    NVMainRequest *powerupRequest = MakePowerupRequest( rankId );
+
+    /* If some banks are active, active powerdown is applied */
     if( RankQueueEmpty( rankId ) == false 
-        && ((Interconnect*)GetChild()->GetTrampoline())->CanPowerUp( rankId ) )
+        && GetChild()->IsIssuable( powerupRequest ) )
     {
-        ((Interconnect*)GetChild()->GetTrampoline())->PowerUp( rankId );
+        GetChild()->IssueCommand( powerupRequest );
         rankPowerDown[rankId] = false;
+    }
+    else
+    {
+        delete powerupRequest;
     }
 }
 
@@ -596,11 +618,17 @@ void MemoryController::HandleLowPower( )
         /* if some of the banks in this rank need refresh */
         if( needRefresh )
         {
+            NVMainRequest *powerupRequest = MakePowerupRequest( rankId );
+
             /* if the rank is powered down, power it up */
-            if( rankPowerDown[rankId] && ((Interconnect*)GetChild()->GetTrampoline())->CanPowerUp( rankId ) )
+            if( rankPowerDown[rankId] && GetChild()->IsIssuable( powerupRequest ) )
             {
-                ((Interconnect*)GetChild()->GetTrampoline())->PowerUp( rankId );
+                GetChild()->IssueCommand( powerupRequest );
                 rankPowerDown[rankId] = false;
+            }
+            else
+            {
+                delete powerupRequest;
             }
         }
         /* else, check whether the rank can be powered down or up */
@@ -747,6 +775,35 @@ NVMainRequest *MemoryController::MakeRefreshRequest( const ncounter_t row,
     refreshRequest->owner = this;
 
     return refreshRequest;
+}
+
+NVMainRequest *MemoryController::MakePowerdownRequest( OpType pdOp,
+                                                       const ncounter_t rank )
+{
+    NVMainRequest *powerdownRequest = new NVMainRequest( );
+
+    powerdownRequest->type = pdOp;
+    ncounter_t pdAddr = GetDecoder( )->ReverseTranslate( 0, 0, 0, rank, id, 0 );
+    powerdownRequest->address.SetPhysicalAddress( pdAddr );
+    powerdownRequest->address.SetTranslatedAddress( 0, 0, 0, rank, id, 0 );
+    powerdownRequest->issueCycle = GetEventQueue()->GetCurrentCycle();
+    powerdownRequest->owner = this;
+
+    return powerdownRequest;
+}
+
+NVMainRequest *MemoryController::MakePowerupRequest( const ncounter_t rank )
+{
+    NVMainRequest *powerupRequest = new NVMainRequest( );
+
+    powerupRequest->type = POWERUP;
+    ncounter_t puAddr = GetDecoder( )->ReverseTranslate( 0, 0, 0, rank, id, 0 );
+    powerupRequest->address.SetPhysicalAddress( puAddr );
+    powerupRequest->address.SetTranslatedAddress( 0, 0, 0, rank, id, 0 );
+    powerupRequest->issueCycle = GetEventQueue()->GetCurrentCycle();
+    powerupRequest->owner = this;
+
+    return powerupRequest;
 }
 
 bool MemoryController::IsLastRequest( std::list<NVMainRequest *>& transactionQueue,

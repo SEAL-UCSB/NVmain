@@ -437,23 +437,16 @@ bool StandardRank::Precharge( NVMainRequest *request )
     return success;
 }
 
-bool StandardRank::CanPowerDown( const OpType& pdOp )
+bool StandardRank::CanPowerDown( NVMainRequest *request )
 {
     bool issuable = true;
-    NVMainRequest req;
-    NVMAddress address;
 
     if( state == STANDARDRANK_REFRESHING )
         return false;
 
-    /* Create a dummy operation to determine if we can issue */
-    req.type = pdOp;
-    req.address.SetTranslatedAddress( 0, 0, 0, 0, 0, 0 );
-    req.address.SetPhysicalAddress( 0 );
-
-    for( ncounter_t i = 0; i < bankCount; i++ )
+    for( ncounter_t childIdx = 0; childIdx < GetChildren().size(); childIdx++ )
     {
-        if( banks[i]->IsIssuable( &req ) == false )
+        if( GetChild(childIdx)->IsIssuable( request ) == false )
         {
             issuable = false;
             break;
@@ -463,16 +456,23 @@ bool StandardRank::CanPowerDown( const OpType& pdOp )
     return issuable;
 }
 
-bool StandardRank::PowerDown( const OpType& pdOp )
+bool StandardRank::PowerDown( NVMainRequest *request )
 {
     /* 
      * PowerDown() should be completed to all banks, partial PowerDown is
      * incorrect. Therefore, call CanPowerDown() first before every PowerDown
      */
-    for( ncounter_t i = 0; i < bankCount; i++ )
-       banks[i]->PowerDown( pdOp );
+    for( ncounter_t childIdx = 0; childIdx < GetChildren().size(); childIdx++ )
+    {
+#ifndef NDEBUG
+        bool rv = GetChild(childIdx)->IssueCommand( request );
+        assert( rv == true );
+#else
+        GetChild(childIdx)->IssueCommand( request );
+#endif
+    }
 
-    switch( pdOp )
+    switch( request->type )
     {
         case POWERDOWN_PDA:
             state = STANDARDRANK_PDA;
@@ -488,48 +488,71 @@ bool StandardRank::PowerDown( const OpType& pdOp )
 
         default:
             std::cerr<< "NVMain Error: Unrecognized PowerDown command " 
-                << pdOp << " is detected in Rank " << std::endl; 
+                << request->type << " is detected in Rank " << std::endl; 
             break;
     }
+
+    GetEventQueue( )->InsertEvent( EventResponse, this, request, 
+            GetEventQueue()->GetCurrentCycle() + p->tPD );
     
     return true;
 }
 
-bool StandardRank::CanPowerUp()
+bool StandardRank::CanPowerUp( NVMainRequest *request )
 {
     bool issuable = true;
-    NVMainRequest req;
-    NVMAddress address;
+    ncounter_t issuableCount = 0;
 
-    /* Create a dummy operation to determine if we can issue */
-    req.type = POWERUP;
-    req.address.SetTranslatedAddress( 0, 0, 0, 0, 0, 0 );
-    req.address.SetPhysicalAddress( 0 );
+    /* Since all banks are powered down, check the first bank is enough */
+    for( ncounter_t childIdx = 0; childIdx < GetChildren().size(); childIdx++ )
+    {
+        if( GetChild(childIdx)->IsIssuable( request ) == false )
+        {
+            issuable = false;
+        }
+        else
+        {
+            issuableCount++;
+        }
+    }
 
-    /* since all banks are powered down, check the first bank is enough */
-    if( banks[0]->IsIssuable( &req ) == false )
-        issuable = false;
+    assert( issuableCount == 0 || issuableCount == GetChildren().size() );
 
     return issuable;
 }
 
-bool StandardRank::PowerUp( )
+bool StandardRank::PowerUp( NVMainRequest *request )
 {
+    ncounter_t puTimer = 1;
+
     /* 
      * PowerUp() should be completed to all banks, partial PowerUp is
      * incorrect. Therefore, call CanPowerUp() first before every PowerDown
      */
-    for( ncounter_t i = 0; i < bankCount; i++ )
-       banks[i]->PowerUp( );
+    for( ncounter_t childIdx = 0; childIdx < GetChildren().size(); childIdx++ )
+    {
+#ifndef NDEBUG
+        bool rv = GetChild(childIdx)->IssueCommand( request );
+        assert( rv == true );
+#else
+        GetChild(childIdx)->IssueCommand( request );
+#endif
+    }
 
     switch( state )
     {
         case STANDARDRANK_PDA:
             state = STANDARDRANK_OPEN;
+            puTimer = p->tXP;
             break;
 
         case STANDARDRANK_PDPF:
+            puTimer = p->tXP;
+            state = STANDARDRANK_CLOSED;
+            break;
+
         case STANDARDRANK_PDPS:
+            puTimer = p->tXPDLL;
             state = STANDARDRANK_CLOSED;
             break;
 
@@ -539,6 +562,9 @@ bool StandardRank::PowerUp( )
                 << std::endl; 
             break;
     }
+    
+    GetEventQueue( )->InsertEvent( EventResponse, this, request, 
+            GetEventQueue()->GetCurrentCycle() + puTimer );
     
     return true;
 }
@@ -697,16 +723,16 @@ bool StandardRank::IsIssuable( NVMainRequest *req, FailReason *reason )
             || req->type == POWERDOWN_PDPF 
             || req->type == POWERDOWN_PDPS )
     {
-        rv = CanPowerDown( req->type );
+        rv = CanPowerDown( req );
 
-        if( reason ) 
+        if( !rv && reason ) 
             reason->reason = RANK_TIMING;
     }
     else if( req->type == POWERUP )
     {
-        rv = CanPowerUp( );
+        rv = CanPowerUp( req );
 
-        if( reason ) 
+        if( !rv && reason ) 
             reason->reason = RANK_TIMING;
     }
     else if( req->type == REFRESH )
@@ -785,11 +811,11 @@ bool StandardRank::IssueCommand( NVMainRequest *req )
             case POWERDOWN_PDA:
             case POWERDOWN_PDPF: 
             case POWERDOWN_PDPS: 
-                rv = this->PowerDown( req->type );
+                rv = this->PowerDown( req );
                 break;
 
             case POWERUP:
-                rv = this->PowerUp( );
+                rv = this->PowerUp( req );
                 break;
         
             case REFRESH:
@@ -949,31 +975,48 @@ void StandardRank::CalculateStats( )
     totalEnergy += backgroundEnergy;
     backgroundEnergy = backgroundEnergy;
 
-    ncycle_t simulationTime = GetEventQueue()->GetCurrentCycle();
+    /* Get simulation time in nanoseconds (ns). Since energy is in nJ, energy / ns = W */
+    double simulationTime = static_cast<double>(GetEventQueue()->GetCurrentCycle()) 
+                          * (1000.0 / static_cast<double>(p->CLK));
 
     if( simulationTime != 0 )
     {
         /* power in W */
-        totalPower = ( totalEnergy * p->Voltage ) / (double)simulationTime / 1000.0;
-        backgroundPower = ( backgroundEnergy * p->Voltage ) / (double)simulationTime / 1000.0; 
-        activatePower = ( activateEnergy * p->Voltage ) / (double)simulationTime / 1000.0; 
-        burstPower = ( burstEnergy * p->Voltage ) / (double)simulationTime / 1000.0; 
-        refreshPower = ( refreshEnergy * p->Voltage ) / (double)simulationTime / 1000.0; 
+        if( p->EnergyModel == "current" )
+        {
+            totalPower = ( totalEnergy * p->Voltage ) / (double)simulationTime / 1000.0;
+            backgroundPower = ( backgroundEnergy * p->Voltage ) / (double)simulationTime / 1000.0; 
+            activatePower = ( activateEnergy * p->Voltage ) / (double)simulationTime / 1000.0; 
+            burstPower = ( burstEnergy * p->Voltage ) / (double)simulationTime / 1000.0; 
+            refreshPower = ( refreshEnergy * p->Voltage ) / (double)simulationTime / 1000.0; 
+        }
+        else
+        {
+            totalPower = totalEnergy / ((double)simulationTime);
+            backgroundPower = backgroundEnergy / ((double)simulationTime);
+            activatePower = activateEnergy / ((double)simulationTime);
+            burstPower = burstEnergy / ((double)simulationTime);
+            refreshPower = refreshEnergy / ((double)simulationTime);
+        }
     }
 
-    /* energy breakdown. device is in lockstep within a rank */
-    totalEnergy *= (double)deviceCount;
-    backgroundEnergy *= (double)deviceCount;
-    activateEnergy *= (double)deviceCount;
-    burstEnergy *= (double)deviceCount;
-    refreshEnergy *= (double)deviceCount;
+    /* Current mode is measured on a per-device basis. */
+    if( p->EnergyModel == "current" )
+    {
+        /* energy breakdown. device is in lockstep within a rank */
+        totalEnergy *= (double)deviceCount;
+        backgroundEnergy *= (double)deviceCount;
+        activateEnergy *= (double)deviceCount;
+        burstEnergy *= (double)deviceCount;
+        refreshEnergy *= (double)deviceCount;
 
-    /* power breakdown. device is in lockstep within a rank */
-    totalPower *= (double)deviceCount;
-    backgroundPower *= (double)deviceCount;
-    activatePower *= (double)deviceCount;
-    burstPower *= (double)deviceCount;
-    refreshPower *= (double)deviceCount;
+        /* power breakdown. device is in lockstep within a rank */
+        totalPower *= (double)deviceCount;
+        backgroundPower *= (double)deviceCount;
+        activatePower *= (double)deviceCount;
+        burstPower *= (double)deviceCount;
+        refreshPower *= (double)deviceCount;
+    }
 
     actWaitAverage = static_cast<double>(actWaitTotal) / static_cast<double>(actWaits);
     rrdWaitAverage = static_cast<double>(rrdWaitTotal) / static_cast<double>(rrdWaits);

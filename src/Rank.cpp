@@ -37,26 +37,6 @@
 
 using namespace NVM;
 
-bool Rank::PowerDown( const OpType& /*pdOp*/ )
-{
-    return true;
-}
-
-bool Rank::PowerUp( )
-{
-    return true;
-}
-
-bool Rank::CanPowerDown( const OpType& /*pdOp*/ )
-{
-    return true;
-}
-
-bool Rank::CanPowerUp( )
-{
-    return true;
-}
-
 bool Rank::Idle( )
 {
     return true;

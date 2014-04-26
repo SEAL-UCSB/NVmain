@@ -47,9 +47,6 @@ class Bank : public NVMObject
     Bank( ) { }
     ~Bank( ) { }
 
-    virtual bool PowerUp( );
-    virtual bool PowerDown( OpType pdType );
-
     virtual void SetConfig( Config * /*config*/, bool /*createChildren*/ ) { }
 
     virtual bool Idle( ) = 0;

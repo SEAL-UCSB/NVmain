@@ -54,12 +54,6 @@ class Interconnect : public NVMObject
     
     virtual void Cycle( ncycle_t steps ) = 0;
 
-    virtual bool CanPowerDown( const OpType&, const ncounter_t& ) = 0;
-    virtual bool PowerDown( const OpType&, const ncounter_t& ) = 0;
-    virtual bool CanPowerUp( const ncounter_t& ) = 0;
-    virtual bool PowerUp( const ncounter_t& ) = 0;
-    virtual bool IsRankIdle( const ncounter_t& ) = 0;
-
 };
 
 };
