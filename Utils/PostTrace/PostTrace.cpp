@@ -162,10 +162,12 @@ bool PostTrace::IssueAtomic( NVMainRequest *request )
  */
 bool PostTrace::IssueCommand( NVMainRequest *request )
 {
+    bool isPowerCommand = (request->type == POWERDOWN_PDA || request->type == POWERDOWN_PDPF ||
+                           request->type == POWERDOWN_PDPS || request->type == POWERUP );
     /*
      *  Filter out everything but bank issues here.
      */
-    if( NVMTypeMatches(Bank) )
+    if( (isPowerCommand && NVMTypeMatches(Rank)) || (!isPowerCommand && NVMTypeMatches(Bank)) )
     {
         uint64_t rank, channel, rk, ch;
 

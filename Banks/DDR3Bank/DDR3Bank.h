@@ -81,14 +81,6 @@ class DDR3Bank : public Bank
     DDR3Bank( );
     ~DDR3Bank( );
 
-    bool Activate( NVMainRequest *request );
-    bool Read( NVMainRequest *request );
-    bool Write( NVMainRequest *request );
-    bool Precharge( NVMainRequest *request );
-    bool Refresh( NVMainRequest *request );
-    bool PowerUp( );
-    bool PowerDown( OpType );
-
     bool WouldConflict( uint64_t checkRow, uint64_t checkSA );
     bool IsIssuable( NVMainRequest *req, FailReason *reason = NULL );
     bool IssueCommand( NVMainRequest *req );
@@ -128,7 +120,7 @@ class DDR3Bank : public Bank
 
     SubArray **subArrays;
 
-  private:
+  protected:
     Config *conf;
     ncounter_t psInterval;
 
@@ -193,6 +185,14 @@ class DDR3Bank : public Bank
     ncounter_t bankId;
  
     Params *p;
+
+    virtual bool Activate( NVMainRequest *request );
+    virtual bool Read( NVMainRequest *request );
+    virtual bool Write( NVMainRequest *request );
+    virtual bool Precharge( NVMainRequest *request );
+    virtual bool Refresh( NVMainRequest *request );
+    virtual bool PowerUp( NVMainRequest *request );
+    virtual bool PowerDown( NVMainRequest *request );
 
     void UpdateEndurance( NVMainRequest *request );
 };

@@ -60,7 +60,7 @@
                                                                              \
     while( curChild != NULL && dynamic_cast<b *>(curChild) == NULL )         \
     {                                                                        \
-        NVMObject_hook *curHook = curChild->GetChild( req )                  \
+        NVMObject_hook *curHook = curChild->GetChild( a );                   \
                                                                              \
         if( curHook == NULL )                                                \
         {                                                                    \
@@ -71,7 +71,14 @@
         curChild = curHook->GetTrampoline();                                 \
     }                                                                        \
                                                                              \
-    c = curChild;                                                            \
+    if( dynamic_cast<b *>(curChild) != NULL )                                \
+    {                                                                        \
+        c = curChild;                                                        \
+    }                                                                        \
+    else                                                                     \
+    {                                                                        \
+        c = NULL;                                                            \
+    }                                                                        \
 }
 
 namespace NVM {

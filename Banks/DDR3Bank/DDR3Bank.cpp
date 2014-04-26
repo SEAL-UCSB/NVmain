@@ -236,7 +236,7 @@ void DDR3Bank::RegisterStats( )
 /*
  * PowerDown() power the bank down along with different modes
  */
-bool DDR3Bank::PowerDown( OpType pdType )
+bool DDR3Bank::PowerDown( NVMainRequest *request )
 {
     bool returnValue = false;
 
@@ -254,12 +254,12 @@ bool DDR3Bank::PowerDown( OpType pdType )
 
         if( state == DDR3BANK_OPEN )
         {
-            assert( pdType == POWERDOWN_PDA );
+            assert( request->type == POWERDOWN_PDA );
             state = DDR3BANK_PDA;
         }
         else if( state == DDR3BANK_CLOSED )
         {
-            switch( pdType )
+            switch( request->type )
             {
                 case POWERDOWN_PDA:
                 case POWERDOWN_PDPF:
@@ -286,7 +286,7 @@ bool DDR3Bank::PowerDown( OpType pdType )
  * PowerUp() force bank to leave powerdown mode and return to either
  * DDR3BANK_CLOSE or DDR3BANK_OPEN 
  */
-bool DDR3Bank::PowerUp( )
+bool DDR3Bank::PowerUp( NVMainRequest * /*request*/ )
 {
     bool returnValue = false;
 
@@ -908,6 +908,16 @@ bool DDR3Bank::IssueCommand( NVMainRequest *req )
                 rv = this->Refresh( req );
                 break;
 
+            case POWERDOWN_PDA:
+            case POWERDOWN_PDPF:
+            case POWERDOWN_PDPS:
+                rv = this->PowerDown( req );
+                break;
+
+            case POWERUP:
+                rv = this->PowerUp( req );
+                break;
+
             default:
                 std::cerr << "NVMain Error: Bank detects unknown operation! " 
                     << req->type << std::endl;
@@ -993,10 +1003,20 @@ void DDR3Bank::CalculatePower( )
         return;
     }
 
-    bankPower = ( bankEnergy * p->Voltage ) / (double)simulationTime / 1000.0f; 
-    activePower = ( activeEnergy * p->Voltage ) / (double)simulationTime / 1000.0f; 
-    burstPower = ( burstEnergy * p->Voltage ) / (double)simulationTime / 1000.0f; 
-    refreshPower = ( refreshEnergy * p->Voltage ) / (double)simulationTime / 1000.0f; 
+    if( p->EnergyModel == "current" )
+    {
+        bankPower = ( bankEnergy * p->Voltage ) / (double)simulationTime / 1000.0f; 
+        activePower = ( activeEnergy * p->Voltage ) / (double)simulationTime / 1000.0f; 
+        burstPower = ( burstEnergy * p->Voltage ) / (double)simulationTime / 1000.0f; 
+        refreshPower = ( refreshEnergy * p->Voltage ) / (double)simulationTime / 1000.0f; 
+    }
+    else
+    {
+        bankPower = bankEnergy / ((double)simulationTime / 1000000000.0);
+        activePower = activeEnergy / ((double)simulationTime / 1000000000.0); 
+        burstPower = burstEnergy / ((double)simulationTime / 1000000000.0);
+        refreshPower = refreshEnergy / ((double)simulationTime / 1000000000.0);
+    }
 }
 
 double DDR3Bank::GetPower( )

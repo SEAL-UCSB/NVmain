@@ -148,6 +148,9 @@ class MemoryController : public NVMObject
     NVMainRequest *MakeRefreshRequest( const ncounter_t, const ncounter_t, 
                                        const ncounter_t, const ncounter_t, 
                                        const ncounter_t );
+    NVMainRequest *MakePowerdownRequest( OpType pdOp,
+                                         const ncounter_t rank );
+    NVMainRequest *MakePowerupRequest( const ncounter_t rank );
 
     bool FindStarvedRequest( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **starvedRequest );
     bool FindRowBufferHit( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **hitRequest );

@@ -86,11 +86,6 @@ class StandardRank : public Rank
 
     void SetName( std::string name );
 
-    bool PowerDown( const OpType& pdOp );
-    bool PowerUp( );
-    bool CanPowerDown( const OpType& pdOp );
-    bool CanPowerUp( );
-
     bool Idle( );
 
     ncycle_t GetNextActivate( uint64_t bank );
@@ -105,7 +100,7 @@ class StandardRank : public Rank
     void CalculateStats( );
     Bank **banks;
 
-  private:
+  protected:
     Config *conf;
     ncounter_t stateTimeout;
     uint64_t psInterval;
@@ -150,6 +145,10 @@ class StandardRank : public Rank
     bool Write( NVMainRequest *request );
     bool Precharge( NVMainRequest *request );
     bool Refresh( NVMainRequest *request );
+    bool PowerDown( NVMainRequest *request );
+    bool PowerUp( NVMainRequest *request );
+    bool CanPowerDown( NVMainRequest *request );
+    bool CanPowerUp( NVMainRequest *request );
     Params *p;
 };
 

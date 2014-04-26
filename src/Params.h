@@ -83,8 +83,6 @@ class Params
     double EIDD4W;
     double EIDD5B;
     double EIDD6;
-    double Eclosed;
-    double Eopen;
     double Eopenrd;
     double Erd;
     double Eref;
