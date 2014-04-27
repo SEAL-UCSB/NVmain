@@ -1,10 +1,10 @@
 # HG changeset patch
-# Parent d70124a5d59403fcc4d7e86cd4e7cf838915493f
+# Parent 2a935bb51c65e33023e50d814204822a336e8f91
 Fix having multiple instances of NVMainMemory, such as X86 with more than 3GB of memory
 
-diff -r d70124a5d594 configs/common/MemConfig.py
---- a/configs/common/MemConfig.py	Tue Nov 26 17:51:07 2013 +0100
-+++ b/configs/common/MemConfig.py	Sun Apr 27 16:02:02 2014 -0400
+diff -r 2a935bb51c65 configs/common/MemConfig.py
+--- a/configs/common/MemConfig.py	Fri Apr 04 09:55:34 2014 -0400
++++ b/configs/common/MemConfig.py	Sun Apr 27 15:44:36 2014 -0400
 @@ -49,6 +49,7 @@
  # fina; list. A target may be specified as a tuple, in which case the
  # first available memory controller model in the tuple will be used.
@@ -13,12 +13,12 @@ diff -r d70124a5d594 configs/common/MemConfig.py
      ("simple_mem", "SimpleMemory"),
      ("ddr3_1600_x64", "DDR3_1600_x64"),
      ("lpddr2_s4_1066_x32", "LPDDR2_S4_1066_x32"),
-diff -r d70124a5d594 configs/common/Options.py
---- a/configs/common/Options.py	Tue Nov 26 17:51:07 2013 +0100
-+++ b/configs/common/Options.py	Sun Apr 27 16:02:02 2014 -0400
-@@ -198,6 +198,24 @@
-         help="""Treat value of --checkpoint-restore or --take-checkpoint as a
-                 number of instructions.""")
+diff -r 2a935bb51c65 configs/common/Options.py
+--- a/configs/common/Options.py	Fri Apr 04 09:55:34 2014 -0400
++++ b/configs/common/Options.py	Sun Apr 27 15:44:36 2014 -0400
+@@ -209,6 +209,24 @@
+                       help="ARM instruction set.")
+ 
  
 +    # Options for nvmain
 +    parser.add_option("--nvmain-PARAM", type="string", default="NULL", help="Set NVMain configuration value for PARAM (e.g., --nvmain-RANKS=4, --nvmain-BANKS=8, etc.)") # Only provided for --help, does nothing
@@ -41,9 +41,9 @@ diff -r d70124a5d594 configs/common/Options.py
  def addSEOptions(parser):
      # Benchmark options
      parser.add_option("-c", "--cmd", default="",
-diff -r d70124a5d594 src/mem/NVMainMemory.py
+diff -r 2a935bb51c65 src/mem/NVMainMemory.py
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/NVMainMemory.py	Sun Apr 27 16:02:02 2014 -0400
++++ b/src/mem/NVMainMemory.py	Sun Apr 27 15:44:36 2014 -0400
 @@ -0,0 +1,90 @@
 +# Copyright (c) 2012-2013 Pennsylvania State University
 +# All rights reserved.
@@ -135,37 +135,36 @@ diff -r d70124a5d594 src/mem/NVMainMemory.py
 +        self.configparams = config_params
 +        self.configvalues = config_values
 +
-diff -r d70124a5d594 src/mem/SConscript
---- a/src/mem/SConscript	Tue Nov 26 17:51:07 2013 +0100
-+++ b/src/mem/SConscript	Sun Apr 27 16:02:02 2014 -0400
+diff -r 2a935bb51c65 src/mem/SConscript
+--- a/src/mem/SConscript	Fri Apr 04 09:55:34 2014 -0400
++++ b/src/mem/SConscript	Sun Apr 27 15:44:36 2014 -0400
 @@ -43,6 +43,7 @@
+ SimObject('DRAMCtrl.py')
  SimObject('MemObject.py')
  SimObject('SimpleMemory.py')
- SimObject('SimpleDRAM.py')
 +SimObject('NVMainMemory.py')
  
  Source('abstract_mem.cc')
  Source('addr_mapper.cc')
-@@ -58,6 +59,7 @@
+@@ -59,6 +60,7 @@
  Source('tport.cc')
  Source('port_proxy.cc')
  Source('simple_mem.cc')
 +Source('nvmain_mem.cc')
  Source('physical.cc')
- Source('simple_dram.cc')
  
-@@ -80,6 +82,8 @@
+ if env['TARGET_ISA'] != 'null':
+@@ -85,5 +87,7 @@
  DebugFlag('MMU')
  DebugFlag('MemoryAccess')
  DebugFlag('PacketQueue')
 +DebugFlag('NVMain')
 +DebugFlag('NVMainMin')
  
- DebugFlag('ProtocolTrace')
- DebugFlag('RubyCache')
-diff -r d70124a5d594 src/mem/nvmain_mem.cc
+ DebugFlag("DRAMSim2")
+diff -r 2a935bb51c65 src/mem/nvmain_mem.cc
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/nvmain_mem.cc	Sun Apr 27 16:02:02 2014 -0400
++++ b/src/mem/nvmain_mem.cc	Sun Apr 27 15:44:36 2014 -0400
 @@ -0,0 +1,773 @@
 +/*
 + * Copyright (c) 2012-2014 Pennsylvania State University
@@ -940,9 +939,9 @@ diff -r d70124a5d594 src/mem/nvmain_mem.cc
 +    return new NVMainMemory(this);
 +}
 +
-diff -r d70124a5d594 src/mem/nvmain_mem.hh
+diff -r 2a935bb51c65 src/mem/nvmain_mem.hh
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/nvmain_mem.hh	Sun Apr 27 16:02:02 2014 -0400
++++ b/src/mem/nvmain_mem.hh	Sun Apr 27 15:44:36 2014 -0400
 @@ -0,0 +1,203 @@
 +/*
 + * Copyright (c) 2012-2013 Pennsylvania State University
