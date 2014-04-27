@@ -1,10 +1,10 @@
 # HG changeset patch
-# Parent 85098187a01ba77e66286f6bab9d72941db4cf43
-Use IsIssuable and don't call hooks unless true is returned
+# Parent 06a33d872798f0a64cc7f04dd02bf1b21e0d357a
+Fix having multiple instances of NVMainMemory, such as X86 with more than 3GB of memory
 
-diff -r 85098187a01b configs/common/MemConfig.py
---- a/configs/common/MemConfig.py	Fri Mar 21 12:08:33 2014 -0400
-+++ b/configs/common/MemConfig.py	Sun Mar 23 15:59:57 2014 -0400
+diff -r 06a33d872798 configs/common/MemConfig.py
+--- a/configs/common/MemConfig.py	Tue Feb 18 05:50:53 2014 -0500
++++ b/configs/common/MemConfig.py	Sun Apr 27 16:14:02 2014 -0400
 @@ -49,6 +49,7 @@
  # fina; list. A target may be specified as a tuple, in which case the
  # first available memory controller model in the tuple will be used.
@@ -13,9 +13,9 @@ diff -r 85098187a01b configs/common/MemConfig.py
      ("simple_mem", "SimpleMemory"),
      ("ddr3_1600_x64", "DDR3_1600_x64"),
      ("lpddr2_s4_1066_x32", "LPDDR2_S4_1066_x32"),
-diff -r 85098187a01b configs/common/Options.py
---- a/configs/common/Options.py	Fri Mar 21 12:08:33 2014 -0400
-+++ b/configs/common/Options.py	Sun Mar 23 15:59:57 2014 -0400
+diff -r 06a33d872798 configs/common/Options.py
+--- a/configs/common/Options.py	Tue Feb 18 05:50:53 2014 -0500
++++ b/configs/common/Options.py	Sun Apr 27 16:14:02 2014 -0400
 @@ -209,6 +209,24 @@
                        help="ARM instruction set.")
  
@@ -41,9 +41,9 @@ diff -r 85098187a01b configs/common/Options.py
  def addSEOptions(parser):
      # Benchmark options
      parser.add_option("-c", "--cmd", default="",
-diff -r 85098187a01b src/mem/NVMainMemory.py
+diff -r 06a33d872798 src/mem/NVMainMemory.py
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/NVMainMemory.py	Sun Mar 23 15:59:57 2014 -0400
++++ b/src/mem/NVMainMemory.py	Sun Apr 27 16:14:02 2014 -0400
 @@ -0,0 +1,90 @@
 +# Copyright (c) 2012-2013 Pennsylvania State University
 +# All rights reserved.
@@ -135,9 +135,9 @@ diff -r 85098187a01b src/mem/NVMainMemory.py
 +        self.configparams = config_params
 +        self.configvalues = config_values
 +
-diff -r 85098187a01b src/mem/SConscript
---- a/src/mem/SConscript	Fri Mar 21 12:08:33 2014 -0400
-+++ b/src/mem/SConscript	Sun Mar 23 15:59:57 2014 -0400
+diff -r 06a33d872798 src/mem/SConscript
+--- a/src/mem/SConscript	Tue Feb 18 05:50:53 2014 -0500
++++ b/src/mem/SConscript	Sun Apr 27 16:14:02 2014 -0400
 @@ -43,6 +43,7 @@
  SimObject('MemObject.py')
  SimObject('SimpleMemory.py')
@@ -163,12 +163,12 @@ diff -r 85098187a01b src/mem/SConscript
  
  DebugFlag("DRAMSim2")
  
-diff -r 85098187a01b src/mem/nvmain_mem.cc
+diff -r 06a33d872798 src/mem/nvmain_mem.cc
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/nvmain_mem.cc	Sun Mar 23 15:59:57 2014 -0400
-@@ -0,0 +1,743 @@
++++ b/src/mem/nvmain_mem.cc	Sun Apr 27 16:14:02 2014 -0400
+@@ -0,0 +1,773 @@
 +/*
-+ * Copyright (c) 2012-2013 Pennsylvania State University
++ * Copyright (c) 2012-2014 Pennsylvania State University
 + * All rights reserved.
 + *
 + * Redistribution and use in source and binary forms, with or without
@@ -214,17 +214,19 @@ diff -r 85098187a01b src/mem/nvmain_mem.cc
 +#include "SimInterface/Gem5Interface/Gem5Interface.h"
 +#include "Utils/HookFactory.h"
 +#include "base/random.hh"
++#include "base/statistics.hh"
 +#include "debug/NVMain.hh"
 +#include "debug/NVMainMin.hh"
 +#include "mem/nvmain_mem.hh"
 +
 +using namespace NVM;
 +
++NVMainMemory *NVMainMemory::masterInstance = NULL;
 +
 +NVMainMemory::NVMainMemory(const Params *p)
-+    : AbstractMemory(p), clockEvent(this), port(name() + ".port", *this),
-+      drainManager(NULL), lat(p->atomic_latency), lat_var(p->atomic_variance),
-+      nvmain_atomic(p->atomic_mode), NVMainWarmUp(p->NVMainWarmUp)
++    : AbstractMemory(p), clockEvent(this), drainManager(NULL), lat(p->atomic_latency),
++      lat_var(p->atomic_variance), nvmain_atomic(p->atomic_mode),
++      NVMainWarmUp(p->NVMainWarmUp), port(name() + ".port", *this)
 +{
 +    char *cfgparams;
 +    char *cfgvalues;
@@ -289,58 +291,68 @@ diff -r 85098187a01b src/mem/nvmain_mem.cc
 +void
 +NVMainMemory::init()
 +{
-+    m_nvmainPtr = new NVM::NVMain( );
-+    m_statsPtr = new NVM::Stats( );
-+    m_nvmainSimInterface = new NVM::Gem5Interface( );
-+    m_nvmainEventQueue = new NVM::EventQueue( );
-+    m_tagGenerator = new NVM::TagGenerator( 1000 );
-+
-+    m_nvmainConfig->SetSimInterface( m_nvmainSimInterface );
-+
-+    if (port.isConnected()) {
++    if (!port.isConnected()) {
++        fatal("NVMainMemory %s is unconnected!\n", name());
++    } else {
 +        port.sendRangeChange();
 +    }
 +
-+    statPrinter.nvmainPtr = m_nvmainPtr;
-+
-+    if( m_nvmainConfig->KeyExists( "StatsFile" ) )
++    if( masterInstance == NULL )
 +    {
-+        statPrinter.statStream.open( m_nvmainConfig->GetString( "StatsFile" ).c_str(),
-+                                     std::ofstream::out | std::ofstream::app );
-+    }
++        masterInstance = this;
 +
-+    registerExitCallback( &statPrinter );
++        m_nvmainPtr = new NVM::NVMain( );
++        m_statsPtr = new NVM::Stats( );
++        m_nvmainSimInterface = new NVM::Gem5Interface( );
++        m_nvmainEventQueue = new NVM::EventQueue( );
++        m_tagGenerator = new NVM::TagGenerator( 1000 );
 +
-+    SetEventQueue( m_nvmainEventQueue );
-+    SetStats( m_statsPtr );
-+    SetTagGenerator( m_tagGenerator );
++        m_nvmainConfig->SetSimInterface( m_nvmainSimInterface );
 +
-+    /*  Add any specified hooks */
-+    std::vector<std::string>& hookList = m_nvmainConfig->GetHooks( );
++        statPrinter.nvmainPtr = m_nvmainPtr;
++        statReseter.nvmainPtr = m_nvmainPtr;
 +
-+    for( size_t i = 0; i < hookList.size( ); i++ )
-+    {
-+        std::cout << "Creating hook " << hookList[i] << std::endl;
-+
-+        NVMObject *hook = HookFactory::CreateHook( hookList[i] );
-+
-+        if( hook != NULL )
++        if( m_nvmainConfig->KeyExists( "StatsFile" ) )
 +        {
-+            AddHook( hook );
-+            hook->SetParent( this );
-+            hook->Init( m_nvmainConfig );
++            statPrinter.statStream.open( m_nvmainConfig->GetString( "StatsFile" ).c_str(),
++                                         std::ofstream::out | std::ofstream::app );
 +        }
-+        else
-+        {
-+            std::cout << "Warning: Could not create a hook named `"
-+                << hookList[i] << "'." << std::endl;
-+        }
-+    }
 +
-+    /* Setup child and parent modules. */
-+    AddChild( m_nvmainPtr );
-+    m_nvmainPtr->SetParent( this );
-+    m_nvmainPtr->SetConfig( m_nvmainConfig );
++        //registerExitCallback( &statPrinter );
++        ::Stats::registerDumpCallback( &statPrinter );
++        ::Stats::registerResetCallback( &statReseter );
++
++        SetEventQueue( m_nvmainEventQueue );
++        SetStats( m_statsPtr );
++        SetTagGenerator( m_tagGenerator );
++
++        /*  Add any specified hooks */
++        std::vector<std::string>& hookList = m_nvmainConfig->GetHooks( );
++
++        for( size_t i = 0; i < hookList.size( ); i++ )
++        {
++            std::cout << "Creating hook " << hookList[i] << std::endl;
++
++            NVMObject *hook = HookFactory::CreateHook( hookList[i] );
++
++            if( hook != NULL )
++            {
++                AddHook( hook );
++                hook->SetParent( this );
++                hook->Init( m_nvmainConfig );
++            }
++            else
++            {
++                std::cout << "Warning: Could not create a hook named `"
++                    << hookList[i] << "'." << std::endl;
++            }
++        }
++
++        /* Setup child and parent modules. */
++        AddChild( m_nvmainPtr );
++        m_nvmainPtr->SetParent( this );
++        m_nvmainPtr->SetConfig( m_nvmainConfig );
++    }
 +}
 +
 +
@@ -385,6 +397,14 @@ diff -r 85098187a01b src/mem/nvmain_mem.cc
 +    nvmainPtr->CalculateStats();
 +    std::ostream& refStream = (statStream.is_open()) ? statStream : std::cout;
 +    nvmainPtr->GetStats()->PrintAll( refStream );
++}
++
++
++void NVMainMemory::NVMainStatReseter::process()
++{
++    assert(nvmainPtr != NULL);
++
++    nvmainPtr->GetStats()->ResetAll( );
 +}
 +
 +
@@ -471,7 +491,7 @@ diff -r 85098187a01b src/mem/nvmain_mem.cc
 +        /*
 +         * Issue the request to NVMain as an atomic request
 +         */
-+        memory.GetChild( )->IssueAtomic(request);
++        memory.m_nvmainPtr->IssueAtomic(request);
 +
 +        delete request;
 +    }
@@ -601,22 +621,22 @@ diff -r 85098187a01b src/mem/nvmain_mem.cc
 +    if(pkt->req->hasContextId()) request->threadId = pkt->req->contextId();
 +
 +    /* Call hooks here manually, since there is no one else to do it. */
-+    std::vector<NVMObject *>& preHooks  = memory.GetHooks( NVMHOOK_PREISSUE );
-+    std::vector<NVMObject *>& postHooks = memory.GetHooks( NVMHOOK_POSTISSUE );
++    std::vector<NVMObject *>& preHooks  = memory.masterInstance->GetHooks( NVMHOOK_PREISSUE );
++    std::vector<NVMObject *>& postHooks = memory.masterInstance->GetHooks( NVMHOOK_POSTISSUE );
 +    std::vector<NVMObject *>::iterator it;
 +
-+    canQueue = memory.GetChild( )->IsIssuable( request );
++    canQueue = memory.masterInstance->GetChild( )->IsIssuable( request );
 +
 +    if( canQueue )
 +    {
 +        /* Call pre-issue hooks */
 +        for( it = preHooks.begin(); it != preHooks.end(); it++ )
 +        {
-+            (*it)->SetParent( &memory );
++            (*it)->SetParent( memory.masterInstance );
 +            (*it)->IssueCommand( request );
 +        }
 +
-+        enqueued = memory.GetChild( )->IssueCommand(request);
++        enqueued = memory.masterInstance->GetChild( )->IssueCommand(request);
 +        assert( enqueued == true );
 +
 +        NVMainMemoryRequest *memRequest = new NVMainMemoryRequest;
@@ -628,7 +648,7 @@ diff -r 85098187a01b src/mem/nvmain_mem.cc
 +
 +        DPRINTF(NVMain, "nvmain_mem.cc: Enqueued Mem request for 0x%x of type %s\n", request->address.GetPhysicalAddress( ), ((pkt->isRead()) ? "READ" : "WRITE") );
 +
-+        memory.m_request_map.insert( std::pair<NVMainRequest *, NVMainMemoryRequest *>( request, memRequest ) );
++        memory.masterInstance->m_request_map.insert( std::pair<NVMainRequest *, NVMainMemoryRequest *>( request, memRequest ) );
 +        memory.m_requests_outstanding++;
 +
 +        /*
@@ -636,7 +656,7 @@ diff -r 85098187a01b src/mem/nvmain_mem.cc
 +         *  the memory controller has it, then delete the original copy to respond to the packet.
 +         */
 +        if( request->type == WRITE )
-+          {
++        {
 +            NVMainMemoryRequest *requestCopy = new NVMainMemoryRequest( );
 +
 +            requestCopy->request = new NVMainRequest( );
@@ -647,11 +667,11 @@ diff -r 85098187a01b src/mem/nvmain_mem.cc
 +
 +            memRequest->packet = NULL;
 +
-+            memory.m_request_map.insert( std::pair<NVMainRequest *, NVMainMemoryRequest *>( requestCopy->request, requestCopy ) );
++            memory.masterInstance->m_request_map.insert( std::pair<NVMainRequest *, NVMainMemoryRequest *>( requestCopy->request, requestCopy ) );
 +            memory.m_requests_outstanding++;
 +
 +            memory.RequestComplete( requestCopy->request );
-+          }
++        }
 +
 +        /* Call post-issue hooks. */
 +        if( request != NULL )
@@ -704,7 +724,7 @@ diff -r 85098187a01b src/mem/nvmain_mem.cc
 +{
 +    unsigned int rv= 0;
 +
-+    if( !m_request_map.empty() )
++    if( !masterInstance->m_request_map.empty() )
 +    {
 +        setDrainState(Drainable::Draining);
 +        drainManager = dm;
@@ -752,8 +772,8 @@ diff -r 85098187a01b src/mem/nvmain_mem.cc
 +    std::map<NVMainRequest *, NVMainMemoryRequest *>::iterator iter;
 +
 +    // Find the mem request pointer in the map.
-+    assert(m_request_map.count(req) != 0);
-+    iter = m_request_map.find(req);
++    assert(masterInstance->m_request_map.count(req) != 0);
++    iter = masterInstance->m_request_map.find(req);
 +    memRequest = iter->second;
 +
 +    if(!memRequest->atomic)
@@ -772,22 +792,25 @@ diff -r 85098187a01b src/mem/nvmain_mem.cc
 +         *  will need a retry, however I do not explicitly enfore that only
 +         *  one sendRetry() be called.
 +         */
-+        if( retryRead == true && (isRead || isWrite) )
++        NVMainMemory *ownerInstance = dynamic_cast<NVMainMemory *>( req->owner );
++        assert( ownerInstance != NULL );
++
++        if( ownerInstance->retryRead == true && (isRead || isWrite) )
 +        {
-+            retryRead = false;
-+            port.sendRetry();
++            ownerInstance->retryRead = false;
++            ownerInstance->port.sendRetry();
 +        }
-+        if( retryWrite == true && (isRead || isWrite) )
++        if( ownerInstance->retryWrite == true && (isRead || isWrite) )
 +        {
-+            retryWrite = false;
-+            port.sendRetry();
++            ownerInstance->retryWrite = false;
++            ownerInstance->port.sendRetry();
 +        }
 +
 +        DPRINTF(NVMain, "Completed Mem request for 0x%x of type %s\n", req->address.GetPhysicalAddress( ), (isRead ? "READ" : "WRITE"));
 +
 +        if(respond)
 +        {
-+            responseQueue.push_back(memRequest->packet);
++            ownerInstance->responseQueue.push_back(memRequest->packet);
 +
 +            delete req;
 +            delete memRequest;
@@ -795,7 +818,7 @@ diff -r 85098187a01b src/mem/nvmain_mem.cc
 +        else
 +        {
 +            if( memRequest->packet )
-+                pendingDelete.push_back(memRequest->packet);
++                ownerInstance->pendingDelete.push_back(memRequest->packet);
 +
 +            CheckDrainState( );
 +
@@ -810,7 +833,7 @@ diff -r 85098187a01b src/mem/nvmain_mem.cc
 +    }
 +
 +
-+    m_request_map.erase(iter);
++    masterInstance->m_request_map.erase(iter);
 +    m_requests_outstanding--;
 +
 +    return true;
@@ -845,7 +868,7 @@ diff -r 85098187a01b src/mem/nvmain_mem.cc
 +
 +void NVMainMemory::CheckDrainState( )
 +{
-+    if( drainManager != NULL && m_request_map.empty() )
++    if( drainManager != NULL && masterInstance->m_request_map.empty() )
 +    {
 +        DPRINTF(NVMain, "NVMainMemory: Drain completed.\n");
 +        DPRINTF(NVMainMin, "NVMainMemory: Drain completed.\n");
@@ -858,6 +881,9 @@ diff -r 85098187a01b src/mem/nvmain_mem.cc
 +
 +void NVMainMemory::serialize(std::ostream& os)
 +{
++    if (masterInstance != this)
++        return;
++
 +    std::string nvmain_chkpt_dir = "";
 +
 +    if( m_nvmainConfig->KeyExists( "CheckpointDirectory" ) )
@@ -874,6 +900,9 @@ diff -r 85098187a01b src/mem/nvmain_mem.cc
 +
 +void NVMainMemory::unserialize(Checkpoint *cp, const std::string& section)
 +{
++    if (masterInstance != this)
++        return;
++
 +    std::string nvmain_chkpt_dir = "";
 +
 +    if( m_nvmainConfig->KeyExists( "CheckpointDirectory" ) )
@@ -891,13 +920,14 @@ diff -r 85098187a01b src/mem/nvmain_mem.cc
 +void NVMainMemory::tick( )
 +{
 +    // Cycle memory controller
-+    m_nvmainPtr->Cycle( 1 );
++    if (masterInstance == this)
++        m_nvmainPtr->Cycle( 1 );
 +
 +    if( retryResp == false )
 +        SendResponses( );
 +
 +    // Don't schedule event in atomic mode unless there are incomplete requests
-+    if( m_awake || !m_request_map.empty() )
++    if( m_awake || !masterInstance->m_request_map.empty() )
 +    {
 +        schedule(clockEvent, curTick() + clock);
 +    }
@@ -910,10 +940,10 @@ diff -r 85098187a01b src/mem/nvmain_mem.cc
 +    return new NVMainMemory(this);
 +}
 +
-diff -r 85098187a01b src/mem/nvmain_mem.hh
+diff -r 06a33d872798 src/mem/nvmain_mem.hh
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/nvmain_mem.hh	Sun Mar 23 15:59:57 2014 -0400
-@@ -0,0 +1,192 @@
++++ b/src/mem/nvmain_mem.hh	Sun Apr 27 16:14:02 2014 -0400
+@@ -0,0 +1,203 @@
 +/*
 + * Copyright (c) 2012-2013 Pennsylvania State University
 + * All rights reserved.
@@ -1024,6 +1054,14 @@ diff -r 85098187a01b src/mem/nvmain_mem.hh
 +        std::ofstream statStream;
 +    };
 +
++    class NVMainStatReseter : public Callback
++    {
++      public:
++        void process();
++
++        NVM::NVMain *nvmainPtr;
++    };
++
 +    struct NVMainMemoryRequest
 +    {
 +        PacketPtr packet;
@@ -1032,7 +1070,6 @@ diff -r 85098187a01b src/mem/nvmain_mem.hh
 +        bool atomic;
 +    };
 +
-+    MemoryPort port;
 +    DrainManager *drainManager;
 +
 +    NVM::NVMain *m_nvmainPtr;
@@ -1052,21 +1089,18 @@ diff -r 85098187a01b src/mem/nvmain_mem.hh
 +    Tick lat;
 +    Tick lat_var;
 +    bool nvmain_atomic;
-+    bool retryRead, retryWrite, retryResp;
 +
 +    uint64_t BusWidth;
 +    uint64_t tBURST;
 +    uint64_t RATE;
 +
 +    bool NVMainWarmUp;
-+    std::vector<PacketPtr> pendingDelete;
 +
 +    NVMainStatPrinter statPrinter;
++    NVMainStatReseter statReseter;
 +    Tick lastWakeup;
 +
-+    std::map<NVM::NVMainRequest *, NVMainMemoryRequest *> m_request_map;
 +    uint64_t m_requests_outstanding;
-+    std::deque<PacketPtr> responseQueue;
 +
 +  public:
 +
@@ -1095,6 +1129,13 @@ diff -r 85098187a01b src/mem/nvmain_mem.hh
 +
 +    void serialize(std::ostream& os);
 +    void unserialize(Checkpoint *cp, const std::string& section);
++
++    MemoryPort port;
++    static NVMainMemory *masterInstance;
++    bool retryRead, retryWrite, retryResp;
++    std::deque<PacketPtr> responseQueue;
++    std::vector<PacketPtr> pendingDelete;
++    std::map<NVM::NVMainRequest *, NVMainMemoryRequest *> m_request_map;
 +
 +  protected:
 +
