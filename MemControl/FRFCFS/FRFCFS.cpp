@@ -216,6 +216,10 @@ void FRFCFS::Cycle( ncycle_t steps )
     {
         rb_hits++;
     }
+    /* Check if the address is accessible through any other means. */
+    else if( FindCachedAddress( memQueue, &nextRequest ) )
+    {
+    }
     else if( FindWriteStalledRead( memQueue, &nextRequest ) )
     {
         if( nextRequest != NULL )

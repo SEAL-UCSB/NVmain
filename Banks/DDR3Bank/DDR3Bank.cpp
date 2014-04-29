@@ -858,11 +858,8 @@ bool DDR3Bank::IsIssuable( NVMainRequest *req, FailReason *reason )
     }
     else
     {
-        std::cout << "Bank: IsIssuable: Unknown operation: " << req->type 
-            << std::endl;
-        rv = false;
-        if( reason ) 
-            reason->reason = UNKNOWN_FAILURE;
+        /* Unknown command, just ask child modules. */
+        rv = subArrays[opSubArray]->IsIssuable( req, reason );
     }
 
     return rv;
@@ -919,8 +916,7 @@ bool DDR3Bank::IssueCommand( NVMainRequest *req )
                 break;
 
             default:
-                std::cerr << "NVMain Error: Bank detects unknown operation! " 
-                    << req->type << std::endl;
+                rv = GetChild( req )->IssueCommand( req );
                 break;  
         }
     }

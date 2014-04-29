@@ -29,32 +29,68 @@
 * Author list: 
 *   Matt Poremba    ( Email: mrp5060 at psu dot edu 
 *                     Website: http://www.cse.psu.edu/~poremba/ )
+*   Tao Zhang       ( Email: tzz106 at cse dot psu dot edu
+*                     Website: http://www.cse.psu.edu/~tzz106 )
 *******************************************************************************/
 
-#ifndef __INCLUDE_FAIL_REASONS_H__
-#define __INCLUDE_FAIL_REASONS_H__
+#ifndef __CACHEDDDR3BANK_H__
+#define __CACHEDDDR3BANK_H__
+
+#include "Banks/DDR3Bank/DDR3Bank.h"
 
 namespace NVM {
 
-enum FailReasons { UNKNOWN_FAILURE,
-                   OPEN_REFRESH_WAITING,
-                   CLOSED_REFRESH_WAITING,
-                   REFRESH_OPEN_FAILURE,
-                   SUBARRAY_TIMING,
-                   BANK_TIMING,
-                   RANK_TIMING,
-                   UNSUPPORTED_COMMAND
-                 };
 
-class FailReason
+struct CachedRowBuffer
+{
+    bool used;
+    NVMAddress address;
+    bool *dirty;
+    ncounter_t colStart;
+    ncounter_t colEnd;
+    ncounter_t reads;
+    ncounter_t writes;
+};
+
+
+class CachedDDR3Bank : public DDR3Bank
 {
   public:
-    FailReason( ) : reason(UNKNOWN_FAILURE) { }
-    ~FailReason( ) { }
+    CachedDDR3Bank( );
+    ~CachedDDR3Bank( );
 
-    FailReasons reason;
+    virtual bool Activate( NVMainRequest *request );
+    virtual bool Read( NVMainRequest *request );
+    virtual bool Write( NVMainRequest *request );
+
+    virtual bool IsIssuable( NVMainRequest *request, FailReason *reason = NULL );
+
+    virtual void SetConfig( Config *config, bool createChildren = true );
+
+    virtual void RegisterStats( );
+    virtual void CalculateStats( );
+
+  private:
+    CachedRowBuffer **cachedRowBuffer;
+    bool readOnlyBuffers;
+    ncounter_t rowBufferSize;
+    ncounter_t rowBufferCount;
+    ncounter_t inRDBCount;
+    ncounter_t RDBAllocations;
+    ncounter_t writebackCount;
+    ncounter_t RDBReads, RDBWrites;
+    std::map<uint64_t, uint64_t> allocationReadsMap; // Number of reads in an allocation, Count
+    std::map<uint64_t, uint64_t> allocationWritesMap;
+    std::string allocationReadsHisto;
+    std::string allocationWritesHisto;
+
 };
 
+
+
 };
+
 
 #endif
+
+

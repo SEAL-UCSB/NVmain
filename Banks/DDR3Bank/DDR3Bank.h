@@ -81,42 +81,42 @@ class DDR3Bank : public Bank
     DDR3Bank( );
     ~DDR3Bank( );
 
-    bool WouldConflict( uint64_t checkRow, uint64_t checkSA );
-    bool IsIssuable( NVMainRequest *req, FailReason *reason = NULL );
-    bool IssueCommand( NVMainRequest *req );
+    virtual bool WouldConflict( uint64_t checkRow, uint64_t checkSA );
+    virtual bool IsIssuable( NVMainRequest *req, FailReason *reason = NULL );
+    virtual bool IssueCommand( NVMainRequest *req );
 
-    void SetConfig( Config *c, bool createChildren = true );
-    void SetParams( Params *params ) { p = params; }
+    virtual void SetConfig( Config *c, bool createChildren = true );
+    virtual void SetParams( Params *params ) { p = params; }
 
     DDR3BankState GetState( );
 
-    bool Idle( );
-    ncycle_t GetDataCycles( ) { return dataCycles; }
-    void CalculatePower( );
-    double GetPower( ); 
-    void GetEnergy( double& , double& , double&, double& ); 
-    ncounter_t GetReads( ) { return reads; }
-    ncounter_t GetWrites( ) { return writes; }
+    virtual bool Idle( );
+    virtual ncycle_t GetDataCycles( ) { return dataCycles; }
+    virtual void CalculatePower( );
+    virtual double GetPower( ); 
+    virtual void GetEnergy( double& , double& , double&, double& ); 
+    virtual ncounter_t GetReads( ) { return reads; }
+    virtual ncounter_t GetWrites( ) { return writes; }
 
-    ncycle_t GetNextActivate( ) { return nextActivate; }
-    ncycle_t GetNextRead( ) { return nextRead; }
-    ncycle_t GetNextWrite( ) { return nextWrite; }
-    ncycle_t GetNextPrecharge( ) { return nextPrecharge; }
-    ncycle_t GetNextRefresh( ) { return nextRefresh; }
-    ncycle_t GetNextPowerDown( ) { return nextPowerDown; }
-    uint64_t GetOpenRow( ) { return openRow; }
-    std::deque<ncounter_t>& GetOpenSubArray( ) { return activeSubArrayQueue; }
+    virtual ncycle_t GetNextActivate( ) { return nextActivate; }
+    virtual ncycle_t GetNextRead( ) { return nextRead; }
+    virtual ncycle_t GetNextWrite( ) { return nextWrite; }
+    virtual ncycle_t GetNextPrecharge( ) { return nextPrecharge; }
+    virtual ncycle_t GetNextRefresh( ) { return nextRefresh; }
+    virtual ncycle_t GetNextPowerDown( ) { return nextPowerDown; }
+    virtual uint64_t GetOpenRow( ) { return openRow; }
+    virtual std::deque<ncounter_t>& GetOpenSubArray( ) { return activeSubArrayQueue; }
 
-    void SetName( std::string );
-    void SetId( ncounter_t );
+    virtual void SetName( std::string );
+    virtual void SetId( ncounter_t );
 
-    void RegisterStats( );
-    void CalculateStats( );
+    virtual void RegisterStats( );
+    virtual void CalculateStats( );
 
-    ncounter_t GetId( );
-    std::string GetName( );
+    virtual ncounter_t GetId( );
+    virtual std::string GetName( );
 
-    void Cycle( ncycle_t steps );
+    virtual void Cycle( ncycle_t steps );
 
     SubArray **subArrays;
 
