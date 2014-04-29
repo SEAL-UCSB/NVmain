@@ -1144,12 +1144,16 @@ bool SubArray::IsIssuable( NVMainRequest *req, FailReason *reason )
     }
     else
     {
-        std::cerr << "NVMain Error: SubArray: IsIssuable: Unknown operation: " 
-            << req->type << std::endl;
+        std::cout << "NVMain Warning: Command " << req->type << " unsupported in this memory system."
+                  << std::endl;
 
+        /* 
+         *  Assume subarray is the end-point for requests. If we haven't found this
+         *  request yet, it is not supported.
+         */
         rv = false;
         if( reason ) 
-            reason->reason = UNKNOWN_FAILURE;
+            reason->reason = UNSUPPORTED_COMMAND;
     }
 
     return rv;

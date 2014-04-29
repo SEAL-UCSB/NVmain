@@ -443,6 +443,9 @@ void FRFCFS_WQF::Cycle( ncycle_t steps )
             wq_rb_hits++;
             m_request_per_drain++;
         }
+        else if( FindCachedAddress( writeQueue, &nextRequest ) )
+        {
+        }
         else if( FindOldestReadyRequest( writeQueue, &nextRequest ) )
         {
             wq_rb_miss++;
@@ -465,6 +468,9 @@ void FRFCFS_WQF::Cycle( ncycle_t steps )
         else if( FindRowBufferHit( readQueue, &nextRequest ) )
         {
             rq_rb_hits++;
+        }
+        else if( FindCachedAddress( readQueue, &nextRequest ) )
+        {
         }
         else if( FindOldestReadyRequest( readQueue, &nextRequest ) )
         {

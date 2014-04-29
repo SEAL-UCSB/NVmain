@@ -657,6 +657,20 @@ unsigned int MemoryController::GetID( )
     return this->id;
 }
 
+NVMainRequest *MemoryController::MakeCachedRequest( NVMainRequest *triggerRequest )
+{
+    /* This method should be called on *transaction* queue requests, thus only READ/WRITE possible. */
+    assert( triggerRequest->type == READ || triggerRequest->type == WRITE );
+
+    NVMainRequest *cachedRequest = new NVMainRequest( );
+
+    *cachedRequest = *triggerRequest;
+    cachedRequest->type = (triggerRequest->type == READ ? CACHED_READ : CACHED_WRITE);
+    cachedRequest->owner = this;
+
+    return cachedRequest;
+}
+
 NVMainRequest *MemoryController::MakeActivateRequest( NVMainRequest *triggerRequest )
 {
     NVMainRequest *activateRequest = new NVMainRequest( );
@@ -893,6 +907,57 @@ bool MemoryController::FindStarvedRequest( std::list<NVMainRequest *>& transacti
             rv = true;
             break;
         }
+    }
+
+    return rv;
+}
+
+/*
+ *  Find any requests that can be serviced without going through a normal activation cycle.
+ */
+bool MemoryController::FindCachedAddress( std::list<NVMainRequest *>& transactionQueue,
+                                              NVMainRequest **accessibleRequest )
+{
+    DummyPredicate pred;
+
+    return FindCachedAddress( transactionQueue, accessibleRequest, pred );
+}
+
+/*
+ *  Find any requests that can be serviced without going through a normal activation cycle.
+ */
+bool MemoryController::FindCachedAddress( std::list<NVMainRequest *>& transactionQueue,
+                                              NVMainRequest **accessibleRequest, 
+                                              SchedulingPredicate& pred )
+{
+    bool rv = false;
+    std::list<NVMainRequest *>::iterator it;
+
+    *accessibleRequest = NULL;
+
+    for( it = transactionQueue.begin(); it != transactionQueue.end(); it++ )
+    {
+        ncounter_t queueId = GetCommandQueueId( (*it)->address );
+        NVMainRequest *cachedRequest = MakeCachedRequest( (*it) );
+        
+        if( commandQueues[queueId].empty() 
+            && GetChild( )->IsIssuable( cachedRequest )
+            && pred( (*it ) ) )
+        {
+            //std::cout << "Found accessible request type " << (*it)->type << " for 0x"
+            //          << std::hex << (*it)->address.GetPhysicalAddress( ) 
+            //          << std::dec << std::endl;
+
+            *accessibleRequest = (*it);
+            transactionQueue.erase( it );
+
+            delete cachedRequest;
+
+            rv = true;
+            break;
+        }
+
+        delete cachedRequest;
     }
 
     return rv;
@@ -1329,6 +1394,10 @@ bool MemoryController::DummyPredicate::operator() ( NVMainRequest* /*request*/ )
 }
 
 
+/*
+ *  NOTE: This function assumes the memory controller uses any predicates when
+ *  scheduling. They will not be re-checked here.
+ */
 bool MemoryController::IssueMemoryCommands( NVMainRequest *req )
 {
     bool rv = false;
@@ -1342,9 +1411,39 @@ bool MemoryController::IssueMemoryCommands( NVMainRequest *req )
     ncounter_t queueId = GetCommandQueueId( req->address );
 
     /*
-     *  This function assumes the memory controller uses any predicates when
-     *  scheduling. They will not be re-checked here.
+     *  If the request is somehow accessible (e.g., via caching, etc), but the
+     *  bank state does not match the memory controller, just issue the request
+     *  without updating any internal states.
      */
+    FailReason reason;
+    NVMainRequest *cachedRequest = MakeCachedRequest( req );
+
+    if( GetChild( )->IsIssuable( cachedRequest, &reason ) )
+    {
+        /* Differentiate from row-buffer hits. */
+        if ( !activateQueued[rank][bank] 
+             || !activeSubArray[rank][bank][subarray]
+             || effectiveRow[rank][bank][subarray] != row 
+             || effectiveMuxedRow[rank][bank][subarray] != muxLevel ) 
+        {
+            req->issueCycle = GetEventQueue()->GetCurrentCycle();
+
+            // Update starvation ??
+            commandQueues[queueId].push_back( req );
+
+            delete cachedRequest;
+
+            return true;
+        }
+        else
+        {
+            delete cachedRequest;
+        }
+    }
+    else
+    {
+        delete cachedRequest;
+    }
 
     if( !activateQueued[rank][bank] && commandQueues[queueId].empty() )
     {
@@ -1518,6 +1617,7 @@ void MemoryController::CycleCommandQueues( )
                           << std::dec << " @ Bank " << bank << ", Rank " << rank << ", Channel " << channel
                           << " Subarray " << subarray << " Row " << row << " Column " << col
                           << ". Queued time: " << queueHead->arrivalCycle
+                          << ". Issue time: " << queueHead->issueCycle
                           << ". Current time: " << GetEventQueue()->GetCurrentCycle() << ". Type: " 
                           << queueHead->type << std::endl;
 

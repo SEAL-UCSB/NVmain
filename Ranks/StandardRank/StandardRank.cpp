@@ -759,13 +759,10 @@ bool StandardRank::IsIssuable( NVMainRequest *req, FailReason *reason )
                 return rv;
         }
     }
-    /*  Can't issue unknown operations. */
     else
     {
-        rv = false;
-
-        if( reason ) 
-            reason->reason = UNKNOWN_FAILURE;
+        /* Unknown command -- See if child module can handle it. */
+        rv = GetChild( req )->IsIssuable( req, reason );
     }
 
     return rv;

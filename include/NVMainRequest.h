@@ -59,7 +59,9 @@ enum OpType
     POWERUP,        /* PowerUp */
     REFRESH,        /* Refresh */
     BUS_READ,       /* Data bus read burst */
-    BUS_WRITE       /* Data bus write burst */ 
+    BUS_WRITE,      /* Data bus write burst */ 
+    CACHED_READ,    /* Check if read is cached anywhere in hierarchy. */
+    CACHED_WRITE    /* Check if write is cached anywhere in hierarchy. */
 };
 
 enum MemRequestStatus 

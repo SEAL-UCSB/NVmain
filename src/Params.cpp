@@ -143,6 +143,7 @@ Params::Params( )
     tPD = 6;
     tRAS = 24;
     tRCD = 9;
+    tRDB = 2;
     tREFW = 42666667;
     tRFC = 107;
     tRP = 9;
@@ -326,6 +327,7 @@ void Params::SetParams( Config *c )
     ConvertTiming( c, "tPD", tPD );
     ConvertTiming( c, "tRAS", tRAS );
     ConvertTiming( c, "tRCD", tRCD );
+    ConvertTiming( c, "tRDB", tRDB );
     ConvertTiming( c, "tREFW", tREFW );
     ConvertTiming( c, "tRFC", tRFC );
     ConvertTiming( c, "tRP", tRP );

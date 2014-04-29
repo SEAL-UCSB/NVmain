@@ -132,6 +132,7 @@ class MemoryController : public NVMObject
 
     bool *rankPowerDown;
 
+    NVMainRequest *MakeCachedRequest( NVMainRequest *triggerRequest );
     NVMainRequest *MakeActivateRequest( NVMainRequest *triggerRequest );
     NVMainRequest *MakeActivateRequest( const ncounter_t, const ncounter_t, 
                                         const ncounter_t, const ncounter_t, 
@@ -153,6 +154,7 @@ class MemoryController : public NVMObject
     NVMainRequest *MakePowerupRequest( const ncounter_t rank );
 
     bool FindStarvedRequest( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **starvedRequest );
+    bool FindCachedAddress( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **accessibleRequest );
     bool FindRowBufferHit( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **hitRequest );
     bool FindWriteStalledRead( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **hitRequest );
     bool FindOldestReadyRequest( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **oldestRequest );
@@ -162,10 +164,12 @@ class MemoryController : public NVMObject
     bool FindOldestReadyRequests( std::list<NVMainRequest *>& transactionQueue, std::vector<NVMainRequest *>& oldestRequests );
     bool FindClosedBankRequests( std::list<NVMainRequest *>& transactionQueue, std::vector<NVMainRequest *>& closedRequests );
 
+
     bool IssueMemoryCommands( NVMainRequest *req );
     void CycleCommandQueues( );
 
     bool FindStarvedRequest( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **starvedRequest, NVM::SchedulingPredicate& p );
+    bool FindCachedAddress( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **accessibleRequest, NVM::SchedulingPredicate& p );
     bool FindRowBufferHit( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **hitRequest, NVM::SchedulingPredicate& p );
     bool FindWriteStalledRead( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **hitRequest, NVM::SchedulingPredicate& p );
     bool FindOldestReadyRequest( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **oldestRequest, NVM::SchedulingPredicate& p );
@@ -174,6 +178,7 @@ class MemoryController : public NVMObject
     bool FindRowBufferHits( std::list<NVMainRequest *>& transactionQueue, std::vector<NVMainRequest *>& hitRequests, NVM::SchedulingPredicate& p  );
     bool FindOldestReadyRequests( std::list<NVMainRequest *>& transactionQueue, std::vector<NVMainRequest *>& oldestRequests, NVM::SchedulingPredicate& p  );
     bool FindClosedBankRequests( std::list<NVMainRequest *>& transactionQueue, std::vector<NVMainRequest *>& closedRequests, NVM::SchedulingPredicate& p  );
+
     /* IsLastRequest() tells whether no other request has the row buffer hit in the transaction queue */
     virtual bool IsLastRequest( std::list<NVMainRequest *>& transactionQueue, NVMainRequest *request); 
     /* curQueue records the starting index for queue round-robin level scheduling */
