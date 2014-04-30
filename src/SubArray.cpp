@@ -302,11 +302,11 @@ bool SubArray::Activate( NVMainRequest *request )
 
         subArrayEnergy += ( ( p->EIDD0 * (double)tRC ) 
                     - ( ( p->EIDD3N * (double)(p->tRAS) )
-                    +  ( p->EIDD2N * (double)(p->tRP) ) ) ) ;
+                    +  ( p->EIDD2N * (double)(p->tRP) ) ) ) / (double)(p->BANKS);
 
         activeEnergy += ( ( p->EIDD0 * (double)tRC ) 
                       - ( ( p->EIDD3N * (double)(p->tRAS) )
-                      +  ( p->EIDD2N * (double)(p->tRP) ) ) ) ;
+                      +  ( p->EIDD2N * (double)(p->tRP) ) ) ) / (double)(p->BANKS);
     }
     else
     {
@@ -421,9 +421,9 @@ bool SubArray::Read( NVMainRequest *request )
     if( p->EnergyModel == "current" )
     {
         /* DRAM Model */
-        subArrayEnergy += ( ( p->EIDD4R - p->EIDD3N ) * (double)(p->tBURST) );
+        subArrayEnergy += ( ( p->EIDD4R - p->EIDD3N ) * (double)(p->tBURST) ) / (double)(p->BANKS);
 
-        burstEnergy += ( ( p->EIDD4R - p->EIDD3N ) * (double)(p->tBURST) );
+        burstEnergy += ( ( p->EIDD4R - p->EIDD3N ) * (double)(p->tBURST) ) / (double)(p->BANKS);
     }
     else
     {
@@ -636,9 +636,9 @@ bool SubArray::Write( NVMainRequest *request )
     if( p->EnergyModel == "current" )
     {
         /* DRAM Model. */
-        subArrayEnergy += ( ( p->EIDD4W - p->EIDD3N ) * (double)(p->tBURST) );
+        subArrayEnergy += ( ( p->EIDD4W - p->EIDD3N ) * (double)(p->tBURST) ) / (double)(p->BANKS);
 
-        burstEnergy += ( ( p->EIDD4W - p->EIDD3N ) * (double)(p->tBURST) );
+        burstEnergy += ( ( p->EIDD4W - p->EIDD3N ) * (double)(p->tBURST) ) / (double)(p->BANKS);
     }
     else
     {
@@ -1144,9 +1144,6 @@ bool SubArray::IsIssuable( NVMainRequest *req, FailReason *reason )
     }
     else
     {
-        std::cout << "NVMain Warning: Command " << req->type << " unsupported in this memory system."
-                  << std::endl;
-
         /* 
          *  Assume subarray is the end-point for requests. If we haven't found this
          *  request yet, it is not supported.

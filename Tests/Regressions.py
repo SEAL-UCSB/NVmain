@@ -109,6 +109,7 @@ for trace in testdata["traces"]:
 
         if checkcounter == checkcount:
             print "[Passed %d/%d]" % (checkcounter, checkcount)
+            shutil.copyfile(options.tempfile, faillog)
         else:
             print "[Failed %d/%d]" % (checkcounter, checkcount)
             shutil.copyfile(options.tempfile, faillog)

@@ -49,7 +49,8 @@ StandardRank::StandardRank( )
 {
     activeCycles = 0;
     standbyCycles = 0;
-    fastExitCycles = 0;
+    fastExitActiveCycles = 0;
+    fastExitPrechargeCycles = 0;
     slowExitCycles = 0;
 
     totalEnergy = 0.0;
@@ -223,7 +224,8 @@ void StandardRank::RegisterStats( )
 
     AddStat(activeCycles);
     AddStat(standbyCycles);
-    AddStat(fastExitCycles);
+    AddStat(fastExitActiveCycles);
+    AddStat(fastExitPrechargeCycles);
     AddStat(slowExitCycles);
 
     AddStat(actWaits);
@@ -894,18 +896,18 @@ void StandardRank::Cycle( ncycle_t steps )
     {
         /* active powerdown */
         case STANDARDRANK_PDA:
-            fastExitCycles += steps;
+            fastExitActiveCycles += steps;
             if( p->EnergyModel == "current" )
-                backgroundEnergy += ( p->EIDD3P * (double)steps );  
+                backgroundEnergy += ( p->EIDD3P * (double)steps ) * (double)deviceCount;  
             else
                 backgroundEnergy += ( p->Epda * (double)steps );  
             break;
 
         /* precharge powerdown fast exit */
         case STANDARDRANK_PDPF:
-            fastExitCycles += steps;
+            fastExitPrechargeCycles += steps;
             if( p->EnergyModel == "current" )
-                backgroundEnergy += ( p->EIDD2P1 * (double)steps );  
+                backgroundEnergy += ( p->EIDD2P1 * (double)steps ) * (double)deviceCount;
             else 
                 backgroundEnergy += ( p->Epdpf * (double)steps );  
             break;
@@ -914,7 +916,7 @@ void StandardRank::Cycle( ncycle_t steps )
         case STANDARDRANK_PDPS:
             slowExitCycles += steps;
             if( p->EnergyModel == "current" )
-                backgroundEnergy += ( p->EIDD2P0 * (double)steps );  
+                backgroundEnergy += ( p->EIDD2P0 * (double)steps ) * (double)deviceCount;  
             else 
                 backgroundEnergy += ( p->Epdps * (double)steps );  
             break;
@@ -924,25 +926,25 @@ void StandardRank::Cycle( ncycle_t steps )
         case STANDARDRANK_OPEN:
             activeCycles += steps;
             if( p->EnergyModel == "current" )
-                backgroundEnergy += ( p->EIDD3N * (double)steps );  
+                backgroundEnergy += ( p->EIDD3N * (double)steps ) * (double)deviceCount;  
             else
-                backgroundEnergy += ( p->Eleak * (double)steps );  
+                backgroundEnergy += ( p->Eactstdby * (double)steps );  
             break;
 
         /* precharge standby */
         case STANDARDRANK_CLOSED:
             standbyCycles += steps;
             if( p->EnergyModel == "current" )
-                backgroundEnergy += ( p->EIDD2N * (double)steps );  
+                backgroundEnergy += ( p->EIDD2N * (double)steps ) * (double)deviceCount;  
             else
-                backgroundEnergy += ( p->Eleak * (double)steps );  
+                backgroundEnergy += ( p->Eprestdby * (double)steps );  
             break;
 
         default:
             if( p->EnergyModel == "current" )
-                backgroundEnergy += ( p->EIDD2N * (double)steps );  
+                backgroundEnergy += ( p->EIDD2N * (double)steps ) * (double)deviceCount;  
             else
-                backgroundEnergy += ( p->Eleak * (double)steps );  
+                backgroundEnergy += ( p->Eprestdby * (double)steps );  
             break;
     }
 }
@@ -968,28 +970,33 @@ void StandardRank::CalculateStats( )
         writes += banks[i]->GetWrites( );
     }
 
-    /* add up the background energy */
-    totalEnergy += backgroundEnergy;
-    backgroundEnergy = backgroundEnergy;
 
     /* Get simulation time in nanoseconds (ns). Since energy is in nJ, energy / ns = W */
-    double simulationTime = static_cast<double>(GetEventQueue()->GetCurrentCycle()) 
-                          * (1000.0 / static_cast<double>(p->CLK));
+    double simulationTime = 1.0;
+    
+    if( p->EnergyModel == "current" )
+    {
+        // TODO: Need to get number of cycles since last stat reset
+        simulationTime = GetEventQueue()->GetCurrentCycle();
+    }
+    else
+    {
+        simulationTime = static_cast<double>(GetEventQueue()->GetCurrentCycle()) 
+                       * (1000.0 / static_cast<double>(p->CLK));
+    }
 
     if( simulationTime != 0 )
     {
         /* power in W */
         if( p->EnergyModel == "current" )
         {
-            totalPower = ( totalEnergy * p->Voltage ) / (double)simulationTime / 1000.0;
-            backgroundPower = ( backgroundEnergy * p->Voltage ) / (double)simulationTime / 1000.0; 
+            backgroundPower = ( backgroundEnergy / (double)deviceCount * p->Voltage ) / (double)simulationTime / 1000.0; 
             activatePower = ( activateEnergy * p->Voltage ) / (double)simulationTime / 1000.0; 
             burstPower = ( burstEnergy * p->Voltage ) / (double)simulationTime / 1000.0; 
             refreshPower = ( refreshEnergy * p->Voltage ) / (double)simulationTime / 1000.0; 
         }
         else
         {
-            totalPower = totalEnergy / ((double)simulationTime);
             backgroundPower = backgroundEnergy / ((double)simulationTime);
             activatePower = activateEnergy / ((double)simulationTime);
             burstPower = burstEnergy / ((double)simulationTime);
@@ -1001,19 +1008,18 @@ void StandardRank::CalculateStats( )
     if( p->EnergyModel == "current" )
     {
         /* energy breakdown. device is in lockstep within a rank */
-        totalEnergy *= (double)deviceCount;
-        backgroundEnergy *= (double)deviceCount;
         activateEnergy *= (double)deviceCount;
         burstEnergy *= (double)deviceCount;
         refreshEnergy *= (double)deviceCount;
 
         /* power breakdown. device is in lockstep within a rank */
-        totalPower *= (double)deviceCount;
-        backgroundPower *= (double)deviceCount;
         activatePower *= (double)deviceCount;
         burstPower *= (double)deviceCount;
         refreshPower *= (double)deviceCount;
     }
+
+    totalEnergy = activateEnergy + burstEnergy + refreshEnergy + backgroundEnergy;
+    totalPower = activatePower + burstPower + refreshPower + backgroundPower;
 
     actWaitAverage = static_cast<double>(actWaitTotal) / static_cast<double>(actWaits);
     rrdWaitAverage = static_cast<double>(rrdWaitTotal) / static_cast<double>(rrdWaits);

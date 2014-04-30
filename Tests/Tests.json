@@ -13,11 +13,11 @@
             ]
         },
         { 
-            "name" : "2D_DRAM_example",
+            "name" : "2D_DRAM_example_current",
             "config" : "../Config/2D_DRAM_example.config",
             "desc" : "Make sure 2D_DRAM_example.config works",
             "cycles" : "0",
-            "overrides" : "IgnoreData=true",
+            "overrides" : "IgnoreData=true UseLowPower=false",
             "returncode" : 0,
             "checks" : [
                 "defaultMemory.channel0.FRFCFS capacity is 2048 MB.",
@@ -25,7 +25,31 @@
                 "i0.defaultMemory.channel0.FRFCFS.mem_reads 24834",
                 "i0.defaultMemory.channel0.FRFCFS.mem_writes 24140",
                 "i0.defaultMemory.channel1.FRFCFS.mem_reads 24842",
-                "i0.defaultMemory.channel1.FRFCFS.mem_writes 24135"
+                "i0.defaultMemory.channel1.FRFCFS.mem_writes 24135",
+                "i0.defaultMemory.channel0.FRFCFS.channel0.rank0.totalPower 0.200338W",
+                "i0.defaultMemory.channel0.FRFCFS.channel0.rank1.totalPower 0.19956W",
+                "i0.defaultMemory.channel1.FRFCFS.channel1.rank0.totalPower 0.200942W",
+                "i0.defaultMemory.channel1.FRFCFS.channel1.rank1.totalPower 0.199796W"
+            ]
+        },
+        { 
+            "name" : "2D_DRAM_example_energy",
+            "config" : "../Config/2D_DRAM_example.config",
+            "desc" : "Make sure 2D_DRAM_example.config works",
+            "cycles" : "0",
+            "overrides" : "IgnoreData=true UseLowPower=false EnergyModel=energy",
+            "returncode" : 0,
+            "checks" : [
+                "defaultMemory.channel0.FRFCFS capacity is 2048 MB.",
+                "defaultMemory.channel1.FRFCFS capacity is 2048 MB.",
+                "i0.defaultMemory.channel0.FRFCFS.mem_reads 24834",
+                "i0.defaultMemory.channel0.FRFCFS.mem_writes 24140",
+                "i0.defaultMemory.channel1.FRFCFS.mem_reads 24842",
+                "i0.defaultMemory.channel1.FRFCFS.mem_writes 24135",
+                "i0.defaultMemory.channel0.FRFCFS.channel0.rank0.totalPower 0.19862W",
+                "i0.defaultMemory.channel0.FRFCFS.channel0.rank1.totalPower 0.197845W",
+                "i0.defaultMemory.channel1.FRFCFS.channel1.rank0.totalPower 0.199224W",
+                "i0.defaultMemory.channel1.FRFCFS.channel1.rank1.totalPower 0.198082W"
             ]
         },
         { 
