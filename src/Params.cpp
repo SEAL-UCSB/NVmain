@@ -70,7 +70,8 @@ Params::Params( )
     Eopenrd = 1.081080;
     Ewr = 1.023750;
     Eref = 38.558533;
-    Eleak = 0.270665;
+    Eactstdby = 0.090090;
+    Eprestdby = 0.083333;
     // TODO: Update pda, pdpf, pdps
     Epda = 0.000000;
     Epdpf = 0.000000;
@@ -270,7 +271,8 @@ void Params::SetParams( Config *c )
     c->GetEnergy( "Erd", Erd );
     c->GetEnergy( "Eref", Eref );
     c->GetEnergy( "Ewr", Ewr );
-    c->GetEnergy( "Eleak", Eleak );
+    c->GetEnergy( "Eactstdby", Eactstdby );
+    c->GetEnergy( "Eprestdby", Eprestdby );
     c->GetEnergy( "Epda", Epda );
     c->GetEnergy( "Epdpf", Epdpf );
     c->GetEnergy( "Epdps", Epdps );

@@ -87,7 +87,8 @@ class Params
     double Erd;
     double Eref;
     double Ewr;
-    double Eleak;
+    double Eactstdby;
+    double Eprestdby;
     double Epda;
     double Epdpf;
     double Epdps;

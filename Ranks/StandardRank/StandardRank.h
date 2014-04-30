@@ -122,7 +122,8 @@ class StandardRank : public Rank
 
     ncounter_t activeCycles;
     ncounter_t standbyCycles;
-    ncounter_t fastExitCycles;
+    ncounter_t fastExitActiveCycles;
+    ncounter_t fastExitPrechargeCycles;
     ncounter_t slowExitCycles;
 
     ncounter_t rrdWaits;
