@@ -56,24 +56,31 @@ enum EventType { EventUnknown,
 class Event
 {
   public:
-    Event() : type(EventUnknown), recipient(NULL), request(NULL), data(NULL) {}
+    Event() : type(EventUnknown), recipient(NULL), request(NULL), data(NULL), priority(0) {}
     ~Event() {}
 
     void SetType( EventType e ) { type = e; }
+    void SetRecipient( NVMObject *r );
     void SetRecipient( NVMObject_hook *r ) { recipient = r; }
     void SetRequest( NVMainRequest *r ) { request = r; }
     void SetData( void *d ) { data = d; }
+    void SetCycle( ncycle_t c ) { cycle = c; }
+    void SetPriority( int p ) { priority = p; }
 
     EventType GetType( ) { return type; }
     NVMObject_hook *GetRecipient( ) { return recipient; }
     NVMainRequest *GetRequest( ) { return request; }
     void *GetData( ) { return data; }
+    ncycle_t GetCycle( ) { return cycle; }
+    int GetPriority( ) { return priority; }
 
  private:
     EventType type;              /* Type of event (which callback to invoke). */
     NVMObject_hook *recipient;   /* Who to callback. */
     NVMainRequest *request;      /* Request causing event. */
     void *data;                  /* Generic data to pass to callback. */
+    ncycle_t cycle;
+    int priority;
 };
 
 
@@ -83,11 +90,13 @@ class EventQueue
     EventQueue();
     ~EventQueue();
 
-    void InsertEvent( EventType type, NVMObject_hook *recipient, NVMainRequest *req, ncycle_t when );
-    void InsertEvent( EventType type, NVMObject *recipient, NVMainRequest *req, ncycle_t when );
-    void InsertEvent( EventType type, NVMObject_hook *recipient, ncycle_t when );
-    void InsertEvent( EventType type, NVMObject *recipient, ncycle_t when );
+    void InsertEvent( EventType type, NVMObject_hook *recipient, NVMainRequest *req, ncycle_t when, int priority = 0 );
+    void InsertEvent( EventType type, NVMObject *recipient, NVMainRequest *req, ncycle_t when, int priority = 0 );
+    void InsertEvent( EventType type, NVMObject_hook *recipient, ncycle_t when, int priority = 0 );
+    void InsertEvent( EventType type, NVMObject *recipient, ncycle_t when, int priority = 0 );
     void InsertEvent( Event *event, ncycle_t when );
+    Event *FindEvent( EventType type, NVMObject *recipient, NVMainRequest *req, ncycle_t when );
+    Event *FindEvent( EventType type, NVMObject_hook *recipient, NVMainRequest *req, ncycle_t when );
     bool RemoveEvent( Event *event, ncycle_t when );
     void Process( );
     void Loop( );
