@@ -42,28 +42,3 @@ bool Rank::Idle( )
     return true;
 }
 
-ncycle_t Rank::GetNextActivate( uint64_t /*bank*/ )
-{
-    return 0;
-}
-
-ncycle_t Rank::GetNextRead( uint64_t /*bank*/ )
-{
-    return 0;
-}
-
-ncycle_t Rank::GetNextWrite( uint64_t /*bank*/ )
-{
-    return 0;
-}
-
-ncycle_t Rank::GetNextPrecharge( uint64_t /*bank*/ )
-{
-    return 0;
-}
-
-ncycle_t Rank::GetNextRefresh( uint64_t /*bank*/ )
-{
-    return 0;
-}
-

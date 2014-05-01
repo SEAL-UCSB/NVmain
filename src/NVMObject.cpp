@@ -135,6 +135,11 @@ bool NVMObject_hook::IssueFunctional( NVMainRequest *req )
     return rv;
 }
 
+ncycle_t NVMObject_hook::NextIssuable( NVMainRequest *req )
+{
+    return trampoline->NextIssuable( req );
+}
+
 bool NVMObject_hook::RequestComplete( NVMainRequest *req )
 {
     bool rv;
@@ -254,6 +259,12 @@ bool NVMObject::IssueCommand( NVMainRequest * )
 bool NVMObject::IsIssuable( NVMainRequest *, FailReason * )
 {
     return true;
+}
+
+ncycle_t NVMObject::NextIssuable( NVMainRequest *req )
+{
+    /* Assume module has no timing constraints, simply ask child module. */
+    return GetChild( req )->NextIssuable( req );
 }
 
 bool NVMObject::RequestComplete( NVMainRequest *request )
@@ -558,3 +569,9 @@ ncycle_t NVMObject::MAX( const ncycle_t a, const ncycle_t b )
 {
     return (( a > b ) ? a : b );
 }
+
+ncycle_t NVMObject::MIN( const ncycle_t a, const ncycle_t b )
+{
+    return (( a < b ) ? a : b );
+}
+

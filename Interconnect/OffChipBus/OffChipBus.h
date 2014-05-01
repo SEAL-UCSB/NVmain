@@ -53,12 +53,6 @@ class OffChipBus : public Interconnect
     bool IsIssuable( NVMainRequest *req, FailReason *reason = NULL );
     bool RequestComplete( NVMainRequest *request );
 
-    ncycle_t GetNextActivate( ncounter_t rank, ncounter_t bank );
-    ncycle_t GetNextRead( ncounter_t rank, ncounter_t bank );
-    ncycle_t GetNextWrite( ncounter_t rank, ncounter_t bank );
-    ncycle_t GetNextPrecharge( ncounter_t rank, ncounter_t bank );
-    ncycle_t GetNextRefresh( ncounter_t rank, ncounter_t bank );
-
     void CalculateStats( );
 
     void Cycle( ncycle_t steps );

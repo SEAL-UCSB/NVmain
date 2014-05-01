@@ -81,12 +81,6 @@ class Rank : public NVMObject
 
     virtual bool Idle( );
 
-    virtual ncycle_t GetNextActivate( uint64_t bank );
-    virtual ncycle_t GetNextRead( uint64_t bank );
-    virtual ncycle_t GetNextWrite( uint64_t bank );
-    virtual ncycle_t GetNextPrecharge( uint64_t bank );
-    virtual ncycle_t GetNextRefresh( uint64_t bank );
-
 };
 
 };

@@ -83,16 +83,11 @@ class StandardRank : public Rank
     bool IsIssuable( NVMainRequest *mop, FailReason *reason = NULL );
     void Notify( OpType op );
     bool RequestComplete( NVMainRequest* );
+    ncycle_t NextIssuable( NVMainRequest *request );
 
     void SetName( std::string name );
 
     bool Idle( );
-
-    ncycle_t GetNextActivate( uint64_t bank );
-    ncycle_t GetNextRead( uint64_t bank );
-    ncycle_t GetNextWrite( uint64_t bank );
-    ncycle_t GetNextPrecharge( uint64_t bank );
-    ncycle_t GetNextRefresh( uint64_t bank );
 
     void Cycle( ncycle_t steps );
 
@@ -150,6 +145,7 @@ class StandardRank : public Rank
     bool PowerUp( NVMainRequest *request );
     bool CanPowerDown( NVMainRequest *request );
     bool CanPowerUp( NVMainRequest *request );
+
     Params *p;
 };
 

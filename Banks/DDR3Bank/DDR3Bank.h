@@ -84,6 +84,7 @@ class DDR3Bank : public Bank
     virtual bool WouldConflict( uint64_t checkRow, uint64_t checkSA );
     virtual bool IsIssuable( NVMainRequest *req, FailReason *reason = NULL );
     virtual bool IssueCommand( NVMainRequest *req );
+    virtual ncycle_t NextIssuable( NVMainRequest *request );
 
     virtual void SetConfig( Config *c, bool createChildren = true );
     virtual void SetParams( Params *params ) { p = params; }
@@ -98,12 +99,6 @@ class DDR3Bank : public Bank
     virtual ncounter_t GetReads( ) { return reads; }
     virtual ncounter_t GetWrites( ) { return writes; }
 
-    virtual ncycle_t GetNextActivate( ) { return nextActivate; }
-    virtual ncycle_t GetNextRead( ) { return nextRead; }
-    virtual ncycle_t GetNextWrite( ) { return nextWrite; }
-    virtual ncycle_t GetNextPrecharge( ) { return nextPrecharge; }
-    virtual ncycle_t GetNextRefresh( ) { return nextRefresh; }
-    virtual ncycle_t GetNextPowerDown( ) { return nextPowerDown; }
     virtual uint64_t GetOpenRow( ) { return openRow; }
     virtual std::deque<ncounter_t>& GetOpenSubArray( ) { return activeSubArrayQueue; }
 

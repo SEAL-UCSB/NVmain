@@ -1686,6 +1686,32 @@ ncounter_t MemoryController::GetCommandQueueId( NVMAddress addr )
     return queueId;
 }
 
+ncycle_t MemoryController::NextIssuable( NVMainRequest * /*request*/ )
+{
+    /* Determine the next time we need to wakeup. */
+    ncycle_t nextWakeup = std::numeric_limits<ncycle_t>::max( );
+
+    /* Check for memory commands to issue. */
+    for( ncounter_t queueIdx = 0; queueIdx < commandQueueCount; queueIdx++ )
+    {
+        if( commandQueues[queueIdx].empty( ) )
+            continue;
+
+        NVMainRequest *queueHead = commandQueues[queueIdx].at( 0 );
+
+        //std::cout << "0x" << std::hex << queueHead->address.GetPhysicalAddress( )
+        //          << " issuable at " << std::dec 
+        //          << GetChild( )->NextIssuable( queueHead ) << std::endl;
+
+        nextWakeup = MIN( nextWakeup, GetChild( )->NextIssuable( queueHead ) );
+    }
+
+    if( nextWakeup <= GetEventQueue( )->GetCurrentCycle( ) )
+        nextWakeup = GetEventQueue( )->GetCurrentCycle( ) + 1;
+
+    return nextWakeup;
+}
+
 /*
  * RankQueueEmpty() check all command queues in the given rank to see whether
  * they are empty, return true if all queues are empty
