@@ -60,8 +60,11 @@ class FRFCFS_WQF : public MemoryController
 
   private:
     /* separate read/write queue */
-    NVMTransactionQueue readQueue;
-    NVMTransactionQueue writeQueue;
+    NVMTransactionQueue *readQueue;
+    NVMTransactionQueue *writeQueue;
+
+    const int readQueueId;
+    const int writeQueueId;
 
     /* Cached Configuration Variables*/
     uint64_t writeQueueSize;

@@ -118,6 +118,7 @@ class MemoryController : public NVMObject
     std::list<NVMainRequest *> *transactionQueues;
     std::deque<NVMainRequest *> *commandQueues;
     ncounter_t commandQueueCount;
+    ncounter_t transactionQueueCount;
     QueueModel queueModel;
 
     ncounter_t GetCommandQueueId( NVMAddress addr );
@@ -131,6 +132,9 @@ class MemoryController : public NVMObject
     ncounter_t subArrayNum;
 
     bool *rankPowerDown;
+
+    void Prequeue( ncounter_t queueNum, NVMainRequest *request );
+    void Enqueue( ncounter_t queueNum, NVMainRequest *request );
 
     NVMainRequest *MakeCachedRequest( NVMainRequest *triggerRequest );
     NVMainRequest *MakeActivateRequest( NVMainRequest *triggerRequest );

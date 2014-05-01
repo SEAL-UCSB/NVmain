@@ -247,7 +247,7 @@ bool LO_Cache::IssueCommand( NVMainRequest *req )
     }
     else
     {
-        drcQueue->push_back( req );
+        Enqueue( 0, req );
     }
     
     //std::cout << "LOC: New request for 0x" << std::hex << req->address.GetPhysicalAddress() << std::dec << std::endl;

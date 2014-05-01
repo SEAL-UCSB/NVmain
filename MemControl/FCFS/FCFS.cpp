@@ -158,7 +158,7 @@ bool FCFS::IssueCommand( NVMainRequest *request )
     else
         mem_writes++;
 
-    transactionQueues[0].push_back( request );
+    Enqueue( 0, request );
 
     /*
      * Return whether the request could be queued. Return false if the queue is full.
