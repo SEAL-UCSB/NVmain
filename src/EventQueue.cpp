@@ -39,6 +39,26 @@
 
 using namespace NVM;
 
+void Event::SetRecipient( NVMObject *r )
+{
+    std::vector<NVMObject_hook *>& children = r->GetParent( )->GetTrampoline( )->GetChildren( );
+    std::vector<NVMObject_hook *>::iterator it;
+    NVMObject_hook *hook = NULL;
+
+    for( it = children.begin(); it != children.end(); it++ )
+    {
+        if( (*it)->GetTrampoline() == r )
+        {
+            hook = (*it);
+            break;
+        }
+    }
+
+    assert( hook != NULL );
+
+    recipient = hook;
+}
+
 EventQueue::EventQueue( )
 {
     eventMap.clear( );
@@ -51,7 +71,7 @@ EventQueue::~EventQueue( )
 {
 }
 
-void EventQueue::InsertEvent( EventType type, NVMObject *recipient, ncycle_t when )
+void EventQueue::InsertEvent( EventType type, NVMObject *recipient, ncycle_t when, int priority )
 {
     /* The parent has our hook in the children list, we need to find this. */
     std::vector<NVMObject_hook *>& children = recipient->GetParent( )->GetTrampoline( )->GetChildren( );
@@ -69,15 +89,15 @@ void EventQueue::InsertEvent( EventType type, NVMObject *recipient, ncycle_t whe
 
     assert( hook != NULL );
 
-    InsertEvent( type, hook, NULL, when );
+    InsertEvent( type, hook, NULL, when, priority );
 }
 
-void EventQueue::InsertEvent( EventType type, NVMObject_hook *recipient, ncycle_t when )
+void EventQueue::InsertEvent( EventType type, NVMObject_hook *recipient, ncycle_t when, int priority )
 {
-    InsertEvent( type, recipient, NULL, when );
+    InsertEvent( type, recipient, NULL, when, priority );
 }
 
-void EventQueue::InsertEvent( EventType type, NVMObject *recipient, NVMainRequest *req, ncycle_t when )
+void EventQueue::InsertEvent( EventType type, NVMObject *recipient, NVMainRequest *req, ncycle_t when, int priority )
 {
     /* The parent has our hook in the children list, we need to find this. */
     std::vector<NVMObject_hook *>& children = recipient->GetParent( )->GetTrampoline( )->GetChildren( );
@@ -95,10 +115,10 @@ void EventQueue::InsertEvent( EventType type, NVMObject *recipient, NVMainReques
 
     assert( hook != NULL );
 
-    InsertEvent( type, hook, req, when );
+    InsertEvent( type, hook, req, when, priority );
 }
 
-void EventQueue::InsertEvent( EventType type, NVMObject_hook *recipient, NVMainRequest *req, ncycle_t when )
+void EventQueue::InsertEvent( EventType type, NVMObject_hook *recipient, NVMainRequest *req, ncycle_t when, int priority )
 {
     /* Create our event */
     Event *event = new Event( );
@@ -106,6 +126,7 @@ void EventQueue::InsertEvent( EventType type, NVMObject_hook *recipient, NVMainR
     event->SetType( type );
     event->SetRecipient( recipient );
     event->SetRequest( req );
+    event->SetCycle( when );
 
     /* If this event time is before our previous nextEventCycle, change it. */
     if( when < nextEventCycle )
@@ -127,12 +148,30 @@ void EventQueue::InsertEvent( EventType type, NVMObject_hook *recipient, NVMainR
     {
         EventList& eventList = eventMap[when];
 
-        eventList.push_back( event );
+        EventList::iterator it;
+        bool inserted = false;
+
+        for( it = eventList.begin(); it != eventList.end(); it++ )
+        {
+            if( (*it)->GetPriority( ) > priority )
+            {
+                eventList.insert( it, event );
+                inserted = true;
+                break;
+            }
+        }
+
+        if( !inserted )
+        {
+            eventList.push_back( event );
+        }
     }
 }
 
 void EventQueue::InsertEvent( Event *event, ncycle_t when )
 {
+    event->SetCycle( when );
+
     /* If this event time is before our previous nextEventCycle, change it. */
     if( when < nextEventCycle )
     {
@@ -185,6 +224,47 @@ bool EventQueue::RemoveEvent( Event *event, ncycle_t when )
 
                 break;
             }
+        }
+    }
+
+    return rv;
+}
+
+
+Event *EventQueue::FindEvent( EventType type, NVMObject *recipient, NVMainRequest *req, ncycle_t when )
+{
+    /* The parent has our hook in the children list, we need to find this. */
+    std::vector<NVMObject_hook *>& children = recipient->GetParent( )->GetTrampoline( )->GetChildren( );
+    std::vector<NVMObject_hook *>::iterator it;
+    NVMObject_hook *hook = NULL;
+
+    for( it = children.begin(); it != children.end(); it++ )
+    {
+        if( (*it)->GetTrampoline() == recipient )
+        {
+            hook = (*it);
+            break;
+        }
+    }
+
+    assert( hook != NULL );
+
+    return FindEvent( type, hook, req, when );
+}
+
+
+Event *EventQueue::FindEvent( EventType type, NVMObject_hook *recipient, NVMainRequest *req, ncycle_t when )
+{
+    Event *rv = NULL;
+    EventList& eventList = eventMap[when];
+
+    EventList::iterator it;
+    for( it = eventList.begin(); it != eventList.end(); it++ )
+    {
+        if( (*it)->GetType( ) == type && (*it)->GetRecipient( ) == recipient
+            && (*it)->GetRequest( ) == req )
+        {
+            rv = (*it);
         }
     }
 
