@@ -64,6 +64,8 @@ class Params
 
     void SetParams( Config *c );
 
+    bool EventDriven;
+
     ncounter_t BPC;
     ncounter_t BusWidth;
     ncounter_t DeviceWidth;

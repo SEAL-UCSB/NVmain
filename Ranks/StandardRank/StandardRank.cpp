@@ -618,9 +618,9 @@ ncycle_t StandardRank::NextIssuable( NVMainRequest *request )
     request->address.GetTranslatedAddress( NULL, NULL, &bank, NULL, NULL, NULL );
 
     if( request->type == ACTIVATE ) nextCompare = MAX( nextActivate, lastActivate[(RAWindex+1)%rawNum] + p->tRAW );
-    else if( request->type == READ ) nextCompare = nextRead;
-    else if( request->type == WRITE ) nextCompare = nextWrite;
-    else if( request->type == PRECHARGE ) nextCompare = nextPrecharge;
+    else if( request->type == READ || request->type == READ_PRECHARGE ) nextCompare = nextRead;
+    else if( request->type == WRITE || request->type == WRITE_PRECHARGE ) nextCompare = nextWrite;
+    else if( request->type == PRECHARGE || request->type == PRECHARGE_ALL ) nextCompare = nextPrecharge;
     else assert(false);
         
     return MAX(GetChild( request )->NextIssuable( request ), nextCompare );

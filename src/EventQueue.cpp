@@ -33,6 +33,8 @@
 
 #include "src/EventQueue.h"
 #include "src/NVMObject.h"
+#include "src/Config.h"
+#include "NVM/nvmain.h"
 
 #include <limits>
 #include <assert.h>
@@ -287,6 +289,37 @@ void EventQueue::Loop( )
 }
 
 
+void EventQueue::Loop( ncycle_t steps )
+{
+    /* Special case. */
+    if( steps == 0 && nextEventCycle == currentCycle )
+    {
+        Process( );
+        return;
+    }
+
+    ncycle_t stepCycles = steps;
+
+    while( stepCycles > 0 )
+    {
+        /* No events in this step amount, just change current cycle. */
+        if( nextEventCycle > currentCycle + stepCycles )
+        {
+            currentCycle += stepCycles;
+            break;
+        }
+
+        ncycle_t currentSteps = nextEventCycle - currentCycle;
+
+        currentCycle += currentSteps;
+        stepCycles -= currentSteps;
+
+        /* Process will update nextEventCycle for the next loop iteration. */
+        Process( );
+    }
+}
+
+
 void EventQueue::Process( )
 {
     /* Process all the events at the next cycle, and figure out the next next cycle. */
@@ -344,6 +377,16 @@ void EventQueue::Process( )
     }
 }
 
+void EventQueue::SetFrequency( double freq )
+{
+    frequency = freq;
+}
+
+double EventQueue::GetFrequency( )
+{
+    return frequency;
+}
+
 ncycle_t EventQueue::GetNextEvent( )
 {
     return nextEventCycle;
@@ -353,3 +396,158 @@ ncycle_t EventQueue::GetCurrentCycle( )
 {
     return currentCycle;
 }
+
+void EventQueue::SetCurrentCycle( ncycle_t curCycle )
+{
+    currentCycle = curCycle;
+}
+
+
+GlobalEventQueue::GlobalEventQueue( )
+{
+    currentCycle = 0;
+    eventDriven = false;
+}
+
+GlobalEventQueue::~GlobalEventQueue( )
+{
+
+}
+
+void GlobalEventQueue::AddSystem( NVMain *subSystem, Config *config )
+{
+    double subSystemFrequency = config->GetEnergy( "CLK" ) * 1000000.0;
+    EventQueue *queue = subSystem->GetEventQueue( );
+    bool eventDrivenSub = config->GetBool( "EventDriven" );
+
+    /* First subsystem decides if the entire system is event driven or not. */
+    if( eventQueues.empty( ) )
+        eventDriven = eventDrivenSub;
+
+    if( eventDrivenSub != eventDriven )
+    {
+        std::cout << "NVMain: Warning: Subsystem setting of event driven does not match parent!"
+                  << std::endl;
+
+        if( eventDriven )
+        {
+            std::cout << "                 Forcing subsystem to be event driven." << std::endl;
+            config->SetBool( "EventDriven", true );
+        }
+        else
+        {
+            std::cout << "                 Forcing subsystem to be execution driven." << std::endl;
+            config->SetBool( "EventDriven", false );
+        }
+    }
+
+    assert( subSystemFrequency <= frequency );
+
+    /* 
+     *  The CLK value in the config file is the frequency this subsystem should run at.
+     *  We aren't doing and checks here to make sure the input side (i.e. CPUFreq) is
+     *  corrent since we don't know what it should be.
+     */
+    eventQueues.insert( std::pair<EventQueue*, double>(queue, subSystemFrequency) );
+    queue->SetFrequency( subSystemFrequency );
+
+    std::cout << "NVMain: GlobalEventQueue: Added a memory subsystem running at "
+              << config->GetEnergy( "CLK" ) << "MHz. My frequency is "
+              << (frequency / 1000000.0) << "MHz." << std::endl;
+}
+
+void GlobalEventQueue::Cycle( ncycle_t steps )
+{
+    EventQueue *nextEventQueue;
+    ncycle_t iterationSteps = 0;
+
+    while( iterationSteps < steps )
+    {
+        ncycle_t nextEvent = GetNextEvent( &nextEventQueue );
+
+        ncycle_t globalQueueSteps = 0;
+        if( nextEvent > currentCycle )
+        {
+            globalQueueSteps = nextEvent - currentCycle;
+        }
+
+        /* Next event occurs after the current number of steps. */
+        if( globalQueueSteps > steps )
+        {
+            currentCycle += steps;
+            Sync( );
+            break;
+        }
+
+        ncycle_t localQueueSteps = nextEventQueue->GetNextEvent( ) - nextEventQueue->GetCurrentCycle( );
+        nextEventQueue->Loop( localQueueSteps );
+
+        //std::cout << "Looping eventQueue " << (void*)(nextEventQueue) << " by " << localQueueSteps << std::endl;
+
+        currentCycle += globalQueueSteps;
+        iterationSteps += globalQueueSteps;
+
+        //std::cout << "Cycled " << globalQueueSteps << " steps to " << currentCycle << std::endl;
+
+        Sync( );
+    }
+}
+
+/* Set frequency of global event queue in Hz. */
+void GlobalEventQueue::SetFrequency( double freq )
+{
+    frequency = freq;
+}
+
+double GlobalEventQueue::GetFrequency( )
+{
+    return frequency;
+}
+
+ncycle_t GlobalEventQueue::GetNextEvent( EventQueue **eq )
+{
+    std::map<EventQueue *, double>::const_iterator iter;
+    ncycle_t nextEventCycle = std::numeric_limits<ncycle_t>::max( );
+
+    if( eq != NULL )
+        *eq = NULL;
+
+    for( iter = eventQueues.begin( ); iter != eventQueues.end( ); iter++ )
+    {
+        double frequencyMultiplier = frequency / iter->second;
+        double globalEventCycle = iter->first->GetNextEvent( ) * frequencyMultiplier;
+
+        if( static_cast<ncycle_t>(globalEventCycle) < nextEventCycle )
+        {
+            nextEventCycle = static_cast<ncycle_t>(globalEventCycle);
+            if( eq != NULL )
+                *eq = iter->first;
+        }
+    }
+
+    return nextEventCycle;
+}
+
+ncycle_t GlobalEventQueue::GetCurrentCycle( )
+{
+    return currentCycle;
+}
+
+void GlobalEventQueue::Sync( )
+{
+    std::map<EventQueue *, double>::const_iterator iter;
+    for( iter = eventQueues.begin( ); iter != eventQueues.end( ); iter++ )
+    {
+        double frequencyMultiplier = frequency / iter->second;
+        double setCycle = static_cast<double>(currentCycle) / frequencyMultiplier;
+        ncycle_t stepCount = static_cast<ncycle_t>(setCycle) - iter->first->GetCurrentCycle( );
+
+        if( static_cast<ncycle_t>(setCycle) > iter->first->GetCurrentCycle( ) )
+        {
+            //std::cout << "Stepping eventQueue " << (void*)(iter->first) << " by " << stepCount << std::endl;
+            iter->first->Loop( stepCount );
+        }
+    }
+}
+
+

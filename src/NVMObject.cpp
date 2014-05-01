@@ -311,12 +311,23 @@ EventQueue *NVMObject::GetEventQueue( )
     return eventQueue;
 }
 
+void NVMObject::SetGlobalEventQueue( GlobalEventQueue *geq )
+{
+    globalEventQueue = geq;
+}
+
+GlobalEventQueue *NVMObject::GetGlobalEventQueue( )
+{
+    return globalEventQueue;
+}
+
 void NVMObject::SetParent( NVMObject *p )
 {
     NVMObject_hook *hook = new NVMObject_hook( p );
 
     parent = hook;
     SetEventQueue( p->GetEventQueue( ) );
+    SetGlobalEventQueue( p->GetGlobalEventQueue( ) );
     SetStats( p->GetStats( ) );
     SetTagGenerator( p->GetTagGenerator( ) );
 }

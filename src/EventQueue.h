@@ -43,6 +43,8 @@ namespace NVM {
 
 class Event;
 class NVMObject_hook;
+class Config;
+class NVMain;
 typedef std::list<Event *> EventList;
 
 enum EventType { EventUnknown,
@@ -100,16 +102,49 @@ class EventQueue
     bool RemoveEvent( Event *event, ncycle_t when );
     void Process( );
     void Loop( );
+    void Loop( ncycle_t steps );
+
+    void SetFrequency( double freq );
+    double GetFrequency( );
 
     ncycle_t GetNextEvent( );
     ncycle_t GetCurrentCycle( );
+    void SetCurrentCycle( ncycle_t curCycle );
 
   private:
     ncycle_t nextEventCycle;
     ncycle_t lastEventCycle;
     ncycle_t currentCycle; 
+    double frequency;
 
     std::map< ncycle_t, EventList> eventMap; 
+};
+
+
+class GlobalEventQueue
+{
+  public:
+    GlobalEventQueue();
+    ~GlobalEventQueue();
+
+    void AddSystem( NVMain *subSystem, Config *config );
+    void Cycle( ncycle_t steps );
+
+    void SetFrequency( double freq );
+    double GetFrequency( );
+
+    ncycle_t GetNextEvent( EventQueue **eq = NULL );
+    ncycle_t GetCurrentCycle( );
+
+  private:
+    ncycle_t currentCycle;
+    double frequency;
+    bool eventDriven;
+
+    std::map<EventQueue *, double> eventQueues;
+
+    void Sync( );
+
 };
 
 };

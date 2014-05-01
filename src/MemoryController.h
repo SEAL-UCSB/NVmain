@@ -55,6 +55,17 @@ namespace NVM {
 enum ProcessorOp { LOAD, STORE };
 enum QueueModel { PerRankQueues, PerBankQueues, PerSubArrayQueues };
 
+/*
+ *  If the transaction queue has higher priority, it is possible for a
+ *  transaction to be inserted into the command queue AND issued in the
+ *  same clock cycle. 
+ *
+ *  By default, the transaction queue has *lower* priority to more closely
+ *  model the execution driven order.
+ */
+const int transactionQueuePriority = 1;
+const int commandQueuePriority = -1;
+
 class SchedulingPredicate
 {
   public:
@@ -101,6 +112,7 @@ class MemoryController : public NVMObject
     virtual void RegisterStats( );
     virtual void CalculateStats( );
 
+    virtual void Callback( void *data );
     virtual void Cycle( ncycle_t steps ); 
 
     virtual void SetConfig( Config *conf, bool createChildren = true );
@@ -115,6 +127,9 @@ class MemoryController : public NVMObject
     Interconnect *memory;
     Config *config;
     ncounter_t psInterval;
+    ncycle_t lastCommandWake;
+    bool commandWakeScheduled;
+    ncounter_t wakeupCount;
 
     std::list<NVMainRequest *> *transactionQueues;
     std::deque<NVMainRequest *> *commandQueues;
@@ -134,6 +149,8 @@ class MemoryController : public NVMObject
 
     bool *rankPowerDown;
 
+    bool TransactionAvailable( ncounter_t queueId );
+    void ScheduleCommandWake( );
     void Prequeue( ncounter_t queueNum, NVMainRequest *request );
     void Enqueue( ncounter_t queueNum, NVMainRequest *request );
 
