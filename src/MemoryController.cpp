@@ -56,6 +56,10 @@ MemoryController::MemoryController( )
     commandQueues = NULL;
     commandQueueCount = 0;
 
+    lastCommandWake = 0;
+    commandWakeScheduled = false;
+    wakeupCount = 0;
+
     starvationThreshold = 4;
     subArrayNum = 1;
     starvationCounter = NULL;
@@ -126,7 +130,44 @@ void MemoryController::InitQueues( unsigned int numQueues )
 
 void MemoryController::Cycle( ncycle_t steps )
 {
-    GetChild( )->Cycle( steps );
+    if( p->EventDriven )
+    {
+        /* 
+         *  Recheck transaction queues for issuables. This may happen when two
+         *  transactions can be issued in the same cycle, but we can't guarantee
+         *  the transaction won't be blocked by the first wake up.
+         */
+        bool scheduled = false;
+        ncycle_t nextWakeup = GetEventQueue( )->GetCurrentCycle( ) + 1;
+
+        /* Skip this if another transaction is scheduled this cycle. */
+        if( GetEventQueue( )->FindEvent( EventCycle, this, NULL, nextWakeup ) )
+            return;
+
+        for( ncounter_t queueIdx = 0; queueIdx < commandQueueCount; queueIdx++ )
+        {
+            if( commandQueues[queueIdx].empty( )
+                && TransactionAvailable( queueIdx ) )
+            {
+                GetEventQueue( )->InsertEvent( EventCycle, this, nextWakeup, transactionQueuePriority );
+
+                //std::cout << "CY Scheduled transaction queue wakeup at " << nextWakeup << std::endl;
+
+                /* Only allow one request. */
+                scheduled = true;
+                break;
+            }
+
+            if( scheduled ) 
+            {
+                break;
+            }
+        }
+    }
+    else
+    {
+        GetChild( )->Cycle( steps );
+    }
 }
 
 void MemoryController::Prequeue( ncounter_t queueNum, NVMainRequest *request )
@@ -141,6 +182,88 @@ void MemoryController::Enqueue( ncounter_t queueNum, NVMainRequest *request )
     assert( queueNum < transactionQueueCount );
 
     transactionQueues[queueNum].push_back( request );
+    
+    if( p->EventDriven )
+    {
+        /* If this command queue is empty, we can schedule a new transaction right away. */
+        ncounter_t queueId = GetCommandQueueId( request->address );
+
+        if( commandQueues[queueId].empty( ) )
+        {
+            ncycle_t nextWakeup = GetEventQueue( )->GetCurrentCycle( );
+
+            if( GetEventQueue( )->FindEvent( EventCycle, this, NULL, nextWakeup ) == NULL )
+            {
+                GetEventQueue( )->InsertEvent( EventCycle, this, nextWakeup, transactionQueuePriority );
+
+                //std::cout << "Waking up transaction scheduler at " << nextWakeup << std::endl;
+            }
+        }
+    }
+}
+
+bool MemoryController::TransactionAvailable( ncounter_t queueId )
+{
+    bool rv = false; 
+
+    for( ncounter_t queueIdx = 0; queueIdx < transactionQueueCount; queueIdx++ )
+    {
+        std::list<NVMainRequest *>::iterator it;
+
+        for( it = transactionQueues[queueIdx].begin( );
+             it != transactionQueues[queueIdx].end( ); it++ )
+        {
+            if( GetCommandQueueId( (*it)->address ) == queueId )
+            {
+                rv = true;
+                break;
+            }
+        }
+    }
+
+    return rv;
+}
+
+void MemoryController::ScheduleCommandWake( )
+{
+    /* Schedule wake event for memory commands if not scheduled. */
+    if( p->EventDriven && commandWakeScheduled == false )
+    {
+        ncycle_t nextWakeup = NextIssuable( NULL );
+
+        GetEventQueue( )->InsertEvent( EventCallback, this, nextWakeup, commandQueuePriority );
+        commandWakeScheduled = true;
+
+        //std::cout << "SCW Scheduled command queue wakeup at " << nextWakeup << std::endl;
+    }
+}
+
+void MemoryController::Callback( void * /*data*/ )
+{
+    assert( p->EventDriven == true );
+
+    /* Determine time since last wakeup. */
+    ncycle_t realSteps = GetEventQueue( )->GetCurrentCycle( ) - lastCommandWake;
+    lastCommandWake = GetEventQueue( )->GetCurrentCycle( );
+
+    /* Schedule next wake up. */
+    ncycle_t nextWakeup = NextIssuable( NULL );
+    wakeupCount++;
+
+    if( nextWakeup != std::numeric_limits<ncycle_t>::max( ) )
+    {
+        GetEventQueue( )->InsertEvent( EventCallback, this, nextWakeup, commandQueuePriority );
+
+        //std::cout << "CB Scheduled command queue wakeup at " << nextWakeup << std::endl;
+    }
+    else
+    {
+        commandWakeScheduled = false;
+    }
+
+    CycleCommandQueues( );
+
+    GetChild( )->Cycle( realSteps );
 }
 
 bool MemoryController::RequestComplete( NVMainRequest *request )
@@ -360,6 +483,7 @@ void MemoryController::SetConfig( Config *conf, bool createChildren )
 void MemoryController::RegisterStats( )
 {
     AddStat(simulation_cycles);
+    AddStat(wakeupCount);
 }
 
 /* 
@@ -465,6 +589,8 @@ bool MemoryController::HandleRefresh( )
                             // subarrays -- We will need a different command for precharging all banks
                             commandQueues[queueId].push_back( 
                                     MakePrechargeAllRequest( 0, 0, refBank, i, 0 ) );
+
+                            ScheduleCommandWake( );
 
                             /* clear all active subarrays */
                             for( ncounter_t sa = 0; sa < subArrayNum; sa++ )
@@ -839,7 +965,9 @@ bool MemoryController::IsLastRequest( std::list<NVMainRequest *>& transactionQue
     bool rv = true;
     
     if( p->ClosePage == 0 )
+    {
         rv = false;
+    }
     else if( p->ClosePage == 1 )
     {
         ncounter_t mRank, mBank, mRow, mSubArray;
@@ -1574,13 +1702,21 @@ bool MemoryController::IssueMemoryCommands( NVMainRequest *req )
         rv = false;
     }
 
+    /* Schedule wake event for memory commands if not scheduled. */
+    if( rv == true && commandWakeScheduled == false )
+    {
+        ScheduleCommandWake( );
+    }
+
     return rv;
 }
 
 void MemoryController::CycleCommandQueues( )
 {
     if( p->UseLowPower )
+    {
         HandleLowPower( );
+    }
 
     /* First of all, see whether we can issue a necessary refresh */
     if( p->UseRefresh ) 
@@ -1609,6 +1745,20 @@ void MemoryController::CycleCommandQueues( )
             GetChild( )->IssueCommand( commandQueues[queueId].at( 0 ) );
 
             commandQueues[queueId].erase( commandQueues[queueId].begin( ) );
+
+            /* If the bank queue is empty, we can issue another transaction, so wakeup the system. */
+            if( p->EventDriven && commandQueues[queueId].empty( ) )
+            {
+                /* If there is a transaction for this command queue, wake immediately. */
+                if( TransactionAvailable( queueId ) )
+                {
+                    ncycle_t nextWakeup = GetEventQueue( )->GetCurrentCycle( );
+
+                    GetEventQueue( )->InsertEvent( EventCycle, this, nextWakeup, transactionQueuePriority );
+
+                    //std::cout << "Scheduled transaction queue wakeup at " << nextWakeup << std::endl;
+                }
+            }
 
             MoveCurrentQueue( );
 

@@ -345,8 +345,9 @@ bool NVMain::IssueAtomic( NVMainRequest *request )
     return mc_rv;
 }
 
-void NVMain::Cycle( ncycle_t )
+void NVMain::Cycle( ncycle_t steps )
 {
+    assert( !p->EventDriven );
     /*
      *  Previous errors can prevent config from being set. Likewise, if the first memoryController is
      *  NULL, so are all the others, so return here instead of seg faulting.
@@ -374,7 +375,7 @@ void NVMain::Cycle( ncycle_t )
         memoryControllers[i]->Cycle( 1 );
     }
 
-    GetEventQueue()->Loop( );
+    GetEventQueue()->Loop( steps );
 }
 
 void NVMain::RegisterStats( )

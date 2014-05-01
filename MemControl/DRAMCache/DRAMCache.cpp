@@ -82,6 +82,7 @@ void DRAMCache::SetConfig( Config *conf, bool createChildren )
         EventQueue *mainMemoryEventQueue = new EventQueue( );
         mainMemory->SetParent( this ); 
         mainMemory->SetEventQueue( mainMemoryEventQueue );
+        GetGlobalEventQueue( )->AddSystem( mainMemory, mainMemoryConfig );
         mainMemory->SetConfig( mainMemoryConfig, "offChipMemory", createChildren );
 
         /* Orphan the interconnect created by NVMain */

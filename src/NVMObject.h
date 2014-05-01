@@ -85,6 +85,7 @@ namespace NVM {
 
 class NVMainRequest;
 class EventQueue;
+class GlobalEventQueue;
 class AddressTranslator;
 class NVMObject;
 class Config;
@@ -164,6 +165,8 @@ class NVMObject
 
     virtual void SetEventQueue( EventQueue *eq );
     virtual EventQueue *GetEventQueue( );
+    virtual void SetGlobalEventQueue( GlobalEventQueue *geq );
+    virtual GlobalEventQueue *GetGlobalEventQueue( );
 
     NVMObject_hook *GetParent( );
     std::vector<NVMObject_hook *>& GetChildren( );
@@ -209,6 +212,7 @@ class NVMObject
     std::vector<NVMObject_hook *> children;
     std::vector<NVMObject *> *hooks;
     EventQueue *eventQueue;
+    GlobalEventQueue *globalEventQueue;
     std::ostream *debugStream;
     TagGenerator *tagGen;
     HookType hookType;
