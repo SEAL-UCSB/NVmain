@@ -53,12 +53,6 @@ class OnChipBus : public Interconnect
     bool IssueCommand( NVMainRequest *mop );
     bool IsIssuable( NVMainRequest *mop, FailReason *reason = NULL );
 
-    ncycle_t GetNextActivate( ncounter_t rank, ncounter_t bank );
-    ncycle_t GetNextRead( ncounter_t rank, ncounter_t bank );
-    ncycle_t GetNextWrite( ncounter_t rank, ncounter_t bank );
-    ncycle_t GetNextPrecharge( ncounter_t rank, ncounter_t bank );
-    ncycle_t GetNextRefresh( ncounter_t rank, ncounter_t bank );
-
     void CalculateStats( );
 
     void Cycle( ncycle_t steps );

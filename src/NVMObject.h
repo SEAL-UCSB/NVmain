@@ -109,6 +109,7 @@ class NVMObject_hook
     bool IsIssuable( NVMainRequest *req, FailReason *reason = NULL );
     bool IssueAtomic( NVMainRequest *req );
     bool IssueFunctional( NVMainRequest *req );
+    ncycle_t NextIssuable( NVMainRequest *req );
 
     bool RequestComplete( NVMainRequest *req );
     void Callback( void *data );
@@ -152,6 +153,7 @@ class NVMObject
     virtual bool IsIssuable( NVMainRequest *req, FailReason *reason = NULL );
     virtual bool IssueAtomic( NVMainRequest *req );
     virtual bool IssueFunctional( NVMainRequest *req );
+    virtual ncycle_t NextIssuable( NVMainRequest *req );
 
     virtual bool RequestComplete( NVMainRequest *req );
     virtual void Callback( void *data );
@@ -211,6 +213,7 @@ class NVMObject
     TagGenerator *tagGen;
     HookType hookType;
     ncycle_t MAX( const ncycle_t, const ncycle_t );
+    ncycle_t MIN( const ncycle_t, const ncycle_t );
 };
 
 };

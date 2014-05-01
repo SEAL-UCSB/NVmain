@@ -722,6 +722,18 @@ bool DDR3Bank::Refresh( NVMainRequest *request )
     return true;
 }
 
+ncycle_t DDR3Bank::NextIssuable( NVMainRequest *request )
+{
+    ncycle_t nextCompare = 0;
+
+    if( request->type == ACTIVATE ) nextCompare = nextActivate;
+    else if( request->type == READ ) nextCompare = nextRead;
+    else if( request->type == WRITE ) nextCompare = nextWrite;
+    else if( request->type == PRECHARGE ) nextCompare = nextPrecharge;
+        
+    return MAX(GetChild( request )->NextIssuable( request ), nextCompare );
+}
+
 /*
  * IsIssuable() tells whether one request satisfies the timing constraints
  */

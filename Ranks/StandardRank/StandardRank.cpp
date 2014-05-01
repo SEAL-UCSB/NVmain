@@ -610,32 +610,20 @@ bool StandardRank::Refresh( NVMainRequest *request )
     return true;
 }
 
-ncycle_t StandardRank::GetNextActivate( uint64_t bank )
+ncycle_t StandardRank::NextIssuable( NVMainRequest *request )
 {
-    return MAX( 
-                MAX( nextActivate, banks[bank]->GetNextActivate( ) ),
-                lastActivate[( RAWindex + 1 ) % rawNum] + p->tRAW 
-              );
-}
+    ncycle_t nextCompare = 0;
+    ncounter_t bank;
 
-ncycle_t StandardRank::GetNextRead( uint64_t bank )
-{
-    return MAX( nextRead, banks[bank]->GetNextRead( ) );
-}
+    request->address.GetTranslatedAddress( NULL, NULL, &bank, NULL, NULL, NULL );
 
-ncycle_t StandardRank::GetNextWrite( uint64_t bank )
-{
-    return MAX( nextWrite, banks[bank]->GetNextWrite( ) );
-}
-
-ncycle_t StandardRank::GetNextPrecharge( uint64_t bank )
-{
-    return MAX( nextPrecharge, banks[bank]->GetNextPrecharge( ) );
-}
-
-ncycle_t StandardRank::GetNextRefresh( uint64_t bank )
-{
-    return banks[bank]->GetNextRefresh( );
+    if( request->type == ACTIVATE ) nextCompare = MAX( nextActivate, lastActivate[(RAWindex+1)%rawNum] + p->tRAW );
+    else if( request->type == READ ) nextCompare = nextRead;
+    else if( request->type == WRITE ) nextCompare = nextWrite;
+    else if( request->type == PRECHARGE ) nextCompare = nextPrecharge;
+    else assert(false);
+        
+    return MAX(GetChild( request )->NextIssuable( request ), nextCompare );
 }
 
 bool StandardRank::IsIssuable( NVMainRequest *req, FailReason *reason )

@@ -150,46 +150,6 @@ bool OffChipBus::IsIssuable( NVMainRequest *req, FailReason *reason )
     return GetChild( req )->IsIssuable( req, reason );
 }
 
-ncycle_t OffChipBus::GetNextActivate( ncounter_t rank, ncounter_t bank )
-{
-    if( rank < numRanks )
-        return ranks[rank]->GetNextActivate( bank );
-
-    return 0;
-}
-
-ncycle_t OffChipBus::GetNextRead( ncounter_t rank, ncounter_t bank )
-{
-    if( rank < numRanks )
-        return ranks[rank]->GetNextRead( bank );
-
-    return 0;
-}
-
-ncycle_t OffChipBus::GetNextWrite( ncounter_t rank, ncounter_t bank )
-{
-    if( rank < numRanks )
-        return ranks[rank]->GetNextWrite( bank );
-
-    return 0;
-}
-
-ncycle_t OffChipBus::GetNextPrecharge( ncounter_t rank, ncounter_t bank )
-{
-    if( rank < numRanks )
-        return ranks[rank]->GetNextPrecharge( bank );
-
-    return 0;
-}
-
-ncycle_t OffChipBus::GetNextRefresh( ncounter_t rank, ncounter_t bank )
-{
-    if( rank < numRanks )
-        return ranks[rank]->GetNextRefresh( bank );
-
-    return 0;
-}
-
 void OffChipBus::CalculateStats( )
 {
     for( ncounter_t childIdx = 0; childIdx < GetChildren().size(); childIdx++ )

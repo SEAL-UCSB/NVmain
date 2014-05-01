@@ -96,6 +96,7 @@ class MemoryController : public NVMObject
 
     virtual bool RequestComplete( NVMainRequest *request );
     virtual bool IsIssuable( NVMainRequest *request, FailReason *fail );
+    ncycle_t NextIssuable( NVMainRequest *request );
 
     virtual void RegisterStats( );
     virtual void CalculateStats( );

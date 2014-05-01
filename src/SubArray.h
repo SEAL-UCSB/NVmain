@@ -92,6 +92,7 @@ class SubArray : public NVMObject
     bool IsIssuable( NVMainRequest *req, FailReason *reason = NULL );
     bool IssueCommand( NVMainRequest *req );
     bool RequestComplete( NVMainRequest *req );
+    ncycle_t NextIssuable( NVMainRequest *request );
 
     void SetConfig( Config *c, bool createChildren = true );
     void SetParams( Params *params ) { p = params; }
