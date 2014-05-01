@@ -57,7 +57,7 @@ class FRFCFS : public MemoryController
     void CalculateStats( );
 
   private:
-    NVMTransactionQueue memQueue;
+    NVMTransactionQueue *memQueue;
 
     /* Cached Configuration Variables*/
     uint64_t queueSize;

@@ -52,6 +52,7 @@ using namespace NVM;
 MemoryController::MemoryController( )
 {
     transactionQueues = NULL;
+    transactionQueueCount = 0;
     commandQueues = NULL;
     commandQueueCount = 0;
 
@@ -72,8 +73,6 @@ MemoryController::MemoryController( )
 
 MemoryController::~MemoryController( )
 {
-
-    
     for( ncounter_t i = 0; i < p->RANKS; i++ )
     {
         delete [] activateQueued[i];
@@ -111,7 +110,6 @@ MemoryController::~MemoryController( )
     }
 
     delete [] delayedRefreshCounter;
-    
 }
 
 void MemoryController::InitQueues( unsigned int numQueues )
@@ -120,6 +118,7 @@ void MemoryController::InitQueues( unsigned int numQueues )
         delete [] transactionQueues;
 
     transactionQueues = new NVMTransactionQueue[ numQueues ];
+    transactionQueueCount = numQueues;
 
     for( unsigned int i = 0; i < numQueues; i++ )
         transactionQueues[i].clear( );
@@ -128,6 +127,20 @@ void MemoryController::InitQueues( unsigned int numQueues )
 void MemoryController::Cycle( ncycle_t steps )
 {
     GetChild( )->Cycle( steps );
+}
+
+void MemoryController::Prequeue( ncounter_t queueNum, NVMainRequest *request )
+{
+    assert( queueNum < transactionQueueCount );
+
+    transactionQueues[queueNum].push_front( request );
+}
+
+void MemoryController::Enqueue( ncounter_t queueNum, NVMainRequest *request )
+{
+    assert( queueNum < transactionQueueCount );
+
+    transactionQueues[queueNum].push_back( request );
 }
 
 bool MemoryController::RequestComplete( NVMainRequest *request )
