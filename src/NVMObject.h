@@ -160,6 +160,7 @@ class NVMObject
     virtual void Callback( void *data );
 
     virtual void SetParent( NVMObject *p );
+    void UnsetParent( );
     virtual void AddChild( NVMObject *c ); 
     NVMObject *_FindChild( NVMainRequest *req, const char *childClass );
 

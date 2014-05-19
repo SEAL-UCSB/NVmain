@@ -153,6 +153,7 @@ bool NVMObject_hook::RequestComplete( NVMainRequest *req )
         //(*it)->SetParent( trampoline->GetChild( req )->GetTrampoline( ) );
         (*it)->SetParent( trampoline );
         (*it)->RequestComplete( req );
+        (*it)->UnsetParent( );
     }
 
     /* Call IssueCommand. */
@@ -164,6 +165,7 @@ bool NVMObject_hook::RequestComplete( NVMainRequest *req )
         //(*it)->SetParent( trampoline->GetChild( req )->GetTrampoline( ) );
         (*it)->SetParent( trampoline );
         (*it)->RequestComplete( req );
+        (*it)->UnsetParent( );
     }
 
     return rv;
@@ -330,6 +332,15 @@ void NVMObject::SetParent( NVMObject *p )
     SetGlobalEventQueue( p->GetGlobalEventQueue( ) );
     SetStats( p->GetStats( ) );
     SetTagGenerator( p->GetTagGenerator( ) );
+}
+
+void NVMObject::UnsetParent( )
+{
+    if( parent != NULL )
+    {
+        delete parent;
+        parent = NULL;
+    }
 }
 
 void NVMObject::AddChild( NVMObject *c )
