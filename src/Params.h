@@ -174,6 +174,9 @@ class Params
     ncounter_t DelayedRefreshThreshold; // the threshold that indicates how many refresh can be delayed
     std::string AddressMappingScheme; // the address mapping scheme
 
+    std::string MemoryPrefetcher;
+    ncounter_t PrefetchBufferSize;
+
     ProgramMode programMode;
     ncounter_t MLCLevels;
     ncounter_t WPVariance;
