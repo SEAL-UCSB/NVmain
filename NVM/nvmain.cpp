@@ -44,6 +44,7 @@
 #include "Utils/HookFactory.h"
 #include "include/NVMainRequest.h"
 #include "include/NVMHelpers.h"
+#include "Prefetchers/PrefetcherFactory.h"
 
 #include <sstream>
 #include <cassert>
@@ -61,6 +62,10 @@ NVMain::NVMain( )
 
     totalReadRequests = 0;
     totalWriteRequests = 0;
+
+    prefetcher = NULL;
+    successfulPrefetches = 0;
+    unsuccessfulPrefetches = 0;
 }
 
 NVMain::~NVMain( )
@@ -206,6 +211,12 @@ void NVMain::SetConfig( Config *conf, std::string memoryName, bool createChildre
 
     }
 
+    if( p->MemoryPrefetcher != "none" )
+    {
+        prefetcher = PrefetcherFactory::CreateNewPrefetcher( p->MemoryPrefetcher );
+        std::cout << "Made a " << p->MemoryPrefetcher << " prefetcher." << std::endl;
+    }
+
     numChannels = static_cast<unsigned int>(p->CHANNELS);
     
     std::string pretraceFile;
@@ -254,6 +265,86 @@ bool NVMain::IsIssuable( NVMainRequest *request, FailReason *reason )
     return rv;
 }
 
+void NVMain::GeneratePrefetches( NVMainRequest *request, std::vector<NVMAddress>& prefetchList )
+{
+    std::vector<NVMAddress>::iterator iter;
+    ncounter_t channel, rank, bank, row, col, subarray;
+
+    for( iter = prefetchList.begin(); iter != prefetchList.end(); iter++ )
+    {
+        /* Make a request from the prefetch address. */
+        NVMainRequest *pfRequest = new NVMainRequest( );
+        *pfRequest = *request;
+        pfRequest->address = (*iter);
+        pfRequest->isPrefetch = true;
+        pfRequest->owner = this;
+        
+        /* Translate the address, then copy to the address struct, and copy to request. */
+        GetDecoder( )->Translate( request->address.GetPhysicalAddress( ), 
+                               &row, &col, &bank, &rank, &channel, &subarray );
+        request->address.SetTranslatedAddress( row, col, bank, rank, channel, subarray );
+        request->bulkCmd = CMD_NOP;
+
+        //std::cout << "Prefetching 0x" << std::hex << (*iter).GetPhysicalAddress() << " (trigger 0x"
+        //          << request->address.GetPhysicalAddress( ) << std::dec << std::endl;
+
+        /* Just type to issue; If the queue is full it simply won't be enqueued. */
+        GetChild( pfRequest )->IssueCommand( pfRequest );
+    }
+}
+
+void NVMain::IssuePrefetch( NVMainRequest *request )
+{
+    /* 
+     *  Generate prefetches here. It makes the most sense to prefetch in this class
+     *  since we may prefetch across channels. However, this may be applicable to any
+     *  class in the hierarchy as long as we filter out the prefetch addresses that
+     *  do not belong to a child of the current module.
+     */
+    /* TODO: We are assuming this is the master root! */
+    std::vector<NVMAddress> prefetchList;
+    if( prefetcher && request->type == READ && request->isPrefetch == false 
+        && prefetcher->DoPrefetch(request, prefetchList) )
+    {
+        GeneratePrefetches( request, prefetchList );
+    }
+}
+
+bool NVMain::CheckPrefetch( NVMainRequest *request )
+{
+    bool rv = false;
+    NVMainRequest *pfRequest = NULL;
+    std::list<NVMainRequest *>::const_iterator iter;
+    std::vector<NVMAddress> prefetchList;
+
+    for( iter = prefetchBuffer.begin(); iter!= prefetchBuffer.end(); iter++ )
+    {
+        if( (*iter)->address.GetPhysicalAddress() == request->address.GetPhysicalAddress() )
+        {
+            if( prefetcher->NotifyAccess(request, prefetchList) )
+            {
+                GeneratePrefetches( request, prefetchList );
+            }
+
+            successfulPrefetches++;
+            rv = true;
+            pfRequest = (*iter);
+            delete pfRequest;
+            break;
+        }
+    }
+
+    if( pfRequest != NULL )
+    {
+        //std::cout << "Prefetched 0x" << std::hex << request->address.GetPhysicalAddress( )
+        //          << std::dec << " (list size " << prefetchBuffer.size() << " -> ";
+        prefetchBuffer.remove( pfRequest );
+        //std::cout << prefetchBuffer.size() << ")" << std::endl;
+    }
+
+    return rv;
+}
+
 void NVMain::PrintPreTrace( NVMainRequest *request )
 {
     /*
@@ -276,8 +367,8 @@ void NVMain::PrintPreTrace( NVMainRequest *request )
 
 bool NVMain::IssueCommand( NVMainRequest *request )
 {
-    uint64_t channel, rank, bank, row, col, subarray;
-    int mc_rv;
+    ncounter_t channel, rank, bank, row, col, subarray;
+    bool mc_rv;
 
     if( !config )
     {
@@ -291,10 +382,21 @@ bool NVMain::IssueCommand( NVMainRequest *request )
     request->address.SetTranslatedAddress( row, col, bank, rank, channel, subarray );
     request->bulkCmd = CMD_NOP;
 
+    /* Check for any successful prefetches. */
+    if( CheckPrefetch( request ) )
+    {
+        GetEventQueue()->InsertEvent( EventResponse, this, request, 
+                                      GetEventQueue()->GetCurrentCycle() + 1 );
+
+        return true;
+    }
+
     assert( GetChild( request )->GetTrampoline( ) == memoryControllers[channel] );
     mc_rv = GetChild( request )->IssueCommand( request );
     if( mc_rv == true )
     {
+        IssuePrefetch( request );
+
         if( request->type == READ ) 
         {
             totalReadRequests++;
@@ -312,8 +414,8 @@ bool NVMain::IssueCommand( NVMainRequest *request )
 
 bool NVMain::IssueAtomic( NVMainRequest *request )
 {
-    uint64_t channel, rank, bank, row, col, subarray;
-    int mc_rv;
+    ncounter_t channel, rank, bank, row, col, subarray;
+    bool mc_rv;
 
     if( !config )
     {
@@ -327,9 +429,17 @@ bool NVMain::IssueAtomic( NVMainRequest *request )
     request->address.SetTranslatedAddress( row, col, bank, rank, channel, subarray );
     request->bulkCmd = CMD_NOP;
 
+    /* Check for any successful prefetches. */
+    if( CheckPrefetch( request ) )
+    {
+        return true;
+    }
+
     mc_rv = memoryControllers[channel]->IssueAtomic( request );
     if( mc_rv == true )
     {
+        IssuePrefetch( request );
+
         if( request->type == READ ) 
         {
             totalReadRequests++;
@@ -343,6 +453,47 @@ bool NVMain::IssueAtomic( NVMainRequest *request )
     }
     
     return mc_rv;
+}
+
+bool NVMain::RequestComplete( NVMainRequest *request )
+{
+    bool rv = false;
+
+    if( request->owner == this )
+    {
+        if( request->isPrefetch )
+        {
+            //std::cout << "Placing 0x" << std::hex << request->address.GetPhysicalAddress( )
+            //          << std::dec << " into prefetch buffer (cur size: " << prefetchBuffer.size( )
+            //          << ")." << std::endl;
+
+            /* Place in prefetch buffer. */
+            if( prefetchBuffer.size() >= p->PrefetchBufferSize )
+            {
+                unsuccessfulPrefetches++;
+                //std::cout << "Prefetch buffer is full. Removing oldest prefetch: 0x" << std::hex
+                //          << prefetchBuffer.front()->address.GetPhysicalAddress() << std::dec
+                //          << std::endl;
+
+                delete prefetchBuffer.front();
+                prefetchBuffer.pop_front();
+            }
+
+            prefetchBuffer.push_back( request );
+            rv = true;
+        }
+        else
+        {
+            delete request;
+            rv = true;
+        }
+    }
+    else
+    {
+        rv = GetParent( )->RequestComplete( request );
+    }
+
+    return rv;
 }
 
 void NVMain::Cycle( ncycle_t steps )
@@ -382,6 +533,8 @@ void NVMain::RegisterStats( )
 {
     AddStat(totalReadRequests);
     AddStat(totalWriteRequests);
+    AddStat(successfulPrefetches);
+    AddStat(unsuccessfulPrefetches);
 }
 
 void NVMain::CalculateStats( )

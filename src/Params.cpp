@@ -173,6 +173,9 @@ Params::Params( )
     DelayedRefreshThreshold = 1;
     AddressMappingScheme = "R:SA:RK:BK:CH:C";
 
+    MemoryPrefetcher = "none";
+    PrefetchBufferSize = 32;
+
     programMode = ProgramMode_SRMS;
     MLCLevels = 1;
     WPVariance = 1;
@@ -359,6 +362,9 @@ void Params::SetParams( Config *c )
     c->GetValueUL( "BanksPerRefresh", BanksPerRefresh );
     c->GetValueUL( "DelayedRefreshThreshold", DelayedRefreshThreshold );
     c->GetString( "AddressMappingScheme", AddressMappingScheme );
+
+    c->GetString( "MemoryPrefetcher", MemoryPrefetcher );
+    c->GetValueUL( "PrefetchBufferSize", PrefetchBufferSize );
 
     if( c->KeyExists( "ProgramMode" ) )
     {

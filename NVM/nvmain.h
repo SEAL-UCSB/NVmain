@@ -39,6 +39,7 @@
 #include <stdint.h>
 #include "src/Params.h"
 #include "src/NVMObject.h"
+#include "src/Prefetcher.h"
 #include "include/NVMainRequest.h"
 #include "traceWriter/GenericTraceWriter.h"
 
@@ -63,9 +64,14 @@ class NVMain : public NVMObject
 
     Config *GetConfig( );
 
+    void IssuePrefetch( NVMainRequest *request );
     bool IssueCommand( NVMainRequest *request );
     bool IssueAtomic( NVMainRequest *request );
     bool IsIssuable( NVMainRequest *request, FailReason *reason );
+
+    bool RequestComplete( NVMainRequest *request );
+
+    bool CheckPrefetch( NVMainRequest *request );
 
     void RegisterStats( );
     void CalculateStats( );
@@ -81,14 +87,20 @@ class NVMain : public NVMObject
 
     ncounter_t totalReadRequests;
     ncounter_t totalWriteRequests;
+    ncounter_t successfulPrefetches;
+    ncounter_t unsuccessfulPrefetches;
 
     unsigned int numChannels;
     double syncValue;
+
+    Prefetcher *prefetcher;
+    std::list<NVMainRequest *> prefetchBuffer;
 
     std::ofstream pretraceOutput;
     GenericTraceWriter *preTracer;
 
     void PrintPreTrace( NVMainRequest *request );
+    void GeneratePrefetches( NVMainRequest *request, std::vector<NVMAddress>& prefetchList );
 
     Params *p;
 };
