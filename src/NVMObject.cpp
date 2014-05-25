@@ -61,6 +61,7 @@ bool NVMObject_hook::IssueCommand( NVMainRequest *req )
     {
         (*it)->SetParent( trampoline );
         (*it)->IssueCommand( req );
+        (*it)->UnsetParent( );
     }
 
     /* Call IssueCommand. */
@@ -71,6 +72,7 @@ bool NVMObject_hook::IssueCommand( NVMainRequest *req )
     {
         (*it)->SetParent( trampoline );
         (*it)->IssueCommand( req );
+        (*it)->UnsetParent( );
     }
 
     return rv;
@@ -93,6 +95,7 @@ bool NVMObject_hook::IssueAtomic( NVMainRequest *req )
     {
         (*it)->SetParent( trampoline );
         (*it)->IssueAtomic( req );
+        (*it)->UnsetParent( );
     }
 
     /* Call IssueCommand. */
@@ -103,6 +106,7 @@ bool NVMObject_hook::IssueAtomic( NVMainRequest *req )
     {
         (*it)->SetParent( trampoline );
         (*it)->IssueAtomic( req );
+        (*it)->UnsetParent( );
     }
 
     return rv;
@@ -120,6 +124,7 @@ bool NVMObject_hook::IssueFunctional( NVMainRequest *req )
     {
         (*it)->SetParent( trampoline );
         (*it)->IssueAtomic( req );
+        (*it)->UnsetParent( );
     }
 
     /* Call IssueCommand. */
@@ -130,6 +135,7 @@ bool NVMObject_hook::IssueFunctional( NVMainRequest *req )
     {
         (*it)->SetParent( trampoline );
         (*it)->IssueAtomic( req );
+        (*it)->UnsetParent( );
     }
 
     return rv;
