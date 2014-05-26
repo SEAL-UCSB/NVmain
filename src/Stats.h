@@ -57,7 +57,7 @@
 #define RemoveStat(STAT) (this->GetStats()->removeStat(static_cast<StatType>(&STAT)))
 
 // CHLD = NVMObject_hook, STAT = std::string; returns StatType
-#define GetStat(CHLD, STAT) (CHLD->GetStats( )->getStat( STAT ) )
+#define GetStat(CHLD, STAT) (CHLD->GetStats( )->getStat( CHLD->StatName( ) + "." + STAT ) )
 
 // STAT = StatType, TYPE = any type; returns TYPE
 #define CastStat(STAT, TYPE) (*(static_cast< TYPE * >( STAT )))

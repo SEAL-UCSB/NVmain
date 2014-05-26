@@ -49,6 +49,10 @@ NVMObject_hook::NVMObject_hook( NVMObject *t )
     trampoline = t;
 }
 
+NVMObject_hook::~NVMObject_hook( )
+{
+}
+
 bool NVMObject_hook::IssueCommand( NVMainRequest *req )
 {
     bool rv;
@@ -144,6 +148,16 @@ bool NVMObject_hook::IssueFunctional( NVMainRequest *req )
 ncycle_t NVMObject_hook::NextIssuable( NVMainRequest *req )
 {
     return trampoline->NextIssuable( req );
+}
+
+bool NVMObject_hook::Idle( )
+{
+    return trampoline->Idle( );
+}
+
+void NVMObject_hook::Notify( NVMainRequest *req )
+{
+    trampoline->Notify( req );
 }
 
 bool NVMObject_hook::RequestComplete( NVMainRequest *req )
@@ -245,7 +259,19 @@ NVMObject::NVMObject( )
     tagGen = NULL;
 }
 
+NVMObject::~NVMObject( )
+{
+    for( size_t childIdx = 0; childIdx < GetChildCount( ); childIdx++ )
+    {
+        delete children[childIdx];
+    }
+}
+
 void NVMObject::Init( Config * )
+{
+}
+
+void NVMObject::Notify( NVMainRequest * )
 {
 }
 
@@ -273,6 +299,11 @@ ncycle_t NVMObject::NextIssuable( NVMainRequest *req )
 {
     /* Assume module has no timing constraints, simply ask child module. */
     return GetChild( req )->NextIssuable( req );
+}
+
+bool NVMObject::Idle( )
+{
+    return true;
 }
 
 bool NVMObject::RequestComplete( NVMainRequest *request )
@@ -404,6 +435,11 @@ ncounter_t NVMObject::GetChildId( NVMObject *c )
     }
 
     return rv;
+}
+
+ncounter_t NVMObject::GetChildCount( )
+{
+    return children.size();
 }
 
 NVMObject_hook* NVMObject::GetParent( )

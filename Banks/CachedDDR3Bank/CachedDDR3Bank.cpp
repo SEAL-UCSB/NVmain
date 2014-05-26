@@ -222,7 +222,7 @@ bool CachedDDR3Bank::Activate( NVMainRequest *request )
 
     /* issue ACTIVATE to the target subarray */
     // TODO: Should we delay this in the case of writebacks for visualization purposes?
-    bool success = subArrays[activateSubArray]->IssueCommand( request );
+    bool success = GetChild( request )->IssueCommand( request );
 
     if( success )
     {

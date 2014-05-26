@@ -93,11 +93,6 @@ StandardRank::StandardRank( )
 
 StandardRank::~StandardRank( )
 {
-    for( ncounter_t i = 0; i < bankCount; i++ )
-        delete banks[i];
-
-    delete [] banks;
-
     delete [] lastActivate;
 }
 
@@ -147,27 +142,25 @@ void StandardRank::SetConfig( Config *c, bool createChildren )
         std::cout << "Creating " << bankCount << " banks in all " 
             << deviceCount << " devices.\n";
 
-        banks = new Bank*[bankCount];
-        
         for( ncounter_t i = 0; i < bankCount; i++ )
         {
             std::stringstream formatter;
 
-            banks[i] = BankFactory::CreateBankNoWarn( conf->GetString( "BankType" ) );
+            Bank *nextBank = BankFactory::CreateBankNoWarn( conf->GetString( "BankType" ) );
 
             formatter << i;
-            banks[i]->SetId( i );
+            nextBank->SetId( i );
             formatter.str( "" );
 
             formatter << StatName( ) << ".bank" << i;
-            banks[i]->StatName( formatter.str( ) );
+            nextBank->StatName( formatter.str( ) );
 
-            banks[i]->SetParent( this );
-            AddChild( banks[i] );
+            nextBank->SetParent( this );
+            AddChild( nextBank );
 
             /* SetConfig recursively. */
-            banks[i]->SetConfig( c, createChildren );
-            banks[i]->RegisterStats( );
+            nextBank->SetConfig( c, createChildren );
+            nextBank->RegisterStats( );
         }
     }
 
@@ -246,7 +239,7 @@ bool StandardRank::Idle( )
     bool rankIdle = true;
     for( ncounter_t i = 0; i < bankCount; i++ )
     {
-        if( banks[i]->Idle( ) == false )
+        if( GetChild(i)->Idle( ) == false )
         {
             rankIdle = false;
             break;
@@ -588,7 +581,6 @@ bool StandardRank::Refresh( NVMainRequest *request )
     {
         NVMainRequest* refReq = new NVMainRequest;
         *refReq = *request;
-        assert( GetChild( refreshBankGroupHead+i )->GetTrampoline() == banks[refreshBankGroupHead+i] );
         GetChild( refreshBankGroupHead+i )->IssueCommand( refReq );
     }
 
@@ -647,7 +639,9 @@ bool StandardRank::IsIssuable( NVMainRequest *req, FailReason *reason )
                 reason->reason = RANK_TIMING;
         }
         else
-            rv = banks[opBank]->IsIssuable( req, reason );
+        {
+            rv = GetChild( req )->IsIssuable( req, reason );
+        }
 
         if( rv == false )
         {
@@ -683,7 +677,9 @@ bool StandardRank::IsIssuable( NVMainRequest *req, FailReason *reason )
                 reason->reason = RANK_TIMING;
         }
         else
-            rv = banks[opBank]->IsIssuable( req, reason );
+        {
+            rv = GetChild( req )->IsIssuable( req, reason );
+        }
     }
     else if( req->type == WRITE || req->type == WRITE_PRECHARGE )
     {
@@ -695,7 +691,9 @@ bool StandardRank::IsIssuable( NVMainRequest *req, FailReason *reason )
                 reason->reason = RANK_TIMING;
         }
         else
-            rv = banks[opBank]->IsIssuable( req, reason );
+        {
+            rv = GetChild( req )->IsIssuable( req, reason );
+        }
     }
     else if( req->type == PRECHARGE || req->type == PRECHARGE_ALL )
     {
@@ -707,7 +705,9 @@ bool StandardRank::IsIssuable( NVMainRequest *req, FailReason *reason )
                 reason->reason = RANK_TIMING;
         }
         else
-            rv = banks[opBank]->IsIssuable( req, reason );
+        {
+            rv = GetChild( req )->IsIssuable( req, reason );
+        }
     }
     else if( req->type == POWERDOWN_PDA 
             || req->type == POWERDOWN_PDPF 
@@ -744,7 +744,7 @@ bool StandardRank::IsIssuable( NVMainRequest *req, FailReason *reason )
 
         for( ncounter_t i = 0; i < banksPerRefresh; i++ )
         {
-            rv = banks[opBank + i]->IsIssuable( req, reason );
+            rv = GetChild( opBank + i )->IsIssuable( req, reason );
             if( rv == false )
                 return rv;
         }
@@ -823,8 +823,10 @@ bool StandardRank::IssueCommand( NVMainRequest *req )
  *  Other ranks should notify us when they read/write so we can ensure minimum 
  *  timings are met.
  */
-void StandardRank::Notify( OpType op )
+void StandardRank::Notify( NVMainRequest *request )
 {
+    OpType op = request->type;
+
     /* We only care if other ranks are reading/writing (to avoid bus contention) */
     if( op == READ || op == READ_PRECHARGE )
     {
@@ -876,8 +878,8 @@ bool StandardRank::RequestComplete( NVMainRequest* req )
 
 void StandardRank::Cycle( ncycle_t steps )
 {
-    for( unsigned bankIdx = 0; bankIdx < bankCount; bankIdx++ )
-        banks[bankIdx]->Cycle( steps );
+    for( ncounter_t childIdx = 0; childIdx < GetChildCount( ); childIdx++ )
+        GetChild( childIdx )->Cycle( steps );
 
     /* Count cycle numbers and calculate background energy for each state */
     switch( state )
@@ -939,7 +941,7 @@ void StandardRank::Cycle( ncycle_t steps )
 
 void StandardRank::CalculateStats( )
 {
-    double bankE, actE, bstE, refE;
+    NVMObject::CalculateStats( );
 
     totalEnergy = activateEnergy = burstEnergy = refreshEnergy = 0.0;
     totalPower = backgroundPower = activatePower = burstPower = refreshPower = 0.0;
@@ -947,15 +949,21 @@ void StandardRank::CalculateStats( )
 
     for( ncounter_t i = 0; i < bankCount; i++ )
     {
-        banks[i]->GetEnergy( bankE, actE, bstE, refE );
+        StatType bankEstat = GetStat( GetChild(i), "bankEnergy" );
+        StatType actEstat =  GetStat( GetChild(i), "activeEnergy" );
+        StatType bstEstat =  GetStat( GetChild(i), "burstEnergy" );
+        StatType refEstat =  GetStat( GetChild(i), "refreshEnergy" );
 
-        totalEnergy += bankE;
-        activateEnergy += actE;
-        burstEnergy += bstE;
-        refreshEnergy += refE;
+        totalEnergy += CastStat( bankEstat, double );
+        activateEnergy += CastStat( actEstat, double );
+        burstEnergy += CastStat( bstEstat, double );
+        refreshEnergy += CastStat( refEstat, double );
 
-        reads += banks[i]->GetReads( );
-        writes += banks[i]->GetWrites( );
+        StatType readCount = GetStat( GetChild(i), "reads" );
+        StatType writeCount = GetStat( GetChild(i), "writes" );
+
+        reads += CastStat( readCount, ncounter_t );
+        writes += CastStat( writeCount, ncounter_t );
     }
 
 
@@ -1012,6 +1020,4 @@ void StandardRank::CalculateStats( )
     actWaitAverage = static_cast<double>(actWaitTotal) / static_cast<double>(actWaits);
     rrdWaitAverage = static_cast<double>(rrdWaitTotal) / static_cast<double>(rrdWaits);
     fawWaitAverage = static_cast<double>(fawWaitTotal) / static_cast<double>(fawWaits);
-
-    NVMObject::CalculateStats( );
 }

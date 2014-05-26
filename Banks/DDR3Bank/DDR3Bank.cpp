@@ -64,7 +64,6 @@ DDR3Bank::DDR3Bank( )
 
     dummyStat = 0;
 
-    subArrays = NULL;
     subArrayNum = 0;
     activeSubArrayQueue.clear();
 
@@ -120,10 +119,6 @@ DDR3Bank::DDR3Bank( )
 
 DDR3Bank::~DDR3Bank( )
 {
-    for( ncounter_t i = 0; i < subArrayNum; i++ )
-        delete subArrays[i];
-
-    delete [] subArrays;
 }
 
 void DDR3Bank::SetConfig( Config *c, bool createChildren )
@@ -151,27 +146,25 @@ void DDR3Bank::SetConfig( Config *c, bool createChildren )
         bankAT->SetConfig( c, createChildren );
         SetDecoder( bankAT );
 
-        subArrays = new SubArray*[subArrayNum];
-
         for( ncounter_t i = 0; i < subArrayNum; i++ )
         {
-            subArrays[i] = new SubArray;
+            SubArray *nextSubArray = new SubArray( );
 
             std::stringstream formatter;
 
             formatter << i;
-            subArrays[i]->SetName ( formatter.str() );
-            subArrays[i]->SetId( i );
+            nextSubArray->SetName ( formatter.str() );
+            nextSubArray->SetId( i );
 
             formatter.str( "" );
             formatter<< StatName( ) << ".subarray" << i;
-            subArrays[i]->StatName (formatter.str( ) );
+            nextSubArray->StatName (formatter.str( ) );
 
-            subArrays[i]->SetParent( this );
-            AddChild( subArrays[i] );
+            nextSubArray->SetParent( this );
+            AddChild( nextSubArray );
 
-            subArrays[i]->SetConfig( c, createChildren );
-            subArrays[i]->RegisterStats( );
+            nextSubArray->SetConfig( c, createChildren );
+            nextSubArray->RegisterStats( );
         }
 
         /* We need to create an endurance model on a bank-by-bank basis */
@@ -367,7 +360,7 @@ bool DDR3Bank::Activate( NVMainRequest *request )
                          GetEventQueue()->GetCurrentCycle() + p->tRCD );
 
     /* issue ACTIVATE to the target subarray */
-    bool success = subArrays[activateSubArray]->IssueCommand( request );
+    bool success = GetChild( request )->IssueCommand( request );
 
     if( success )
     {
@@ -434,7 +427,7 @@ bool DDR3Bank::Read( NVMainRequest *request )
                          + p->tCAS + p->tBURST + p->tRTRS - p->tCWD );
 
     /* issue READ/READ_RECHARGE to the target subarray */
-    bool success = subArrays[readSubArray]->IssueCommand( request );
+    bool success = GetChild( request )->IssueCommand( request );
 
     if( success )
     {
@@ -521,7 +514,7 @@ bool DDR3Bank::Write( NVMainRequest *request )
                      + MAX( p->tBURST, p->tCCD ) * request->burstCount );
 
     /* issue WRITE/WRITE_PRECHARGE to the target subarray */
-    bool success = subArrays[writeSubArray]->IssueCommand( request );
+    bool success = GetChild( request )->IssueCommand( request );
 
     if( success )
     {
@@ -595,7 +588,7 @@ bool DDR3Bank::Precharge( NVMainRequest *request )
     if( request->type == PRECHARGE ) 
     {
         /* issue PRECHARGE/PRECHARGE_ALL to the subarray */
-        bool success = subArrays[preSubArray]->IssueCommand( request );
+        bool success = GetChild( request )->IssueCommand( request );
         if( success )
         {
             /* update the activeSubArrayQueue list */
@@ -631,8 +624,7 @@ bool DDR3Bank::Precharge( NVMainRequest *request )
                 NVMainRequest* dummyPrecharge = new NVMainRequest;
                 (*dummyPrecharge) = (*request);
                 dummyPrecharge->owner = this;
-                bool success = 
-                    subArrays[openedSubArray]->IssueCommand( dummyPrecharge ); 
+                bool success = GetChild( openedSubArray )->IssueCommand( dummyPrecharge );
 
                 if( success == false )
                 {
@@ -647,8 +639,7 @@ bool DDR3Bank::Precharge( NVMainRequest *request )
 
             ncounter_t openedSubArray = activeSubArrayQueue.front( );
             activeSubArrayQueue.pop_front( );
-            bool success = 
-                subArrays[openedSubArray]->IssueCommand( request ); 
+            bool success = GetChild( openedSubArray )->IssueCommand( request );
 
             if( success == false )
             {
@@ -705,7 +696,7 @@ bool DDR3Bank::Refresh( NVMainRequest *request )
 
     /* TODO: implement sub-array-level refresh */
 
-    bool success = subArrays[refSubArray]->IssueCommand( request );
+    bool success = GetChild( request )->IssueCommand( request );
     
     if( success )
     {
@@ -762,7 +753,9 @@ bool DDR3Bank::IsIssuable( NVMainRequest *req, FailReason *reason )
             actWaitTotal += nextActivate - (GetEventQueue()->GetCurrentCycle());
         }
         else
-            rv = subArrays[opSubArray]->IsIssuable( req, reason );
+        {
+            rv = GetChild( req )->IsIssuable( req, reason );
+        }
     }
     else if( req->type == READ || req->type == READ_PRECHARGE )
     {
@@ -774,7 +767,9 @@ bool DDR3Bank::IsIssuable( NVMainRequest *req, FailReason *reason )
                 reason->reason = BANK_TIMING;
         }
         else
-            rv = subArrays[opSubArray]->IsIssuable( req, reason );
+        {
+            rv = GetChild( req )->IsIssuable( req, reason );
+        }
     }
     else if( req->type == WRITE || req->type == WRITE_PRECHARGE )
     {
@@ -786,7 +781,9 @@ bool DDR3Bank::IsIssuable( NVMainRequest *req, FailReason *reason )
                 reason->reason = BANK_TIMING;
         }
         else
-            rv = subArrays[opSubArray]->IsIssuable( req, reason );
+        {
+            rv = GetChild( req )->IsIssuable( req, reason );
+        }
     }
     else if( req->type == PRECHARGE || req->type == PRECHARGE_ALL )
     {
@@ -798,6 +795,7 @@ bool DDR3Bank::IsIssuable( NVMainRequest *req, FailReason *reason )
                 reason->reason = BANK_TIMING;
         }
         else
+        {
             if( req->type == PRECHARGE_ALL )
             {
                 std::deque<ncounter_t>::iterator it;
@@ -805,14 +803,17 @@ bool DDR3Bank::IsIssuable( NVMainRequest *req, FailReason *reason )
                 for( it = activeSubArrayQueue.begin(); 
                         it != activeSubArrayQueue.end(); ++it )
                 {
-                    rv = subArrays[(*it)]->IsIssuable( req, reason );
+                    rv = GetChild( (*it) )->IsIssuable( req, reason );
 
                     if( rv == false )
                         break;
                 }
             }
             else
-                rv = subArrays[opSubArray]->IsIssuable( req, reason );
+            {
+                rv = GetChild( req )->IsIssuable( req, reason );
+            }
+        }
     }
     else if( req->type == POWERDOWN_PDA 
              || req->type == POWERDOWN_PDPF 
@@ -830,7 +831,7 @@ bool DDR3Bank::IsIssuable( NVMainRequest *req, FailReason *reason )
 
         for( ncounter_t saIdx = 0; saIdx < subArrayNum; saIdx++ )
         {
-            if( !subArrays[saIdx]->IsIssuable( req ) )
+            if( !GetChild(saIdx)->IsIssuable( req ) )
             {
                 rv = false;
                 break;
@@ -849,7 +850,7 @@ bool DDR3Bank::IsIssuable( NVMainRequest *req, FailReason *reason )
 
         for( ncounter_t saIdx = 0; saIdx < subArrayNum; saIdx++ )
         {
-            if( !subArrays[saIdx]->IsIssuable( req ) )
+            if( !GetChild(saIdx)->IsIssuable( req ) )
             {
                 rv = false;
                 break;
@@ -866,12 +867,14 @@ bool DDR3Bank::IsIssuable( NVMainRequest *req, FailReason *reason )
               reason->reason = BANK_TIMING;
         }
         else
-            rv = subArrays[opSubArray]->IsIssuable( req, reason );
+        {
+            rv = GetChild( req )->IsIssuable( req, reason );
+        }
     }
     else
     {
         /* Unknown command, just ask child modules. */
-        rv = subArrays[opSubArray]->IsIssuable( req, reason );
+        rv = GetChild( req )->IsIssuable( req, reason );
     }
 
     return rv;
@@ -988,11 +991,6 @@ void DDR3Bank::UpdateEndurance( NVMainRequest *request )
     }
 }
 
-bool DDR3Bank::WouldConflict( uint64_t checkRow, uint64_t checkSA )
-{
-    return subArrays[checkSA]->WouldConflict( checkRow );
-}
-
 DDR3BankState DDR3Bank::GetState( ) 
 {
     return state;
@@ -1034,31 +1032,6 @@ double DDR3Bank::GetPower( )
     return bankPower;
 }
 
-void DDR3Bank::GetEnergy( double& bk, double& act, 
-                       double& bst, double& ref)
-{
-    double saEnergy, actEnergy, bstEnergy, refEnergy;
-
-    bankEnergy = activeEnergy = burstEnergy = refreshEnergy 
-               = 0.0f;
-
-    for( unsigned saIdx = 0; saIdx < subArrayNum; saIdx++ )
-    {
-        subArrays[saIdx]->GetEnergy( saEnergy, actEnergy, bstEnergy,
-                                     refEnergy );
-
-        bankEnergy += saEnergy;
-        activeEnergy += actEnergy;
-        burstEnergy += bstEnergy;
-        refreshEnergy += refEnergy;
-    }
-
-    bk = bankEnergy;
-    act = activeEnergy;
-    bst = burstEnergy;
-    ref = refreshEnergy;
-}
-
 void DDR3Bank::SetName( std::string )
 {
 }
@@ -1086,6 +1059,8 @@ ncounter_t DDR3Bank::GetId( )
 
 void DDR3Bank::CalculateStats( )
 {
+    NVMObject::CalculateStats( );
+
     double idealBandwidth;
 
     idealBandwidth = (double)(p->CLK * p->MULT * p->RATE * p->BPC);
@@ -1094,6 +1069,22 @@ void DDR3Bank::CalculateStats( )
         utilization = (double)((double)dataCycles / (double)(activeCycles + standbyCycles) );
     else
         utilization = 0.0f;
+
+    bankEnergy = activeEnergy = burstEnergy = refreshEnergy 
+               = 0.0f;
+
+    for( unsigned saIdx = 0; saIdx < subArrayNum; saIdx++ )
+    {
+        StatType saEstat  = GetStat( GetChild(saIdx), "subArrayEnergy" );
+        StatType actEstat = GetStat( GetChild(saIdx), "activeEnergy" );
+        StatType bstEstat = GetStat( GetChild(saIdx), "burstEnergy" );
+        StatType refEstat = GetStat( GetChild(saIdx), "refreshEnergy" );
+
+        bankEnergy += CastStat( saEstat, double );
+        activeEnergy += CastStat( actEstat, double );
+        burstEnergy += CastStat( bstEstat, double );
+        refreshEnergy += CastStat( refEstat, double );
+    }
 
     CalculatePower( );
 
@@ -1104,8 +1095,6 @@ void DDR3Bank::CalculateStats( )
     averageLife = endrModel->GetAverageLife( );
 
     actWaitAverage = static_cast<double>(actWaitTotal) / static_cast<double>(actWaits);
-
-    NVMObject::CalculateStats( );
 }
 
 
@@ -1115,7 +1104,7 @@ bool DDR3Bank::Idle( )
 
     for( ncounter_t i = 0; i < subArrayNum; i++ )
     {
-        if( subArrays[i]->Idle( ) == false )
+        if( GetChild(i)->Idle( ) == false )
         {
             bankIdle = false;
             break;
