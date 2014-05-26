@@ -46,7 +46,6 @@ using namespace NVM;
 OffChipBus::OffChipBus( )
 {
     conf = NULL;
-    ranks = NULL;
     configSet = false;
     numRanks = 0;
     syncValue = 0.0f;
@@ -54,15 +53,6 @@ OffChipBus::OffChipBus( )
 
 OffChipBus::~OffChipBus( )
 {
-    if( numRanks > 0 )
-    {
-        for( ncounter_t i = 0; i < numRanks; i++ )
-        {
-            delete ranks[i];
-        }
-
-        delete [] ranks;
-    }
 }
 
 void OffChipBus::SetConfig( Config *c, bool createChildren )
@@ -88,23 +78,22 @@ void OffChipBus::SetConfig( Config *c, bool createChildren )
         incAT->SetConfig( c, createChildren );
         SetDecoder( incAT );
 
-        ranks = new Rank * [numRanks];
         for( ncounter_t i = 0; i < numRanks; i++ )
         {
             std::stringstream formatter;
 
-            ranks[i] = RankFactory::CreateRankNoWarn( c->GetString( "RankType" ) );
+            Rank *nextRank = RankFactory::CreateRankNoWarn( c->GetString( "RankType" ) );
 
             formatter.str( "" );
             formatter << StatName( ) << ".rank" << i;
-            ranks[i]->StatName( formatter.str( ) );
+            nextRank->StatName( formatter.str( ) );
 
-            ranks[i]->SetParent( this );
-            AddChild( ranks[i] );
+            nextRank->SetParent( this );
+            AddChild( nextRank );
 
             /* SetConfig recursively. */
-            ranks[i]->SetConfig( conf, createChildren );
-            ranks[i]->RegisterStats( );
+            nextRank->SetConfig( conf, createChildren );
+            nextRank->RegisterStats( );
         }
     }
 
@@ -127,7 +116,6 @@ bool OffChipBus::IssueCommand( NVMainRequest *req )
     req->address.GetTranslatedAddress( NULL, NULL, NULL, &opRank, NULL, NULL );
 
     assert( GetChild( req )->IsIssuable( req ) );
-    assert( GetChild( req )->GetTrampoline() == ranks[opRank] );
 
     success = GetChild( req )->IssueCommand( req );
 
@@ -137,9 +125,9 @@ bool OffChipBus::IssueCommand( NVMainRequest *req )
      */
     if( success )
     {
-        for( ncounter_t i = 0; i < numRanks; i++ )
-          if( (ncounter_t)(i) != opRank )
-            ranks[i]->Notify( req->type );
+        for( ncounter_t childIdx = 0; childIdx < GetChildCount( ); childIdx++ )
+          if( GetChild( req ) != GetChild( childIdx ) )
+            GetChild( childIdx )->Notify( req );
     }
 
     return success;

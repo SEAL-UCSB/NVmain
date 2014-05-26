@@ -959,7 +959,9 @@ ncycle_t SubArray::WriteCellData( NVMainRequest *request )
                 max_stddev = 0; // assume single SET does not fail
             }
             else
+            {
                 std::cout << "SubArray: Unknown cell value: " << (int)cellData << std::endl;
+            }
 
             /* Simulate program and verify failures */
             if( programPulseCount > 0 )
@@ -1296,31 +1298,14 @@ bool SubArray::RequestComplete( NVMainRequest *req )
         return true;
     }
     else
+    {
         return GetParent( )->RequestComplete( req );
-}
-
-bool SubArray::WouldConflict( uint64_t checkRow )
-{
-    bool returnValue = true;
-
-    if( state == SUBARRAY_OPEN && checkRow == openRow )
-        returnValue = false;
-
-    return returnValue;
+    }
 }
 
 SubArrayState SubArray::GetState( ) 
 {
     return state;
-}
-
-void SubArray::GetEnergy( double& total, double& active, 
-                          double& burst, double& refresh )
-{
-    total = subArrayEnergy;
-    active = activeEnergy;
-    burst = burstEnergy;
-    refresh = refreshEnergy;
 }
 
 void SubArray::SetName( std::string )

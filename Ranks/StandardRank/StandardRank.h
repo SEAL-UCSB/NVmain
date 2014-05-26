@@ -79,9 +79,9 @@ class StandardRank : public Rank
     void SetConfig( Config *c, bool createChildren = true );
     void SetParams( Params *params ) { p = params; }
 
-    bool IssueCommand( NVMainRequest *mop );
-    bool IsIssuable( NVMainRequest *mop, FailReason *reason = NULL );
-    void Notify( OpType op );
+    bool IssueCommand( NVMainRequest *request );
+    bool IsIssuable( NVMainRequest *request, FailReason *reason = NULL );
+    void Notify( NVMainRequest *request );
     bool RequestComplete( NVMainRequest* );
     ncycle_t NextIssuable( NVMainRequest *request );
 
@@ -93,7 +93,6 @@ class StandardRank : public Rank
 
     void RegisterStats( );
     void CalculateStats( );
-    Bank **banks;
 
   protected:
     Config *conf;

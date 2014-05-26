@@ -88,7 +88,6 @@ class SubArray : public NVMObject
     bool Precharge( NVMainRequest *request );
     bool Refresh( NVMainRequest *request );
 
-    bool WouldConflict( uint64_t checkRow );
     bool IsIssuable( NVMainRequest *req, FailReason *reason = NULL );
     bool IssueCommand( NVMainRequest *req );
     bool RequestComplete( NVMainRequest *req );
@@ -103,9 +102,6 @@ class SubArray : public NVMObject
 
     bool Idle( );
     ncycle_t GetDataCycles( ) { return dataCycles; }
-    void GetEnergy( double&, double&, double&, double& );
-    ncounter_t GetReads( ) { return reads; }
-    ncounter_t GetWrites( ) { return writes; }
 
     ncycle_t GetNextActivate( ) { return nextActivate; }
     ncycle_t GetNextRead( ) { return nextRead; }

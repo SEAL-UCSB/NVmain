@@ -105,12 +105,15 @@ class NVMObject_hook
 {
   public:
     NVMObject_hook( NVMObject *trampoline );
+    virtual ~NVMObject_hook( );
 
     bool IssueCommand( NVMainRequest *req );
     bool IsIssuable( NVMainRequest *req, FailReason *reason = NULL );
     bool IssueAtomic( NVMainRequest *req );
     bool IssueFunctional( NVMainRequest *req );
+    void Notify( NVMainRequest *req );
     ncycle_t NextIssuable( NVMainRequest *req );
+    virtual bool Idle( );
 
     bool RequestComplete( NVMainRequest *req );
     void Callback( void *data );
@@ -144,7 +147,7 @@ class NVMObject
 {
   public:
     NVMObject( );
-    virtual ~NVMObject(  ) { }
+    virtual ~NVMObject(  );
 
     virtual void Init( Config *conf ); 
 
@@ -154,7 +157,9 @@ class NVMObject
     virtual bool IsIssuable( NVMainRequest *req, FailReason *reason = NULL );
     virtual bool IssueAtomic( NVMainRequest *req );
     virtual bool IssueFunctional( NVMainRequest *req );
+    virtual void Notify( NVMainRequest *req );
     virtual ncycle_t NextIssuable( NVMainRequest *req );
+    virtual bool Idle( );
 
     virtual bool RequestComplete( NVMainRequest *req );
     virtual void Callback( void *data );
@@ -175,6 +180,7 @@ class NVMObject
     NVMObject_hook *GetChild( ncounter_t child );
     NVMObject_hook *GetChild( );
     ncounter_t GetChildId( NVMObject *c );
+    ncounter_t GetChildCount( );
 
     virtual void SetDecoder( AddressTranslator *at );
     virtual AddressTranslator *GetDecoder( );

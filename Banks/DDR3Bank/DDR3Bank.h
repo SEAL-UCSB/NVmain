@@ -81,7 +81,6 @@ class DDR3Bank : public Bank
     DDR3Bank( );
     ~DDR3Bank( );
 
-    virtual bool WouldConflict( uint64_t checkRow, uint64_t checkSA );
     virtual bool IsIssuable( NVMainRequest *req, FailReason *reason = NULL );
     virtual bool IssueCommand( NVMainRequest *req );
     virtual ncycle_t NextIssuable( NVMainRequest *request );
@@ -95,9 +94,6 @@ class DDR3Bank : public Bank
     virtual ncycle_t GetDataCycles( ) { return dataCycles; }
     virtual void CalculatePower( );
     virtual double GetPower( ); 
-    virtual void GetEnergy( double& , double& , double&, double& ); 
-    virtual ncounter_t GetReads( ) { return reads; }
-    virtual ncounter_t GetWrites( ) { return writes; }
 
     virtual uint64_t GetOpenRow( ) { return openRow; }
     virtual std::deque<ncounter_t>& GetOpenSubArray( ) { return activeSubArrayQueue; }
@@ -112,8 +108,6 @@ class DDR3Bank : public Bank
     virtual std::string GetName( );
 
     virtual void Cycle( ncycle_t steps );
-
-    SubArray **subArrays;
 
   protected:
     Config *conf;

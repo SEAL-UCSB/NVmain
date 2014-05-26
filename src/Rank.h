@@ -77,8 +77,6 @@ class Rank : public NVMObject
 
     virtual void SetConfig( Config * /*c*/, bool /*createChildren*/ = true ) { }
 
-    virtual void Notify( OpType /*op*/ ) { }
-
     virtual bool Idle( );
 
 };

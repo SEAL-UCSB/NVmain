@@ -57,8 +57,6 @@ class OffChipBus : public Interconnect
 
     void Cycle( ncycle_t steps );
 
-    Rank *GetRank( ncounter_t rank ) { return ranks[rank]; }
-
   private:
     bool configSet;
     ncounter_t numRanks;
@@ -66,7 +64,6 @@ class OffChipBus : public Interconnect
     double syncValue;
 
     Config *conf;
-    Rank **ranks;
 
     double CalculateIOPower( bool isRead, unsigned int bitValue );
 
