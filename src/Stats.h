@@ -43,18 +43,24 @@
         {                                   \
             _AddStat(STAT, UNITS)           \
         }
-#define _AddStat(STAT, UNITS)                                               \
-        {                                                                   \
-            int *__resetValue = new int [sizeof(STAT)];                     \
-            memcpy(__resetValue, static_cast<void *>(&STAT), sizeof(STAT)); \
-            this->GetStats()->addStat(static_cast<void *>(&(STAT)),         \
-                                      static_cast<void *>(__resetValue),    \
-                                      typeid(STAT).name(),                  \
-                                      sizeof(STAT),                         \
-                                      StatName() + "." + #STAT,             \
-                                      UNITS);                               \
+#define _AddStat(STAT, UNITS)                                                 \
+        {                                                                     \
+            uint8_t *__resetValue = new uint8_t [sizeof(STAT)];               \
+            memcpy(__resetValue, static_cast<StatType>(&STAT), sizeof(STAT)); \
+            this->GetStats()->addStat(static_cast<StatType>(&(STAT)),         \
+                                      static_cast<StatType>(__resetValue),    \
+                                      typeid(STAT).name(),                    \
+                                      sizeof(STAT),                           \
+                                      StatName() + "." + #STAT,               \
+                                      UNITS);                                 \
         }
-#define RemoveStat(STAT) (this->GetStats()->removeStat(static_cast<void *>(&STAT)))
+#define RemoveStat(STAT) (this->GetStats()->removeStat(static_cast<StatType>(&STAT)))
+
+// CHLD = NVMObject_hook, STAT = std::string; returns StatType
+#define GetStat(CHLD, STAT) (CHLD->GetStats( )->getStat( STAT ) )
+
+// STAT = StatType, TYPE = any type; returns TYPE
+#define CastStat(STAT, TYPE) (*(static_cast< TYPE * >( STAT )))
 
 
 
@@ -66,6 +72,9 @@
 #include "include/NVMTypes.h"
 
 namespace NVM {
+
+
+typedef void * StatType;
 
 
 class StatBase
@@ -81,12 +90,12 @@ class StatBase
     void SetName( std::string n ) { name = n; }
 
     void* GetValue( ) { return value; }
-    void SetValue( void *val ) { value = val; }
+    void SetValue( StatType val ) { value = val; }
 
     std::string GetUnits( ) { return units; }
     void SetUnits( std::string u ) { units = u; }
 
-    void SetResetValue( void *rval ) { resetValue = rval; }
+    void SetResetValue( StatType rval ) { resetValue = rval; }
     void *GetResetValue( ) { return resetValue; }
 
     void SetStatType( std::string st, size_t ts ) { statType = st; typeSize = ts; }
@@ -96,8 +105,8 @@ class StatBase
   private:
     std::string name, statType, units;
     size_t typeSize;
-    void *resetValue;
-    void *value;
+    StatType resetValue;
+    StatType value;
 };
 
 class Stats
@@ -106,8 +115,9 @@ class Stats
     Stats( );
     ~Stats( );
 
-    void addStat( void *stat, void *resetValue, std::string statType, size_t typeSize, std::string name, std::string units );
-    void removeStat( void *stat );
+    void addStat( StatType stat, StatType resetValue, std::string statType, size_t typeSize, std::string name, std::string units );
+    void removeStat( StatType stat );
+    StatType getStat( std::string name );
 
     void PrintAll( std::ostream& );
     void ResetAll( );
