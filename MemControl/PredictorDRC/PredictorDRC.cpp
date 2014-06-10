@@ -36,17 +36,16 @@
 #include "Utils/AccessPredictor/AccessPredictorFactory.h"
 #include "include/NVMHelpers.h"
 #include "NVM/nvmain.h"
+
 #include <iostream>
-#include <assert.h>
+#include <sstream>
+#include <cassert>
 
 using namespace NVM;
 
-PredictorDRC::PredictorDRC( Interconnect *memory, AddressTranslator *translator )
+PredictorDRC::PredictorDRC( )
 {
-    translator->GetTranslationMethod( )->SetOrder( 5, 1, 4, 3, 2, 6 );
-
-    SetMemory( memory );
-    SetTranslator( translator );
+    //translator->GetTranslationMethod( )->SetOrder( 5, 1, 4, 3, 2, 6 );
 
     std::cout << "Created a PredictorDRC!" << std::endl;
 
@@ -59,31 +58,44 @@ PredictorDRC::~PredictorDRC( )
 {
 }
 
-void PredictorDRC::SetConfig( Config *conf )
+void PredictorDRC::SetConfig( Config *conf, bool createChildren )
 {
-    /* Initialize DRAM cache */
-    DRC = new DRAMCache( GetMemory(), GetTranslator() ); // Use this module's memory and translator (Assumes one predictor for all channels)
-
-    /* Initialize access predictor. */
-    if( !conf->KeyExists( "DRCPredictor" ) )
+    if( createChildren )
     {
-        std::cout << "Error: No DRC predictor specified." << std::endl;
+        /* Initialize access predictor. */
+        if( !conf->KeyExists( "DRCPredictor" ) )
+        {
+            std::cout << "Error: No DRC predictor specified." << std::endl;
+        }
+
+        predictor = AccessPredictorFactory::CreateAccessPredictor( conf->GetString( "DRCPredictor" ) );
+        predictor->SetParent( this );
+        SetDecoder( predictor );
+
+        /* Initialize DRAM cache */
+        std::stringstream formatter;
+
+        DRC = new DRAMCache( );
+
+        formatter.str( "" );
+        formatter << StatName( ) << ".DRC";
+        DRC->StatName( formatter.str() );
+
+        DRC->SetParent( this );
+        AddChild( DRC );
+
+        DRC->SetConfig( conf, createChildren );
+        DRC->RegisterStats( );
+
+        /* Add DRC's backing memory as a child to allow for bypass. */
+        AddChild( DRC->GetMainMemory() );
+
+        /* Set predictor children IDs match our child IDs. */
+        predictor->SetHitDestination( GetChildId(DRC) );
+        predictor->SetMissDestination( GetChildId(DRC->GetMainMemory()) );
     }
 
-    predictor = AccessPredictorFactory::CreateAccessPredictor( conf->GetString( "DRCPredictor" ) );
-    predictor->SetParent( this );
-    AddChild( predictor );
-
-    DRC->SetParent( predictor );
-    predictor->AddChild( DRC );
-
-    DRC->StatName( this->statName );
-    DRC->SetConfig( conf );
-
-    predictor->SetMissDestination( DRC->GetMainMemory() );
-    predictor->SetHitDestination( DRC );
-
-    MemoryController::SetConfig( conf );
+    //MemoryController::SetConfig( conf, createChildren );
 
     SetDebugName( "PredictorDRC", conf );
 }
@@ -95,12 +107,15 @@ void PredictorDRC::RegisterStats( )
 
 bool PredictorDRC::IssueAtomic( NVMainRequest *req )
 {
-    return predictor->IssueAtomic( req );
+    return GetChild( req )->IssueAtomic( req );
 }
 
+/*
+ *  TODO: Issue FILL requests for any misses that occur.
+ */
 bool PredictorDRC::IssueCommand( NVMainRequest *req )
 {
-    return predictor->IssueCommand( req );
+    return GetChild( req )->IssueCommand( req );
 }
 
 bool PredictorDRC::RequestComplete( NVMainRequest *req )

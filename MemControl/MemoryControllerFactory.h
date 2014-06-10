@@ -46,8 +46,8 @@ class MemoryControllerFactory
     MemoryControllerFactory( ) {}
     ~MemoryControllerFactory( ) {}
 
-    static MemoryController *CreateNewController( std::string controller, 
-            Interconnect *memory, AddressTranslator *translator );
+    static MemoryController *CreateNewController( std::string controller ); 
+
 };
 
 };

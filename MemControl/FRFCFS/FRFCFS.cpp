@@ -33,6 +33,7 @@
 
 #include "MemControl/FRFCFS/FRFCFS.h"
 #include "src/EventQueue.h"
+#include "include/NVMainRequest.h"
 #ifndef TRACE
   #include "SimInterface/Gem5Interface/Gem5Interface.h"
   #include "base/statistics.hh"
@@ -46,16 +47,8 @@
 
 using namespace NVM;
 
-FRFCFS::FRFCFS( Interconnect *memory, AddressTranslator *translator )
+FRFCFS::FRFCFS( )
 {
-    /*
-     *  We'll need these classes later, so copy them. the "memory" and 
-     *  "translator" variables are *  defined in the protected section of 
-     *  the MemoryController base class. 
-     */
-    SetMemory( memory );
-    SetTranslator( translator );
-
     std::cout << "Created a First Ready First Come First Serve memory controller!"
         << std::endl;
 
@@ -74,18 +67,24 @@ FRFCFS::FRFCFS( Interconnect *memory, AddressTranslator *translator )
     rb_hits = 0;
     rb_miss = 0;
 
+    write_pauses = 0;
+
     starvation_precharges = 0;
 
     psInterval = 0;
+
+    InitQueues( 1 );
+
+    memQueue = &(transactionQueues[0]);
 }
 
 FRFCFS::~FRFCFS( )
 {
-    std::cout << "FRFCFS memory controller destroyed. " << transactionQueues[0].size( ) 
+    std::cout << "FRFCFS memory controller destroyed. " << memQueue->size( ) 
               << " commands still in memory queue." << std::endl;
 }
 
-void FRFCFS::SetConfig( Config *conf )
+void FRFCFS::SetConfig( Config *conf, bool createChildren )
 {
     if( conf->KeyExists( "StarvationThreshold" ) )
     {
@@ -97,22 +96,25 @@ void FRFCFS::SetConfig( Config *conf )
         queueSize = static_cast<unsigned int>( conf->GetValue( "QueueSize" ) );
     }
 
-    MemoryController::SetConfig( conf );
+    MemoryController::SetConfig( conf, createChildren );
 
     SetDebugName( "FRFCFS", conf );
 }
 
 void FRFCFS::RegisterStats( )
 {
-   AddStat(mem_reads);
-   AddStat(mem_writes);
-   AddStat(rb_hits);
-   AddStat(rb_miss);
-   AddStat(starvation_precharges);
-   AddStat(averageLatency);
-   AddStat(averageQueueLatency);
-   AddStat(measuredLatencies);
-   AddStat(measuredQueueLatencies);
+    AddStat(mem_reads);
+    AddStat(mem_writes);
+    AddStat(rb_hits);
+    AddStat(rb_miss);
+    AddStat(starvation_precharges);
+    AddStat(averageLatency);
+    AddStat(averageQueueLatency);
+    AddStat(measuredLatencies);
+    AddStat(measuredQueueLatencies);
+    AddStat(write_pauses);
+
+    MemoryController::RegisterStats( );
 }
 
 bool FRFCFS::IsIssuable( NVMainRequest * /*request*/, FailReason * /*fail*/ )
@@ -122,7 +124,7 @@ bool FRFCFS::IsIssuable( NVMainRequest * /*request*/, FailReason * /*fail*/ )
     /*
      *  Limit the number of commands in the queue. This will stall the caches/CPU.
      */ 
-    if( memQueue.size( ) >= queueSize )
+    if( memQueue->size( ) >= queueSize )
     {
         rv = false;
     }
@@ -147,7 +149,7 @@ bool FRFCFS::IssueCommand( NVMainRequest *req )
      *  Just push back the read/write. It's easier to inject dram commands than break it up
      *  here and attempt to remove them later.
      */
-    memQueue.push_back( req );
+    Enqueue( 0, req );
 
     if( req->type == READ )
         mem_reads++;
@@ -162,6 +164,21 @@ bool FRFCFS::IssueCommand( NVMainRequest *req )
 
 bool FRFCFS::RequestComplete( NVMainRequest * request )
 {
+    if( request->type == WRITE || request->type == WRITE_PRECHARGE )
+    {
+        /* 
+         *  Put cancelled requests at the head of the write queue
+         *  like nothing ever happened.
+         */
+        if( request->flags & NVMainRequest::FLAG_CANCELLED 
+            || request->flags & NVMainRequest::FLAG_PAUSED )
+        {
+            Prequeue( 0, request );
+
+            return true;
+        }
+    }
+
     /* Only reads and writes are sent back to NVMain and checked for in the transaction queue. */
     if( request->type == READ 
         || request->type == READ_PRECHARGE 
@@ -193,23 +210,32 @@ void FRFCFS::Cycle( ncycle_t steps )
     NVMainRequest *nextRequest = NULL;
 
     /* Check for starved requests BEFORE row buffer hits. */
-    if( FindStarvedRequest( memQueue, &nextRequest ) )
+    if( FindStarvedRequest( *memQueue, &nextRequest ) )
     {
         rb_miss++;
         starvation_precharges++;
     }
     /* Check for row buffer hits. */
-    else if( FindRowBufferHit( memQueue, &nextRequest) )
+    else if( FindRowBufferHit( *memQueue, &nextRequest) )
     {
         rb_hits++;
     }
+    /* Check if the address is accessible through any other means. */
+    else if( FindCachedAddress( *memQueue, &nextRequest ) )
+    {
+    }
+    else if( FindWriteStalledRead( *memQueue, &nextRequest ) )
+    {
+        if( nextRequest != NULL )
+            write_pauses++;
+    }
     /* Find the oldest request that can be issued. */
-    else if( FindOldestReadyRequest( memQueue, &nextRequest ) )
+    else if( FindOldestReadyRequest( *memQueue, &nextRequest ) )
     {
         rb_miss++;
     }
     /* Find requests to a bank that is closed. */
-    else if( FindClosedBankRequest( memQueue, &nextRequest ) )
+    else if( FindClosedBankRequest( *memQueue, &nextRequest ) )
     {
         rb_miss++;
     }

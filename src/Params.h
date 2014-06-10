@@ -50,6 +50,12 @@ enum ProgramMode {
     ProgramMode_SSMR
 };
 
+enum PauseMode {
+    PauseMode_Normal,   ///< Normal pause mode: Wait until write pulse before read
+    PauseMode_IIWC,     ///< Intra-Iteration Write Cancellation: allow cancel during write pulse
+    PauseMode_Optimal   ///< Optimal: Same as IIWC, but consider iteration complete
+};
+
 class Params
 {
   public:
@@ -57,6 +63,8 @@ class Params
     ~Params( );
 
     void SetParams( Config *c );
+
+    bool EventDriven;
 
     ncounter_t BPC;
     ncounter_t BusWidth;
@@ -77,13 +85,12 @@ class Params
     double EIDD4W;
     double EIDD5B;
     double EIDD6;
-    double Eclosed;
-    double Eopen;
     double Eopenrd;
     double Erd;
     double Eref;
     double Ewr;
-    double Eleak;
+    double Eactstdby;
+    double Eprestdby;
     double Epda;
     double Epdpf;
     double Epdps;
@@ -114,6 +121,7 @@ class Params
     ncounter_t RefreshRows;
     bool UseRefresh;
     bool StaggerRefresh;
+    bool UsePrecharge;
 
     ncounter_t OffChipLatency;
 
@@ -139,6 +147,7 @@ class Params
     ncycle_t tPD;
     ncycle_t tRAS;
     ncycle_t tRCD;
+    ncycle_t tRDB;
     ncycle_t tREFW;
     ncycle_t tRFC;
     ncycle_t tRP;
@@ -164,6 +173,9 @@ class Params
     ncounter_t BanksPerRefresh; // the number of banks in a refresh (in lockstep)
     ncounter_t DelayedRefreshThreshold; // the threshold that indicates how many refresh can be delayed
     std::string AddressMappingScheme; // the address mapping scheme
+
+    std::string MemoryPrefetcher;
+    ncounter_t PrefetchBufferSize;
 
     ProgramMode programMode;
     ncounter_t MLCLevels;
@@ -191,6 +203,11 @@ class Params
     /* List of debug classes. */
     bool debugOn;
     std::set<std::string> debugClasses;
+
+    bool WritePausing;
+    double PauseThreshold;
+    ncounter_t MaxCancellations;
+    PauseMode pauseMode;
 
   private:
     void ConvertTiming( Config *conf, std::string param, ncycle_t& value );

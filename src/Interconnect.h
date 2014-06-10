@@ -47,22 +47,13 @@ class Interconnect : public NVMObject
     Interconnect( ) { }
     virtual ~Interconnect( ) { }
 
-    virtual void SetConfig( Config *c ) = 0;
+    virtual void SetConfig( Config *c, bool createChildren = true ) = 0;
 
-    void StatName( std::string name ) { statName = name; }
     virtual void RegisterStats( ) { }
     virtual void CalculateStats( ) { }
     
     virtual void Cycle( ncycle_t steps ) = 0;
 
-    virtual bool CanPowerDown( const OpType&, const ncounter_t& ) = 0;
-    virtual bool PowerDown( const OpType&, const ncounter_t& ) = 0;
-    virtual bool CanPowerUp( const ncounter_t& ) = 0;
-    virtual bool PowerUp( const ncounter_t& ) = 0;
-    virtual bool IsRankIdle( const ncounter_t& ) = 0;
-
-  protected:
-    std::string statName;
 };
 
 };

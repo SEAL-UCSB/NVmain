@@ -55,6 +55,17 @@ namespace NVM {
 enum ProcessorOp { LOAD, STORE };
 enum QueueModel { PerRankQueues, PerBankQueues, PerSubArrayQueues };
 
+/*
+ *  If the transaction queue has higher priority, it is possible for a
+ *  transaction to be inserted into the command queue AND issued in the
+ *  same clock cycle. 
+ *
+ *  By default, the transaction queue has *lower* priority to more closely
+ *  model the execution driven order.
+ */
+const int transactionQueuePriority = 1;
+const int commandQueuePriority = -1;
+
 class SchedulingPredicate
 {
   public:
@@ -88,7 +99,6 @@ class MemoryController : public NVMObject
 {
   public:
     MemoryController( );
-    MemoryController( Interconnect *memory, AddressTranslator *translator );
     ~MemoryController( );
 
 
@@ -97,37 +107,34 @@ class MemoryController : public NVMObject
 
     virtual bool RequestComplete( NVMainRequest *request );
     virtual bool IsIssuable( NVMainRequest *request, FailReason *fail );
+    ncycle_t NextIssuable( NVMainRequest *request );
 
-    void SetMemory( Interconnect *mem );
-    Interconnect *GetMemory( );
-
-    void SetTranslator( AddressTranslator *trans );
-    AddressTranslator *GetTranslator( );
-
-    AddressTranslator *GetAddressTranslator( );
-
-    void StatName( std::string name ) { statName = name; }
     virtual void RegisterStats( );
     virtual void CalculateStats( );
 
+    virtual void Callback( void *data );
     virtual void Cycle( ncycle_t steps ); 
 
-    virtual void SetConfig( Config *conf );
+    virtual void SetConfig( Config *conf, bool createChildren = true );
+    void SetMappingScheme( );
     void SetParams( Params *params ) { p = params; }
     Config *GetConfig( );
 
     void SetID( unsigned int id );
+    unsigned int GetID( );
 
   protected:
     Interconnect *memory;
-    AddressTranslator *translator;
     Config *config;
-    std::string statName;
     ncounter_t psInterval;
+    ncycle_t lastCommandWake;
+    bool commandWakeScheduled;
+    ncounter_t wakeupCount;
 
     std::list<NVMainRequest *> *transactionQueues;
     std::deque<NVMainRequest *> *commandQueues;
     ncounter_t commandQueueCount;
+    ncounter_t transactionQueueCount;
     QueueModel queueModel;
 
     ncounter_t GetCommandQueueId( NVMAddress addr );
@@ -142,6 +149,12 @@ class MemoryController : public NVMObject
 
     bool *rankPowerDown;
 
+    bool TransactionAvailable( ncounter_t queueId );
+    void ScheduleCommandWake( );
+    void Prequeue( ncounter_t queueNum, NVMainRequest *request );
+    void Enqueue( ncounter_t queueNum, NVMainRequest *request );
+
+    NVMainRequest *MakeCachedRequest( NVMainRequest *triggerRequest );
     NVMainRequest *MakeActivateRequest( NVMainRequest *triggerRequest );
     NVMainRequest *MakeActivateRequest( const ncounter_t, const ncounter_t, 
                                         const ncounter_t, const ncounter_t, 
@@ -158,9 +171,14 @@ class MemoryController : public NVMObject
     NVMainRequest *MakeRefreshRequest( const ncounter_t, const ncounter_t, 
                                        const ncounter_t, const ncounter_t, 
                                        const ncounter_t );
+    NVMainRequest *MakePowerdownRequest( OpType pdOp,
+                                         const ncounter_t rank );
+    NVMainRequest *MakePowerupRequest( const ncounter_t rank );
 
     bool FindStarvedRequest( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **starvedRequest );
+    bool FindCachedAddress( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **accessibleRequest );
     bool FindRowBufferHit( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **hitRequest );
+    bool FindWriteStalledRead( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **hitRequest );
     bool FindOldestReadyRequest( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **oldestRequest );
     bool FindClosedBankRequest( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **closedRequest );
     bool FindStarvedRequests( std::list<NVMainRequest *>& transactionQueue, std::vector<NVMainRequest *>& starvedRequests );
@@ -168,17 +186,21 @@ class MemoryController : public NVMObject
     bool FindOldestReadyRequests( std::list<NVMainRequest *>& transactionQueue, std::vector<NVMainRequest *>& oldestRequests );
     bool FindClosedBankRequests( std::list<NVMainRequest *>& transactionQueue, std::vector<NVMainRequest *>& closedRequests );
 
+
     bool IssueMemoryCommands( NVMainRequest *req );
     void CycleCommandQueues( );
 
     bool FindStarvedRequest( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **starvedRequest, NVM::SchedulingPredicate& p );
+    bool FindCachedAddress( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **accessibleRequest, NVM::SchedulingPredicate& p );
     bool FindRowBufferHit( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **hitRequest, NVM::SchedulingPredicate& p );
+    bool FindWriteStalledRead( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **hitRequest, NVM::SchedulingPredicate& p );
     bool FindOldestReadyRequest( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **oldestRequest, NVM::SchedulingPredicate& p );
     bool FindClosedBankRequest( std::list<NVMainRequest *>& transactionQueue, NVMainRequest **closedRequest, NVM::SchedulingPredicate& p );
     bool FindStarvedRequests( std::list<NVMainRequest *>& transactionQueue, std::vector<NVMainRequest *>& starvedRequests, NVM::SchedulingPredicate& p  );
     bool FindRowBufferHits( std::list<NVMainRequest *>& transactionQueue, std::vector<NVMainRequest *>& hitRequests, NVM::SchedulingPredicate& p  );
     bool FindOldestReadyRequests( std::list<NVMainRequest *>& transactionQueue, std::vector<NVMainRequest *>& oldestRequests, NVM::SchedulingPredicate& p  );
     bool FindClosedBankRequests( std::list<NVMainRequest *>& transactionQueue, std::vector<NVMainRequest *>& closedRequests, NVM::SchedulingPredicate& p  );
+
     /* IsLastRequest() tells whether no other request has the row buffer hit in the transaction queue */
     virtual bool IsLastRequest( std::list<NVMainRequest *>& transactionQueue, NVMainRequest *request); 
     /* curQueue records the starting index for queue round-robin level scheduling */

@@ -50,13 +50,13 @@ Stats::~Stats( )
     for( it = statList.begin(); it != statList.end(); it++ )
     {
         /* Free reset value memory. */
-        int *rval = static_cast<int *>((*it)->GetResetValue( ));
+        uint8_t *rval = static_cast<uint8_t *>((*it)->GetResetValue( ));
         delete rval; 
         delete (*it);
     }
 }
 
-void Stats::addStat( void *stat, void *resetValue, std::string statType, size_t typeSize, std::string name, std::string units )
+void Stats::addStat( StatType stat, StatType resetValue, std::string statType, size_t typeSize, std::string name, std::string units )
 {
     StatBase *sb = new StatBase( );
 
@@ -69,7 +69,7 @@ void Stats::addStat( void *stat, void *resetValue, std::string statType, size_t 
     statList.push_back( sb );
 }
 
-void Stats::removeStat( void *stat )
+void Stats::removeStat( StatType stat )
 {
     std::vector<StatBase *>::iterator it;
 
@@ -78,13 +78,30 @@ void Stats::removeStat( void *stat )
         if( (*it)->GetValue( ) == stat )
         {
             /* Free reset value memory. */
-            int *rval = static_cast<int *>((*it)->GetResetValue( ));
+            uint8_t *rval = static_cast<uint8_t *>((*it)->GetResetValue( ));
             delete rval; 
 
             statList.erase( it );
             break;
         }
     }
+}
+
+StatType Stats::getStat( std::string name )
+{
+    StatType rv = NULL;
+    std::vector<StatBase *>::iterator it;
+
+    for( it = statList.begin(); it != statList.end(); it++ )
+    {
+        if( (*it)->GetName( ) == name )
+        {
+            rv = (*it)->GetValue( );
+            break;
+        }
+    }
+
+    return rv;
 }
 
 void Stats::PrintAll( std::ostream& stream )

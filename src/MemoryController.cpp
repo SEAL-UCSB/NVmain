@@ -36,7 +36,12 @@
 #include "src/MemoryController.h"
 #include "include/NVMainRequest.h"
 #include "src/EventQueue.h"
+#include "src/Interconnect.h"
+#include "Interconnect/InterconnectFactory.h"
+#include "src/Rank.h"
+#include "src/SubArray.h"
 
+#include <sstream>
 #include <cassert>
 #include <cstdlib>
 #include <csignal>
@@ -47,11 +52,13 @@ using namespace NVM;
 MemoryController::MemoryController( )
 {
     transactionQueues = NULL;
-    memory = NULL;
-    translator = NULL;
-
+    transactionQueueCount = 0;
     commandQueues = NULL;
     commandQueueCount = 0;
+
+    lastCommandWake = 0;
+    commandWakeScheduled = false;
+    wakeupCount = 0;
 
     starvationThreshold = 4;
     subArrayNum = 1;
@@ -70,8 +77,6 @@ MemoryController::MemoryController( )
 
 MemoryController::~MemoryController( )
 {
-
-    
     for( ncounter_t i = 0; i < p->RANKS; i++ )
     {
         delete [] activateQueued[i];
@@ -109,20 +114,6 @@ MemoryController::~MemoryController( )
     }
 
     delete [] delayedRefreshCounter;
-    
-}
-
-MemoryController::MemoryController( Interconnect *memory, AddressTranslator *translator )
-{
-    this->memory = memory;
-    this->translator = translator;
-
-    transactionQueues = NULL;
-}
-
-AddressTranslator *MemoryController::GetAddressTranslator( )
-{
-    return translator;
 }
 
 void MemoryController::InitQueues( unsigned int numQueues )
@@ -131,6 +122,7 @@ void MemoryController::InitQueues( unsigned int numQueues )
         delete [] transactionQueues;
 
     transactionQueues = new NVMTransactionQueue[ numQueues ];
+    transactionQueueCount = numQueues;
 
     for( unsigned int i = 0; i < numQueues; i++ )
         transactionQueues[i].clear( );
@@ -138,7 +130,140 @@ void MemoryController::InitQueues( unsigned int numQueues )
 
 void MemoryController::Cycle( ncycle_t steps )
 {
-    memory->Cycle( steps );
+    if( p->EventDriven )
+    {
+        /* 
+         *  Recheck transaction queues for issuables. This may happen when two
+         *  transactions can be issued in the same cycle, but we can't guarantee
+         *  the transaction won't be blocked by the first wake up.
+         */
+        bool scheduled = false;
+        ncycle_t nextWakeup = GetEventQueue( )->GetCurrentCycle( ) + 1;
+
+        /* Skip this if another transaction is scheduled this cycle. */
+        if( GetEventQueue( )->FindEvent( EventCycle, this, NULL, nextWakeup ) )
+            return;
+
+        for( ncounter_t queueIdx = 0; queueIdx < commandQueueCount; queueIdx++ )
+        {
+            if( commandQueues[queueIdx].empty( )
+                && TransactionAvailable( queueIdx ) )
+            {
+                GetEventQueue( )->InsertEvent( EventCycle, this, nextWakeup, transactionQueuePriority );
+
+                //std::cout << "CY Scheduled transaction queue wakeup at " << nextWakeup << std::endl;
+
+                /* Only allow one request. */
+                scheduled = true;
+                break;
+            }
+
+            if( scheduled ) 
+            {
+                break;
+            }
+        }
+    }
+    else
+    {
+        GetChild( )->Cycle( steps );
+    }
+}
+
+void MemoryController::Prequeue( ncounter_t queueNum, NVMainRequest *request )
+{
+    assert( queueNum < transactionQueueCount );
+
+    transactionQueues[queueNum].push_front( request );
+}
+
+void MemoryController::Enqueue( ncounter_t queueNum, NVMainRequest *request )
+{
+    assert( queueNum < transactionQueueCount );
+
+    transactionQueues[queueNum].push_back( request );
+    
+    if( p->EventDriven )
+    {
+        /* If this command queue is empty, we can schedule a new transaction right away. */
+        ncounter_t queueId = GetCommandQueueId( request->address );
+
+        if( commandQueues[queueId].empty( ) )
+        {
+            ncycle_t nextWakeup = GetEventQueue( )->GetCurrentCycle( );
+
+            if( GetEventQueue( )->FindEvent( EventCycle, this, NULL, nextWakeup ) == NULL )
+            {
+                GetEventQueue( )->InsertEvent( EventCycle, this, nextWakeup, transactionQueuePriority );
+
+                //std::cout << "Waking up transaction scheduler at " << nextWakeup << std::endl;
+            }
+        }
+    }
+}
+
+bool MemoryController::TransactionAvailable( ncounter_t queueId )
+{
+    bool rv = false; 
+
+    for( ncounter_t queueIdx = 0; queueIdx < transactionQueueCount; queueIdx++ )
+    {
+        std::list<NVMainRequest *>::iterator it;
+
+        for( it = transactionQueues[queueIdx].begin( );
+             it != transactionQueues[queueIdx].end( ); it++ )
+        {
+            if( GetCommandQueueId( (*it)->address ) == queueId )
+            {
+                rv = true;
+                break;
+            }
+        }
+    }
+
+    return rv;
+}
+
+void MemoryController::ScheduleCommandWake( )
+{
+    /* Schedule wake event for memory commands if not scheduled. */
+    if( p->EventDriven && commandWakeScheduled == false )
+    {
+        ncycle_t nextWakeup = NextIssuable( NULL );
+
+        GetEventQueue( )->InsertEvent( EventCallback, this, nextWakeup, commandQueuePriority );
+        commandWakeScheduled = true;
+
+        //std::cout << "SCW Scheduled command queue wakeup at " << nextWakeup << std::endl;
+    }
+}
+
+void MemoryController::Callback( void * /*data*/ )
+{
+    assert( p->EventDriven == true );
+
+    /* Determine time since last wakeup. */
+    ncycle_t realSteps = GetEventQueue( )->GetCurrentCycle( ) - lastCommandWake;
+    lastCommandWake = GetEventQueue( )->GetCurrentCycle( );
+
+    /* Schedule next wake up. */
+    ncycle_t nextWakeup = NextIssuable( NULL );
+    wakeupCount++;
+
+    if( nextWakeup != std::numeric_limits<ncycle_t>::max( ) )
+    {
+        GetEventQueue( )->InsertEvent( EventCallback, this, nextWakeup, commandQueuePriority );
+
+        //std::cout << "CB Scheduled command queue wakeup at " << nextWakeup << std::endl;
+    }
+    else
+    {
+        commandWakeScheduled = false;
+    }
+
+    CycleCommandQueues( );
+
+    GetChild( )->Cycle( realSteps );
 }
 
 bool MemoryController::RequestComplete( NVMainRequest *request )
@@ -166,27 +291,13 @@ bool MemoryController::IsIssuable( NVMainRequest * /*request*/, FailReason * /*f
     return true;
 }
 
-void MemoryController::SetMemory( Interconnect *mem )
+void MemoryController::SetMappingScheme( )
 {
-    this->memory = mem;
+    /* Configure common memory controller parameters. */
+    GetDecoder( )->GetTranslationMethod( )->SetAddressMappingScheme( p->AddressMappingScheme );
 }
 
-Interconnect *MemoryController::GetMemory( )
-{
-    return (this->memory);
-}
-
-void MemoryController::SetTranslator( AddressTranslator *trans )
-{
-    this->translator = trans;
-}
-
-AddressTranslator *MemoryController::GetTranslator( )
-{
-    return (this->translator);
-}
-
-void MemoryController::SetConfig( Config *conf )
+void MemoryController::SetConfig( Config *conf, bool createChildren )
 {
     this->config = conf;
 
@@ -194,10 +305,32 @@ void MemoryController::SetConfig( Config *conf )
     params->SetParams( conf );
     SetParams( params );
     
-    translator->GetTranslationMethod( )->SetAddressMappingScheme( 
-            p->AddressMappingScheme );
+    if( createChildren )
+    {
+        /* When selecting a child, use the bank field from the decoder. */
+        AddressTranslator *mcAT = DecoderFactory::CreateDecoderNoWarn( conf->GetString( "Decoder" ) );
+        mcAT->SetTranslationMethod( GetParent( )->GetTrampoline( )->GetDecoder( )->GetTranslationMethod( ) );
+        mcAT->SetDefaultField( NO_FIELD );
+        mcAT->SetConfig( conf, createChildren );
+        SetDecoder( mcAT );
 
-    std::cout << "ScheduleScheme is " << p->ScheduleScheme << std::endl;
+        /* Initialize interconnect */
+        std::stringstream confString;
+
+        memory = InterconnectFactory::CreateInterconnect( conf->GetString( "INTERCONNECT" ) );
+
+        confString.str( "" );
+        confString << StatName( ) << ".channel" << GetID( );
+        memory->StatName( confString.str( ) );
+
+        memory->SetParent( this );
+        AddChild( memory );
+
+        memory->SetConfig( conf, createChildren );
+        memory->RegisterStats( );
+        
+        SetMappingScheme( );
+    }
 
     /*
      *  The logical bank size is: ROWS * COLS * memory word size (in bytes). 
@@ -205,7 +338,7 @@ void MemoryController::SetConfig( Config *conf )
      *  number of devices = bus width / device width
      *  Total channel size is: loglcal bank size * BANKS * RANKS
      */
-    std::cout << statName << " capacity is " << ((p->ROWS * p->COLS * p->DeviceWidth * p->tBURST * p->RATE * (p->BusWidth / p->DeviceWidth) * p->BANKS * p->RANKS) / (8*1024*1024)) << " MB." << std::endl;
+    std::cout << StatName( ) << " capacity is " << ((p->ROWS * p->COLS * p->DeviceWidth * p->tBURST * p->RATE * (p->BusWidth / p->DeviceWidth) * p->BANKS * p->RANKS) / (8*1024*1024)) << " MB." << std::endl;
 
     if( conf->KeyExists( "MATHeight" ) )
     {
@@ -350,6 +483,7 @@ void MemoryController::SetConfig( Config *conf )
 void MemoryController::RegisterStats( )
 {
     AddStat(simulation_cycles);
+    AddStat(wakeupCount);
 }
 
 /* 
@@ -439,7 +573,7 @@ bool MemoryController::HandleRefresh( )
                 /* create a refresh command that will be sent to ranks */
                 NVMainRequest* cmdRefresh = MakeRefreshRequest( 0, 0, j, i, 0 );
 
-                if( memory->IsIssuable( cmdRefresh, &fail ) == false )
+                if( GetChild( )->IsIssuable( cmdRefresh, &fail ) == false && p->UsePrecharge )
                 {
                     for( ncounter_t tmpBank = 0; tmpBank < p->BanksPerRefresh; tmpBank++ ) 
                     {
@@ -451,8 +585,12 @@ bool MemoryController::HandleRefresh( )
                         if( activateQueued[i][refBank] == true && commandQueues[queueId].empty() )
                         {
                             /* issue a PRECHARGE_ALL command to close all subarrays */
+                            // TODO: The PRECHARGE_ALL request generated here is meant to precharge all
+                            // subarrays -- We will need a different command for precharging all banks
                             commandQueues[queueId].push_back( 
                                     MakePrechargeAllRequest( 0, 0, refBank, i, 0 ) );
+
+                            ScheduleCommandWake( );
 
                             /* clear all active subarrays */
                             for( ncounter_t sa = 0; sa < subArrayNum; sa++ )
@@ -545,7 +683,7 @@ bool MemoryController::IsRefreshBankQueueEmpty( const ncounter_t bank, const uin
 
 void MemoryController::PowerDown( const ncounter_t& rankId )
 {
-    OpType pdOp;
+    OpType pdOp = POWERDOWN_PDPF;
     if( p->PowerDownMode == "SLOWEXIT" )
         pdOp = POWERDOWN_PDPS;
     else if( p->PowerDownMode == "FASTEXIT" )
@@ -553,26 +691,47 @@ void MemoryController::PowerDown( const ncounter_t& rankId )
     else
         std::cerr << "NVMain Error: Undefined low power mode" << std::endl;
 
-    /* if some banks are active, active powerdown is applied */
-    if( memory->IsRankIdle( rankId ) == false )
-        pdOp = POWERDOWN_PDA;
+    NVMainRequest *powerdownRequest = MakePowerdownRequest( pdOp, rankId );
 
-    if( memory->CanPowerDown( pdOp, rankId ) 
-        && RankQueueEmpty( rankId ) )
+    /* if some banks are active, active powerdown is applied */
+    NVMObject *child;
+    FindChildType( powerdownRequest, Rank, child );
+    Rank *pdRank = dynamic_cast<Rank *>(child);
+
+    if( pdRank->Idle( ) == false )
     {
-        memory->PowerDown( pdOp, rankId );
+        /* Remake request as PDA. */
+        delete powerdownRequest;
+
+        pdOp = POWERDOWN_PDA;
+        powerdownRequest = MakePowerdownRequest( pdOp, rankId );
+    }
+
+    if( RankQueueEmpty( rankId ) && GetChild()->IsIssuable( powerdownRequest ) )
+    {
+        GetChild()->IssueCommand( powerdownRequest );
         rankPowerDown[rankId] = true;
+    }
+    else
+    {
+        delete powerdownRequest;
     }
 }
 
 void MemoryController::PowerUp( const ncounter_t& rankId )
 {
-    /* if some banks are active, active powerdown is applied */
+    NVMainRequest *powerupRequest = MakePowerupRequest( rankId );
+
+    /* If some banks are active, active powerdown is applied */
     if( RankQueueEmpty( rankId ) == false 
-        && memory->CanPowerUp( rankId ) )
+        && GetChild()->IsIssuable( powerupRequest ) )
     {
-        memory->PowerUp( rankId );
+        GetChild()->IssueCommand( powerupRequest );
         rankPowerDown[rankId] = false;
+    }
+    else
+    {
+        delete powerupRequest;
     }
 }
 
@@ -598,11 +757,17 @@ void MemoryController::HandleLowPower( )
         /* if some of the banks in this rank need refresh */
         if( needRefresh )
         {
+            NVMainRequest *powerupRequest = MakePowerupRequest( rankId );
+
             /* if the rank is powered down, power it up */
-            if( rankPowerDown[rankId] && memory->CanPowerUp( rankId ) )
+            if( rankPowerDown[rankId] && GetChild()->IsIssuable( powerupRequest ) )
             {
-                memory->PowerUp( rankId );
+                GetChild()->IssueCommand( powerupRequest );
                 rankPowerDown[rankId] = false;
+            }
+            else
+            {
+                delete powerupRequest;
             }
         }
         /* else, check whether the rank can be powered down or up */
@@ -626,6 +791,25 @@ void MemoryController::SetID( unsigned int id )
     this->id = id;
 }
 
+unsigned int MemoryController::GetID( )
+{
+    return this->id;
+}
+
+NVMainRequest *MemoryController::MakeCachedRequest( NVMainRequest *triggerRequest )
+{
+    /* This method should be called on *transaction* queue requests, thus only READ/WRITE possible. */
+    assert( triggerRequest->type == READ || triggerRequest->type == WRITE );
+
+    NVMainRequest *cachedRequest = new NVMainRequest( );
+
+    *cachedRequest = *triggerRequest;
+    cachedRequest->type = (triggerRequest->type == READ ? CACHED_READ : CACHED_WRITE);
+    cachedRequest->owner = this;
+
+    return cachedRequest;
+}
+
 NVMainRequest *MemoryController::MakeActivateRequest( NVMainRequest *triggerRequest )
 {
     NVMainRequest *activateRequest = new NVMainRequest( );
@@ -647,9 +831,9 @@ NVMainRequest *MemoryController::MakeActivateRequest( const ncounter_t row,
     NVMainRequest *activateRequest = new NVMainRequest( );
 
     activateRequest->type = ACTIVATE;
-    ncounter_t actAddr = translator->ReverseTranslate( row, col, bank, rank, 0, subarray );
+    ncounter_t actAddr = GetDecoder( )->ReverseTranslate( row, col, bank, rank, id, subarray );
     activateRequest->address.SetPhysicalAddress( actAddr );
-    activateRequest->address.SetTranslatedAddress( row, col, bank, rank, 0, subarray );
+    activateRequest->address.SetTranslatedAddress( row, col, bank, rank, id, subarray );
     activateRequest->issueCycle = GetEventQueue()->GetCurrentCycle();
     activateRequest->owner = this;
 
@@ -677,9 +861,9 @@ NVMainRequest *MemoryController::MakePrechargeRequest( const ncounter_t row,
     NVMainRequest *prechargeRequest = new NVMainRequest( );
 
     prechargeRequest->type = PRECHARGE;
-    ncounter_t preAddr = translator->ReverseTranslate( row, col, bank, rank, 0, subarray );
+    ncounter_t preAddr = GetDecoder( )->ReverseTranslate( row, col, bank, rank, id, subarray );
     prechargeRequest->address.SetPhysicalAddress( preAddr );
-    prechargeRequest->address.SetTranslatedAddress( row, col, bank, rank, 0, subarray );
+    prechargeRequest->address.SetTranslatedAddress( row, col, bank, rank, id, subarray );
     prechargeRequest->issueCycle = GetEventQueue()->GetCurrentCycle();
     prechargeRequest->owner = this;
 
@@ -707,9 +891,9 @@ NVMainRequest *MemoryController::MakePrechargeAllRequest( const ncounter_t row,
     NVMainRequest *prechargeAllRequest = new NVMainRequest( );
 
     prechargeAllRequest->type = PRECHARGE_ALL;
-    ncounter_t preAddr = translator->ReverseTranslate( row, col, bank, rank, 0, subarray );
+    ncounter_t preAddr = GetDecoder( )->ReverseTranslate( row, col, bank, rank, id, subarray );
     prechargeAllRequest->address.SetPhysicalAddress( preAddr );
-    prechargeAllRequest->address.SetTranslatedAddress( row, col, bank, rank, 0, subarray );
+    prechargeAllRequest->address.SetTranslatedAddress( row, col, bank, rank, id, subarray );
     prechargeAllRequest->issueCycle = GetEventQueue()->GetCurrentCycle();
     prechargeAllRequest->owner = this;
 
@@ -737,13 +921,42 @@ NVMainRequest *MemoryController::MakeRefreshRequest( const ncounter_t row,
     NVMainRequest *refreshRequest = new NVMainRequest( );
 
     refreshRequest->type = REFRESH;
-    ncounter_t preAddr = translator->ReverseTranslate( row, col, bank, rank, 0, subarray );
+    ncounter_t preAddr = GetDecoder( )->ReverseTranslate( row, col, bank, rank, id, subarray );
     refreshRequest->address.SetPhysicalAddress( preAddr );
-    refreshRequest->address.SetTranslatedAddress( row, col, bank, rank, 0, subarray );
+    refreshRequest->address.SetTranslatedAddress( row, col, bank, rank, id, subarray );
     refreshRequest->issueCycle = GetEventQueue()->GetCurrentCycle();
     refreshRequest->owner = this;
 
     return refreshRequest;
+}
+
+NVMainRequest *MemoryController::MakePowerdownRequest( OpType pdOp,
+                                                       const ncounter_t rank )
+{
+    NVMainRequest *powerdownRequest = new NVMainRequest( );
+
+    powerdownRequest->type = pdOp;
+    ncounter_t pdAddr = GetDecoder( )->ReverseTranslate( 0, 0, 0, rank, id, 0 );
+    powerdownRequest->address.SetPhysicalAddress( pdAddr );
+    powerdownRequest->address.SetTranslatedAddress( 0, 0, 0, rank, id, 0 );
+    powerdownRequest->issueCycle = GetEventQueue()->GetCurrentCycle();
+    powerdownRequest->owner = this;
+
+    return powerdownRequest;
+}
+
+NVMainRequest *MemoryController::MakePowerupRequest( const ncounter_t rank )
+{
+    NVMainRequest *powerupRequest = new NVMainRequest( );
+
+    powerupRequest->type = POWERUP;
+    ncounter_t puAddr = GetDecoder( )->ReverseTranslate( 0, 0, 0, rank, id, 0 );
+    powerupRequest->address.SetPhysicalAddress( puAddr );
+    powerupRequest->address.SetTranslatedAddress( 0, 0, 0, rank, id, 0 );
+    powerupRequest->issueCycle = GetEventQueue()->GetCurrentCycle();
+    powerupRequest->owner = this;
+
+    return powerupRequest;
 }
 
 bool MemoryController::IsLastRequest( std::list<NVMainRequest *>& transactionQueue,
@@ -752,7 +965,9 @@ bool MemoryController::IsLastRequest( std::list<NVMainRequest *>& transactionQue
     bool rv = true;
     
     if( p->ClosePage == 0 )
+    {
         rv = false;
+    }
     else if( p->ClosePage == 1 )
     {
         ncounter_t mRank, mBank, mRow, mSubArray;
@@ -799,6 +1014,8 @@ bool MemoryController::FindStarvedRequest( std::list<NVMainRequest *>& transacti
         ncounter_t rank, bank, row, subarray, col;
         ncounter_t queueId = GetCommandQueueId( (*it)->address );
 
+        if( !commandQueues[queueId].empty() ) continue;
+
         (*it)->address.GetTranslatedAddress( &row, &col, &bank, &rank, NULL, &subarray );
         
         /* By design, mux level can only be a subset of the selected columns. */
@@ -836,6 +1053,146 @@ bool MemoryController::FindStarvedRequest( std::list<NVMainRequest *>& transacti
     return rv;
 }
 
+/*
+ *  Find any requests that can be serviced without going through a normal activation cycle.
+ */
+bool MemoryController::FindCachedAddress( std::list<NVMainRequest *>& transactionQueue,
+                                              NVMainRequest **accessibleRequest )
+{
+    DummyPredicate pred;
+
+    return FindCachedAddress( transactionQueue, accessibleRequest, pred );
+}
+
+/*
+ *  Find any requests that can be serviced without going through a normal activation cycle.
+ */
+bool MemoryController::FindCachedAddress( std::list<NVMainRequest *>& transactionQueue,
+                                              NVMainRequest **accessibleRequest, 
+                                              SchedulingPredicate& pred )
+{
+    bool rv = false;
+    std::list<NVMainRequest *>::iterator it;
+
+    *accessibleRequest = NULL;
+
+    for( it = transactionQueue.begin(); it != transactionQueue.end(); it++ )
+    {
+        ncounter_t queueId = GetCommandQueueId( (*it)->address );
+        NVMainRequest *cachedRequest = MakeCachedRequest( (*it) );
+        
+        if( commandQueues[queueId].empty() 
+            && GetChild( )->IsIssuable( cachedRequest )
+            && pred( (*it ) ) )
+        {
+            //std::cout << "Found accessible request type " << (*it)->type << " for 0x"
+            //          << std::hex << (*it)->address.GetPhysicalAddress( ) 
+            //          << std::dec << std::endl;
+
+            *accessibleRequest = (*it);
+            transactionQueue.erase( it );
+
+            delete cachedRequest;
+
+            rv = true;
+            break;
+        }
+
+        delete cachedRequest;
+    }
+
+    return rv;
+}
+
+bool MemoryController::FindWriteStalledRead( std::list<NVMainRequest *>& transactionQueue,
+                                             NVMainRequest **hitRequest )
+{
+    DummyPredicate pred;
+
+    return FindWriteStalledRead( transactionQueue, hitRequest, pred );
+}
+
+bool MemoryController::FindWriteStalledRead( std::list<NVMainRequest *>& transactionQueue, 
+                                             NVMainRequest **hitRequest, SchedulingPredicate& pred )
+{
+    bool rv = false;
+    std::list<NVMainRequest *>::iterator it;
+
+    *hitRequest = NULL;
+
+    if( !p->WritePausing )
+        return false;
+
+    for( it = transactionQueue.begin(); it != transactionQueue.end(); it++ )
+    {
+        if( (*it)->type != READ )
+            continue;
+
+        ncounter_t rank, bank, row, subarray, col;
+        ncounter_t queueId = GetCommandQueueId( (*it)->address );
+
+        if( !commandQueues[queueId].empty() ) continue;
+
+        (*it)->address.GetTranslatedAddress( &row, &col, &bank, &rank, NULL, &subarray );
+
+        /* Find the requests's SubArray destination. */
+        SubArray *writingArray = FindChild( (*it), SubArray );
+
+        /* Assume the memory has no subarrays if we don't find the destination. */
+        if( writingArray == NULL )
+            return false;
+
+        //if( writingArray->IsWriting( ) )
+        //{
+        //    std::cout << "Subarray is writing!" << std::endl;
+        //}
+
+        NVMainRequest *testActivate = MakeActivateRequest( (*it) );
+        testActivate->flags |= NVMainRequest::FLAG_PRIORITY; 
+
+        if( !bankNeedRefresh[rank][bank]                 /* The bank is not waiting for a refresh */
+            && writingArray->IsWriting( )                /* There needs to be a write to cancel. */
+            && ( GetChild( )->IsIssuable( (*it ) )       /* Check for RB hit pause */
+            || GetChild( )->IsIssuable( testActivate ) ) /* See if we can activate to pause. */
+            && commandQueues[queueId].empty()            /* The request queue is empty */
+            && pred( (*it) ) )                           /* User-defined predicate is true */
+        {
+            if( !writingArray->BetweenWriteIterations( ) && p->pauseMode == PauseMode_Normal )
+            {
+                delete testActivate;
+
+                /* Stall the scheduler by returning true. */
+                rv = true;
+                break;
+            }
+
+            *hitRequest = (*it);
+            transactionQueue.erase( it );
+
+            delete testActivate;
+
+            /* Different row buffer management policy has different behavior */ 
+
+            /* 
+             * if Relaxed Close-Page row buffer management policy is applied,
+             * we check whether there is another request has row buffer hit.
+             * if not, this request is the last request and we can close the
+             * row.
+             */
+            if( IsLastRequest( transactionQueue, (*hitRequest) ) )
+                (*hitRequest)->flags |= NVMainRequest::FLAG_LAST_REQUEST;
+
+            rv = true;
+
+            break;
+        }
+
+        delete testActivate;
+    }
+
+    return rv;
+}
+
 bool MemoryController::FindRowBufferHit( std::list<NVMainRequest *>& transactionQueue, 
                                          NVMainRequest **hitRequest )
 {
@@ -856,6 +1213,8 @@ bool MemoryController::FindRowBufferHit( std::list<NVMainRequest *>& transaction
     {
         ncounter_t rank, bank, row, subarray, col;
         ncounter_t queueId = GetCommandQueueId( (*it)->address );
+
+        if( !commandQueues[queueId].empty() ) continue;
 
         (*it)->address.GetTranslatedAddress( &row, &col, &bank, &rank, NULL, &subarray );
 
@@ -915,6 +1274,8 @@ bool MemoryController::FindOldestReadyRequest( std::list<NVMainRequest *>& trans
         ncounter_t rank, bank;
         ncounter_t queueId = GetCommandQueueId( (*it)->address );
 
+        if( !commandQueues[queueId].empty() ) continue;
+
         (*it)->address.GetTranslatedAddress( NULL, NULL, &bank, &rank, NULL, NULL );
 
         if( activateQueued[rank][bank]         /* The bank is active */ 
@@ -965,6 +1326,8 @@ bool MemoryController::FindClosedBankRequest( std::list<NVMainRequest *>& transa
     {
         ncounter_t rank, bank;
         ncounter_t queueId = GetCommandQueueId( (*it)->address );
+
+        if( !commandQueues[queueId].empty() ) continue;
 
         (*it)->address.GetTranslatedAddress( NULL, NULL, &bank, &rank, NULL, NULL );
 
@@ -1019,6 +1382,8 @@ bool MemoryController::FindStarvedRequests( std::list<NVMainRequest *>& transact
         ncounter_t rank, bank, row, subarray, col;
         ncounter_t queueId = GetCommandQueueId( (*it)->address );
 
+        if( !commandQueues[queueId].empty() ) continue;
+
         (*it)->address.GetTranslatedAddress( &row, &col, &bank, &rank, NULL, &subarray );
 
         ncounter_t muxLevel = static_cast<ncounter_t>(col / p->RBSize);
@@ -1063,6 +1428,8 @@ bool MemoryController::FindRowBufferHits( std::list<NVMainRequest *>& transactio
         ncounter_t rank, bank, row, subarray, col;
         ncounter_t queueId = GetCommandQueueId( (*it)->address );
 
+        if( !commandQueues[queueId].empty() ) continue;
+
         (*it)->address.GetTranslatedAddress( &row, &col, &bank, &rank, NULL, &subarray );
 
         ncounter_t muxLevel= static_cast<ncounter_t>(col / p->RBSize);
@@ -1105,6 +1472,8 @@ bool MemoryController::FindOldestReadyRequests( std::list<NVMainRequest *>& tran
         ncounter_t rank, bank;
         ncounter_t queueId = GetCommandQueueId( (*it)->address );
 
+        if( !commandQueues[queueId].empty() ) continue;
+
         (*it)->address.GetTranslatedAddress( NULL, NULL, &bank, &rank, NULL, NULL );
 
         if( activateQueued[rank][bank]         /* The bank is active */
@@ -1141,6 +1510,8 @@ bool MemoryController::FindClosedBankRequests( std::list<NVMainRequest *>& trans
         ncounter_t rank, bank;
         ncounter_t queueId = GetCommandQueueId( (*it)->address );
 
+        if( !commandQueues[queueId].empty() ) continue;
+
         (*it)->address.GetTranslatedAddress( NULL, NULL, &bank, &rank, NULL, NULL );
 
         if( !activateQueued[rank][bank]        /* This bank is closed, anyone can issue. */
@@ -1164,6 +1535,10 @@ bool MemoryController::DummyPredicate::operator() ( NVMainRequest* /*request*/ )
 }
 
 
+/*
+ *  NOTE: This function assumes the memory controller uses any predicates when
+ *  scheduling. They will not be re-checked here.
+ */
 bool MemoryController::IssueMemoryCommands( NVMainRequest *req )
 {
     bool rv = false;
@@ -1171,13 +1546,45 @@ bool MemoryController::IssueMemoryCommands( NVMainRequest *req )
 
     req->address.GetTranslatedAddress( &row, &col, &bank, &rank, NULL, &subarray );
 
+    SubArray *writingArray = FindChild( req, SubArray );
+
     ncounter_t muxLevel = static_cast<ncounter_t>(col / p->RBSize);
     ncounter_t queueId = GetCommandQueueId( req->address );
 
     /*
-     *  This function assumes the memory controller uses any predicates when
-     *  scheduling. They will not be re-checked here.
+     *  If the request is somehow accessible (e.g., via caching, etc), but the
+     *  bank state does not match the memory controller, just issue the request
+     *  without updating any internal states.
      */
+    FailReason reason;
+    NVMainRequest *cachedRequest = MakeCachedRequest( req );
+
+    if( GetChild( )->IsIssuable( cachedRequest, &reason ) )
+    {
+        /* Differentiate from row-buffer hits. */
+        if ( !activateQueued[rank][bank] 
+             || !activeSubArray[rank][bank][subarray]
+             || effectiveRow[rank][bank][subarray] != row 
+             || effectiveMuxedRow[rank][bank][subarray] != muxLevel ) 
+        {
+            req->issueCycle = GetEventQueue()->GetCurrentCycle();
+
+            // Update starvation ??
+            commandQueues[queueId].push_back( req );
+
+            delete cachedRequest;
+
+            return true;
+        }
+        else
+        {
+            delete cachedRequest;
+        }
+    }
+    else
+    {
+        delete cachedRequest;
+    }
 
     if( !activateQueued[rank][bank] && commandQueues[queueId].empty() )
     {
@@ -1190,7 +1597,9 @@ bool MemoryController::IssueMemoryCommands( NVMainRequest *req )
 
         req->issueCycle = GetEventQueue()->GetCurrentCycle();
 
-        commandQueues[queueId].push_back( MakeActivateRequest( req ) );
+        NVMainRequest *actRequest = MakeActivateRequest( req );
+        actRequest->flags |= (writingArray != NULL && writingArray->IsWriting( )) ? NVMainRequest::FLAG_PRIORITY : 0;
+        commandQueues[queueId].push_back( actRequest );
 
         /* Different row buffer management policy has different behavior */ 
         /*
@@ -1199,7 +1608,7 @@ bool MemoryController::IssueMemoryCommands( NVMainRequest *req )
          * buffer hit
          * or 2) ClosePage == 2, the request is always the last request
          */
-        if( req->flags & NVMainRequest::FLAG_LAST_REQUEST )
+        if( req->flags & NVMainRequest::FLAG_LAST_REQUEST && p->UsePrecharge )
         {
             commandQueues[queueId].push_back( MakeImplicitPrechargeRequest( req ) );
             activeSubArray[rank][bank][subarray] = false;
@@ -1226,13 +1635,15 @@ bool MemoryController::IssueMemoryCommands( NVMainRequest *req )
 
         req->issueCycle = GetEventQueue()->GetCurrentCycle();
 
-        if( activeSubArray[rank][bank][subarray] )
+        if( activeSubArray[rank][bank][subarray] && p->UsePrecharge )
         {
             commandQueues[queueId].push_back( 
                     MakePrechargeRequest( effectiveRow[rank][bank][subarray], 0, bank, rank, subarray ) );
         }
 
-        commandQueues[queueId].push_back( MakeActivateRequest( req ) );
+        NVMainRequest *actRequest = MakeActivateRequest( req );
+        actRequest->flags |= (writingArray != NULL && writingArray->IsWriting( )) ? NVMainRequest::FLAG_PRIORITY : 0;
+        commandQueues[queueId].push_back( actRequest );
         commandQueues[queueId].push_back( req );
         activeSubArray[rank][bank][subarray] = true;
         effectiveRow[rank][bank][subarray] = row;
@@ -1256,7 +1667,7 @@ bool MemoryController::IssueMemoryCommands( NVMainRequest *req )
          * buffer hit
          * or 2) ClosePage == 2, the request is always the last request
          */
-        if( req->flags & NVMainRequest::FLAG_LAST_REQUEST )
+        if( req->flags & NVMainRequest::FLAG_LAST_REQUEST && p->UsePrecharge )
         {
             /* if Restricted Close-Page is applied, we should never be here */
             assert( p->ClosePage != 2 );
@@ -1291,13 +1702,21 @@ bool MemoryController::IssueMemoryCommands( NVMainRequest *req )
         rv = false;
     }
 
+    /* Schedule wake event for memory commands if not scheduled. */
+    if( rv == true && commandWakeScheduled == false )
+    {
+        ScheduleCommandWake( );
+    }
+
     return rv;
 }
 
 void MemoryController::CycleCommandQueues( )
 {
     if( p->UseLowPower )
+    {
         HandleLowPower( );
+    }
 
     /* First of all, see whether we can issue a necessary refresh */
     if( p->UseRefresh ) 
@@ -1316,7 +1735,7 @@ void MemoryController::CycleCommandQueues( )
         FailReason fail;
 
         if( !commandQueues[queueId].empty( )
-            && memory->IsIssuable( commandQueues[queueId].at( 0 ), &fail ) )
+            && GetChild( )->IsIssuable( commandQueues[queueId].at( 0 ), &fail ) )
         {
             *debugStream << GetEventQueue()->GetCurrentCycle() << " MemoryController: Issued request type "
                          << commandQueues[queueId].at(0)->type << " for address Ox" << std::hex 
@@ -1326,6 +1745,20 @@ void MemoryController::CycleCommandQueues( )
             GetChild( )->IssueCommand( commandQueues[queueId].at( 0 ) );
 
             commandQueues[queueId].erase( commandQueues[queueId].begin( ) );
+
+            /* If the bank queue is empty, we can issue another transaction, so wakeup the system. */
+            if( p->EventDriven && commandQueues[queueId].empty( ) )
+            {
+                /* If there is a transaction for this command queue, wake immediately. */
+                if( TransactionAvailable( queueId ) )
+                {
+                    ncycle_t nextWakeup = GetEventQueue( )->GetCurrentCycle( );
+
+                    GetEventQueue( )->InsertEvent( EventCycle, this, nextWakeup, transactionQueuePriority );
+
+                    //std::cout << "Scheduled transaction queue wakeup at " << nextWakeup << std::endl;
+                }
+            }
 
             MoveCurrentQueue( );
 
@@ -1347,6 +1780,7 @@ void MemoryController::CycleCommandQueues( )
                           << std::dec << " @ Bank " << bank << ", Rank " << rank << ", Channel " << channel
                           << " Subarray " << subarray << " Row " << row << " Column " << col
                           << ". Queued time: " << queueHead->arrivalCycle
+                          << ". Issue time: " << queueHead->issueCycle
                           << ". Current time: " << GetEventQueue()->GetCurrentCycle() << ". Type: " 
                           << queueHead->type << std::endl;
 
@@ -1402,6 +1836,32 @@ ncounter_t MemoryController::GetCommandQueueId( NVMAddress addr )
     return queueId;
 }
 
+ncycle_t MemoryController::NextIssuable( NVMainRequest * /*request*/ )
+{
+    /* Determine the next time we need to wakeup. */
+    ncycle_t nextWakeup = std::numeric_limits<ncycle_t>::max( );
+
+    /* Check for memory commands to issue. */
+    for( ncounter_t queueIdx = 0; queueIdx < commandQueueCount; queueIdx++ )
+    {
+        if( commandQueues[queueIdx].empty( ) )
+            continue;
+
+        NVMainRequest *queueHead = commandQueues[queueIdx].at( 0 );
+
+        //std::cout << "0x" << std::hex << queueHead->address.GetPhysicalAddress( )
+        //          << " issuable at " << std::dec 
+        //          << GetChild( )->NextIssuable( queueHead ) << std::endl;
+
+        nextWakeup = MIN( nextWakeup, GetChild( )->NextIssuable( queueHead ) );
+    }
+
+    if( nextWakeup <= GetEventQueue( )->GetCurrentCycle( ) )
+        nextWakeup = GetEventQueue( )->GetCurrentCycle( ) + 1;
+
+    return nextWakeup;
+}
+
 /*
  * RankQueueEmpty() check all command queues in the given rank to see whether
  * they are empty, return true if all queues are empty
@@ -1443,6 +1903,6 @@ void MemoryController::CalculateStats( )
 {
     simulation_cycles = GetEventQueue()->GetCurrentCycle();
 
-    memory->CalculateStats( );
-    translator->CalculateStats( );
+    GetChild( )->CalculateStats( );
+    GetDecoder( )->CalculateStats( );
 }

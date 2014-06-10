@@ -46,12 +46,9 @@
 
 using namespace NVM;
 
-DRAMCache::DRAMCache( Interconnect *memory, AddressTranslator *translator )
+DRAMCache::DRAMCache( )
 {
-    translator->GetTranslationMethod( )->SetOrder( 5, 1, 4, 3, 2, 6 );
-
-    SetMemory( memory );
-    SetTranslator( translator );
+    //translator->GetTranslationMethod( )->SetOrder( 5, 1, 4, 3, 2, 6 );
 
     std::cout << "Created a DRAMCache!" << std::endl;
 
@@ -64,113 +61,102 @@ DRAMCache::~DRAMCache( )
 {
 }
 
-void DRAMCache::SetConfig( Config *conf )
+void DRAMCache::SetConfig( Config *conf, bool createChildren )
 {
-    /* Initialize off-chip memory */
-    std::string configFile;
-    Config *mainMemoryConfig;
-
-    configFile  = NVM::GetFilePath( conf->GetFileName( ) );
-    configFile += conf->GetString( "MM_CONFIG" );
-
-    mainMemoryConfig = new Config( );
-    mainMemoryConfig->Read( configFile );
-
-    mainMemory = new NVMain( );
-    EventQueue *mainMemoryEventQueue = new EventQueue( );
-    mainMemory->SetParent( this ); 
-    mainMemory->SetEventQueue( mainMemoryEventQueue );
-    mainMemory->SetConfig( mainMemoryConfig, "offChipMemory" );
-
-
-    /* Orphan the interconnect created by NVMain */
-    std::vector<NVMObject_hook *>& childNodes = GetChildren( );
-
-    childNodes.clear();
-
     /* Initialize DRAM Cache channels */
     numChannels = static_cast<ncounter_t>( conf->GetValue( "DRC_CHANNELS" ) );
 
-    if( !conf->KeyExists( "DRCVariant" ) )
+    if( createChildren )
     {
-        std::cout << "Error: No DRCVariant specified." << std::endl;
-        exit(1);
+        /* Initialize off-chip memory */
+        std::string configFile;
+        Config *mainMemoryConfig;
+
+        configFile  = NVM::GetFilePath( conf->GetFileName( ) );
+        configFile += conf->GetString( "MM_CONFIG" );
+
+        mainMemoryConfig = new Config( );
+        mainMemoryConfig->Read( configFile );
+
+        mainMemory = new NVMain( );
+        EventQueue *mainMemoryEventQueue = new EventQueue( );
+        mainMemory->SetParent( this ); 
+        mainMemory->SetEventQueue( mainMemoryEventQueue );
+        GetGlobalEventQueue( )->AddSystem( mainMemory, mainMemoryConfig );
+        mainMemory->SetConfig( mainMemoryConfig, "offChipMemory", createChildren );
+
+        /* Orphan the interconnect created by NVMain */
+        std::vector<NVMObject_hook *>& childNodes = GetChildren( );
+
+        childNodes.clear();
+
+        if( !conf->KeyExists( "DRCVariant" ) )
+        {
+            std::cout << "Error: No DRCVariant specified." << std::endl;
+            exit(1);
+        }
+
+        drcChannels = new AbstractDRAMCache*[numChannels];
+        for( ncounter_t i = 0; i < numChannels; i++ )
+        {
+            /* Setup the translation method for DRAM cache decoders. */
+            int channels, ranks, banks, rows, cols, subarrays;
+            
+            if( conf->KeyExists( "MATHeight" ) )
+            {
+                rows = conf->GetValue( "MATHeight" );
+                subarrays = conf->GetValue( "ROWS" ) / conf->GetValue( "MATHeight" );
+            }
+            else
+            {
+                rows = conf->GetValue( "ROWS" );
+                subarrays = 1;
+            }
+
+            cols = conf->GetValue( "COLS" );
+            banks = conf->GetValue( "BANKS" );
+            ranks = conf->GetValue( "RANKS" );
+            channels = conf->GetValue( "DRC_CHANNELS" );
+
+            TranslationMethod *drcMethod = new TranslationMethod();
+            drcMethod->SetBitWidths( NVM::mlog2( rows ),
+                                     NVM::mlog2( cols ),
+                                     NVM::mlog2( banks ),
+                                     NVM::mlog2( ranks ),
+                                     NVM::mlog2( channels ),
+                                     NVM::mlog2( subarrays )
+                                     );
+            drcMethod->SetCount( rows, cols, banks, ranks, channels, subarrays );
+            
+            /* When selecting a child, use the channel field from a DRC decoder. */
+            DRCDecoder *drcDecoder = new DRCDecoder( );
+            drcDecoder->SetConfig( config, createChildren );
+            drcDecoder->SetTranslationMethod( drcMethod );
+            drcDecoder->SetDefaultField( CHANNEL_FIELD );
+            SetDecoder( drcDecoder );
+
+            /* Initialize a DRAM cache channel. */
+            std::stringstream formatter;
+
+            drcChannels[i] = dynamic_cast<AbstractDRAMCache *>( MemoryControllerFactory::CreateNewController(conf->GetString( "DRCVariant" )) );
+            drcChannels[i]->SetMainMemory( mainMemory );
+
+            formatter.str( "" );
+            formatter << StatName( ) << "." << conf->GetString( "DRCVariant" ) << i;
+            drcChannels[i]->SetID( static_cast<int>(i) );
+            drcChannels[i]->StatName( formatter.str() ); 
+
+            drcChannels[i]->SetParent( this );
+            AddChild( drcChannels[i] );
+            AddChild( mainMemory );
+
+            drcChannels[i]->SetConfig( conf, createChildren );
+            drcChannels[i]->RegisterStats( );
+        }
     }
 
-    drcChannels = new AbstractDRAMCache*[numChannels];
-    for( ncounter_t i = 0; i < numChannels; i++ )
-    {
-        std::stringstream formatter;
-
-        Interconnect *channelMemory = InterconnectFactory::CreateInterconnect( conf->GetString( "INTERCONNECT" ) );
-
-        formatter.str( "" );
-        formatter << this->statName << ".drcChannel" << i;
-        channelMemory->StatName( formatter.str() );
-
-        int channels, ranks, banks, rows, cols, subarrays;
-        
-        if( conf->KeyExists( "MATHeight" ) )
-        {
-            rows = conf->GetValue( "MATHeight" );
-            subarrays = conf->GetValue( "ROWS" ) / conf->GetValue( "MATHeight" );
-        }
-        else
-        {
-            rows = conf->GetValue( "ROWS" );
-            subarrays = 1;
-        }
-
-        cols = conf->GetValue( "COLS" );
-        banks = conf->GetValue( "BANKS" );
-        ranks = conf->GetValue( "RANKS" );
-        channels = conf->GetValue( "DRC_CHANNELS" );
-
-        TranslationMethod *drcMethod = new TranslationMethod();
-        drcMethod->SetBitWidths( NVM::mlog2( rows ),
-                                 NVM::mlog2( cols ),
-                                 NVM::mlog2( banks ),
-                                 NVM::mlog2( ranks ),
-                                 NVM::mlog2( channels ),
-                                 NVM::mlog2( subarrays )
-                                 );
-        drcMethod->SetCount( rows, cols, banks, ranks, channels, subarrays );
-        
-        DRCDecoder *drcDecoder = new DRCDecoder( );
-        DRCDecoder *intDecoder = new DRCDecoder( );
-
-        drcDecoder->SetTranslationMethod( drcMethod );
-        drcDecoder->SetDefaultField( CHANNEL_FIELD );
-
-        intDecoder->SetTranslationMethod( drcMethod );
-        intDecoder->SetDefaultField( RANK_FIELD );
-
-        channelMemory->SetDecoder( intDecoder );
-        SetDecoder( drcDecoder );
-
-        drcChannels[i] = dynamic_cast<AbstractDRAMCache *>( MemoryControllerFactory::CreateNewController( conf->GetString( "DRCVariant" ), channelMemory, drcDecoder ) );
-        drcChannels[i]->SetMainMemory( mainMemory );
-
-        formatter << "." << conf->GetString( "DRCVariant" );
-
-        drcChannels[i]->StatName( formatter.str() ); 
-        drcChannels[i]->SetID( static_cast<int>(i) );
-
-        AddChild( drcChannels[i] );
-
-        drcChannels[i]->SetParent( this );
-        drcChannels[i]->AddChild( channelMemory );
-
-        channelMemory->SetParent( drcChannels[i] );
-
-        channelMemory->SetConfig( conf );
-        drcChannels[i]->SetConfig( conf );
-
-        channelMemory->RegisterStats( );
-        drcChannels[i]->RegisterStats( );
-    }
-
-    MemoryController::SetConfig( conf );
+    /* DRC Variant will call base SetConfig */
+    //MemoryController::SetConfig( conf, createChildren );
 
     SetDebugName( "DRAMCache", conf );
 }

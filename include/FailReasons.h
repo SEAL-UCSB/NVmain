@@ -42,7 +42,8 @@ enum FailReasons { UNKNOWN_FAILURE,
                    REFRESH_OPEN_FAILURE,
                    SUBARRAY_TIMING,
                    BANK_TIMING,
-                   RANK_TIMING
+                   RANK_TIMING,
+                   UNSUPPORTED_COMMAND
                  };
 
 class FailReason

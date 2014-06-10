@@ -42,10 +42,10 @@
 
 namespace NVM {
 
-#define MISSMAP_READ 50
-#define MISSMAP_WRITE 51
-#define MISSMAP_MEMREAD 52
-#define MISSMAP_FORCE_EVICT 53
+#define MISSMAP_READ        tagGen->CreateTag("MISSMAP_READ")
+#define MISSMAP_WRITE       tagGen->CreateTag("MISSMAP_WRITE")
+#define MISSMAP_MEMREAD     tagGen->CreateTag("MISSMAP_MEMREAD")
+#define MISSMAP_FORCE_EVICT tagGen->CreateTag("MISSMAP_FORCE_EVICT")
 
 class NVMain;
 class LH_Cache;
@@ -56,7 +56,7 @@ class MissMap : public MemoryController
     MissMap( );
     ~MissMap( );
 
-    void SetConfig( Config *conf );
+    void SetConfig( Config *conf, bool createChildren = true );
 
     bool QueueFull( NVMainRequest *request );
 

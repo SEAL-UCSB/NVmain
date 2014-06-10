@@ -39,6 +39,7 @@ using namespace NVM;
 NVMDataBlock::NVMDataBlock( )
 {
     data.clear( );
+    rawData = NULL;
 }
 
 NVMDataBlock::~NVMDataBlock( )
@@ -78,6 +79,7 @@ void NVMDataBlock::Print( std::ostream& out ) const
 
 NVMDataBlock& NVMDataBlock::operator=( const NVMDataBlock& m )
 {
+    data.clear( );
     for( size_t it = 0; it < m.data.size( ); it++ )
     {
         data.push_back( m.data[it] );

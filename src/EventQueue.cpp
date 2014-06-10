@@ -33,11 +33,33 @@
 
 #include "src/EventQueue.h"
 #include "src/NVMObject.h"
+#include "src/Config.h"
+#include "NVM/nvmain.h"
 
 #include <limits>
 #include <assert.h>
 
 using namespace NVM;
+
+void Event::SetRecipient( NVMObject *r )
+{
+    std::vector<NVMObject_hook *>& children = r->GetParent( )->GetTrampoline( )->GetChildren( );
+    std::vector<NVMObject_hook *>::iterator it;
+    NVMObject_hook *hook = NULL;
+
+    for( it = children.begin(); it != children.end(); it++ )
+    {
+        if( (*it)->GetTrampoline() == r )
+        {
+            hook = (*it);
+            break;
+        }
+    }
+
+    assert( hook != NULL );
+
+    recipient = hook;
+}
 
 EventQueue::EventQueue( )
 {
@@ -51,7 +73,7 @@ EventQueue::~EventQueue( )
 {
 }
 
-void EventQueue::InsertEvent( EventType type, NVMObject *recipient, ncycle_t when )
+void EventQueue::InsertEvent( EventType type, NVMObject *recipient, ncycle_t when, int priority )
 {
     /* The parent has our hook in the children list, we need to find this. */
     std::vector<NVMObject_hook *>& children = recipient->GetParent( )->GetTrampoline( )->GetChildren( );
@@ -69,15 +91,15 @@ void EventQueue::InsertEvent( EventType type, NVMObject *recipient, ncycle_t whe
 
     assert( hook != NULL );
 
-    InsertEvent( type, hook, NULL, when );
+    InsertEvent( type, hook, NULL, when, priority );
 }
 
-void EventQueue::InsertEvent( EventType type, NVMObject_hook *recipient, ncycle_t when )
+void EventQueue::InsertEvent( EventType type, NVMObject_hook *recipient, ncycle_t when, int priority )
 {
-    InsertEvent( type, recipient, NULL, when );
+    InsertEvent( type, recipient, NULL, when, priority );
 }
 
-void EventQueue::InsertEvent( EventType type, NVMObject *recipient, NVMainRequest *req, ncycle_t when )
+void EventQueue::InsertEvent( EventType type, NVMObject *recipient, NVMainRequest *req, ncycle_t when, int priority )
 {
     /* The parent has our hook in the children list, we need to find this. */
     std::vector<NVMObject_hook *>& children = recipient->GetParent( )->GetTrampoline( )->GetChildren( );
@@ -95,10 +117,10 @@ void EventQueue::InsertEvent( EventType type, NVMObject *recipient, NVMainReques
 
     assert( hook != NULL );
 
-    InsertEvent( type, hook, req, when );
+    InsertEvent( type, hook, req, when, priority );
 }
 
-void EventQueue::InsertEvent( EventType type, NVMObject_hook *recipient, NVMainRequest *req, ncycle_t when )
+void EventQueue::InsertEvent( EventType type, NVMObject_hook *recipient, NVMainRequest *req, ncycle_t when, int priority )
 {
     /* Create our event */
     Event *event = new Event( );
@@ -106,6 +128,7 @@ void EventQueue::InsertEvent( EventType type, NVMObject_hook *recipient, NVMainR
     event->SetType( type );
     event->SetRecipient( recipient );
     event->SetRequest( req );
+    event->SetCycle( when );
 
     /* If this event time is before our previous nextEventCycle, change it. */
     if( when < nextEventCycle )
@@ -127,12 +150,30 @@ void EventQueue::InsertEvent( EventType type, NVMObject_hook *recipient, NVMainR
     {
         EventList& eventList = eventMap[when];
 
-        eventList.push_back( event );
+        EventList::iterator it;
+        bool inserted = false;
+
+        for( it = eventList.begin(); it != eventList.end(); it++ )
+        {
+            if( (*it)->GetPriority( ) > priority )
+            {
+                eventList.insert( it, event );
+                inserted = true;
+                break;
+            }
+        }
+
+        if( !inserted )
+        {
+            eventList.push_back( event );
+        }
     }
 }
 
 void EventQueue::InsertEvent( Event *event, ncycle_t when )
 {
+    event->SetCycle( when );
+
     /* If this event time is before our previous nextEventCycle, change it. */
     if( when < nextEventCycle )
     {
@@ -192,6 +233,47 @@ bool EventQueue::RemoveEvent( Event *event, ncycle_t when )
 }
 
 
+Event *EventQueue::FindEvent( EventType type, NVMObject *recipient, NVMainRequest *req, ncycle_t when )
+{
+    /* The parent has our hook in the children list, we need to find this. */
+    std::vector<NVMObject_hook *>& children = recipient->GetParent( )->GetTrampoline( )->GetChildren( );
+    std::vector<NVMObject_hook *>::iterator it;
+    NVMObject_hook *hook = NULL;
+
+    for( it = children.begin(); it != children.end(); it++ )
+    {
+        if( (*it)->GetTrampoline() == recipient )
+        {
+            hook = (*it);
+            break;
+        }
+    }
+
+    assert( hook != NULL );
+
+    return FindEvent( type, hook, req, when );
+}
+
+
+Event *EventQueue::FindEvent( EventType type, NVMObject_hook *recipient, NVMainRequest *req, ncycle_t when )
+{
+    Event *rv = NULL;
+    EventList& eventList = eventMap[when];
+
+    EventList::iterator it;
+    for( it = eventList.begin(); it != eventList.end(); it++ )
+    {
+        if( (*it)->GetType( ) == type && (*it)->GetRecipient( ) == recipient
+            && (*it)->GetRequest( ) == req )
+        {
+            rv = (*it);
+        }
+    }
+
+    return rv;
+}
+
+
 void EventQueue::Loop( )
 {
     /* 
@@ -204,6 +286,37 @@ void EventQueue::Loop( )
         Process( );
 
     currentCycle++;
+}
+
+
+void EventQueue::Loop( ncycle_t steps )
+{
+    /* Special case. */
+    if( steps == 0 && nextEventCycle == currentCycle )
+    {
+        Process( );
+        return;
+    }
+
+    ncycle_t stepCycles = steps;
+
+    while( stepCycles > 0 )
+    {
+        /* No events in this step amount, just change current cycle. */
+        if( nextEventCycle > currentCycle + stepCycles )
+        {
+            currentCycle += stepCycles;
+            break;
+        }
+
+        ncycle_t currentSteps = nextEventCycle - currentCycle;
+
+        currentCycle += currentSteps;
+        stepCycles -= currentSteps;
+
+        /* Process will update nextEventCycle for the next loop iteration. */
+        Process( );
+    }
 }
 
 
@@ -264,6 +377,16 @@ void EventQueue::Process( )
     }
 }
 
+void EventQueue::SetFrequency( double freq )
+{
+    frequency = freq;
+}
+
+double EventQueue::GetFrequency( )
+{
+    return frequency;
+}
+
 ncycle_t EventQueue::GetNextEvent( )
 {
     return nextEventCycle;
@@ -273,3 +396,158 @@ ncycle_t EventQueue::GetCurrentCycle( )
 {
     return currentCycle;
 }
+
+void EventQueue::SetCurrentCycle( ncycle_t curCycle )
+{
+    currentCycle = curCycle;
+}
+
+
+GlobalEventQueue::GlobalEventQueue( )
+{
+    currentCycle = 0;
+    eventDriven = false;
+}
+
+GlobalEventQueue::~GlobalEventQueue( )
+{
+
+}
+
+void GlobalEventQueue::AddSystem( NVMain *subSystem, Config *config )
+{
+    double subSystemFrequency = config->GetEnergy( "CLK" ) * 1000000.0;
+    EventQueue *queue = subSystem->GetEventQueue( );
+    bool eventDrivenSub = config->GetBool( "EventDriven" );
+
+    /* First subsystem decides if the entire system is event driven or not. */
+    if( eventQueues.empty( ) )
+        eventDriven = eventDrivenSub;
+
+    if( eventDrivenSub != eventDriven )
+    {
+        std::cout << "NVMain: Warning: Subsystem setting of event driven does not match parent!"
+                  << std::endl;
+
+        if( eventDriven )
+        {
+            std::cout << "                 Forcing subsystem to be event driven." << std::endl;
+            config->SetBool( "EventDriven", true );
+        }
+        else
+        {
+            std::cout << "                 Forcing subsystem to be execution driven." << std::endl;
+            config->SetBool( "EventDriven", false );
+        }
+    }
+
+    assert( subSystemFrequency <= frequency );
+
+    /* 
+     *  The CLK value in the config file is the frequency this subsystem should run at.
+     *  We aren't doing and checks here to make sure the input side (i.e. CPUFreq) is
+     *  corrent since we don't know what it should be.
+     */
+    eventQueues.insert( std::pair<EventQueue*, double>(queue, subSystemFrequency) );
+    queue->SetFrequency( subSystemFrequency );
+
+    std::cout << "NVMain: GlobalEventQueue: Added a memory subsystem running at "
+              << config->GetEnergy( "CLK" ) << "MHz. My frequency is "
+              << (frequency / 1000000.0) << "MHz." << std::endl;
+}
+
+void GlobalEventQueue::Cycle( ncycle_t steps )
+{
+    EventQueue *nextEventQueue;
+    ncycle_t iterationSteps = 0;
+
+    while( iterationSteps < steps )
+    {
+        ncycle_t nextEvent = GetNextEvent( &nextEventQueue );
+
+        ncycle_t globalQueueSteps = 0;
+        if( nextEvent > currentCycle )
+        {
+            globalQueueSteps = nextEvent - currentCycle;
+        }
+
+        /* Next event occurs after the current number of steps. */
+        if( globalQueueSteps > steps )
+        {
+            currentCycle += steps;
+            Sync( );
+            break;
+        }
+
+        ncycle_t localQueueSteps = nextEventQueue->GetNextEvent( ) - nextEventQueue->GetCurrentCycle( );
+        nextEventQueue->Loop( localQueueSteps );
+
+        //std::cout << "Looping eventQueue " << (void*)(nextEventQueue) << " by " << localQueueSteps << std::endl;
+
+        currentCycle += globalQueueSteps;
+        iterationSteps += globalQueueSteps;
+
+        //std::cout << "Cycled " << globalQueueSteps << " steps to " << currentCycle << std::endl;
+
+        Sync( );
+    }
+}
+
+/* Set frequency of global event queue in Hz. */
+void GlobalEventQueue::SetFrequency( double freq )
+{
+    frequency = freq;
+}
+
+double GlobalEventQueue::GetFrequency( )
+{
+    return frequency;
+}
+
+ncycle_t GlobalEventQueue::GetNextEvent( EventQueue **eq )
+{
+    std::map<EventQueue *, double>::const_iterator iter;
+    ncycle_t nextEventCycle = std::numeric_limits<ncycle_t>::max( );
+
+    if( eq != NULL )
+        *eq = NULL;
+
+    for( iter = eventQueues.begin( ); iter != eventQueues.end( ); iter++ )
+    {
+        double frequencyMultiplier = frequency / iter->second;
+        double globalEventCycle = iter->first->GetNextEvent( ) * frequencyMultiplier;
+
+        if( static_cast<ncycle_t>(globalEventCycle) < nextEventCycle )
+        {
+            nextEventCycle = static_cast<ncycle_t>(globalEventCycle);
+            if( eq != NULL )
+                *eq = iter->first;
+        }
+    }
+
+    return nextEventCycle;
+}
+
+ncycle_t GlobalEventQueue::GetCurrentCycle( )
+{
+    return currentCycle;
+}
+
+void GlobalEventQueue::Sync( )
+{
+    std::map<EventQueue *, double>::const_iterator iter;
+    for( iter = eventQueues.begin( ); iter != eventQueues.end( ); iter++ )
+    {
+        double frequencyMultiplier = frequency / iter->second;
+        double setCycle = static_cast<double>(currentCycle) / frequencyMultiplier;
+        ncycle_t stepCount = static_cast<ncycle_t>(setCycle) - iter->first->GetCurrentCycle( );
+
+        if( static_cast<ncycle_t>(setCycle) > iter->first->GetCurrentCycle( ) )
+        {
+            //std::cout << "Stepping eventQueue " << (void*)(iter->first) << " by " << stepCount << std::endl;
+            iter->first->Loop( stepCount );
+        }
+    }
+}
+
+

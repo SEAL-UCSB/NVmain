@@ -28,6 +28,7 @@ if build_type == None or build_type == "fast":
     env.Append(CCFLAGS='-Werror')
     env.Append(CCFLAGS='-Wall')
     env.Append(CCFLAGS='-Wextra')
+    env.Append(CCFLAGS='-Woverloaded-virtual')
     env.Append(CCFLAGS='-fPIC')
     env.Append(CCFLAGS='-std=c++0x')
     env.Append(CCFLAGS='-DNDEBUG')
@@ -39,6 +40,7 @@ elif build_type == "debug":
     env.Append(CCFLAGS='-Werror')
     env.Append(CCFLAGS='-Wall')
     env.Append(CCFLAGS='-Wextra')
+    env.Append(CCFLAGS='-Woverloaded-virtual')
     env.Append(CCFLAGS='-fPIC')
     env.Append(CCFLAGS='-std=c++0x')
     env['OBJSUFFIX'] = '.do'
@@ -49,6 +51,7 @@ elif build_type == "prof":
     env.Append(CCFLAGS='-Werror')
     env.Append(CCFLAGS='-Wall')
     env.Append(CCFLAGS='-Wextra')
+    env.Append(CCFLAGS='-Woverloaded-virtual')
     env.Append(CCFLAGS='-fPIC')
     env.Append(CCFLAGS='-std=c++0x')
     env.Append(CCFLAGS='-DNDEBUG')

@@ -41,10 +41,10 @@ namespace NVM {
 class FCFS : public MemoryController
 {
   public:
-    FCFS( Interconnect *memory, AddressTranslator *translator );
+    FCFS( );
     ~FCFS( ) { }
 
-    void SetConfig( Config *conf );
+    void SetConfig( Config *conf, bool createChildren = true );
 
     bool IssueCommand( NVMainRequest *request );
     bool IsIssuable( NVMainRequest *request, FailReason *fail = NULL );

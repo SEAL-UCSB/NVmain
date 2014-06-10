@@ -46,8 +46,19 @@ class Prefetcher
     Prefetcher( ) { }
     virtual ~Prefetcher( ) { }
 
+    /*
+     *  Called upon successful prefetch. Return true if we should prefetch more
+     *  addresses and populate the prefetchList. Return false otherwise.
+     */
     virtual bool NotifyAccess( NVMainRequest *accessOp, 
             std::vector<NVMAddress>& prefetchList );
+
+    /*
+     *  Asks the prefetcher if we should prefetch. Returns true if we should
+     *  prefetch and returns a list of addresses to prefetch. Return false
+     *  otherwise and do not prefetch. This method should also be used to look
+     *  for patterns in addresses, and is called for each request issued.
+     */
     virtual bool DoPrefetch( NVMainRequest *triggerOp, 
             std::vector<NVMAddress>& prefetchList );
 };

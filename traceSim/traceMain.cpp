@@ -63,7 +63,10 @@ int main( int argc, char *argv[] )
     SimInterface *simInterface = new NullInterface( );
     NVMain *nvmain = new NVMain( );
     EventQueue *mainEventQueue = new EventQueue( );
+    GlobalEventQueue *globalEventQueue = new GlobalEventQueue( );
+    TagGenerator *tagGenerator = new TagGenerator( 1000 );
     bool IgnoreData = false;
+    bool EventDriven = false;
 
     unsigned int simulateCycles;
     unsigned int currentCycle;
@@ -86,7 +89,9 @@ int main( int argc, char *argv[] )
     config->Read( argv[1] );
     config->SetSimInterface( simInterface );
     nvmain->SetEventQueue( mainEventQueue );
+    nvmain->SetGlobalEventQueue( globalEventQueue );
     nvmain->SetStats( stats );
+    nvmain->SetTagGenerator( tagGenerator );
     std::ofstream statStream;
 
     /* Allow for overriding config parameter values for trace simulations from command line. */
@@ -106,6 +111,8 @@ int main( int argc, char *argv[] )
         }
     }
 
+    globalEventQueue->SetFrequency( config->GetEnergy( "CLK" ) * 1000000.0 );
+    globalEventQueue->AddSystem( nvmain, config );
 
     if( config->KeyExists( "StatsFile" ) )
     {
@@ -117,6 +124,8 @@ int main( int argc, char *argv[] )
     {
         IgnoreData = true;
     }
+
+    config->GetBool( "EventDriven", EventDriven );
 
     /*  Add any specified hooks */
     std::vector<std::string>& hookList = config->GetHooks( );
@@ -140,9 +149,10 @@ int main( int argc, char *argv[] )
         }
     }
 
-    simInterface->SetConfig( config );
-    nvmain->SetConfig( config, "defaultMemory" );
+    simInterface->SetConfig( config, true );
+    nvmain->SetConfig( config, "defaultMemory", true );
 
+    nvmain->PrintHierarchy( );
 
     if( config->KeyExists( "TraceReader" ) )
         trace = TraceReaderFactory::CreateNewTraceReader( 
@@ -174,7 +184,10 @@ int main( int argc, char *argv[] )
             /* Just ride it out 'til the end. */
             while( currentCycle < simulateCycles )
             {
-                nvmain->Cycle( 1 );
+                if( EventDriven )
+                    globalEventQueue->Cycle( 1 );
+                else 
+                    nvmain->Cycle( 1 );
               
                 currentCycle++;
             }
@@ -211,6 +224,12 @@ int main( int argc, char *argv[] )
          */
         if( tl->GetCycle( ) > simulateCycles && simulateCycles != 0 )
         {
+            if( EventDriven )
+            {
+                globalEventQueue->Cycle( simulateCycles - currentCycle );
+                break;
+            }
+
             /* Just ride it out 'til the end. */
             while( currentCycle < simulateCycles )
             {
@@ -231,15 +250,23 @@ int main( int argc, char *argv[] )
              */
             if( tl->GetCycle( ) > currentCycle )
             {
-                /* Wait until currentCycle is the trace operation's cycle. */
-                while( currentCycle < tl->GetCycle( ) )
+                if( EventDriven )
                 {
-                    if( currentCycle >= simulateCycles && simulateCycles != 0 )
-                        break;
+                    globalEventQueue->Cycle( tl->GetCycle() - currentCycle );
+                    currentCycle += tl->GetCycle() - currentCycle;
+                }
+                else
+                {
+                    /* Wait until currentCycle is the trace operation's cycle. */
+                    while( currentCycle < tl->GetCycle( ) )
+                    {
+                        if( currentCycle >= simulateCycles && simulateCycles != 0 )
+                            break;
 
-                    nvmain->Cycle( 1 );
+                        nvmain->Cycle( 1 );
 
-                    currentCycle++;
+                        currentCycle++;
+                    }
                 }
 
                 if( currentCycle >= simulateCycles && simulateCycles != 0 )
@@ -255,7 +282,10 @@ int main( int argc, char *argv[] )
                 if( currentCycle >= simulateCycles && simulateCycles != 0 )
                     break;
 
-                nvmain->Cycle( 1 );
+                if( EventDriven )
+                    globalEventQueue->Cycle( 1 );
+                else 
+                    nvmain->Cycle( 1 );
 
                 currentCycle++;
             }
