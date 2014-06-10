@@ -1,37 +1,37 @@
 /*******************************************************************************
-* Copyright (c) 2012-2014, The Microsystems Design Labratory (MDL)
-* Department of Computer Science and Engineering, The Pennsylvania State University
-* All rights reserved.
-* 
-* This source code is part of NVMain - A cycle accurate timing, bit accurate
-* energy simulator for both volatile (e.g., DRAM) and non-volatile memory
-* (e.g., PCRAM). The source code is free and you can redistribute and/or
-* modify it by providing that the following conditions are met:
-* 
-*  1) Redistributions of source code must retain the above copyright notice,
-*     this list of conditions and the following disclaimer.
-* 
-*  2) Redistributions in binary form must reproduce the above copyright notice,
-*     this list of conditions and the following disclaimer in the documentation
-*     and/or other materials provided with the distribution.
-* 
-* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
-* ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-* WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-* DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-* FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-* DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-* SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-* CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-* OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-* 
-* Author list: 
-*   Matt Poremba    ( Email: mrp5060 at psu dot edu 
-*                     Website: http://www.cse.psu.edu/~poremba/ )
-*   Tao Zhang       ( Email: tzz106 at cse dot psu dot edu
-*                     Website: http://www.cse.psu.edu/~tzz106 )
-*******************************************************************************/
+ * Copyright (c) 2012-2014, The Microsystems Design Labratory (MDL)
+ * Department of Computer Science and Engineering, The Pennsylvania State University
+ * All rights reserved.
+ * 
+ * This source code is part of NVMain - A cycle accurate timing, bit accurate
+ * energy simulator for both volatile (e.g., DRAM) and non-volatile memory
+ * (e.g., PCRAM). The source code is free and you can redistribute and/or
+ * modify it by providing that the following conditions are met:
+ * 
+ *  1) Redistributions of source code must retain the above copyright notice,
+ *     this list of conditions and the following disclaimer.
+ * 
+ *  2) Redistributions in binary form must reproduce the above copyright notice,
+ *     this list of conditions and the following disclaimer in the documentation
+ *     and/or other materials provided with the distribution.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ * 
+ * Author list: 
+ *   Matt Poremba    ( Email: mrp5060 at psu dot edu 
+ *                     Website: http://www.cse.psu.edu/~poremba/ )
+ *   Tao Zhang       ( Email: tzz106 at cse dot psu dot edu
+ *                     Website: http://www.cse.psu.edu/~tzz106 )
+ *******************************************************************************/
 
 #include "src/Params.h"
 #include "include/NVMHelpers.h"
@@ -45,6 +45,8 @@ using namespace NVM;
 
 Params::Params( )
 {
+    EventDriven = false;
+
     BPC = 8;
     BusWidth = 64;
     DeviceWidth = 8;
@@ -64,17 +66,18 @@ Params::Params( )
     EIDD4W = 165;
     EIDD5B = 200;
     EIDD6 = 12;
-    // TODO: Update these
-    Eclosed = 0.0;
-    Eopen = 0.0;
-    Eopenrd = 0.001616;
-    Erd = 0.0812;
-    Eref = 0;
-    Ewr = 1.684811;
-    Eleak = 3120.202;
-    Epda = 0.0;
-    Epdpf = 0.0;
-    Epdps = 0.0;
+    //Ewrpb = 0.000202;
+    // Values from DRAMPower2 tool
+    Erd = 3.405401;
+    Eopenrd = 1.081080;
+    Ewr = 1.023750;
+    Eref = 38.558533;
+    Eactstdby = 0.090090;
+    Eprestdby = 0.083333;
+    // TODO: Update pda, pdpf, pdps
+    Epda = 0.000000;
+    Epdpf = 0.000000;
+    Epdps = 0.000000;
     Voltage = 1.5;
 
     /* 
@@ -117,6 +120,7 @@ Params::Params( )
     RefreshRows = 4;
     UseRefresh = true;
     StaggerRefresh = false;
+    UsePrecharge = true;
 
     OffChipLatency = 10;
 
@@ -142,6 +146,7 @@ Params::Params( )
     tPD = 6;
     tRAS = 24;
     tRCD = 9;
+    tRDB = 2;
     tREFW = 42666667;
     tRFC = 107;
     tRP = 9;
@@ -168,6 +173,9 @@ Params::Params( )
     DelayedRefreshThreshold = 1;
     AddressMappingScheme = "R:SA:RK:BK:CH:C";
 
+    MemoryPrefetcher = "none";
+    PrefetchBufferSize = 32;
+
     programMode = ProgramMode_SRMS;
     MLCLevels = 1;
     WPVariance = 1;
@@ -184,6 +192,11 @@ Params::Params( )
     nWP11 = 1;
 
     WPMaxVariance = 2;
+
+    WritePausing = false;
+    PauseThreshold = 0.4;
+    MaxCancellations = 4;
+    pauseMode = PauseMode_Normal;
 
     DeadlockTimer = 10000000;
 
@@ -240,6 +253,8 @@ ncycle_t Params::ConvertTiming( Config *conf, std::string param )
 /* This can be called whenever timings change. (Will not update the "next" vars) */
 void Params::SetParams( Config *c )
 {
+    c->GetBool( "EventDriven", EventDriven );
+
     c->GetValueUL( "BPC", BPC );
     c->GetValueUL( "BusWidth", BusWidth );
     c->GetValueUL( "DeviceWidth", DeviceWidth );
@@ -259,13 +274,12 @@ void Params::SetParams( Config *c )
     c->GetEnergy( "EIDD4W", EIDD4W );
     c->GetEnergy( "EIDD5B", EIDD5B );
     c->GetEnergy( "EIDD6", EIDD6 );
-    c->GetEnergy( "Eclosed", Eclosed );
-    c->GetEnergy( "Eopen", Eopen );
     c->GetEnergy( "Eopenrd", Eopenrd );
     c->GetEnergy( "Erd", Erd );
     c->GetEnergy( "Eref", Eref );
     c->GetEnergy( "Ewr", Ewr );
-    c->GetEnergy( "Eleak", Eleak );
+    c->GetEnergy( "Eactstdby", Eactstdby );
+    c->GetEnergy( "Eprestdby", Eprestdby );
     c->GetEnergy( "Epda", Epda );
     c->GetEnergy( "Epdpf", Epdpf );
     c->GetEnergy( "Epdps", Epdps );
@@ -296,6 +310,7 @@ void Params::SetParams( Config *c )
     c->GetValueUL( "RefreshRows", RefreshRows );
     c->GetBool( "UseRefresh", UseRefresh );
     c->GetBool( "StaggerRefresh", StaggerRefresh );
+    c->GetBool( "UsePrecharge", UsePrecharge );
 
     c->GetValueUL( "OffChipLatency", OffChipLatency );
 
@@ -321,6 +336,7 @@ void Params::SetParams( Config *c )
     ConvertTiming( c, "tPD", tPD );
     ConvertTiming( c, "tRAS", tRAS );
     ConvertTiming( c, "tRCD", tRCD );
+    ConvertTiming( c, "tRDB", tRDB );
     ConvertTiming( c, "tREFW", tREFW );
     ConvertTiming( c, "tRFC", tRFC );
     ConvertTiming( c, "tRP", tRP );
@@ -346,6 +362,9 @@ void Params::SetParams( Config *c )
     c->GetValueUL( "BanksPerRefresh", BanksPerRefresh );
     c->GetValueUL( "DelayedRefreshThreshold", DelayedRefreshThreshold );
     c->GetString( "AddressMappingScheme", AddressMappingScheme );
+
+    c->GetString( "MemoryPrefetcher", MemoryPrefetcher );
+    c->GetValueUL( "PrefetchBufferSize", PrefetchBufferSize );
 
     if( c->KeyExists( "ProgramMode" ) )
     {
@@ -388,6 +407,22 @@ void Params::SetParams( Config *c )
             std::cout << "Will print debug information from \"" << debugClass << ".\"" << std::endl;
             debugClasses.insert( debugClass );
         }
+    }
+
+    c->GetBool( "WritePausing", WritePausing );
+    c->GetEnergy( "PauseThreshold", PauseThreshold );
+    c->GetValueUL( "MaxCancellations", MaxCancellations );
+    if( c->KeyExists( "PauseMode" ) )
+    {
+        if( c->GetString( "PauseMode" ) == "Normal" )
+            pauseMode = PauseMode_Normal;
+        else if( c->GetString( "PauseMode" ) == "IIWC" )
+            pauseMode = PauseMode_IIWC;
+        else if( c->GetString( "PauseMode" ) == "Optimal" )
+            pauseMode = PauseMode_Optimal;
+        else
+            std::cout << "Unknown PauseMode: " << c->GetString( "PauseMode" )
+                      << ". Defaulting to Normal" << std::endl;
     }
 }
 

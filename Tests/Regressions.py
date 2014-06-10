@@ -7,6 +7,7 @@ import json
 import sys
 import os
 import shutil
+import re
 
 
 parser = OptionParser()
@@ -16,6 +17,7 @@ parser.add_option("-g", "--gem5-path", type="string", help="Path to gem5 directo
 parser.add_option("-a", "--arch", type="string", help="gem5 architecture to test.", default="X86")
 parser.add_option("-b", "--build", type="string", help="NVMain standalone/gem5 build to test (e.g., *.fast, *.prof, *.debug)", default="fast")
 parser.add_option("-t", "--tempfile", type="string", help="Temporary file to write test output.", default=".temp")
+parser.add_option("-f", "--max-fuzz", type="float", help="Maximum percentage stat values can be wrong.", default="1.0") # No more than 1% difference
 
 (options, args) = parser.parse_args()
 
@@ -106,9 +108,23 @@ for trace in testdata["traces"]:
                     if check in line:
                         checkcounter = checkcounter + 1
                         passedchecks.append(check)
+                    elif check[0] == 'i':  # Skip for general stat checks
+                        # See if the stat is there, but the value is slightly off
+                        checkstat = check.split(' ')[0]
+                        fval = re.compile("[0-9.]")
+                        checkvalue = float(''.join(c for c in check.split(' ')[1] if fval.match(c)))
+                        if checkstat in line:
+                            refvalue = float(''.join(c for c in line.split(' ')[1] if fval.match(c)))
+                            fuzz = max( (1.0 - (checkvalue / refvalue)) * 100.0, (1.0 - (refvalue / checkvalue)) * 100.0)
+                            if fuzz < options.max_fuzz:
+                                checkcounter = checkcounter + 1
+                                passedchecks.append(check)
+                            else:
+                                print "Stat '%s' has value '%s' while reference has '%s'. Fuzz = %f" % (checkstat, checkvalue, refvalue, fuzz)
 
         if checkcounter == checkcount:
             print "[Passed %d/%d]" % (checkcounter, checkcount)
+            shutil.copyfile(options.tempfile, faillog)
         else:
             print "[Failed %d/%d]" % (checkcounter, checkcount)
             shutil.copyfile(options.tempfile, faillog)

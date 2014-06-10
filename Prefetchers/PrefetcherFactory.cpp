@@ -44,11 +44,13 @@ Prefetcher *PrefetcherFactory::CreateNewPrefetcher( std::string name )
 {
     Prefetcher *prefetcher = NULL;
 
+    /* Special case to skip prefetching code. */
+    if( name == "none" )
+        return NULL;
 
     if( name == "NaivePrefetcher" ) 
         prefetcher = new NaivePrefetcher( );
-
-    if( name == "STeMS" ) 
+    else if( name == "STeMS" ) 
         prefetcher = new STeMS( );
 
     /*

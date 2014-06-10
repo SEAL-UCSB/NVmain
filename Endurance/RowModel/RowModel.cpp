@@ -54,7 +54,7 @@ RowModel::~RowModel( )
      */
 }
 
-void RowModel::SetConfig( Config *conf )
+void RowModel::SetConfig( Config *conf, bool createChildren )
 {
     Params *params = new Params( );
     params->SetParams( config );
@@ -62,7 +62,7 @@ void RowModel::SetConfig( Config *conf )
 
     SetGranularity( p->COLS * 8 );
 
-    EnduranceModel::SetConfig( conf );
+    EnduranceModel::SetConfig( conf, createChildren );
 }
 
 bool RowModel::Write( NVMAddress address, NVMDataBlock /*oldData*/, 

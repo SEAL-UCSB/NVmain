@@ -46,11 +46,11 @@ class NVMain;
 class PredictorDRC : public MemoryController
 {
   public:
-    PredictorDRC( Interconnect *memory, AddressTranslator *translator );
+    PredictorDRC( );
     ~PredictorDRC( );
 
 
-    void SetConfig( Config *conf );
+    void SetConfig( Config *conf, bool createChildren = true );
 
     bool IssueAtomic( NVMainRequest *req );
     bool IssueCommand( NVMainRequest *req );

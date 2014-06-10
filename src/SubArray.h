@@ -48,6 +48,8 @@
 
 namespace NVM {
 
+class Event;
+
 /*
  *  We only use four subarray states because we use distributed timing control
  *  No PowerDown state is implemented since it does not make sense to apply 
@@ -86,21 +88,20 @@ class SubArray : public NVMObject
     bool Precharge( NVMainRequest *request );
     bool Refresh( NVMainRequest *request );
 
-    bool WouldConflict( uint64_t checkRow );
     bool IsIssuable( NVMainRequest *req, FailReason *reason = NULL );
     bool IssueCommand( NVMainRequest *req );
     bool RequestComplete( NVMainRequest *req );
+    ncycle_t NextIssuable( NVMainRequest *request );
 
-    void SetConfig( Config *c );
+    void SetConfig( Config *c, bool createChildren = true );
     void SetParams( Params *params ) { p = params; }
 
     SubArrayState GetState( );
 
+    bool BetweenWriteIterations( );
+
     bool Idle( );
     ncycle_t GetDataCycles( ) { return dataCycles; }
-    void GetEnergy( double&, double&, double&, double& );
-    ncounter_t GetReads( ) { return reads; }
-    ncounter_t GetWrites( ) { return writes; }
 
     ncycle_t GetNextActivate( ) { return nextActivate; }
     ncycle_t GetNextRead( ) { return nextRead; }
@@ -111,7 +112,6 @@ class SubArray : public NVMObject
 
     void SetName( std::string );
     void SetId( ncounter_t );
-    void StatName( std::string name ) { statName = name; }
 
     void RegisterStats( );
     void CalculateStats( );
@@ -120,10 +120,10 @@ class SubArray : public NVMObject
     std::string GetName( );
 
     void Cycle( ncycle_t );
+    bool IsWriting( ) { return isWriting; }
 
   private:
     Config *conf;
-    std::string statName;
     ncounter_t psInterval;
 
     ncounter_t MATWidth;
@@ -138,8 +138,21 @@ class SubArray : public NVMObject
     ncycle_t nextPrecharge;
     ncycle_t nextRead;
     ncycle_t nextWrite;
+    ncycle_t nextPowerDown;
     bool writeCycle;
+    bool isWriting;
+    ncycle_t writeEnd;
+    ncycle_t writeStart;
+    std::set<ncycle_t> writeIterationStarts;
+    NVMainRequest *writeRequest;
+    NVM::Event *writeEvent;
+    ncycle_t writeEventTime;
     WriteMode writeMode;
+    ncycle_t nextActivatePreWrite;
+    ncycle_t nextPrechargePreWrite;
+    ncycle_t nextReadPreWrite;
+    ncycle_t nextWritePreWrite;
+    ncycle_t nextPowerDownPreWrite;
     ncounter_t dataCycles;
     ncycle_t worstCaseWrite;
     ncounter_t num00Writes;
@@ -148,6 +161,15 @@ class SubArray : public NVMObject
     ncounter_t num11Writes;
     double averageWriteTime;
     ncounter_t measuredWriteTimes;
+    ncounter_t averageWriteIterations;
+    double averagePausesPerRequest;
+    ncounter_t measuredPauses;
+    double averagePausedRequestProgress;
+    ncounter_t measuredProgresses;
+
+    ncounter_t cancelledWrites;
+    ncounter_t cancelledWriteTime;
+    ncounter_t pausedWrites;
 
     ncounter_t actWaits;
     ncounter_t actWaitTotal;
@@ -172,10 +194,17 @@ class SubArray : public NVMObject
  
     Params *p;
 
-    ncycle_t WriteCellData( NVMainRequest *request );
-
     std::map<uint64_t, uint64_t> mlcTimingMap;
+    std::map<uint64_t, uint64_t> cancelCountMap;
+    std::map<double, uint64_t> wpPauseMap;
+    std::map<double, uint64_t> wpCancelMap;
     std::string mlcTimingHisto;
+    std::string cancelCountHisto;
+    std::string wpPauseHisto;
+    std::string wpCancelHisto;
+
+    ncycle_t WriteCellData( NVMainRequest *request );
+    void CheckWritePausing( );
 
 };
 

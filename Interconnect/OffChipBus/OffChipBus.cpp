@@ -35,6 +35,7 @@
 
 #include "Interconnect/OffChipBus/OffChipBus.h"
 #include "src/MemoryController.h"
+#include "Ranks/RankFactory.h"
 #include "src/EventQueue.h"
 
 #include <sstream>
@@ -45,7 +46,6 @@ using namespace NVM;
 OffChipBus::OffChipBus( )
 {
     conf = NULL;
-    ranks = NULL;
     configSet = false;
     numRanks = 0;
     syncValue = 0.0f;
@@ -53,21 +53,10 @@ OffChipBus::OffChipBus( )
 
 OffChipBus::~OffChipBus( )
 {
-    if( numRanks > 0 )
-    {
-        for( ncounter_t i = 0; i < numRanks; i++ )
-        {
-            delete ranks[i];
-        }
-
-        delete [] ranks;
-    }
 }
 
-void OffChipBus::SetConfig( Config *c )
+void OffChipBus::SetConfig( Config *c, bool createChildren )
 {
-    std::stringstream formatter;
-
     Params *params = new Params( );
     params->SetParams( c );
     SetParams( params );
@@ -79,53 +68,36 @@ void OffChipBus::SetConfig( Config *c )
 
     numRanks = p->RANKS;
 
-    ranks = new Rank * [numRanks];
-    for( ncounter_t i = 0; i < numRanks; i++ )
+    if( createChildren )
     {
-        ranks[i] = new Rank( );
+        /* When selecting a child, use the rank field from the decoder. */
+        AddressTranslator *incAT = DecoderFactory::CreateDecoderNoWarn( c->GetString( "Decoder" ) );
+        TranslationMethod *method = GetParent()->GetTrampoline()->GetDecoder()->GetTranslationMethod();
+        incAT->SetTranslationMethod( method );
+        incAT->SetDefaultField( RANK_FIELD );
+        incAT->SetConfig( c, createChildren );
+        SetDecoder( incAT );
 
-        formatter.str( "" );
-        formatter << statName << ".rank" << i;
-        ranks[i]->StatName( formatter.str( ) );
+        for( ncounter_t i = 0; i < numRanks; i++ )
+        {
+            std::stringstream formatter;
 
-        formatter.str( "" );
-        formatter << i;
-        ranks[i]->SetName( formatter.str( ) );
+            Rank *nextRank = RankFactory::CreateRankNoWarn( c->GetString( "RankType" ) );
 
-        ranks[i]->SetParent( this );
-        AddChild( ranks[i] );
+            formatter.str( "" );
+            formatter << StatName( ) << ".rank" << i;
+            nextRank->StatName( formatter.str( ) );
 
-        /* SetConfig recursively. */
-        ranks[i]->SetConfig( conf );
-        ranks[i]->RegisterStats( );
+            nextRank->SetParent( this );
+            AddChild( nextRank );
+
+            /* SetConfig recursively. */
+            nextRank->SetConfig( conf, createChildren );
+            nextRank->RegisterStats( );
+        }
     }
 
     SetDebugName( "OffChipBus", c );
-}
-
-bool OffChipBus::CanPowerDown( const OpType& pdOp, const ncounter_t& rankId )
-{
-    return ranks[rankId]->CanPowerDown( pdOp );
-}
-
-bool OffChipBus::PowerDown( const OpType& pdOp, const ncounter_t& rankId )
-{
-    return ranks[rankId]->PowerDown( pdOp );
-}
-
-bool OffChipBus::CanPowerUp( const ncounter_t& rankId )
-{
-    return ranks[rankId]->CanPowerUp( );
-}
-
-bool OffChipBus::PowerUp( const ncounter_t& rankId )
-{
-    return ranks[rankId]->PowerUp( );
-}
-
-bool OffChipBus::IsRankIdle( const ncounter_t& rankId )
-{
-    return ranks[rankId]->Idle( );
 }
 
 bool OffChipBus::RequestComplete( NVMainRequest *request )
@@ -139,38 +111,23 @@ bool OffChipBus::RequestComplete( NVMainRequest *request )
 bool OffChipBus::IssueCommand( NVMainRequest *req )
 {
     ncounter_t opRank;
-
     bool success = false;
-
-    if( !configSet || numRanks == 0 )
-    {
-        std::cerr << "Error: Issued command before memory system was configured!"
-                  << std::endl;
-        return false;
-    }
 
     req->address.GetTranslatedAddress( NULL, NULL, NULL, &opRank, NULL, NULL );
 
-    if( ranks[opRank]->IsIssuable( req ) )
+    assert( GetChild( req )->IsIssuable( req ) );
+
+    success = GetChild( req )->IssueCommand( req );
+
+    /*
+     *  To preserve rank-to-rank switching time, we need to notify the
+     *  other ranks what the command sent was.
+     */
+    if( success )
     {
-        if( req->type == NOP )
-        {
-            std::cout << "OffChipBus got unknown op." << std::endl;
-        }
-
-        assert( GetChild( req )->GetTrampoline() == ranks[opRank] );
-        success = GetChild( req )->IssueCommand( req );
-
-        /*
-         *  To preserve rank-to-rank switching time, we need to notify the
-         *  other ranks what the command sent to opRank was.
-         */
-        if( success )
-        {
-            for( ncounter_t i = 0; i < numRanks; i++ )
-              if( (ncounter_t)(i) != opRank )
-                ranks[i]->Notify( req->type );
-        }
+        for( ncounter_t childIdx = 0; childIdx < GetChildCount( ); childIdx++ )
+          if( GetChild( req ) != GetChild( childIdx ) )
+            GetChild( childIdx )->Notify( req );
     }
 
     return success;
@@ -178,65 +135,23 @@ bool OffChipBus::IssueCommand( NVMainRequest *req )
 
 bool OffChipBus::IsIssuable( NVMainRequest *req, FailReason *reason )
 {
-    ncounter_t opRank;
-
-    req->address.GetTranslatedAddress( NULL, NULL, NULL, &opRank, NULL, NULL );
-
-    return ranks[opRank]->IsIssuable( req, reason );
-}
-
-ncycle_t OffChipBus::GetNextActivate( ncounter_t rank, ncounter_t bank )
-{
-    if( rank < numRanks )
-        return ranks[rank]->GetNextActivate( bank );
-
-    return 0;
-}
-
-ncycle_t OffChipBus::GetNextRead( ncounter_t rank, ncounter_t bank )
-{
-    if( rank < numRanks )
-        return ranks[rank]->GetNextRead( bank );
-
-    return 0;
-}
-
-ncycle_t OffChipBus::GetNextWrite( ncounter_t rank, ncounter_t bank )
-{
-    if( rank < numRanks )
-        return ranks[rank]->GetNextWrite( bank );
-
-    return 0;
-}
-
-ncycle_t OffChipBus::GetNextPrecharge( ncounter_t rank, ncounter_t bank )
-{
-    if( rank < numRanks )
-        return ranks[rank]->GetNextPrecharge( bank );
-
-    return 0;
-}
-
-ncycle_t OffChipBus::GetNextRefresh( ncounter_t rank, ncounter_t bank )
-{
-    if( rank < numRanks )
-        return ranks[rank]->GetNextRefresh( bank );
-
-    return 0;
+    return GetChild( req )->IsIssuable( req, reason );
 }
 
 void OffChipBus::CalculateStats( )
 {
-    for( ncounter_t i = 0; i < numRanks; i++ )
+    for( ncounter_t childIdx = 0; childIdx < GetChildren().size(); childIdx++ )
     {
-        ranks[i]->CalculateStats( );
+        GetChild(childIdx)->CalculateStats( );
     }
 }
 
 void OffChipBus::Cycle( ncycle_t steps )
 {
-    for( unsigned rankIdx = 0; rankIdx < numRanks; rankIdx++ )
-        ranks[rankIdx]->Cycle( steps );
+    for( ncounter_t childIdx = 0; childIdx < GetChildren().size(); childIdx++ )
+    {
+        GetChild(childIdx)->Cycle( steps );
+    }
 }
 
 double OffChipBus::CalculateIOPower( bool isRead, unsigned int bitValue )

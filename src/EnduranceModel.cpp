@@ -46,7 +46,7 @@ EnduranceModel::EnduranceModel( ) : config( NULL )
     granularity = 0;
 }
 
-void EnduranceModel::SetConfig( Config *conf )
+void EnduranceModel::SetConfig( Config *conf, bool /*createChildren*/ )
 {
     config = conf;
 

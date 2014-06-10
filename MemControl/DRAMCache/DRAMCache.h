@@ -45,11 +45,11 @@ class NVMain;
 class DRAMCache : public MemoryController
 {
   public:
-    DRAMCache( Interconnect *memory, AddressTranslator *translator );
+    DRAMCache( );
     ~DRAMCache( );
 
 
-    void SetConfig( Config *conf );
+    void SetConfig( Config *conf, bool createChildren = true );
 
     bool IssueAtomic( NVMainRequest *req );
     bool IssueCommand( NVMainRequest *req );

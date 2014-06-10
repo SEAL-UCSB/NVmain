@@ -44,6 +44,7 @@
 #include "Utils/HookFactory.h"
 #include "include/NVMainRequest.h"
 #include "include/NVMHelpers.h"
+#include "Prefetchers/PrefetcherFactory.h"
 
 #include <sstream>
 #include <cassert>
@@ -53,12 +54,18 @@ using namespace NVM;
 NVMain::NVMain( )
 {
     config = NULL;
-    memory = NULL;
     translator = NULL;
     memoryControllers = NULL;
     channelConfig = NULL;
     syncValue = 0.0f;
     preTracer = NULL;
+
+    totalReadRequests = 0;
+    totalWriteRequests = 0;
+
+    prefetcher = NULL;
+    successfulPrefetches = 0;
+    unsuccessfulPrefetches = 0;
 }
 
 NVMain::~NVMain( )
@@ -75,16 +82,6 @@ NVMain::~NVMain( )
         }
 
         delete [] memoryControllers;
-    }
-
-    if( memory )
-    {
-        for( unsigned int i = 0; i < numChannels; i++ )
-        {
-            delete memory[i];
-        }
-
-        delete [] memory;
     }
 
     if( translator )
@@ -106,7 +103,7 @@ Config *NVMain::GetConfig( )
     return config;
 }
 
-void NVMain::SetConfig( Config *conf, std::string memoryName )
+void NVMain::SetConfig( Config *conf, std::string memoryName, bool createChildren )
 {
     TranslationMethod *method;
     int channels, ranks, banks, rows, cols, subarrays;
@@ -115,141 +112,113 @@ void NVMain::SetConfig( Config *conf, std::string memoryName )
     params->SetParams( conf );
     SetParams( params );
 
+    StatName( memoryName );
+
     config = conf;
     if( config->GetSimInterface( ) != NULL )
-        config->GetSimInterface( )->SetConfig( conf );
+        config->GetSimInterface( )->SetConfig( conf, createChildren );
     else
       std::cout << "Warning: Sim Interface should be allocated before configuration!" << std::endl;
 
-    if( conf->KeyExists( "MATHeight" ) )
+
+    if( createChildren )
     {
-        rows = static_cast<int>(p->MATHeight);
-        subarrays = static_cast<int>( p->ROWS / p->MATHeight );
-    }
-    else
-    {
-        rows = static_cast<int>(p->ROWS);
-        subarrays = 1;
-    }
-    cols = static_cast<int>(p->COLS);
-    banks = static_cast<int>(p->BANKS);
-    ranks = static_cast<int>(p->RANKS);
-    channels = static_cast<int>(p->CHANNELS);
-
-    if( config->KeyExists( "Decoder" ) )
-        translator = DecoderFactory::CreateNewDecoder( config->GetString( "Decoder" ) );
-    else
-        translator = new AddressTranslator( );
-
-    method = new TranslationMethod( );
-
-    method->SetBitWidths( NVM::mlog2( rows ), 
-          		NVM::mlog2( cols ), 
-          		NVM::mlog2( banks ), 
-          		NVM::mlog2( ranks ), 
-          		NVM::mlog2( channels ), 
-                        NVM::mlog2( subarrays )
-          		);
-    method->SetCount( rows, cols, banks, ranks, channels, subarrays );
-    translator->SetTranslationMethod( method );
-    translator->SetDefaultField( CHANNEL_FIELD );
-
-    SetDecoder( translator );
-
-    /*  Add any specified hooks */
-    /*
-    std::vector<std::string>& hookList = config->GetHooks( );
-
-    for( size_t i = 0; i < hookList.size( ); i++ )
-    {
-        std::cout << "Creating hook " << hookList[i] << std::endl;
-
-        NVMObject *hook = HookFactory::CreateHook( hookList[i] );
-        
-        if( hook != NULL )
+        if( conf->KeyExists( "MATHeight" ) )
         {
-            AddHook( hook );
-            hook->SetParent( this );
-            hook->Init( );
+            rows = static_cast<int>(p->MATHeight);
+            subarrays = static_cast<int>( p->ROWS / p->MATHeight );
         }
         else
         {
-            std::cout << "Warning: Could not create a hook named `" 
-                << hookList[i] << "'." << std::endl;
+            rows = static_cast<int>(p->ROWS);
+            subarrays = 1;
         }
-    }
-    */
+        cols = static_cast<int>(p->COLS);
+        banks = static_cast<int>(p->BANKS);
+        ranks = static_cast<int>(p->RANKS);
+        channels = static_cast<int>(p->CHANNELS);
 
-    memory = new Interconnect* [channels];
+        if( config->KeyExists( "Decoder" ) )
+            translator = DecoderFactory::CreateNewDecoder( config->GetString( "Decoder" ) );
+        else
+            translator = new AddressTranslator( );
 
-    memoryControllers = new MemoryController* [channels];
-    channelConfig = new Config* [channels];
-    for( int i = 0; i < channels; i++ )
-    {
-        std::stringstream confString;
-        std::string channelConfigFile;
+        method = new TranslationMethod( );
 
-        channelConfig[i] = new Config( *config );
+        method->SetBitWidths( NVM::mlog2( rows ), 
+                    NVM::mlog2( cols ), 
+                    NVM::mlog2( banks ), 
+                    NVM::mlog2( ranks ), 
+                    NVM::mlog2( channels ), 
+                            NVM::mlog2( subarrays )
+                    );
+        method->SetCount( rows, cols, banks, ranks, channels, subarrays );
+        translator->SetConfig( config, createChildren );
+        translator->SetTranslationMethod( method );
+        translator->SetDefaultField( CHANNEL_FIELD );
 
-        channelConfig[i]->SetSimInterface( config->GetSimInterface( ) );
+        SetDecoder( translator );
 
-        confString << "CONFIG_CHANNEL" << i;
-
-        if( config->GetString( confString.str( ) ) != "" )
+        memoryControllers = new MemoryController* [channels];
+        channelConfig = new Config* [channels];
+        for( int i = 0; i < channels; i++ )
         {
-            channelConfigFile  = config->GetString( confString.str( ) );
+            std::stringstream confString;
+            std::string channelConfigFile;
 
-            if( channelConfigFile[0] != '/' )
+            channelConfig[i] = new Config( *config );
+
+            channelConfig[i]->SetSimInterface( config->GetSimInterface( ) );
+
+            confString << "CONFIG_CHANNEL" << i;
+
+            if( config->GetString( confString.str( ) ) != "" )
             {
-                channelConfigFile  = NVM::GetFilePath( config->GetFileName( ) );
-                channelConfigFile += config->GetString( confString.str( ) );
-            }
-            
-            std::cout << "Reading channel config file: " << channelConfigFile << std::endl;
+                channelConfigFile  = config->GetString( confString.str( ) );
 
-            channelConfig[i]->Read( channelConfigFile );
+                if( channelConfigFile[0] != '/' )
+                {
+                    channelConfigFile  = NVM::GetFilePath( config->GetFileName( ) );
+                    channelConfigFile += config->GetString( confString.str( ) );
+                }
+                
+                std::cout << "Reading channel config file: " << channelConfigFile << std::endl;
+
+                channelConfig[i]->Read( channelConfigFile );
+            }
+
+            /* Initialize memory controller */
+            memoryControllers[i] = 
+                MemoryControllerFactory::CreateNewController( channelConfig[i]->GetString( "MEM_CTL" ) );
+
+            /* When selecting a MC child, use no field from the decoder (only-child). */
+
+            confString.str( "" );
+            confString << memoryName << ".channel" << i << "." 
+                << channelConfig[i]->GetString( "MEM_CTL" ); 
+            memoryControllers[i]->StatName( confString.str( ) );
+            memoryControllers[i]->SetID( i );
+
+            AddChild( memoryControllers[i] );
+            memoryControllers[i]->SetParent( this );
+
+            /* Set Config recursively. */
+            memoryControllers[i]->SetConfig( channelConfig[i], createChildren );
+
+            /* Register statistics. */
+            memoryControllers[i]->RegisterStats( );
         }
 
-        /* Initialize ranks */
-        memory[i] = InterconnectFactory::CreateInterconnect( channelConfig[i]->GetString( "INTERCONNECT" ) );
-
-        confString.str( "" );
-        confString << memoryName << ".channel" << i;
-        memory[i]->StatName( confString.str( ) );
-
-        AddressTranslator *incAT = DecoderFactory::CreateDecoderNoWarn( channelConfig[i]->GetString( "Decoder" ) );
-        incAT->SetTranslationMethod( method );
-        incAT->SetDefaultField( RANK_FIELD );
-        memory[i]->SetDecoder( incAT );
-
-
-        /* Initialize memory controller */
-        memoryControllers[i] = MemoryControllerFactory::CreateNewController( 
-                channelConfig[i]->GetString( "MEM_CTL" ), memory[i], translator );
-
-        confString.str( "" );
-        confString << memoryName << ".channel" << i << "." 
-            << channelConfig[i]->GetString( "MEM_CTL" ); 
-        memoryControllers[i]->StatName( confString.str( ) );
-        memoryControllers[i]->SetID( i );
-
-        AddChild( memoryControllers[i] );
-        memoryControllers[i]->SetParent( this );
-
-        memoryControllers[i]->AddChild( memory[i] );
-        memory[i]->SetParent( memoryControllers[i] );
-
-        /* Set Config recursively. */
-        memory[i]->SetConfig( channelConfig[i] );
-        memoryControllers[i]->SetConfig( channelConfig[i] );
-
-        /* Register statistics. */
-        memoryControllers[i]->RegisterStats( );
-        memory[i]->RegisterStats( );
     }
-    
-    numChannels = static_cast<unsigned int>(channels);
 
+    if( p->MemoryPrefetcher != "none" )
+    {
+        prefetcher = PrefetcherFactory::CreateNewPrefetcher( p->MemoryPrefetcher );
+        std::cout << "Made a " << p->MemoryPrefetcher << " prefetcher." << std::endl;
+    }
+
+    numChannels = static_cast<unsigned int>(p->CHANNELS);
+    
     std::string pretraceFile;
 
     if( p->PrintPreTrace || p->EchoPreTrace )
@@ -277,6 +246,8 @@ void NVMain::SetConfig( Config *conf, std::string memoryName )
         if( p->EchoPreTrace )
             preTracer->SetEcho( true );
     }
+
+    RegisterStats( );
 }
 
 bool NVMain::IsIssuable( NVMainRequest *request, FailReason *reason )
@@ -286,10 +257,90 @@ bool NVMain::IsIssuable( NVMainRequest *request, FailReason *reason )
 
     assert( request != NULL );
 
-    translator->Translate( request->address.GetPhysicalAddress( ), 
+    GetDecoder( )->Translate( request->address.GetPhysicalAddress( ), 
                            &row, &col, &rank, &bank, &channel, &subarray );
 
     rv = memoryControllers[channel]->IsIssuable( request, reason );
+
+    return rv;
+}
+
+void NVMain::GeneratePrefetches( NVMainRequest *request, std::vector<NVMAddress>& prefetchList )
+{
+    std::vector<NVMAddress>::iterator iter;
+    ncounter_t channel, rank, bank, row, col, subarray;
+
+    for( iter = prefetchList.begin(); iter != prefetchList.end(); iter++ )
+    {
+        /* Make a request from the prefetch address. */
+        NVMainRequest *pfRequest = new NVMainRequest( );
+        *pfRequest = *request;
+        pfRequest->address = (*iter);
+        pfRequest->isPrefetch = true;
+        pfRequest->owner = this;
+        
+        /* Translate the address, then copy to the address struct, and copy to request. */
+        GetDecoder( )->Translate( request->address.GetPhysicalAddress( ), 
+                               &row, &col, &bank, &rank, &channel, &subarray );
+        request->address.SetTranslatedAddress( row, col, bank, rank, channel, subarray );
+        request->bulkCmd = CMD_NOP;
+
+        //std::cout << "Prefetching 0x" << std::hex << (*iter).GetPhysicalAddress() << " (trigger 0x"
+        //          << request->address.GetPhysicalAddress( ) << std::dec << std::endl;
+
+        /* Just type to issue; If the queue is full it simply won't be enqueued. */
+        GetChild( pfRequest )->IssueCommand( pfRequest );
+    }
+}
+
+void NVMain::IssuePrefetch( NVMainRequest *request )
+{
+    /* 
+     *  Generate prefetches here. It makes the most sense to prefetch in this class
+     *  since we may prefetch across channels. However, this may be applicable to any
+     *  class in the hierarchy as long as we filter out the prefetch addresses that
+     *  do not belong to a child of the current module.
+     */
+    /* TODO: We are assuming this is the master root! */
+    std::vector<NVMAddress> prefetchList;
+    if( prefetcher && request->type == READ && request->isPrefetch == false 
+        && prefetcher->DoPrefetch(request, prefetchList) )
+    {
+        GeneratePrefetches( request, prefetchList );
+    }
+}
+
+bool NVMain::CheckPrefetch( NVMainRequest *request )
+{
+    bool rv = false;
+    NVMainRequest *pfRequest = NULL;
+    std::list<NVMainRequest *>::const_iterator iter;
+    std::vector<NVMAddress> prefetchList;
+
+    for( iter = prefetchBuffer.begin(); iter!= prefetchBuffer.end(); iter++ )
+    {
+        if( (*iter)->address.GetPhysicalAddress() == request->address.GetPhysicalAddress() )
+        {
+            if( prefetcher->NotifyAccess(request, prefetchList) )
+            {
+                GeneratePrefetches( request, prefetchList );
+            }
+
+            successfulPrefetches++;
+            rv = true;
+            pfRequest = (*iter);
+            delete pfRequest;
+            break;
+        }
+    }
+
+    if( pfRequest != NULL )
+    {
+        //std::cout << "Prefetched 0x" << std::hex << request->address.GetPhysicalAddress( )
+        //          << std::dec << " (list size " << prefetchBuffer.size() << " -> ";
+        prefetchBuffer.remove( pfRequest );
+        //std::cout << prefetchBuffer.size() << ")" << std::endl;
+    }
 
     return rv;
 }
@@ -316,8 +367,8 @@ void NVMain::PrintPreTrace( NVMainRequest *request )
 
 bool NVMain::IssueCommand( NVMainRequest *request )
 {
-    uint64_t channel, rank, bank, row, col, subarray;
-    int mc_rv;
+    ncounter_t channel, rank, bank, row, col, subarray;
+    bool mc_rv;
 
     if( !config )
     {
@@ -326,23 +377,45 @@ bool NVMain::IssueCommand( NVMainRequest *request )
     }
 
     /* Translate the address, then copy to the address struct, and copy to request. */
-    translator->Translate( request->address.GetPhysicalAddress( ), 
+    GetDecoder( )->Translate( request->address.GetPhysicalAddress( ), 
                            &row, &col, &bank, &rank, &channel, &subarray );
     request->address.SetTranslatedAddress( row, col, bank, rank, channel, subarray );
     request->bulkCmd = CMD_NOP;
 
+    /* Check for any successful prefetches. */
+    if( CheckPrefetch( request ) )
+    {
+        GetEventQueue()->InsertEvent( EventResponse, this, request, 
+                                      GetEventQueue()->GetCurrentCycle() + 1 );
+
+        return true;
+    }
+
     assert( GetChild( request )->GetTrampoline( ) == memoryControllers[channel] );
     mc_rv = GetChild( request )->IssueCommand( request );
     if( mc_rv == true )
+    {
+        IssuePrefetch( request );
+
+        if( request->type == READ ) 
+        {
+            totalReadRequests++;
+        }
+        else
+        {
+            totalWriteRequests++;
+        }
+
         PrintPreTrace( request );
+    }
 
     return mc_rv;
 }
 
 bool NVMain::IssueAtomic( NVMainRequest *request )
 {
-    uint64_t channel, rank, bank, row, col, subarray;
-    int mc_rv;
+    ncounter_t channel, rank, bank, row, col, subarray;
+    bool mc_rv;
 
     if( !config )
     {
@@ -351,20 +424,81 @@ bool NVMain::IssueAtomic( NVMainRequest *request )
     }
 
     /* Translate the address, then copy to the address struct, and copy to request. */
-    translator->Translate( request->address.GetPhysicalAddress( ), 
+    GetDecoder( )->Translate( request->address.GetPhysicalAddress( ), 
                            &row, &col, &bank, &rank, &channel, &subarray );
     request->address.SetTranslatedAddress( row, col, bank, rank, channel, subarray );
     request->bulkCmd = CMD_NOP;
 
+    /* Check for any successful prefetches. */
+    if( CheckPrefetch( request ) )
+    {
+        return true;
+    }
+
     mc_rv = memoryControllers[channel]->IssueAtomic( request );
     if( mc_rv == true )
+    {
+        IssuePrefetch( request );
+
+        if( request->type == READ ) 
+        {
+            totalReadRequests++;
+        }
+        else
+        {
+            totalWriteRequests++;
+        }
+
         PrintPreTrace( request );
+    }
     
     return mc_rv;
 }
 
-void NVMain::Cycle( ncycle_t )
+bool NVMain::RequestComplete( NVMainRequest *request )
 {
+    bool rv = false;
+
+    if( request->owner == this )
+    {
+        if( request->isPrefetch )
+        {
+            //std::cout << "Placing 0x" << std::hex << request->address.GetPhysicalAddress( )
+            //          << std::dec << " into prefetch buffer (cur size: " << prefetchBuffer.size( )
+            //          << ")." << std::endl;
+
+            /* Place in prefetch buffer. */
+            if( prefetchBuffer.size() >= p->PrefetchBufferSize )
+            {
+                unsuccessfulPrefetches++;
+                //std::cout << "Prefetch buffer is full. Removing oldest prefetch: 0x" << std::hex
+                //          << prefetchBuffer.front()->address.GetPhysicalAddress() << std::dec
+                //          << std::endl;
+
+                delete prefetchBuffer.front();
+                prefetchBuffer.pop_front();
+            }
+
+            prefetchBuffer.push_back( request );
+            rv = true;
+        }
+        else
+        {
+            delete request;
+            rv = true;
+        }
+    }
+    else
+    {
+        rv = GetParent( )->RequestComplete( request );
+    }
+
+    return rv;
+}
+
+void NVMain::Cycle( ncycle_t steps )
+{
+    assert( !p->EventDriven );
     /*
      *  Previous errors can prevent config from being set. Likewise, if the first memoryController is
      *  NULL, so are all the others, so return here instead of seg faulting.
@@ -392,7 +526,15 @@ void NVMain::Cycle( ncycle_t )
         memoryControllers[i]->Cycle( 1 );
     }
 
-    GetEventQueue()->Loop( );
+    GetEventQueue()->Loop( steps );
+}
+
+void NVMain::RegisterStats( )
+{
+    AddStat(totalReadRequests);
+    AddStat(totalWriteRequests);
+    AddStat(successfulPrefetches);
+    AddStat(unsuccessfulPrefetches);
 }
 
 void NVMain::CalculateStats( )

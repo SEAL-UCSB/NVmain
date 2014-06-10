@@ -44,7 +44,7 @@ class ByteModel : public EnduranceModel
     ByteModel( );
     ~ByteModel( );
 
-    void SetConfig( Config *config );
+    void SetConfig( Config *config, bool createChildren = true );
 
     bool Write( NVMAddress address, NVMDataBlock oldData, NVMDataBlock newData );
 

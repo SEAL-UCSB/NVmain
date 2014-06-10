@@ -40,6 +40,7 @@
 #include "include/FailReasons.h"
 #include "Decoders/DecoderFactory.h"
 #include "src/Stats.h"
+#include "src/TagGenerator.h"
 
 #include <ostream>
 #include <vector>
@@ -47,11 +48,44 @@
 
 #define NVMObjectType (typeid(*(parent->GetTrampoline())).name())
 #define NVMClass(a) (typeid(a).name())
+#define NVMTypeMatches(a) ((dynamic_cast<a *>(parent->GetTrampoline())) != NULL)
+
+// a = NVMainRequest*, b=Class Name
+#define FindChild(a,b) (dynamic_cast<b *>(_FindChild(a,typeid(b).name())))
+
+// a = NVMainRequest*, b=Class Name, c=NVMObject*
+#define FindChildType(a,b,c)                                                 \
+{                                                                            \
+    NVMObject *curChild = this;                                              \
+                                                                             \
+    while( curChild != NULL && dynamic_cast<b *>(curChild) == NULL )         \
+    {                                                                        \
+        NVMObject_hook *curHook = curChild->GetChild( a );                   \
+                                                                             \
+        if( curHook == NULL )                                                \
+        {                                                                    \
+            c = NULL;                                                        \
+            break;                                                           \
+        }                                                                    \
+                                                                             \
+        curChild = curHook->GetTrampoline();                                 \
+    }                                                                        \
+                                                                             \
+    if( dynamic_cast<b *>(curChild) != NULL )                                \
+    {                                                                        \
+        c = curChild;                                                        \
+    }                                                                        \
+    else                                                                     \
+    {                                                                        \
+        c = NULL;                                                            \
+    }                                                                        \
+}
 
 namespace NVM {
 
 class NVMainRequest;
 class EventQueue;
+class GlobalEventQueue;
 class AddressTranslator;
 class NVMObject;
 class Config;
@@ -71,10 +105,15 @@ class NVMObject_hook
 {
   public:
     NVMObject_hook( NVMObject *trampoline );
+    virtual ~NVMObject_hook( );
 
     bool IssueCommand( NVMainRequest *req );
     bool IsIssuable( NVMainRequest *req, FailReason *reason = NULL );
     bool IssueAtomic( NVMainRequest *req );
+    bool IssueFunctional( NVMainRequest *req );
+    void Notify( NVMainRequest *req );
+    ncycle_t NextIssuable( NVMainRequest *req );
+    virtual bool Idle( );
 
     bool RequestComplete( NVMainRequest *req );
     void Callback( void *data );
@@ -84,9 +123,14 @@ class NVMObject_hook
     void CalculateStats( );
     void ResetStats( );
 
+    void PrintHierarchy( int depth );
+
     void SetStats( Stats* );
     Stats* GetStats( );
     void RegisterStats( );
+
+    void StatName( std::string name );
+    std::string StatName( );
 
     NVMObject *GetTrampoline( );
 
@@ -103,7 +147,7 @@ class NVMObject
 {
   public:
     NVMObject( );
-    virtual ~NVMObject(  ) { }
+    virtual ~NVMObject(  );
 
     virtual void Init( Config *conf ); 
 
@@ -112,20 +156,31 @@ class NVMObject
     virtual bool IssueCommand( NVMainRequest *req );
     virtual bool IsIssuable( NVMainRequest *req, FailReason *reason = NULL );
     virtual bool IssueAtomic( NVMainRequest *req );
+    virtual bool IssueFunctional( NVMainRequest *req );
+    virtual void Notify( NVMainRequest *req );
+    virtual ncycle_t NextIssuable( NVMainRequest *req );
+    virtual bool Idle( );
 
     virtual bool RequestComplete( NVMainRequest *req );
     virtual void Callback( void *data );
 
     virtual void SetParent( NVMObject *p );
+    void UnsetParent( );
     virtual void AddChild( NVMObject *c ); 
+    NVMObject *_FindChild( NVMainRequest *req, const char *childClass );
 
     virtual void SetEventQueue( EventQueue *eq );
     virtual EventQueue *GetEventQueue( );
+    virtual void SetGlobalEventQueue( GlobalEventQueue *geq );
+    virtual GlobalEventQueue *GetGlobalEventQueue( );
 
     NVMObject_hook *GetParent( );
     std::vector<NVMObject_hook *>& GetChildren( );
     NVMObject_hook *GetChild( NVMainRequest *req );  
+    NVMObject_hook *GetChild( ncounter_t child );
     NVMObject_hook *GetChild( );
+    ncounter_t GetChildId( NVMObject *c );
+    ncounter_t GetChildCount( );
 
     virtual void SetDecoder( AddressTranslator *at );
     virtual AddressTranslator *GetDecoder( );
@@ -136,9 +191,17 @@ class NVMObject
     virtual void CreateCheckpoint( std::string dir );
     virtual void RestoreCheckpoint( std::string dir );
 
+    void PrintHierarchy( int depth = 0 );
+
     void SetStats( Stats* );
     Stats* GetStats( );
     virtual void RegisterStats( );
+
+    void StatName( std::string name );
+    std::string StatName( );
+
+    void SetTagGenerator( TagGenerator *tg );
+    TagGenerator *GetTagGenerator( );
 
     HookType GetHookType( );
     void SetHookType( HookType );
@@ -152,12 +215,16 @@ class NVMObject
     NVMObject_hook *parent;
     AddressTranslator *decoder;
     Stats *stats;
+    std::string statName;
     std::vector<NVMObject_hook *> children;
     std::vector<NVMObject *> *hooks;
     EventQueue *eventQueue;
+    GlobalEventQueue *globalEventQueue;
     std::ostream *debugStream;
+    TagGenerator *tagGen;
     HookType hookType;
     ncycle_t MAX( const ncycle_t, const ncycle_t );
+    ncycle_t MIN( const ncycle_t, const ncycle_t );
 };
 
 };

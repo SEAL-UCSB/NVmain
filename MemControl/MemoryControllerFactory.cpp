@@ -45,8 +45,7 @@
 
 using namespace NVM;
 
-MemoryController *MemoryControllerFactory::CreateNewController( std::string controller, 
-        Interconnect *memory, AddressTranslator *translator )
+MemoryController *MemoryControllerFactory::CreateNewController( std::string controller ) 
 {
     MemoryController *memoryController = NULL;
 
@@ -54,21 +53,21 @@ MemoryController *MemoryControllerFactory::CreateNewController( std::string cont
         std::cout << "NVMain: MEM_CTL is not set in configuration file!" << std::endl;
 
     if( controller == "FCFS" )
-        memoryController = new FCFS( memory, translator );
+        memoryController = new FCFS( );
     else if( controller == "FRFCFS" )
-        memoryController = new FRFCFS( memory, translator );
+        memoryController = new FRFCFS( );
     else if( controller == "FRFCFS-WQF" || controller == "FRFCFS_WQF" )
-        memoryController = new FRFCFS_WQF( memory, translator );
+        memoryController = new FRFCFS_WQF( );
     else if( controller == "PerfectMemory" )
-        memoryController = new PerfectMemory( memory, translator );
+        memoryController = new PerfectMemory( );
     else if( controller == "DRC" )
-        memoryController = new DRAMCache( memory, translator );
+        memoryController = new DRAMCache( );
     else if( controller == "LH_Cache" )
-        memoryController = new LH_Cache( memory, translator );
+        memoryController = new LH_Cache( );
     else if( controller == "LO_Cache" )
-        memoryController = new LO_Cache( memory, translator );
+        memoryController = new LO_Cache( );
     else if( controller == "PredictorDRC" )
-        memoryController = new PredictorDRC( memory, translator );
+        memoryController = new PredictorDRC( );
 
     if( memoryController == NULL )
         std::cout << "NVMain: Unknown memory controller `" 

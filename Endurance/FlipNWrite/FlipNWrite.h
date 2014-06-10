@@ -45,18 +45,15 @@ class FlipNWrite : public EnduranceModel
     FlipNWrite( );
     ~FlipNWrite( );
 
-    void SetConfig( Config *config );
+    void SetConfig( Config *config, bool createChildren = true );
 
     bool Write( NVMAddress address, NVMDataBlock oldData, NVMDataBlock newData );
-
-    void StatName( std::string name ) { statName = name; }
 
     void RegisterStats( );
     void CalculateStats( );
 
   private:
     std::set< uint64_t > flippedAddresses;
-    std::string statName;
   
     uint64_t bitWrites;
     uint64_t bitsFlipped;

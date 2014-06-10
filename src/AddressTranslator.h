@@ -37,6 +37,8 @@
 #define __ADDRESSTRANSLATOR_H__
 
 #include "src/TranslationMethod.h"
+#include "src/Config.h"
+#include "include/NVMainRequest.h"
 
 namespace NVM {
 
@@ -57,6 +59,8 @@ class AddressTranslator
     AddressTranslator( );
     virtual ~AddressTranslator( );
 
+    virtual void SetConfig( Config * /*config*/, bool /*createChildren*/ = true ) { }
+
     void SetBusWidth( int );
     void SetBurstLength( int );
     void SetTranslationMethod( TranslationMethod *m );
@@ -64,12 +68,15 @@ class AddressTranslator
     
     virtual void Translate( uint64_t address, uint64_t *row, uint64_t *col, uint64_t *bank, 
                             uint64_t *rank, uint64_t *channel, uint64_t *subarray );
+    virtual void Translate( NVMainRequest *request, uint64_t *row, uint64_t *col, uint64_t *bank, 
+                            uint64_t *rank, uint64_t *channel, uint64_t *subarray );
 
     virtual uint64_t ReverseTranslate( const uint64_t& row, const uint64_t& col, 
                                        const uint64_t& bank, const uint64_t& rank, 
                                        const uint64_t& channel, const uint64_t& subarray );
 
     virtual uint64_t Translate( uint64_t address );
+    virtual uint64_t Translate( NVMainRequest *request );
     virtual void SetDefaultField( TranslationField f ); 
 
     virtual void RegisterStats( ) { } 

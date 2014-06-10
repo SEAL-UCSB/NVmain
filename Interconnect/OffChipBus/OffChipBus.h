@@ -46,31 +46,16 @@ class OffChipBus : public Interconnect
     OffChipBus( );
     ~OffChipBus( );
 
-    void SetConfig( Config *c );
+    void SetConfig( Config *c, bool createChildren = true );
     void SetParams( Params *params ) { p = params; }
 
     bool IssueCommand( NVMainRequest *req );
     bool IsIssuable( NVMainRequest *req, FailReason *reason = NULL );
-
     bool RequestComplete( NVMainRequest *request );
-
-    bool CanPowerDown( const OpType&, const ncounter_t& );
-    bool PowerDown( const OpType&, const ncounter_t& );
-    bool CanPowerUp( const ncounter_t& );
-    bool PowerUp( const ncounter_t& );
-    bool IsRankIdle( const ncounter_t& );
-
-    ncycle_t GetNextActivate( ncounter_t rank, ncounter_t bank );
-    ncycle_t GetNextRead( ncounter_t rank, ncounter_t bank );
-    ncycle_t GetNextWrite( ncounter_t rank, ncounter_t bank );
-    ncycle_t GetNextPrecharge( ncounter_t rank, ncounter_t bank );
-    ncycle_t GetNextRefresh( ncounter_t rank, ncounter_t bank );
 
     void CalculateStats( );
 
     void Cycle( ncycle_t steps );
-
-    Rank *GetRank( ncounter_t rank ) { return ranks[rank]; }
 
   private:
     bool configSet;
@@ -79,7 +64,6 @@ class OffChipBus : public Interconnect
     double syncValue;
 
     Config *conf;
-    Rank **ranks;
 
     double CalculateIOPower( bool isRead, unsigned int bitValue );
 

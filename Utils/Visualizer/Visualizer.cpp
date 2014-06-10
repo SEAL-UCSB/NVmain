@@ -120,7 +120,7 @@ bool Visualizer::IssueCommand( NVMainRequest *req )
     /*
      *  Filter out everything but rank and bank issues here.
      */
-    if( NVMObjectType == NVMClass(Bank) )
+    if( NVMTypeMatches(Bank) )
     {
         graphId = rank * (numBanks + 1) + (bank + 1);
 
@@ -173,7 +173,7 @@ bool Visualizer::IssueCommand( NVMainRequest *req )
         }
 
     }
-    else if( NVMObjectType == NVMClass(Rank) )
+    else if( NVMTypeMatches(Rank) )
     {
         graphId = rank * (numBanks + 1);
 
@@ -203,7 +203,7 @@ bool Visualizer::RequestComplete( NVMainRequest *req )
 
     req->address.GetTranslatedAddress( NULL, NULL, &bank, &rank, NULL, NULL ); 
 
-    if( NVMObjectType == NVMClass(Bank) )
+    if( NVMTypeMatches(Bank) )
     {
         graphId = rank * (numBanks + 1) + (bank + 1);
 

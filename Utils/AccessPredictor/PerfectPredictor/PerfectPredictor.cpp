@@ -49,11 +49,7 @@ using namespace NVM;
 
 PerfectPredictor::PerfectPredictor( )
 {
-    hitMemory = NULL;
-    missMemory = NULL;
 
-    hitController = NULL;
-    missController = NULL;
 }
 
 
@@ -63,165 +59,143 @@ PerfectPredictor::~PerfectPredictor( )
 }
 
 
-void PerfectPredictor::Cycle( ncycle_t /*steps*/ )
+uint64_t PerfectPredictor::Translate( NVMainRequest *request )
 {
-
-}
-
-
-void PerfectPredictor::SetHitDestination( NVMain *hitMemory )
-{
-    if( hitController != NULL )
-    {
-        std::cout << "Error: Hit destination can only be one of either a memory "
-                  << "subsystem or a memory controller." << std::endl;
-        exit(1);
-    }
-
-    this->hitMemory = hitMemory;
-}
-
-
-
-void PerfectPredictor::SetHitDestination( MemoryController *hitController )
-{
-    if( hitMemory != NULL )
-    {
-        std::cout << "Error: Hit destination can only be one of either a memory "
-                  << "subsystem or a memory controller." << std::endl;
-        exit(1);
-    }
-
-    this->hitController = hitController;
-}
-
-
-void PerfectPredictor::SetMissDestination( NVMain *missMemory )
-{
-    if( missController != NULL )
-    {
-        std::cout << "Error: Miss destination can only be one of either a memory "
-                  << "subsystem or a memory controller." << std::endl;
-        exit(1);
-    }
-
-    this->missMemory = missMemory;
-}
-
-
-
-void PerfectPredictor::SetMissDestination( MemoryController *missController )
-{
-    if( missMemory != NULL )
-    {
-        std::cout << "Error: Miss destination can only be one of either a memory "
-                  << "subsystem or a memory controller." << std::endl;
-        exit(1);
-    }
-
-    this->missController = missController;
-}
-
-bool PerfectPredictor::IssueAtomic( NVMainRequest *req )
-{
-    DRAMCache *drc = dynamic_cast<DRAMCache *>( hitController );
-
-    assert( drc != NULL );
-
-    return drc->IssueAtomic( req );
-}
-
-bool PerfectPredictor::IssueCommand( NVMainRequest *req )
-{
-    bool rv = false;
+    ncounter_t dest = GetMissDestination( );
 
     /* 
      * We assume the "hit" destination is some kind of cache for this to make sense.
      * For now, assume that it is a DRAM cache, although later this may be changed
      * to be any generic type of cache.
+     *
+     * This predictor only returns which route the request should take. We assume
+     * that this module's parent has two children representing the multiple routes.
+     * The parent module must set this module's parent on initialization.
      */
-    /* TODO: Implement an IssueFunctional for NVMain. */
-    DRAMCache *drc = dynamic_cast<DRAMCache *>( hitController );
-    
-    assert( drc != NULL );
+    assert( parent != NULL );
 
-    if( req->type == WRITE )
+    /* Attempt the hit destination first. */
+    if( GetParent()->GetTrampoline()->GetChild( GetHitDestination() )->IssueFunctional( request ) )
     {
-        /*
-         *  Writes always hit, no prediction needed.
-         */
-        rv = drc->IssueCommand( req );
-    }
-    else if( drc->IssueFunctional( req ) )
-    {
-        //std::cout << "Request 0x" << std::hex << req->address.GetPhysicalAddress() << std::dec
-        //          << " predicted HIT." << std::endl;
-
-        rv = drc->IssueCommand( req );
+        /* Request would be success to cache, issue there. */
+        dest = GetHitDestination( ); 
     }
     else
     {
-        if( missMemory != NULL )
-        {
-            rv = missMemory->IssueCommand( req );
-        }
-        else if( missController != NULL )
-        {
-            rv = missController->IssueCommand( req );
-        }
-        else
-        {
-            std::cout << "Error: No miss destination specified." << std::endl;
-            exit(1);
-        }
-
-        //std::cout << "Request 0x" << std::hex << req->address.GetPhysicalAddress() << std::dec
-        //          << " predicted MISS." << std::endl;
-
-        outstandingMisses.insert( req->address.GetPhysicalAddress( ) );
+        /* Request would fail to cache, issue to backing memory. */
+        dest = GetMissDestination( ); 
     }
 
-    return rv;
+    return dest;
 }
 
-bool PerfectPredictor::RequestComplete( NVMainRequest *req )
-{
-    bool rv = false;
 
-    /*
-     *  Check if the completed request was predicted as a miss. If so, we need to
-     *  install this in the hit destination as well.
-     */
-    if( req->owner == this )
-    {
-        //std::cout << "Request 0x" << std::hex << req->address.GetPhysicalAddress() << std::dec
-        //          << " fill complete." << std::endl;
-
-        delete req;
-        rv = true;
-    }
-    else
-    {
-        //std::cout << "Request 0x" << std::hex << req->address.GetPhysicalAddress() << std::dec
-        //          << " complete." << std::endl;
-
-        if( outstandingMisses.count( req->address.GetPhysicalAddress() ) != 0 )
-        {
-            //std::cout << "Request 0x" << std::hex << req->address.GetPhysicalAddress() << std::dec
-            //          << " starting fill." << std::endl;
-
-            NVMainRequest *fillReq = new NVMainRequest();
-
-            *fillReq = *req;
-            fillReq->owner = this;
-            fillReq->type = WRITE;
-
-            hitController->IssueCommand( fillReq );
-        }
-
-        rv = GetParent( )->RequestComplete( req );
-    }
-
-    return rv;
-}
+//void PerfectPredictor::Cycle( ncycle_t /*steps*/ )
+//{
+//
+//}
+//
+//
+//bool PerfectPredictor::IssueAtomic( NVMainRequest *req )
+//{
+//    DRAMCache *drc = dynamic_cast<DRAMCache *>( hitController );
+//
+//    assert( drc != NULL );
+//
+//    return drc->IssueAtomic( req );
+//}
+//
+//bool PerfectPredictor::IssueCommand( NVMainRequest *req )
+//{
+//    bool rv = false;
+//
+//    /* 
+//     * We assume the "hit" destination is some kind of cache for this to make sense.
+//     * For now, assume that it is a DRAM cache, although later this may be changed
+//     * to be any generic type of cache.
+//     */
+//    /* TODO: Implement an IssueFunctional for NVMain. */
+//    DRAMCache *drc = dynamic_cast<DRAMCache *>( hitController );
+//    
+//    assert( drc != NULL );
+//
+//    if( req->type == WRITE )
+//    {
+//        /*
+//         *  Writes always hit, no prediction needed.
+//         */
+//        rv = drc->IssueCommand( req );
+//    }
+//    else if( drc->IssueFunctional( req ) )
+//    {
+//        //std::cout << "Request 0x" << std::hex << req->address.GetPhysicalAddress() << std::dec
+//        //          << " predicted HIT." << std::endl;
+//
+//        rv = drc->IssueCommand( req );
+//    }
+//    else
+//    {
+//        if( missMemory != NULL )
+//        {
+//            rv = missMemory->IssueCommand( req );
+//        }
+//        else if( missController != NULL )
+//        {
+//            rv = missController->IssueCommand( req );
+//        }
+//        else
+//        {
+//            std::cout << "Error: No miss destination specified." << std::endl;
+//            exit(1);
+//        }
+//
+//        //std::cout << "Request 0x" << std::hex << req->address.GetPhysicalAddress() << std::dec
+//        //          << " predicted MISS." << std::endl;
+//
+//        outstandingMisses.insert( req->address.GetPhysicalAddress( ) );
+//    }
+//
+//    return rv;
+//}
+//
+//bool PerfectPredictor::RequestComplete( NVMainRequest *req )
+//{
+//    bool rv = false;
+//
+//    /*
+//     *  Check if the completed request was predicted as a miss. If so, we need to
+//     *  install this in the hit destination as well.
+//     */
+//    if( req->owner == this )
+//    {
+//        //std::cout << "Request 0x" << std::hex << req->address.GetPhysicalAddress() << std::dec
+//        //          << " fill complete." << std::endl;
+//
+//        delete req;
+//        rv = true;
+//    }
+//    else
+//    {
+//        //std::cout << "Request 0x" << std::hex << req->address.GetPhysicalAddress() << std::dec
+//        //          << " complete." << std::endl;
+//
+//        if( outstandingMisses.count( req->address.GetPhysicalAddress() ) != 0 )
+//        {
+//            //std::cout << "Request 0x" << std::hex << req->address.GetPhysicalAddress() << std::dec
+//            //          << " starting fill." << std::endl;
+//
+//            NVMainRequest *fillReq = new NVMainRequest();
+//
+//            *fillReq = *req;
+//            fillReq->owner = this;
+//            fillReq->type = WRITE;
+//
+//            hitController->IssueCommand( fillReq );
+//        }
+//
+//        rv = GetParent( )->RequestComplete( req );
+//    }
+//
+//    return rv;
+//}
 
