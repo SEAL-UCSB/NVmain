@@ -57,9 +57,11 @@ FCFS::FCFS( )
 
     averageLatency = 0.0f;
     averageQueueLatency = 0.0f;
+    averageTotalLatency = 0.0f;
 
     measuredLatencies = 0;
     measuredQueueLatencies = 0;
+    measuredTotalLatencies = 0;
 
     mem_reads = 0;
     mem_writes = 0;
@@ -92,8 +94,10 @@ void FCFS::RegisterStats( )
     AddStat(rb_miss);
     AddStat(averageLatency);
     AddStat(averageQueueLatency);
+    AddStat(averageTotalLatency);
     AddStat(measuredLatencies);
     AddStat(measuredQueueLatencies);
+    AddStat(measuredTotalLatencies);
 
     MemoryController::RegisterStats( );
 }
@@ -127,6 +131,11 @@ bool FCFS::RequestComplete( NVMainRequest * request )
                             / static_cast<double>(measuredQueueLatencies+1);
         measuredQueueLatencies += 1;
 
+        averageTotalLatency = ((averageTotalLatency * static_cast<double>(measuredTotalLatencies))
+                                + static_cast<double>(request->completionCycle)
+                                - static_cast<double>(request->arrivalCycle))
+                            / static_cast<double>(measuredTotalLatencies+1);
+        measuredTotalLatencies += 1;
     }
 
     return MemoryController::RequestComplete( request );

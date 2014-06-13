@@ -86,8 +86,8 @@ class FRFCFS_WQF : public MemoryController
     uint64_t m_last_drain_end_cycle;
 
     /* Stats */
-    uint64_t measuredLatencies, measuredQueueLatencies;
-    double   averageLatency, averageQueueLatency;
+    uint64_t measuredLatencies, measuredQueueLatencies, measuredTotalLatencies;
+    double   averageLatency, averageQueueLatency, averageTotalLatency;
     double   average_writes_per_drain;
     double   average_drain_cycles;
     double   average_drain_spacing;
