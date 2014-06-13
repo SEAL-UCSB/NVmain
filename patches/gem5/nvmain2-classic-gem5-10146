@@ -1,10 +1,10 @@
 # HG changeset patch
-# Parent 2a935bb51c65e33023e50d814204822a336e8f91
+# Parent 62ea1e981b060a063e8a9ebec46e6e3894e5c829
 Fix having multiple instances of NVMainMemory, such as X86 with more than 3GB of memory
 
-diff -r 2a935bb51c65 configs/common/MemConfig.py
---- a/configs/common/MemConfig.py	Fri Apr 04 09:55:34 2014 -0400
-+++ b/configs/common/MemConfig.py	Sun Apr 27 15:44:36 2014 -0400
+diff -r 62ea1e981b06 configs/common/MemConfig.py
+--- a/configs/common/MemConfig.py	Tue Jun 10 19:01:06 2014 -0400
++++ b/configs/common/MemConfig.py	Fri Jun 13 18:21:07 2014 -0400
 @@ -49,6 +49,7 @@
  # fina; list. A target may be specified as a tuple, in which case the
  # first available memory controller model in the tuple will be used.
@@ -13,10 +13,10 @@ diff -r 2a935bb51c65 configs/common/MemConfig.py
      ("simple_mem", "SimpleMemory"),
      ("ddr3_1600_x64", "DDR3_1600_x64"),
      ("lpddr2_s4_1066_x32", "LPDDR2_S4_1066_x32"),
-diff -r 2a935bb51c65 configs/common/Options.py
---- a/configs/common/Options.py	Fri Apr 04 09:55:34 2014 -0400
-+++ b/configs/common/Options.py	Sun Apr 27 15:44:36 2014 -0400
-@@ -209,6 +209,24 @@
+diff -r 62ea1e981b06 configs/common/Options.py
+--- a/configs/common/Options.py	Tue Jun 10 19:01:06 2014 -0400
++++ b/configs/common/Options.py	Fri Jun 13 18:21:07 2014 -0400
+@@ -211,6 +211,24 @@
                        help="ARM instruction set.")
  
  
@@ -41,9 +41,9 @@ diff -r 2a935bb51c65 configs/common/Options.py
  def addSEOptions(parser):
      # Benchmark options
      parser.add_option("-c", "--cmd", default="",
-diff -r 2a935bb51c65 src/mem/NVMainMemory.py
+diff -r 62ea1e981b06 src/mem/NVMainMemory.py
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/NVMainMemory.py	Sun Apr 27 15:44:36 2014 -0400
++++ b/src/mem/NVMainMemory.py	Fri Jun 13 18:21:07 2014 -0400
 @@ -0,0 +1,90 @@
 +# Copyright (c) 2012-2013 Pennsylvania State University
 +# All rights reserved.
@@ -135,9 +135,9 @@ diff -r 2a935bb51c65 src/mem/NVMainMemory.py
 +        self.configparams = config_params
 +        self.configvalues = config_values
 +
-diff -r 2a935bb51c65 src/mem/SConscript
---- a/src/mem/SConscript	Fri Apr 04 09:55:34 2014 -0400
-+++ b/src/mem/SConscript	Sun Apr 27 15:44:36 2014 -0400
+diff -r 62ea1e981b06 src/mem/SConscript
+--- a/src/mem/SConscript	Tue Jun 10 19:01:06 2014 -0400
++++ b/src/mem/SConscript	Fri Jun 13 18:21:07 2014 -0400
 @@ -43,6 +43,7 @@
  SimObject('DRAMCtrl.py')
  SimObject('MemObject.py')
@@ -154,7 +154,7 @@ diff -r 2a935bb51c65 src/mem/SConscript
  Source('physical.cc')
  
  if env['TARGET_ISA'] != 'null':
-@@ -85,5 +87,7 @@
+@@ -86,5 +88,7 @@
  DebugFlag('MMU')
  DebugFlag('MemoryAccess')
  DebugFlag('PacketQueue')
@@ -162,10 +162,10 @@ diff -r 2a935bb51c65 src/mem/SConscript
 +DebugFlag('NVMainMin')
  
  DebugFlag("DRAMSim2")
-diff -r 2a935bb51c65 src/mem/nvmain_mem.cc
+diff -r 62ea1e981b06 src/mem/nvmain_mem.cc
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/nvmain_mem.cc	Sun Apr 27 15:44:36 2014 -0400
-@@ -0,0 +1,773 @@
++++ b/src/mem/nvmain_mem.cc	Fri Jun 13 18:21:07 2014 -0400
+@@ -0,0 +1,780 @@
 +/*
 + * Copyright (c) 2012-2014 Pennsylvania State University
 + * All rights reserved.
@@ -304,6 +304,7 @@ diff -r 2a935bb51c65 src/mem/nvmain_mem.cc
 +        m_statsPtr = new NVM::Stats( );
 +        m_nvmainSimInterface = new NVM::Gem5Interface( );
 +        m_nvmainEventQueue = new NVM::EventQueue( );
++        m_nvmainGlobalEventQueue = new NVM::GlobalEventQueue( );
 +        m_tagGenerator = new NVM::TagGenerator( 1000 );
 +
 +        m_nvmainConfig->SetSimInterface( m_nvmainSimInterface );
@@ -324,6 +325,11 @@ diff -r 2a935bb51c65 src/mem/nvmain_mem.cc
 +        SetEventQueue( m_nvmainEventQueue );
 +        SetStats( m_statsPtr );
 +        SetTagGenerator( m_tagGenerator );
++
++        m_nvmainGlobalEventQueue->SetFrequency( m_nvmainConfig->GetEnergy( "CLK" ) * 1000000.0 );
++        SetGlobalEventQueue( m_nvmainGlobalEventQueue );
++
++        // TODO: Confirm global event queue frequency is the same as this SimObject's clock.
 +
 +        /*  Add any specified hooks */
 +        std::vector<std::string>& hookList = m_nvmainConfig->GetHooks( );
@@ -350,6 +356,7 @@ diff -r 2a935bb51c65 src/mem/nvmain_mem.cc
 +        /* Setup child and parent modules. */
 +        AddChild( m_nvmainPtr );
 +        m_nvmainPtr->SetParent( this );
++        m_nvmainGlobalEventQueue->AddSystem( m_nvmainPtr, m_nvmainConfig );
 +        m_nvmainPtr->SetConfig( m_nvmainConfig );
 +    }
 +}
@@ -888,10 +895,10 @@ diff -r 2a935bb51c65 src/mem/nvmain_mem.cc
 +    if( m_nvmainConfig->KeyExists( "CheckpointDirectory" ) )
 +        nvmain_chkpt_dir = m_nvmainConfig->GetString( "CheckpointDirectory" );
 +
-+    std::cout << "NVMainMemory: Writing to checkpoint directory " << nvmain_chkpt_dir << std::endl;
-+
 +    if( nvmain_chkpt_dir != "" )
 +    {
++        std::cout << "NVMainMemory: Writing to checkpoint directory " << nvmain_chkpt_dir << std::endl;
++
 +        m_nvmainPtr->CreateCheckpoint( nvmain_chkpt_dir );
 +    }
 +}
@@ -907,10 +914,10 @@ diff -r 2a935bb51c65 src/mem/nvmain_mem.cc
 +    if( m_nvmainConfig->KeyExists( "CheckpointDirectory" ) )
 +        nvmain_chkpt_dir = m_nvmainConfig->GetString( "CheckpointDirectory" );
 +
-+    std::cout << "NVMainMemory: Reading from checkpoint directory " << nvmain_chkpt_dir << std::endl;
-+
 +    if( nvmain_chkpt_dir != "" )
 +    {
++        std::cout << "NVMainMemory: Reading from checkpoint directory " << nvmain_chkpt_dir << std::endl;
++
 +        m_nvmainPtr->RestoreCheckpoint( nvmain_chkpt_dir );
 +    }
 +}
@@ -939,10 +946,10 @@ diff -r 2a935bb51c65 src/mem/nvmain_mem.cc
 +    return new NVMainMemory(this);
 +}
 +
-diff -r 2a935bb51c65 src/mem/nvmain_mem.hh
+diff -r 62ea1e981b06 src/mem/nvmain_mem.hh
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/nvmain_mem.hh	Sun Apr 27 15:44:36 2014 -0400
-@@ -0,0 +1,203 @@
++++ b/src/mem/nvmain_mem.hh	Fri Jun 13 18:21:07 2014 -0400
+@@ -0,0 +1,204 @@
 +/*
 + * Copyright (c) 2012-2013 Pennsylvania State University
 + * All rights reserved.
@@ -1074,6 +1081,7 @@ diff -r 2a935bb51c65 src/mem/nvmain_mem.hh
 +    NVM::NVMain *m_nvmainPtr;
 +    NVM::Stats *m_statsPtr;
 +    NVM::EventQueue *m_nvmainEventQueue;
++    NVM::GlobalEventQueue *m_nvmainGlobalEventQueue;
 +    NVM::Config *m_nvmainConfig;
 +    NVM::SimInterface *m_nvmainSimInterface;
 +    NVM::TagGenerator *m_tagGenerator;
