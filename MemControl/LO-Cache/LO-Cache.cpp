@@ -318,7 +318,7 @@ bool LO_Cache::RequestComplete( NVMainRequest *req )
         else
         {
             // Unknown tag is a problem.
-            assert( false );
+            //assert( false );
         }
 
         delete req;
@@ -403,7 +403,7 @@ bool LO_Cache::RequestComplete( NVMainRequest *req )
         }
         else
         {
-            assert( false );
+            //assert( false );
         }
 
         //if( (req->address.GetPhysicalAddress()/64) <= 64*1024*1024 )
