@@ -4,7 +4,7 @@ Fix having multiple instances of NVMainMemory, such as X86 with more than 3GB of
 
 diff -r 62ea1e981b06 configs/common/MemConfig.py
 --- a/configs/common/MemConfig.py	Tue Jun 10 19:01:06 2014 -0400
-+++ b/configs/common/MemConfig.py	Fri Jun 13 18:21:07 2014 -0400
++++ b/configs/common/MemConfig.py	Fri Jun 20 18:15:47 2014 -0400
 @@ -49,6 +49,7 @@
  # fina; list. A target may be specified as a tuple, in which case the
  # first available memory controller model in the tuple will be used.
@@ -15,7 +15,7 @@ diff -r 62ea1e981b06 configs/common/MemConfig.py
      ("lpddr2_s4_1066_x32", "LPDDR2_S4_1066_x32"),
 diff -r 62ea1e981b06 configs/common/Options.py
 --- a/configs/common/Options.py	Tue Jun 10 19:01:06 2014 -0400
-+++ b/configs/common/Options.py	Fri Jun 13 18:21:07 2014 -0400
++++ b/configs/common/Options.py	Fri Jun 20 18:15:47 2014 -0400
 @@ -211,6 +211,24 @@
                        help="ARM instruction set.")
  
@@ -43,7 +43,7 @@ diff -r 62ea1e981b06 configs/common/Options.py
      parser.add_option("-c", "--cmd", default="",
 diff -r 62ea1e981b06 src/mem/NVMainMemory.py
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/NVMainMemory.py	Fri Jun 13 18:21:07 2014 -0400
++++ b/src/mem/NVMainMemory.py	Fri Jun 20 18:15:47 2014 -0400
 @@ -0,0 +1,90 @@
 +# Copyright (c) 2012-2013 Pennsylvania State University
 +# All rights reserved.
@@ -137,7 +137,7 @@ diff -r 62ea1e981b06 src/mem/NVMainMemory.py
 +
 diff -r 62ea1e981b06 src/mem/SConscript
 --- a/src/mem/SConscript	Tue Jun 10 19:01:06 2014 -0400
-+++ b/src/mem/SConscript	Fri Jun 13 18:21:07 2014 -0400
++++ b/src/mem/SConscript	Fri Jun 20 18:15:47 2014 -0400
 @@ -43,6 +43,7 @@
  SimObject('DRAMCtrl.py')
  SimObject('MemObject.py')
@@ -164,8 +164,8 @@ diff -r 62ea1e981b06 src/mem/SConscript
  DebugFlag("DRAMSim2")
 diff -r 62ea1e981b06 src/mem/nvmain_mem.cc
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/nvmain_mem.cc	Fri Jun 13 18:21:07 2014 -0400
-@@ -0,0 +1,780 @@
++++ b/src/mem/nvmain_mem.cc	Fri Jun 20 18:15:47 2014 -0400
+@@ -0,0 +1,816 @@
 +/*
 + * Copyright (c) 2012-2014 Pennsylvania State University
 + * All rights reserved.
@@ -497,7 +497,7 @@ diff -r 62ea1e981b06 src/mem/nvmain_mem.cc
 +        /*
 +         * Issue the request to NVMain as an atomic request
 +         */
-+        memory.m_nvmainPtr->IssueAtomic(request);
++        memory.masterInstance->m_nvmainPtr->IssueAtomic(request);
 +
 +        delete request;
 +    }
@@ -601,11 +601,33 @@ diff -r 62ea1e981b06 src/mem/nvmain_mem.cc
 +        hostAddr = new uint8_t[ dataPkt->getSize() ];
 +        memcpy( hostAddr, dataPkt->getPtr<uint8_t>(), dataPkt->getSize() );
 +
++        for(int i = 0; i < transfer_size; i++ )
++        {
++            request->oldData.SetByte(i, 0);
++        }
++
 +        delete dataPkt;
 +        delete dataReq;
 +    }
 +    else
 +    {
++        Request *dataReq = new Request(pkt->req->getPaddr(), transfer_size, 0, Request::funcMasterId);
++        Packet *dataPkt = new Packet(dataReq, MemCmd::ReadReq);
++        dataPkt->allocate();
++        memory.doFunctionalAccess(dataPkt);
++
++        uint8_t *hostAddrT = new uint8_t[ dataPkt->getSize() ];
++        memcpy( hostAddrT, dataPkt->getPtr<uint8_t>(), dataPkt->getSize() );
++
++        for(int i = 0; i < transfer_size; i++ )
++        {
++            request->oldData.SetByte(i, *(hostAddrT + (transfer_size - 1) - i));
++        }
++
++        delete dataPkt;
++        delete dataReq;
++        delete hostAddrT;
++
 +        hostAddr = new uint8_t[ pkt->getSize() ];
 +
 +        memcpy( hostAddr, pkt->getPtr<uint8_t>(), pkt->getSize() );
@@ -617,8 +639,22 @@ diff -r 62ea1e981b06 src/mem/nvmain_mem.cc
 +    }
 +    delete [] hostAddr;
 +
++    /*
++     *  NVMain expects linear addresses, so hack: If we are not the master
++     *  instance, assume there are two channels because 3GB-4GB is skipped
++     *  in X86 and subtract 1GB.
++     *
++     *  TODO: Have each channel communicate it's address range to determine
++     *  this fix up value.
++     */
++    uint64_t addressFixUp = 0;
++    if( masterInstance != &memory )
++    {
++        addressFixUp = 0x40000000;
++    }
++
 +    request->access = UNKNOWN_ACCESS;
-+    request->address.SetPhysicalAddress(pkt->req->getPaddr());
++    request->address.SetPhysicalAddress(pkt->req->getPaddr() - addressFixUp);
 +    request->status = MEM_REQUEST_INCOMPLETE;
 +    request->type = (pkt->isRead()) ? READ : WRITE;
 +    request->owner = (NVMObject *)&memory;
@@ -786,10 +822,13 @@ diff -r 62ea1e981b06 src/mem/nvmain_mem.cc
 +    {
 +        bool respond = false;
 +
++        NVMainMemory *ownerInstance = dynamic_cast<NVMainMemory *>( req->owner );
++        assert( ownerInstance != NULL );
++
 +        if( memRequest->packet )
 +        {
 +            respond = memRequest->packet->needsResponse();
-+            access(memRequest->packet);
++            ownerInstance->access(memRequest->packet);
 +        }
 +
 +        /*
@@ -798,9 +837,6 @@ diff -r 62ea1e981b06 src/mem/nvmain_mem.cc
 +         *  will need a retry, however I do not explicitly enfore that only
 +         *  one sendRetry() be called.
 +         */
-+        NVMainMemory *ownerInstance = dynamic_cast<NVMainMemory *>( req->owner );
-+        assert( ownerInstance != NULL );
-+
 +        if( ownerInstance->retryRead == true && (isRead || isWrite) )
 +        {
 +            ownerInstance->retryRead = false;
@@ -948,7 +984,7 @@ diff -r 62ea1e981b06 src/mem/nvmain_mem.cc
 +
 diff -r 62ea1e981b06 src/mem/nvmain_mem.hh
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/src/mem/nvmain_mem.hh	Fri Jun 13 18:21:07 2014 -0400
++++ b/src/mem/nvmain_mem.hh	Fri Jun 20 18:15:47 2014 -0400
 @@ -0,0 +1,204 @@
 +/*
 + * Copyright (c) 2012-2013 Pennsylvania State University
