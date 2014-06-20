@@ -39,24 +39,17 @@
 
 using namespace NVM;
 
-EnduranceModel::EnduranceModel( ) : config( NULL )
+EnduranceModel::EnduranceModel( )
 {
     life.clear( );
 
     granularity = 0;
 }
 
-void EnduranceModel::SetConfig( Config *conf, bool /*createChildren*/ )
+void EnduranceModel::SetConfig( Config *config, bool /*createChildren*/ )
 {
-    config = conf;
-
     enduranceDist = EnduranceDistributionFactory::CreateEnduranceDistribution( 
-            config->GetString( "EnduranceDist" ), conf );
-}
-
-Config *EnduranceModel::GetConfig( )
-{
-    return config;
+            config->GetString( "EnduranceDist" ), config );
 }
 
 /*
@@ -100,9 +93,8 @@ uint64_t EnduranceModel::GetAverageLife( )
     return average;
 }
 
-bool EnduranceModel::DecrementLife( uint64_t addr, NVMAddress faultAddr )
+bool EnduranceModel::DecrementLife( uint64_t addr )
 {
-    uint64_t newLife;
     std::map<uint64_t, uint64_t>::iterator i = life.find( addr );
     bool rv = true;
 
@@ -116,19 +108,25 @@ bool EnduranceModel::DecrementLife( uint64_t addr, NVMAddress faultAddr )
         /* If the life is 0, leave it at that.  */
         if( i->second != 0 )
         {
-            newLife = i->second - 1;
-        
-            life.erase( i );
-            life.insert( std::pair<uint64_t, uint64_t>( addr, newLife ) );
+            i->second = i->second - 1;
         }
         else
         {
-            /* 
-             *  Send to hard-error fault modeller to see if 
-             *  the fault can be fixed.
-             */
-            rv = faultModel->Fault( faultAddr );
+            rv = false;
         }
+    }
+
+    return rv;
+}
+
+bool EnduranceModel::IsDead( uint64_t addr )
+{
+    std::map<uint64_t, uint64_t>::iterator i = life.find( addr );
+    bool rv = false;
+
+    if( i != life.end( ) && i->second == 0 )
+    {
+        rv = true;
     }
 
     return rv;

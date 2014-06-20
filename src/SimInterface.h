@@ -55,8 +55,8 @@ class SimInterface
     virtual bool HasCacheMisses( ) = 0;
     virtual bool HasCacheHits( ) = 0;
 
-    int  GetDataAtAddress( uint64_t address, NVMDataBlock *data );
-    void SetDataAtAddress( uint64_t address, NVMDataBlock data );
+    virtual int  GetDataAtAddress( uint64_t address, NVMDataBlock *data );
+    virtual void SetDataAtAddress( uint64_t address, NVMDataBlock data );
 
     void SetConfig( Config *conf, bool createChildren = true );
     Config *GetConfig( );

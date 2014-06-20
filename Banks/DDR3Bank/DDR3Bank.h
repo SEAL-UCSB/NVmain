@@ -110,9 +110,6 @@ class DDR3Bank : public Bank
     virtual void Cycle( ncycle_t steps );
 
   protected:
-    Config *conf;
-    ncounter_t psInterval;
-
     std::deque<ncounter_t> activeSubArrayQueue;
     ncounter_t MATWidth;
     ncounter_t MATHeight;
@@ -147,9 +144,6 @@ class DDR3Bank : public Bank
     ncounter_t actWaitTotal;
     double actWaitAverage;
 
-    uint64_t worstLife;
-    uint64_t averageLife;
-
     double bankEnergy;
     double activeEnergy;
     double burstEnergy;
@@ -164,12 +158,12 @@ class DDR3Bank : public Bank
     
     int dummyStat;
 
+    uint64_t averageEndurance, worstCaseEndurance;
+
     ncounter_t reads, writes, activates, precharges, refreshes;
     ncounter_t idleTimer;
 
     uint64_t openRow;
-
-    EnduranceModel *endrModel;
 
     ncounter_t bankId;
  
@@ -182,8 +176,6 @@ class DDR3Bank : public Bank
     virtual bool Refresh( NVMainRequest *request );
     virtual bool PowerUp( NVMainRequest *request );
     virtual bool PowerDown( NVMainRequest *request );
-
-    void UpdateEndurance( NVMainRequest *request );
 };
 
 };

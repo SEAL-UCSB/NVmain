@@ -37,7 +37,9 @@
 #include "src/EventQueue.h"
 #include "include/NVMHelpers.h"
 #include "Endurance/EnduranceModelFactory.h"
+#include "Endurance/NullModel/NullModel.h"
 #include "Endurance/Distributions/Normal.h"
+#include "DataEncoders/DataEncoderFactory.h"
 
 #include <signal.h>
 #include <cassert>
@@ -122,6 +124,9 @@ SubArray::SubArray( )
     measuredWriteTimes = 0;
     averageWriteIterations = 1;
 
+    endrModel = NULL;
+    dataEncoder = NULL;
+
     subArrayId = -1;
 
     psInterval = 0;
@@ -172,12 +177,32 @@ void SubArray::SetConfig( Config *c, bool createChildren )
         /* We need to create an endurance model at a sub-array level */
         endrModel = EnduranceModelFactory::CreateEnduranceModel( p->EnduranceModel );
         if( endrModel )
+        {
             endrModel->SetConfig( conf, createChildren );
+            endrModel->SetStats( GetStats( ) );
+        }
+
+        dataEncoder = DataEncoderFactory::CreateNewDataEncoder( p->DataEncoder );
+        if( dataEncoder )
+        {
+            dataEncoder->SetConfig( conf, createChildren );
+            dataEncoder->SetStats( GetStats( ) );
+        }
     }
 }
 
 void SubArray::RegisterStats( )
 {
+    if( endrModel )
+    {
+        endrModel->RegisterStats( );
+    }
+
+    if( dataEncoder )
+    {
+        dataEncoder->RegisterStats( );
+    }
+
     if( p->EnergyModel == "current" )
     {
         AddUnitStat(subArrayEnergy, "mA*t");
@@ -353,13 +378,16 @@ bool SubArray::Read( NVMainRequest *request )
         return false;
     }
 
+    /* Any additional latency for data encoding. */
+    ncycles_t decLat = (dataEncoder ? dataEncoder->Read( request ) : 0);
+
     /* Update timing constraints */
     if( request->type == READ_PRECHARGE )
     {
         nextActivate = MAX( nextActivate, 
                             GetEventQueue()->GetCurrentCycle()
                                 + MAX( p->tBURST, p->tCCD ) * (request->burstCount - 1)
-                                + p->tAL + p->tRTP + p->tRP );
+                                + p->tAL + p->tRTP + p->tRP + decLat );
 
         nextPrecharge = MAX( nextPrecharge, nextActivate );
         nextRead = MAX( nextRead, nextActivate );
@@ -371,7 +399,7 @@ bool SubArray::Read( NVMainRequest *request )
 
         /* insert the event to issue the implicit precharge */ 
         GetEventQueue( )->InsertEvent( EventResponse, this, preReq, 
-                        GetEventQueue()->GetCurrentCycle() + p->tAL + p->tRTP 
+                        GetEventQueue()->GetCurrentCycle() + p->tAL + p->tRTP + decLat
                         + MAX( p->tBURST, p->tCCD ) * (request->burstCount - 1) );
     }
     else
@@ -379,7 +407,7 @@ bool SubArray::Read( NVMainRequest *request )
         nextPrecharge = MAX( nextPrecharge, 
                              GetEventQueue()->GetCurrentCycle() 
                                  + MAX( p->tBURST, p->tCCD ) * (request->burstCount - 1)
-                                 + p->tAL + p->tBURST + p->tRTP - p->tCCD );
+                                 + p->tAL + p->tBURST + p->tRTP - p->tCCD + decLat );
 
         nextRead = MAX( nextRead, 
                         GetEventQueue()->GetCurrentCycle() 
@@ -388,14 +416,14 @@ bool SubArray::Read( NVMainRequest *request )
         nextWrite = MAX( nextWrite, 
                          GetEventQueue()->GetCurrentCycle() 
                              + MAX( p->tBURST, p->tCCD ) * (request->burstCount  - 1)
-                             + p->tCAS + p->tBURST + p->tRTRS - p->tCWD );
+                             + p->tCAS + p->tBURST + p->tRTRS - p->tCWD + decLat );
     }
 
     /* Read->Powerdown is typical the same for READ and READ_PRECHARGE. */
     nextPowerDown = MAX( nextPowerDown,
                          GetEventQueue()->GetCurrentCycle()
                             + MAX( p->tBURST, p->tCCD ) * (request->burstCount  - 1)
-                            + p->tCAS + p->tAL + p->tBURST + 1 );
+                            + p->tCAS + p->tAL + p->tBURST + 1 + decLat );
 
     /*
      *  Data is placed on the bus starting from tCAS and is complete after tBURST.
@@ -410,11 +438,11 @@ bool SubArray::Read( NVMainRequest *request )
     busReq->owner = this;
 
     GetEventQueue( )->InsertEvent( EventResponse, this, busReq, 
-            GetEventQueue()->GetCurrentCycle() + p->tCAS );
+            GetEventQueue()->GetCurrentCycle() + p->tCAS + decLat );
 
     /* Notify owner of read completion as well */
     GetEventQueue( )->InsertEvent( EventResponse, this, request, 
-            GetEventQueue()->GetCurrentCycle() + p->tCAS + p->tBURST );
+            GetEventQueue()->GetCurrentCycle() + p->tCAS + p->tBURST + decLat );
 
 
     /* Calculate energy */
@@ -523,6 +551,10 @@ bool SubArray::Write( NVMainRequest *request )
     if( writeMode == WRITE_BACK && writeCycle )
     {
         writeTimer = 0;
+
+        NVMainRequest *requestCopy = new NVMainRequest( );
+        *requestCopy = *request;
+        writeBackRequests.push_back( requestCopy );
     }
 
     /* Write canceling/pausing only for write-through memory */
@@ -538,6 +570,11 @@ bool SubArray::Write( NVMainRequest *request )
 
     if( writeMode == WRITE_THROUGH )
     {
+        ncycle_t encLat = (dataEncoder ? dataEncoder->Write( request ) : 0);
+        ncycle_t endrLat = UpdateEndurance( request );
+
+        writeTimer += encLat + endrLat;
+
         averageWriteTime = ((averageWriteTime * static_cast<double>(measuredWriteTimes)) + static_cast<double>(writeTimer)) 
                          / (static_cast<double>(measuredWriteTimes) + 1.0);
         measuredWriteTimes++;
@@ -683,6 +720,19 @@ bool SubArray::Precharge( NVMainRequest *request )
     if( writeMode == WRITE_BACK && writeCycle )
     {
         writeTimer = MAX( 1, p->tRP + WriteCellData( request ) );
+
+        ncycle_t encLat = 0;
+        ncycle_t endrLat = 0;
+
+        std::vector<NVMainRequest *>::iterator wit;
+        for( wit = writeBackRequests.begin(); wit != writeBackRequests.end(); wit++ )
+        {
+            encLat += (dataEncoder ? dataEncoder->Write( *wit ) : 0);
+            endrLat += UpdateEndurance( *wit );
+        }
+        writeBackRequests.clear( );
+
+        writeTimer += encLat + endrLat;
 
         averageWriteTime = ((averageWriteTime * static_cast<double>(measuredWriteTimes)) + static_cast<double>(writeTimer)) 
                          / (static_cast<double>(measuredWriteTimes) + 1.0);
@@ -892,15 +942,18 @@ ncycle_t SubArray::WriteCellData( NVMainRequest *request )
     /* Assume that data written is not interleaved over devices. */
     unsigned int offset = writeBytes * static_cast<unsigned int>(parentBankId);
     std::deque<uint8_t> writeBits;
+    std::deque<uint8_t> writeMask;
 
     /* Get each byte, then push back each bit to the writeBits vector. */
     for( unsigned int byteIdx = 0; byteIdx < writeBytes; byteIdx++ )
     {
         uint8_t curByte = request->data.GetByte( byteIdx + offset );
+        uint8_t curMask = request->data.GetMask( byteIdx + offset );
 
         for( unsigned int bitIdx = 0; bitIdx < 8; bitIdx++ )
         {
             writeBits.push_back( ((curByte & 0x80) ? 1 : 0) );
+            writeMask.push_back( ((curMask & 0x80) ? 1 : 0) );
             curByte = curByte << 1;
         }
     }
@@ -911,13 +964,22 @@ ncycle_t SubArray::WriteCellData( NVMainRequest *request )
     for( unsigned int writeIdx = 0; writeIdx < writeCount; writeIdx++ )
     {
         unsigned int cellData = 0;
+        unsigned int maskData = 0;
 
         for( unsigned int bitIdx = 0; bitIdx < p->MLCLevels; bitIdx++ )
         {
             cellData <<= 1;
             cellData |= writeBits.front( );
             writeBits.pop_front( );
+
+            maskData <<= 1;
+            maskData |= writeMask.front( );
+            writeMask.pop_front( );
         }
+
+        /* If all bits are masked out we don't need to write this cell at all. */
+        if( maskData == 0 )
+            continue;
 
         /* Get the delay and add the energy. Assume one-RESET-multiple-SET */
         ncycle_t writePulseTime = 0;
@@ -1301,6 +1363,79 @@ bool SubArray::RequestComplete( NVMainRequest *req )
     {
         return GetParent( )->RequestComplete( req );
     }
+}
+
+ncycle_t SubArray::UpdateEndurance( NVMainRequest *request )
+{
+    ncycle_t latency = 0;
+
+    if( endrModel )
+    {
+        /* Don't track data for NullModel. */
+        if( dynamic_cast<NullModel *>(endrModel) != NULL )
+        {
+            return latency;
+        }
+
+        NVMDataBlock oldData;
+
+        if( conf->GetSimInterface( ) != NULL )
+        {
+            /* If the old data is not there, we will assume the data is 0.*/
+            uint64_t wordSize;
+            bool hardError;
+            ncycles_t extraLatency;
+
+            wordSize = p->BusWidth;
+            wordSize *= p->tBURST * p->RATE;
+            wordSize /= 8;
+
+            if( request->oldData.IsValid( ) )
+            {
+                oldData = request->oldData;
+            }
+            else if( !request->oldData.IsValid( ) &&
+                     !conf->GetSimInterface( )-> GetDataAtAddress( 
+                        request->address.GetPhysicalAddress( ), &oldData ) )
+            {
+                for( uint64_t i = 0; i < wordSize; i++ )
+                  oldData.SetByte( i, 0 );
+            }
+        
+            /* Write the new data... */
+            conf->GetSimInterface( )->SetDataAtAddress( 
+                    request->address.GetPhysicalAddress( ), request->data );
+    
+            /* Model the endurance */
+            hardError = false;
+            
+            extraLatency = endrModel->Write( request, oldData );
+            if( extraLatency < 0 )
+            {
+                extraLatency = -extraLatency;
+                extraLatency--; // We can't return -0 for error, but if we want an error with 0 latency, we need to +1 all latencies
+                hardError = true;
+            }
+
+            latency = static_cast<ncycle_t>(extraLatency);
+
+            if( hardError )
+            {
+                // TODO: Get extra latency from fault model
+                // latency += ...;
+                std::cout << "WARNING: Write to 0x" << std::hex 
+                    << request->address.GetPhysicalAddress( )
+                    << std::dec << " resulted in a hard error! " << std::endl;
+            }
+        }
+        else
+        {
+            std::cerr << "NVMain Error: Endurance modeled without simulator "
+                << "interface for data tracking!" << std::endl;
+        }
+    }
+
+    return latency;
 }
 
 SubArrayState SubArray::GetState( ) 

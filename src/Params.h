@@ -105,6 +105,7 @@ class Params
     int RanksPerDIMM;
 
     std::string EnduranceModel;
+    std::string DataEncoder;
     std::string EnergyModel;
 
     bool UseLowPower;

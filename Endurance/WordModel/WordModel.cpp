@@ -55,7 +55,7 @@ WordModel::~WordModel( )
      */
 }
 
-void WordModel::SetConfig( Config *conf, bool createChildren )
+void WordModel::SetConfig( Config *config, bool createChildren )
 {
     Params *params = new Params( );
     params->SetParams( config );
@@ -63,27 +63,63 @@ void WordModel::SetConfig( Config *conf, bool createChildren )
 
     SetGranularity( p->BusWidth * 8 );
 
-    EnduranceModel::SetConfig( conf, createChildren );
+    EnduranceModel::SetConfig( config, createChildren );
 }
 
-bool WordModel::Write( NVMAddress address, NVMDataBlock /*oldData*/, 
-                       NVMDataBlock /*newData*/ )
+ncycles_t WordModel::Read( NVMainRequest *request )
 {
+    uint64_t row;
+    uint64_t col;
+    ncycles_t rv = 0;
+
+    request->address.GetTranslatedAddress( &row, &col, NULL, NULL, NULL, NULL );
+
+    uint64_t wordkey;
+    uint64_t rowSize;
+    uint64_t wordSize;
+    uint64_t partitionCount;
+
+    wordSize = p->BusWidth;
+    wordSize *= p->tBURST * p->RATE;
+    wordSize /= 8;
+
+    rowSize = p->COLS * wordSize;
+
+    /*
+     *  Think of each row being partitioned into 64-bit divisions (or
+     *  whatever the Bus Width is). Each row has rowSize / wordSize
+     *  paritions. For the key we will use:
+     *
+     *  row * number of partitions + partition in this row
+     */
+    partitionCount = rowSize / wordSize;
+
+    wordkey = row * partitionCount + col;
+
+    if( IsDead( wordkey ) )
+        rv = -(rv + 1);
+
+    return rv;
+}
+
+ncycles_t WordModel::Write( NVMainRequest *request, NVMDataBlock /*oldData*/ ) 
+{
+    NVMDataBlock newData = request->data;
+    NVMAddress address = request->address;
+
     /*
      *  The default life map is an stl map< uint64_t, uint64_t >. 
      *  You may map row and col to this map_key however you want.
      *  It is up to you to ensure there are no collisions here.
      */
-    uint64_t row, subarray;
+    uint64_t row;
     uint64_t col;
-    bool rv = true;
-    NVMAddress faultAddr;
+    ncycles_t rv = 0;
 
     /*
      *  For our simple row model, we just set the key equal to the row.
      */
-    address.GetTranslatedAddress( &row, &col, NULL, NULL, NULL, &subarray );
-    faultAddr = address;
+    address.GetTranslatedAddress( &row, &col, NULL, NULL, NULL, NULL );
 
     /*
      *  If using the default life map, we can call the DecrementLife
@@ -95,11 +131,12 @@ bool WordModel::Write( NVMAddress address, NVMDataBlock /*oldData*/,
     uint64_t rowSize;
     uint64_t wordSize;
     uint64_t partitionCount;
-    uint64_t MATHeight;
 
-    rowSize = p->COLS;
     wordSize = p->BusWidth;
-    MATHeight = p->MATHeight;
+    wordSize *= p->tBURST * p->RATE;
+    wordSize /= 8;
+
+    rowSize = p->COLS * wordSize;
 
     /*
      *  Think of each row being partitioned into 64-bit divisions (or
@@ -110,15 +147,11 @@ bool WordModel::Write( NVMAddress address, NVMDataBlock /*oldData*/,
      */
     partitionCount = rowSize / wordSize;
 
-    wordkey = ( row + subarray * MATHeight ) * partitionCount + (col % wordSize);
+    wordkey = row * partitionCount + col;
 
-    /* 
-     *  The faultAddress is aligned to the cacheline. Since this model
-     *  is per cache, we don't need to change the faultAddr's physical
-     *  address.
-     */
-    if( !DecrementLife( wordkey, faultAddr ) )
-        rv = false;
+    if( !DecrementLife( wordkey ) )
+        rv = -1;
 
     return rv;
 }
+

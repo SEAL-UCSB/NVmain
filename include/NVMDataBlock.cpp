@@ -39,12 +39,15 @@ using namespace NVM;
 NVMDataBlock::NVMDataBlock( )
 {
     data.clear( );
+    mask.clear( );
     rawData = NULL;
+    isValid = false;
 }
 
 NVMDataBlock::~NVMDataBlock( )
 {
     data.clear( );
+    mask.clear( );
 }
 
 uint8_t NVMDataBlock::GetByte( uint64_t byte )
@@ -68,6 +71,39 @@ void NVMDataBlock::SetByte( uint64_t byte, uint8_t value )
     }
 
     data[ byte ] = value;
+}
+
+uint8_t NVMDataBlock::GetMask( uint64_t byte )
+{
+    if( byte >= mask.size( ) )
+        return 0xFF;
+
+    return mask[ byte ];
+}
+
+void NVMDataBlock::SetMask( uint64_t byte, uint8_t value )
+{
+    if( byte >= mask.size( ) )
+    {
+        /* 
+         *  There's probably some other way to do this, but extend
+         *  the vector size by pushing 0s on the end.
+         */
+        for( size_t i = mask.size( ); i <= byte; i++ )
+            mask.push_back( 0xFF );
+    }
+
+    mask[ byte ] = value;
+}
+
+void NVMDataBlock::SetValid( bool valid )
+{
+    isValid = valid;
+}
+
+bool NVMDataBlock::IsValid( )
+{
+    return isValid;
 }
 
 void NVMDataBlock::Print( std::ostream& out ) const

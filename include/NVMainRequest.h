@@ -146,6 +146,7 @@ class NVMainRequest
     BulkCommand bulkCmd;           //< Bulk Commands (i.e., Read+Precharge, Write+Precharge, etc)
     ncounters_t threadId;                  //< Thread ID of issuing application
     NVMDataBlock data;             //< Data to be written, or data that would be read
+    NVMDataBlock oldData;          //< Data that was previously at this address (pre-write)
     MemRequestStatus status;       //< Complete, incomplete, etc.
     NVMAccessType access;          //< User or kernel mode access
     int tag;                       //< User-defined tag for request (frontend only)
@@ -190,6 +191,7 @@ const NVMainRequest& NVMainRequest::operator=( const NVMainRequest& m )
     bulkCmd = m.bulkCmd;
     threadId = m.threadId;
     data = m.data;
+    oldData = m.oldData;
     status = m.status;
     access = m.access;
     tag = m.tag;

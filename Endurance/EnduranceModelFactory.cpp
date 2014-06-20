@@ -42,7 +42,6 @@
 #include "Endurance/WordModel/WordModel.h"
 #include "Endurance/ByteModel/ByteModel.h"
 #include "Endurance/BitModel/BitModel.h"
-#include "Endurance/FlipNWrite/FlipNWrite.h"
 #include "Endurance/NullModel/NullModel.h"
 
 using namespace NVM;
@@ -66,7 +65,6 @@ EnduranceModel *EnduranceModelFactory::CreateEnduranceModel(
     else if( modelName == "WordModel" ) enduranceModel = new WordModel( );
     else if( modelName == "ByteModel" ) enduranceModel = new ByteModel( );
     else if( modelName == "BitModel"  ) enduranceModel = new BitModel( );
-    else if( modelName == "FlipNWrite" ) enduranceModel = new FlipNWrite( );
     else if( modelName == "NullModel" ) enduranceModel = new NullModel( );
 
 

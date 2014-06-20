@@ -49,6 +49,12 @@ class NVMDataBlock
     uint8_t GetByte( uint64_t byte );
     void SetByte( uint64_t byte, uint8_t value );
 
+    uint8_t GetMask( uint64_t byte );
+    void SetMask( uint64_t byte, uint8_t value );
+
+    void SetValid( bool valid );
+    bool IsValid( );
+
     void Print( std::ostream& out ) const;
     
     NVMDataBlock& operator=( const NVMDataBlock& m );
@@ -63,6 +69,8 @@ class NVMDataBlock
   
   private:
     std::vector< uint8_t > data;
+    std::vector< uint8_t > mask;
+    bool isValid;
 };
 
 };

@@ -40,6 +40,7 @@
 #include "src/NVMObject.h"
 #include "src/Config.h"
 #include "src/EnduranceModel.h"
+#include "src/DataEncoder.h"
 #include "include/NVMAddress.h"
 #include "include/NVMainRequest.h"
 #include "src/Params.h"
@@ -140,6 +141,7 @@ class SubArray : public NVMObject
     ncycle_t nextWrite;
     ncycle_t nextPowerDown;
     bool writeCycle;
+    std::vector<NVMainRequest *> writeBackRequests;
     bool isWriting;
     ncycle_t writeEnd;
     ncycle_t writeStart;
@@ -188,6 +190,7 @@ class SubArray : public NVMObject
 
     ncounter_t openRow;
 
+    DataEncoder *dataEncoder;
     EnduranceModel *endrModel;
 
     ncounter_t subArrayId;
@@ -206,6 +209,7 @@ class SubArray : public NVMObject
     ncycle_t WriteCellData( NVMainRequest *request );
     void CheckWritePausing( );
 
+    ncycle_t UpdateEndurance( NVMainRequest *request );
 };
 
 };

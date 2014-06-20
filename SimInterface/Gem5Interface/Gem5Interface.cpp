@@ -249,3 +249,16 @@ bool Gem5Interface::HasCacheHits( )
 {
     return true;
 }
+
+int  Gem5Interface::GetDataAtAddress( uint64_t /*address*/, NVMDataBlock* /*data*/ )
+{
+    /* gem5 sends previous and new data, so this is not needed. */
+    return 0;
+}
+
+void Gem5Interface::SetDataAtAddress( uint64_t /*address*/, NVMDataBlock /*data*/ )
+{
+    /* gem5 sends previous and new data, so this is not needed. */
+    return;
+}
+

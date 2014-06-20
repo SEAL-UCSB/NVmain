@@ -36,8 +36,6 @@
 #include "Banks/DDR3Bank/DDR3Bank.h"
 #include "src/MemoryController.h"
 #include "src/EventQueue.h"
-#include "Endurance/EnduranceModelFactory.h"
-#include "Endurance/NullModel/NullModel.h"
 
 #include <signal.h>
 #include <cassert>
@@ -49,8 +47,6 @@ using namespace NVM;
 
 DDR3Bank::DDR3Bank( )
 {
-    conf = NULL;
-
     nextActivate = 0;
     nextPrecharge = 0;
     nextRead = 0;
@@ -109,28 +105,24 @@ DDR3Bank::DDR3Bank( )
     actWaitTotal = 0;
     actWaitAverage = 0.0;
 
-    worstLife = 0;
-    averageLife = 0;
+    averageEndurance = 0;
+    worstCaseEndurance = 0;
 
     bankId = -1;
-
-    psInterval = 0;
 }
 
 DDR3Bank::~DDR3Bank( )
 {
 }
 
-void DDR3Bank::SetConfig( Config *c, bool createChildren )
+void DDR3Bank::SetConfig( Config *config, bool createChildren )
 {
-    conf = c;
-    
     /* customize MAT size */
-    if( conf->KeyExists( "MATWidth" ) )
-        MATWidth = static_cast<ncounter_t>( conf->GetValue( "MATWidth" ) );
+    if( config->KeyExists( "MATWidth" ) )
+        MATWidth = static_cast<ncounter_t>( config->GetValue( "MATWidth" ) );
 
     Params *params = new Params( );
-    params->SetParams( c );
+    params->SetParams( config );
     SetParams( params );
 
     MATHeight = p->MATHeight;
@@ -139,11 +131,11 @@ void DDR3Bank::SetConfig( Config *c, bool createChildren )
     if( createChildren )
     {
         /* When selecting a child, use the subarray field from the decoder. */
-        AddressTranslator *bankAT = DecoderFactory::CreateDecoderNoWarn( c->GetString( "Decoder" ) );
+        AddressTranslator *bankAT = DecoderFactory::CreateDecoderNoWarn( config->GetString( "Decoder" ) );
         TranslationMethod *method = GetParent()->GetTrampoline()->GetDecoder()->GetTranslationMethod();
         bankAT->SetTranslationMethod( method );
         bankAT->SetDefaultField( SUBARRAY_FIELD );
-        bankAT->SetConfig( c, createChildren );
+        bankAT->SetConfig( config, createChildren );
         SetDecoder( bankAT );
 
         for( ncounter_t i = 0; i < subArrayNum; i++ )
@@ -163,14 +155,9 @@ void DDR3Bank::SetConfig( Config *c, bool createChildren )
             nextSubArray->SetParent( this );
             AddChild( nextSubArray );
 
-            nextSubArray->SetConfig( c, createChildren );
+            nextSubArray->SetConfig( config, createChildren );
             nextSubArray->RegisterStats( );
         }
-
-        /* We need to create an endurance model on a bank-by-bank basis */
-        endrModel = EnduranceModelFactory::CreateEnduranceModel( p->EnduranceModel );
-        if( endrModel )
-            endrModel->SetConfig( conf, createChildren );
     }
 
     if( p->InitPD )
@@ -179,8 +166,6 @@ void DDR3Bank::SetConfig( Config *c, bool createChildren )
 
 void DDR3Bank::RegisterStats( )
 {
-    AddStat(dummyStat);
-
     if( p->EnergyModel == "current" )
     {
         AddUnitStat(bankEnergy, "mA*t");
@@ -218,12 +203,12 @@ void DDR3Bank::RegisterStats( )
     AddStat(fastExitPrechargeCycles);
     AddStat(slowExitPrechargeCycles);
 
-    AddStat(worstLife); 
-    AddStat(averageLife);
-
     AddStat(actWaits);
     AddStat(actWaitTotal); 
     AddStat(actWaitAverage);
+
+    AddStat(averageEndurance);
+    AddStat(worstCaseEndurance);
 }
 
 /*
@@ -521,8 +506,6 @@ bool DDR3Bank::Write( NVMainRequest *request )
         dataCycles += p->tBURST;
         writeCycle = true;
         writes++;
-
-        UpdateEndurance( request );
 
         if( request->type == WRITE_PRECHARGE )
         {
@@ -939,58 +922,6 @@ bool DDR3Bank::IssueCommand( NVMainRequest *req )
     return rv;
 }
 
-void DDR3Bank::UpdateEndurance( NVMainRequest *request )
-{
-    if( endrModel && bankId == 0 )
-    {
-        /* Don't track data for NullModel. */
-        if( dynamic_cast<NullModel *>(endrModel) != NULL )
-        {
-            return;
-        }
-
-        NVMDataBlock oldData;
-
-        if( conf->GetSimInterface( ) != NULL )
-        {
-            /* If the old data is not there, we will assume the data is 0.*/
-            uint64_t wordSize;
-            bool hardError;
-
-            wordSize = p->BusWidth;
-            wordSize *= p->tBURST * p->RATE;
-            wordSize /= 8;
-
-            if( !conf->GetSimInterface( )-> GetDataAtAddress( 
-                        request->address.GetPhysicalAddress( ), &oldData ) )
-            {
-                for( uint64_t i = 0; i < wordSize; i++ )
-                  oldData.SetByte( i, 0 );
-            }
-        
-            /* Write the new data... */
-            conf->GetSimInterface( )->SetDataAtAddress( 
-                    request->address.GetPhysicalAddress( ), request->data );
-    
-            /* Model the endurance */
-            hardError = !endrModel->Write( request->address, oldData, 
-                                            request->data );
-
-            if( hardError )
-            {
-                std::cout << "WARNING: Write to 0x" << std::hex 
-                    << request->address.GetPhysicalAddress( )
-                    << std::dec << " resulted in a hard error! " << std::endl;
-            }
-        }
-        else
-        {
-            std::cerr << "NVMain Error: Endurance modeled without simulator "
-                << "interface for data tracking!" << std::endl;
-        }
-    }
-}
-
 DDR3BankState DDR3Bank::GetState( ) 
 {
     return state;
@@ -1091,10 +1022,20 @@ void DDR3Bank::CalculateStats( )
     bandwidth = (utilization * idealBandwidth);
     powerCycles = activeCycles + standbyCycles;
 
-    worstLife = endrModel->GetWorstLife( );
-    averageLife = endrModel->GetAverageLife( );
-
     actWaitAverage = static_cast<double>(actWaitTotal) / static_cast<double>(actWaits);
+
+    worstCaseEndurance = std::numeric_limits<uint64_t>::max( );
+    averageEndurance = 0;
+    for( ncounter_t i = 0; i < GetChildCount( ); i++ )
+    {
+        StatType subArrayWorstEndr = GetStat( GetChild(i), "worstCaseEndurance" );
+        StatType subArrayAverageEndr = GetStat( GetChild(i), "averageEndurance" );
+
+        uint64_t subArrayEndurance = CastStat( subArrayWorstEndr, uint64_t );
+        worstCaseEndurance = (subArrayEndurance < worstCaseEndurance) ? subArrayEndurance : worstCaseEndurance;
+        averageEndurance += CastStat( subArrayAverageEndr, uint64_t );
+    }
+    averageEndurance /= GetChildCount( );
 }
 
 

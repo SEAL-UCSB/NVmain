@@ -46,8 +46,8 @@ class BitModel : public EnduranceModel
 
     void SetConfig( Config *config, bool createChildren = true );
 
-    bool Write( NVMAddress address, NVMDataBlock oldData, 
-                NVMDataBlock newData );
+    ncycles_t Read( NVMainRequest *request );
+    ncycles_t Write( NVMainRequest *request, NVMDataBlock oldData );
 };
 
 };

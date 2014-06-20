@@ -31,15 +31,15 @@
 *                     Website: http://www.cse.psu.edu/~poremba/ )
 *******************************************************************************/
 
-#ifndef __NVMAIN_ENDURANCE_FLIPNWRITE_H__
-#define __NVMAIN_ENDURANCE_FLIPNWRITE_H__
+#ifndef __NVMAIN_FLIPNWRITE_H__
+#define __NVMAIN_FLIPNWRITE_H__
 
-#include "src/EnduranceModel.h"
+#include "src/DataEncoder.h"
 #include <set>
 
 namespace NVM {
 
-class FlipNWrite : public EnduranceModel
+class FlipNWrite : public DataEncoder
 {
   public:
     FlipNWrite( );
@@ -47,7 +47,8 @@ class FlipNWrite : public EnduranceModel
 
     void SetConfig( Config *config, bool createChildren = true );
 
-    bool Write( NVMAddress address, NVMDataBlock oldData, NVMDataBlock newData );
+    ncycle_t Read( NVMainRequest *request );
+    ncycle_t Write( NVMainRequest *request );
 
     void RegisterStats( );
     void CalculateStats( );
@@ -55,7 +56,6 @@ class FlipNWrite : public EnduranceModel
   private:
     std::set< uint64_t > flippedAddresses;
   
-    uint64_t bitWrites;
     uint64_t bitsFlipped;
     uint64_t bitCompareSwapWrites;
     double flipNWriteReduction;
