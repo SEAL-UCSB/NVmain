@@ -66,22 +66,67 @@ void BitModel::SetConfig( Config *config, bool createChildren )
     EnduranceModel::SetConfig( config, createChildren );
 }
 
-bool BitModel::Write( NVMAddress address, NVMDataBlock oldData, 
-                      NVMDataBlock newData )
+ncycles_t BitModel::Read( NVMainRequest *request )
 {
+    uint64_t row;
+    uint64_t col;
+    ncycles_t rv = 0;
+
+    request->address.GetTranslatedAddress( &row, &col, NULL, NULL, NULL, NULL );
+    
+    uint64_t wordkey;
+    uint64_t rowSize;
+    uint64_t wordSize;
+    uint64_t partitionCount;
+
+    wordSize = p->BusWidth;
+    wordSize *= p->tBURST * p->RATE;
+    wordSize /= 8;
+
+    rowSize = p->COLS * wordSize; 
+    
+    /* Check each bit to see if it is dead */
+    for( uint64_t i = 0; i < wordSize; ++i )
+    {
+        for( int j = 0; j < 8; j++ )
+        {
+            /*
+             *  Think of each row being partitioned into 1-bit divisions. 
+             *  Each row has rowSize * 8 paritions. For the key we will use:
+             *
+             *  row * number of partitions + partition in this row
+             */
+            partitionCount = rowSize * 8;
+            
+            wordkey = row * partitionCount 
+                             + (col * wordSize * 8) + i * 8 + j;
+
+            if( IsDead( wordkey ) )
+            {
+                rv = -(rv + 1);
+                return rv;
+            }
+        }
+    }
+
+    return rv;
+}
+
+ncycles_t BitModel::Write( NVMainRequest *request, NVMDataBlock oldData ) 
+{
+    NVMDataBlock newData = request->data;
+    NVMAddress address = request->address;
+
     /*
      *  The default life map is an stl map< uint64_t, uint64_t >. 
      *  You may map row and col to this map_key however you want.
      *  It is up to you to ensure there are no collisions here.
      */
-    uint64_t row, subarray, MATHeight;
+    uint64_t row;
     uint64_t col;
-    bool rv = true;
-    NVMAddress faultAddr;
+    ncycles_t rv = 0;
 
-    /* For our simple row model, we just set the key equal to the row */
-    address.GetTranslatedAddress( &row, &col, NULL, NULL, NULL, &subarray );
-    faultAddr = address;
+    address.GetTranslatedAddress( &row, &col, NULL, NULL, NULL, NULL );
     
     /*
      *  If using the default life map, we can call the DecrementLife
@@ -94,13 +139,11 @@ bool BitModel::Write( NVMAddress address, NVMDataBlock oldData,
     uint64_t wordSize;
     uint64_t partitionCount;
 
-    MATHeight = p->MATHeight;
-
-    rowSize = p->COLS; 
-    
     wordSize = p->BusWidth;
     wordSize *= p->tBURST * p->RATE;
     wordSize /= 8;
+
+    rowSize = p->COLS * wordSize; 
 
     /* Check each byte to see if it was modified */
     for( uint64_t i = 0; i < wordSize; ++i )
@@ -131,7 +174,7 @@ bool BitModel::Write( NVMAddress address, NVMDataBlock oldData,
             if( oldBit == newBit )
                 continue;
 
-            std::cout << "Bit " << j << " changed in byte " << i << std::endl;
+            //std::cout << "Bit " << j << " changed in byte " << i << std::endl;
 
             /*
              *  Think of each row being partitioned into 1-bit divisions. 
@@ -141,17 +184,16 @@ bool BitModel::Write( NVMAddress address, NVMDataBlock oldData,
              */
             partitionCount = rowSize * 8;
             
-            wordkey = ( row + MATHeight * subarray ) * partitionCount 
+            wordkey = row * partitionCount 
                              + (col * wordSize * 8) + i * 8 + j;
 
-            std::cout << "Key is " << wordkey << std::endl;
+            //std::cout << "Key is " << wordkey << std::endl;
 
-            faultAddr.SetBitAddress( static_cast<uint8_t>(j) );
-            faultAddr.SetPhysicalAddress( address.GetPhysicalAddress( ) + i );
-            if( !DecrementLife( wordkey, faultAddr ) )
-                rv = false;
+            if( !DecrementLife( wordkey ) )
+                rv = -1;
         }
     }
 
     return rv;
 }
+

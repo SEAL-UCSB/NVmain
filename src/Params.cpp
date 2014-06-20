@@ -104,6 +104,7 @@ Params::Params( )
     RanksPerDIMM = 1;
 
     EnduranceModel = "NullModel";
+    DataEncoder = "default";
     EnergyModel = "current";
 
     UseLowPower = true;

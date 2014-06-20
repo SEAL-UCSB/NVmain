@@ -31,30 +31,19 @@
 *                     Website: http://www.cse.psu.edu/~poremba/ )
 *******************************************************************************/
 
-#include "Endurance/FlipNWrite/FlipNWrite.h"
+#include "DataEncoders/FlipNWrite/FlipNWrite.h"
+
 #include <iostream>
 
 using namespace NVM;
 
 FlipNWrite::FlipNWrite( )
 {
-    /*
-     *  Clear the life map, which will hold all of the endurance
-     *  values for each of our rows. Do this to ensure it didn't
-     *  happen to be allocated somewhere that thinks it contains 
-     *  values.
-     */
-    life.clear( );
-
     flippedAddresses.clear( );
 
-
     /* Clear statistics */
-    bitWrites = 0;
     bitsFlipped = 0;
     bitCompareSwapWrites = 0;
-
-    SetGranularity( 1 );
 }
 
 FlipNWrite::~FlipNWrite( )
@@ -65,26 +54,23 @@ FlipNWrite::~FlipNWrite( )
      */
 }
 
-void FlipNWrite::SetConfig( Config *config, bool createChildren )
+void FlipNWrite::SetConfig( Config *config, bool /*createChildren*/ )
 {
     Params *params = new Params( );
     params->SetParams( config );
     SetParams( params );
 
     /* Cache granularity size. */
-    fpSize = GetConfig( )->GetValue( "FlipNWriteGranularity" );
+    fpSize = config->GetValue( "FlipNWriteGranularity" );
 
     /* Some default size if the parameter is not specified */
     if( fpSize == -1 )
         fpSize = 32; 
-
-    EnduranceModel::SetConfig( config, createChildren );
 }
 
 void FlipNWrite::RegisterStats( )
 {
     AddStat(bitsFlipped);
-    AddStat(bitWrites);
     AddStat(bitCompareSwapWrites);
     AddUnitStat(flipNWriteReduction, "%");
 }
@@ -129,22 +115,31 @@ void FlipNWrite::InvertData( NVMDataBlock& data, uint64_t startBit, uint64_t end
     }
 }
 
-bool FlipNWrite::Write( NVMAddress address, NVMDataBlock oldData, 
-                        NVMDataBlock newData )
+ncycle_t FlipNWrite::Read( NVMainRequest* /*request*/ )
 {
+    ncycle_t rv = 0;
+
+    // TODO: Add some energy here
+
+    return rv;
+}
+
+ncycle_t FlipNWrite::Write( NVMainRequest *request ) 
+{
+    NVMDataBlock newData = request->data;
+    NVMDataBlock oldData = request->oldData;
+    NVMAddress address = request->address;
+
     /*
      *  The default life map is an stl map< uint64_t, uint64_t >. 
      *  You may map row and col to this map_key however you want.
      *  It is up to you to ensure there are no collisions here.
      */
-    uint64_t row, subarray, MATHeight;
+    uint64_t row;
     uint64_t col;
-    bool rv = true;
+    ncycle_t rv = 0;
 
-    /*
-     *  For our simple row model, we just set the key equal to the row.
-     */
-    address.GetTranslatedAddress( &row, &col, NULL, NULL, NULL, &subarray );
+    request->address.GetTranslatedAddress( &row, &col, NULL, NULL, NULL, NULL );
 
     /*
      *  If using the default life map, we can call the DecrementLife
@@ -152,32 +147,22 @@ bool FlipNWrite::Write( NVMAddress address, NVMDataBlock oldData,
      *  the life value is decremented (write count incremented). Otherwise 
      *  the map_key is inserted with a write count of 1.
      */
-    uint64_t wordkey;
     uint64_t rowSize;
     uint64_t wordSize;
-    uint64_t partitionCount;
     uint64_t currentBit;
     uint64_t flipPartitions;
+    uint64_t rowPartitions;
     int *modifyCount;
 
-    std::vector< uint64_t > *nonInvertedKeys;
-    std::vector< uint64_t > *invertedKeys;
-    std::vector< NVMAddress > *nonInvertedFaultAddr;
-    std::vector< NVMAddress > *invertedFaultAddr;
-
-    MATHeight = p->MATHeight;
-    rowSize = p->COLS;
-    
     wordSize = p->BusWidth;
     wordSize *= p->tBURST * p->RATE;
     wordSize /= 8;
 
+    rowSize = p->COLS * wordSize;
+    rowPartitions = ( rowSize * 8 ) / fpSize;
+    
     flipPartitions = ( wordSize * 8 ) / fpSize; 
 
-    nonInvertedKeys = new std::vector< uint64_t >[ flipPartitions ];
-    invertedKeys    = new std::vector< uint64_t >[ flipPartitions ];
-    nonInvertedFaultAddr = new std::vector< NVMAddress >[ flipPartitions ];
-    invertedFaultAddr = new std::vector< NVMAddress >[ flipPartitions ];
     modifyCount = new int[ flipPartitions ];
 
     /*
@@ -189,10 +174,10 @@ bool FlipNWrite::Write( NVMAddress address, NVMDataBlock oldData,
 
     currentBit = 0;
 
+    /* Get what is currently in the memory (i.e., if it was previously flipped, get the flipped data. */
     for( uint64_t i = 0; i < flipPartitions; i++ )
     {
-        uint64_t curAddr = (address.GetPhysicalAddress( ) << 3) 
-                            + i*static_cast<uint64_t>(fpSize);
+        uint64_t curAddr = row * rowPartitions + col * flipPartitions + i;
 
         if( flippedAddresses.count( curAddr ) )
         {
@@ -225,38 +210,12 @@ bool FlipNWrite::Write( NVMAddress address, NVMDataBlock oldData,
         for( int j = 0; j < 8; j++ )
         {
             uint8_t oldBit, newBit;
-            NVMAddress faultAddr;
 
             oldBit = ( oldByte >> j ) & 0x1;
             newBit = ( newByte >> j ) & 0x1;
 
-            /*
-             *  Think of each row being partitioned into 1-bit divisions. 
-             *  Each row has rowSize * 8 paritions. For the key we will use:
-             *
-             *  row * number of partitions + partition in this row
-             */
-            partitionCount = rowSize * 8;
-            
-            wordkey = ( row + MATHeight * subarray ) * partitionCount + (col * wordSize * 8) + i * 8 + j;
-      
-            faultAddr = address;
-            faultAddr.SetBitAddress( static_cast<uint8_t>(j) );
-            faultAddr.SetPhysicalAddress( address.GetPhysicalAddress( ) + i );
-
-            /*
-             *  Bit is unchanged- Add to invertedKeys to specify this bit
-             *  should be decremented if the word is inverted.
-             */
-            if( oldBit == newBit )
+            if( oldBit != newBit )
             {
-                invertedKeys[(int)(currentBit/fpSize)].push_back( wordkey );
-                invertedFaultAddr[(int)(currentBit/fpSize)].push_back( faultAddr );
-            }
-            else
-            {
-                nonInvertedKeys[(int)(currentBit/fpSize)].push_back( wordkey );
-                nonInvertedFaultAddr[(int)(currentBit/fpSize)].push_back( faultAddr );
                 modifyCount[(int)(currentBit/fpSize)]++;
             }
 
@@ -265,83 +224,53 @@ bool FlipNWrite::Write( NVMAddress address, NVMDataBlock oldData,
     }
 
     /*
-     *  Flip any partitions as needed. If the partition is flipped, use the
-     *  invertedKeys vector, otherwise nonInvertedKeys
+     *  Flip any partitions as needed and mark them as inverted or not.
      */
-    std::vector< uint64_t >::iterator it;
-    std::vector< NVMAddress >::iterator fit;
-
     for( uint64_t i = 0; i < flipPartitions; i++ )
     {
-        std::vector< uint64_t > *decrementVector;
-        std::vector< NVMAddress > *faultVector;
-
         bitCompareSwapWrites += modifyCount[i];
 
+        uint64_t curAddr = row * rowPartitions + col * flipPartitions + i;
+
+        /* Invert if more than half of the bits are modified. */
         if( modifyCount[i] > (fpSize / 2) )
         {
-            decrementVector = &(invertedKeys[i]);
-            faultVector = &(invertedFaultAddr[i]);
-
             InvertData( newData, i*fpSize, (i+1)*fpSize );
 
-            bitWrites++;
-            bitsFlipped += modifyCount[i] - (fpSize - modifyCount[i]);
+            bitsFlipped += (fpSize - modifyCount[i]);
 
             /*
              *  Mark this address as flipped. If the data was already inverted, it
-             *  is marked uninverted by removing it from the flippedAddresses set. 
-             *  If the data was not inverted, it is marked as inverted by adding it
-             *  to the flippedAddresses set.
+             *  should remain as inverted for the new data.
              */
-            if( flippedAddresses.count( (address.GetPhysicalAddress( ) << 3) + i*fpSize ) )
+            if( !flippedAddresses.count( curAddr ) )
             {
-                //std::cout << "Data was previously inverted. Now non-inverted." << std::endl;
-                flippedAddresses.erase( (address.GetPhysicalAddress( ) << 3) + i*fpSize ); 
-            }
-            else
-            {
-                //std::cout << "Data was NOT previously inverted. Now inverted." << std::endl;
-                flippedAddresses.insert( (address.GetPhysicalAddress( ) << 3) + i*fpSize );
+                flippedAddresses.insert( curAddr );
             }
         }
         else
         {
-            bitsFlipped += modifyCount[i];
-
-            decrementVector = &(nonInvertedKeys[i]);
-            faultVector = &(nonInvertedFaultAddr[i]);
-        }
-
-        for( it = decrementVector->begin( ), fit = faultVector->begin( ); 
-             it != decrementVector->end( ); it++, fit++ )
-        {
-            NVMAddress faultAddr;
-
-            faultAddr.SetBitAddress( (*it) & 0x7 );
-            faultAddr.SetPhysicalAddress( (*it) >> 3 );
-
-            /* If any of the writes result in a hard-error, return write failure. */
-            if( !DecrementLife( *it, *fit ) )
+            /*
+             *  This data is not inverted and should not be marked as such.
+             */
+            if( flippedAddresses.count( curAddr ) )
             {
-                rv = false;
+                flippedAddresses.erase( curAddr );
             }
+
+            bitsFlipped += modifyCount[i];
         }
     }
 
-    GetConfig( )->GetSimInterface( )->SetDataAtAddress( 
-            address.GetPhysicalAddress( ), newData );
+    delete modifyCount;
     
     return rv;
 }
 
 void FlipNWrite::CalculateStats( )
 {
-    uint64_t totalMod;
-
-    totalMod = bitsFlipped + bitWrites;
     if( bitCompareSwapWrites != 0 )
-        flipNWriteReduction = (((double)totalMod / (double)bitCompareSwapWrites)*100.0);
+        flipNWriteReduction = (((double)bitsFlipped / (double)bitCompareSwapWrites)*100.0);
     else
         flipNWriteReduction = 100.0;
 }

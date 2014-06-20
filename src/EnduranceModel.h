@@ -55,10 +55,12 @@ class EnduranceModel : public NVMObject
     EnduranceModel( );
     ~EnduranceModel( ) {}
 
-    virtual bool Write( NVMAddress address, NVMDataBlock oldData, NVMDataBlock newData ) = 0;
+    /* Return -(latency+1) on error, or the additional number of cycles needed by the model otherwise. */
+    virtual ncycles_t Read( NVMainRequest *request ) = 0;
+    /* Return -(latency+1) on error, or the additional number of cycles needed by the model otherwise. */
+    virtual ncycles_t Write( NVMainRequest *request, NVMDataBlock oldData ) = 0;
 
     virtual void SetConfig( Config *conf, bool createChildren = true );
-    Config *GetConfig( );
 
     void SetParams( Params *params ) { p = params; }
 
@@ -70,13 +72,12 @@ class EnduranceModel : public NVMObject
     void Cycle( ncycle_t steps );
 
   protected:
-    Config *config;
     EnduranceDistribution *enduranceDist;
-    FaultModel *faultModel;
     std::map<uint64_t, uint64_t> life;
     Params *p;
     
-    bool DecrementLife( uint64_t addr, NVMAddress faultAddr );
+    bool DecrementLife( uint64_t addr );
+    bool IsDead( uint64_t addr );
 
     void SetGranularity( uint64_t bits );
     uint64_t GetGranularity( );

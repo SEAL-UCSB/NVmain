@@ -43,8 +43,12 @@ NullModel::~NullModel( )
 {
 }
 
-bool NullModel::Write( NVMAddress /*address*/, NVMDataBlock /*oldData*/, 
-                       NVMDataBlock /*newData*/ )
+ncycles_t NullModel::Read( NVMainRequest* /*request*/ )
 {
-    return true;
+    return 0;
+}
+
+ncycles_t NullModel::Write( NVMainRequest* /*request*/, NVMDataBlock /*oldData*/ ) 
+{
+    return 0;
 }

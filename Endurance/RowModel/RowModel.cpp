@@ -57,7 +57,7 @@ RowModel::~RowModel( )
 void RowModel::SetConfig( Config *conf, bool createChildren )
 {
     Params *params = new Params( );
-    params->SetParams( config );
+    params->SetParams( conf );
     SetParams( params );
 
     SetGranularity( p->COLS * 8 );
@@ -65,24 +65,41 @@ void RowModel::SetConfig( Config *conf, bool createChildren )
     EnduranceModel::SetConfig( conf, createChildren );
 }
 
-bool RowModel::Write( NVMAddress address, NVMDataBlock /*oldData*/, 
-                      NVMDataBlock /*newData*/ )
+ncycles_t RowModel::Read( NVMainRequest *request )
 {
+    uint64_t row;
+    ncycles_t rv = 0;
+
+    /*
+     *  For our simple row model, we just set the key equal to the row.
+     */
+    request->address.GetTranslatedAddress( &row, NULL, NULL, NULL, NULL, NULL );
+
+    if( IsDead( row ) )
+    {
+        rv = -(rv + 1);
+    }
+
+    return rv;
+}
+
+ncycles_t RowModel::Write( NVMainRequest *request, NVMDataBlock /*oldData*/ ) 
+{
+    NVMDataBlock newData = request->data;
+    NVMAddress address = request->address;
+
     /*
      *  The default life map is an stl map< uint64_t, uint64_t >. 
      *  You may map row and col to this map_key however you want.
      *  It is up to you to ensure there are no collisions here.
      */
-    uint64_t row, subarray, MATHeight;
-    bool rv = true;
-    NVMAddress faultAddr;
+    uint64_t row;
+    ncycles_t rv = 0;
 
-    MATHeight = p->MATHeight;
     /*
      *  For our simple row model, we just set the key equal to the row.
      */
-    address.GetTranslatedAddress( &row, NULL, NULL, NULL, NULL, &subarray );
-    faultAddr = address;
+    address.GetTranslatedAddress( &row, NULL, NULL, NULL, NULL, NULL );
     
     /*
      *  If using the default life map, we can call the DecrementLife
@@ -90,8 +107,8 @@ bool RowModel::Write( NVMAddress address, NVMDataBlock /*oldData*/,
      *  the life value is decremented (write count incremented). Otherwise 
      *  the map_key is inserted with a write count of 1.
      */
-    if( !DecrementLife( ( row + MATHeight * subarray ), faultAddr ) )
-        rv = false;
+    if( !DecrementLife( row ) )
+        rv = -1;
 
     return rv;
 }
