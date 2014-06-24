@@ -176,10 +176,7 @@ bool NVMObject_hook::RequestComplete( NVMainRequest *req )
         (*it)->UnsetParent( );
     }
 
-    /* Call IssueCommand. */
-    rv = trampoline->RequestComplete( req );
-
-    /* Call post-complete hooks. */
+    /* Call post-complete hooks -- Need to call here in case req is deleted. */
     for( it = postHooks.begin(); it != postHooks.end(); it++ )
     {
         //(*it)->SetParent( trampoline->GetChild( req )->GetTrampoline( ) );
@@ -187,6 +184,9 @@ bool NVMObject_hook::RequestComplete( NVMainRequest *req )
         (*it)->RequestComplete( req );
         (*it)->UnsetParent( );
     }
+
+    /* Call IssueCommand. */
+    rv = trampoline->RequestComplete( req );
 
     return rv;
 }
