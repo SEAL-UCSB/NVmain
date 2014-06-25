@@ -50,6 +50,9 @@ NVMObject *HookFactory::CreateHook( std::string hookName )
     else if( hookName == "RequestTracer" ) hook = new RequestTracer( );
     else if( hookName == "PostTrace" ) hook = new PostTrace( );
     //else if( hookName == "MyHook" ) hook = new MyHook( );
-    
+
+    if( hook != NULL )
+        hook->StatName( hookName );
+
     return hook;
 }
