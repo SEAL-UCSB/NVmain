@@ -38,6 +38,7 @@
 
 #include "src/TranslationMethod.h"
 #include "src/Config.h"
+#include "src/Stats.h"
 #include "include/NVMainRequest.h"
 
 namespace NVM {
@@ -79,6 +80,12 @@ class AddressTranslator
     virtual uint64_t Translate( NVMainRequest *request );
     virtual void SetDefaultField( TranslationField f ); 
 
+    void SetStats( Stats *stats );
+    Stats *GetStats( );
+
+    void StatName( std::string name );
+    std::string StatName( );
+
     virtual void RegisterStats( ) { } 
     virtual void CalculateStats( ) { }
 
@@ -88,6 +95,9 @@ class AddressTranslator
     int busWidth;
     int burstLength;
     int lowColBits;
+
+    Stats *stats;
+    std::string statName;
 
   protected:
     uint64_t Divide( uint64_t partSize, MemoryPartition partition );
