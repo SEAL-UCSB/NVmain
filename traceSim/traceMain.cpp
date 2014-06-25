@@ -51,10 +51,28 @@
 #include "Utils/HookFactory.h"
 #include "src/EventQueue.h"
 #include "NVM/nvmain.h"
+#include "traceSim/traceMain.h"
 
 using namespace NVM;
 
 int main( int argc, char *argv[] )
+{
+    TraceMain *traceRunner = new TraceMain( );
+
+    return traceRunner->RunTrace( argc, argv );
+}
+
+TraceMain::TraceMain( )
+{
+
+}
+
+TraceMain::~TraceMain( )
+{
+
+}
+
+int TraceMain::RunTrace( int argc, char *argv[] )
 {
     Stats *stats = new Stats( );
     Config *config = new Config( );
@@ -88,10 +106,10 @@ int main( int argc, char *argv[] )
 
     config->Read( argv[1] );
     config->SetSimInterface( simInterface );
-    nvmain->SetEventQueue( mainEventQueue );
-    nvmain->SetGlobalEventQueue( globalEventQueue );
-    nvmain->SetStats( stats );
-    nvmain->SetTagGenerator( tagGenerator );
+    SetEventQueue( mainEventQueue );
+    SetGlobalEventQueue( globalEventQueue );
+    SetStats( stats );
+    SetTagGenerator( tagGenerator );
     std::ofstream statStream;
 
     /* Allow for overriding config parameter values for trace simulations from command line. */
@@ -110,9 +128,6 @@ int main( int argc, char *argv[] )
             config->SetValue( clParam, clValue );
         }
     }
-
-    globalEventQueue->SetFrequency( config->GetEnergy( "CLK" ) * 1000000.0 );
-    globalEventQueue->AddSystem( nvmain, config );
 
     if( config->KeyExists( "StatsFile" ) )
     {
@@ -138,8 +153,8 @@ int main( int argc, char *argv[] )
         
         if( hook != NULL )
         {
-            nvmain->AddHook( hook );
-            hook->SetParent( nvmain );
+            AddHook( hook );
+            hook->SetParent( this );
             hook->Init( config );
         }
         else
@@ -149,9 +164,16 @@ int main( int argc, char *argv[] )
         }
     }
 
+    AddChild( nvmain );
+    nvmain->SetParent( this );
+
+    globalEventQueue->SetFrequency( config->GetEnergy( "CLK" ) * 1000000.0 );
+    globalEventQueue->AddSystem( nvmain, config );
+
     simInterface->SetConfig( config, true );
     nvmain->SetConfig( config, "defaultMemory", true );
 
+    std::cout << "traceMain (" << (void*)(this) << ")" << std::endl;
     nvmain->PrintHierarchy( );
 
     if( config->KeyExists( "TraceReader" ) )
@@ -187,7 +209,7 @@ int main( int argc, char *argv[] )
                 if( EventDriven )
                     globalEventQueue->Cycle( 1 );
                 else 
-                    nvmain->Cycle( 1 );
+                    GetChild( )->Cycle( 1 );
               
                 currentCycle++;
             }
@@ -203,7 +225,7 @@ int main( int argc, char *argv[] )
         request->threadId = tl->GetThreadId( );
         if( !IgnoreData ) request->data = tl->GetData( );
         request->status = MEM_REQUEST_INCOMPLETE;
-        request->owner = (NVMObject *)nvmain;
+        request->owner = (NVMObject *)this;
         
         /* 
          * If you want to ignore the cycles used in the trace file, just set
@@ -233,7 +255,7 @@ int main( int argc, char *argv[] )
             /* Just ride it out 'til the end. */
             while( currentCycle < simulateCycles )
             {
-                nvmain->Cycle( 1 );
+                GetChild( )->Cycle( 1 );
               
                 currentCycle++;
             }
@@ -263,7 +285,7 @@ int main( int argc, char *argv[] )
                         if( currentCycle >= simulateCycles && simulateCycles != 0 )
                             break;
 
-                        nvmain->Cycle( 1 );
+                        GetChild( )->Cycle( 1 );
 
                         currentCycle++;
                     }
@@ -277,7 +299,7 @@ int main( int argc, char *argv[] )
              *  Wait for the memory controller to accept the next command.. 
              *  the trace reader is "stalling" until then.
              */
-            while( !nvmain->IssueCommand( request ) )
+            while( !GetChild( )->IsIssuable( request ) )
             {
                 if( currentCycle >= simulateCycles && simulateCycles != 0 )
                     break;
@@ -285,17 +307,19 @@ int main( int argc, char *argv[] )
                 if( EventDriven )
                     globalEventQueue->Cycle( 1 );
                 else 
-                    nvmain->Cycle( 1 );
+                    GetChild( )->Cycle( 1 );
 
                 currentCycle++;
             }
+
+            GetChild( )->IssueCommand( request );
 
             if( currentCycle >= simulateCycles && simulateCycles != 0 )
                 break;
         }
     }       
 
-    nvmain->CalculateStats( );
+    GetChild( )->CalculateStats( );
     std::ostream& refStream = (statStream.is_open()) ? statStream : std::cout;
     stats->PrintAll( refStream );
 
@@ -307,3 +331,10 @@ int main( int argc, char *argv[] )
 
     return 0;
 }
+
+void TraceMain::Cycle( ncycle_t /*steps*/ )
+{
+
+}
+
+
