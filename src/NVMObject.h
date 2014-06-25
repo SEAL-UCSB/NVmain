@@ -54,9 +54,12 @@
 #define FindChild(a,b) (dynamic_cast<b *>(_FindChild(a,typeid(b).name())))
 
 // a = NVMainRequest*, b=Class Name, c=NVMObject*
-#define FindChildType(a,b,c)                                                 \
+#define FindChildType(a,b,c) FindModuleChildType(a,b,c,this)
+
+// a = NVMainRequest*, b=Class Name, c=NVMObject*, d=NVMObject* (start module)
+#define FindModuleChildType(a,b,c,d)                                         \
 {                                                                            \
-    NVMObject *curChild = this;                                              \
+    NVMObject *curChild = d;                                                 \
                                                                              \
     while( curChild != NULL && dynamic_cast<b *>(curChild) == NULL )         \
     {                                                                        \
