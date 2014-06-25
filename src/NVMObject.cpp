@@ -199,6 +199,9 @@ void NVMObject_hook::Callback( void *data )
 
 void NVMObject_hook::CalculateStats( )
 {
+    if( trampoline->GetDecoder( ) )
+        trampoline->GetDecoder( )->CalculateStats( );
+
     trampoline->CalculateStats( );
 }
 
@@ -487,6 +490,10 @@ NVMObject_hook *NVMObject::GetChild( void )
 void NVMObject::SetDecoder( AddressTranslator *at )
 {
     decoder = at;
+
+    decoder->StatName( statName + ".decoder" );
+    decoder->SetStats( GetStats( ) );
+    decoder->RegisterStats( );
 }
 
 AddressTranslator *NVMObject::GetDecoder( )

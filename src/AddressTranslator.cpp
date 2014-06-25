@@ -415,3 +415,28 @@ void AddressTranslator::FindOrder( int order, MemoryPartition *p )
 	      << " Channel = " << channelOrder << " SubArray = " << subarrayOrder << std::endl;
     }
 }
+
+
+void AddressTranslator::SetStats( Stats *s )
+{
+    stats = s;
+}
+
+
+Stats *AddressTranslator::GetStats( )
+{
+    return stats;
+}
+
+
+void AddressTranslator::StatName( std::string name )
+{
+    statName = name;
+}
+
+
+std::string AddressTranslator::StatName( )
+{
+    return statName;
+}
+
