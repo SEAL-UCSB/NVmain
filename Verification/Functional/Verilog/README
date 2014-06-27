@@ -1,0 +1,16 @@
+To test with Micron's Verilog model, replace the subtest.vh file in the Micron model
+with the subtest.vh file in this directory. This subtest.vh file will include a file
+named "nvmain_trace.nvt". Copy the NVMain Verilog trace into the directory with the
+Micron model and rename the trace to "nvmain_trace.nvt" and follow the readme.txt
+instructions provided with the Micron Verilog model to run verification of DDR-like
+protocol simulations. If verification fails, the verilog testbench will stop and 
+display an error. If no erors are shown, the verification passes.
+
+
+Example using the sg125.config :
+
+vlog +define+sg125 +define+den4096Mb ddr3.v
+vlog tb.v
+vsim tb
+run 1ms
+

@@ -1,0 +1,277 @@
+{
+    "tests" : [
+        { 
+            "name" : "Deadlock",
+            "config" : "Configs/Deadlock.config",
+            "desc" : "Make sure the deadlock detector works",
+            "cycles" : "0",
+            "overrides" : "IgnoreData=true",
+            "returncode" : 1,
+            "checks" : [
+                "Operation could not be sent to memory after a very long time",
+                "defaultMemory.channel0.FRFCFS capacity is 32768 MB."
+            ]
+        },
+        { 
+            "name" : "2D_DRAM_example_current",
+            "config" : "../Config/2D_DRAM_example.config",
+            "desc" : "Make sure 2D_DRAM_example.config works",
+            "cycles" : "0",
+            "overrides" : "IgnoreData=true UseLowPower=false",
+            "returncode" : 0,
+            "checks" : [
+                "defaultMemory.channel0.FRFCFS capacity is 2048 MB.",
+                "defaultMemory.channel1.FRFCFS capacity is 2048 MB.",
+                "i0.defaultMemory.channel0.FRFCFS.mem_reads 24834",
+                "i0.defaultMemory.channel0.FRFCFS.mem_writes 24140",
+                "i0.defaultMemory.channel1.FRFCFS.mem_reads 24842",
+                "i0.defaultMemory.channel1.FRFCFS.mem_writes 24135",
+                "i0.defaultMemory.channel0.FRFCFS.channel0.rank0.totalPower 0.200338W",
+                "i0.defaultMemory.channel0.FRFCFS.channel0.rank1.totalPower 0.19956W",
+                "i0.defaultMemory.channel1.FRFCFS.channel1.rank0.totalPower 0.200942W",
+                "i0.defaultMemory.channel1.FRFCFS.channel1.rank1.totalPower 0.199796W"
+            ]
+        },
+        { 
+            "name" : "2D_DRAM_example_energy",
+            "config" : "../Config/2D_DRAM_example.config",
+            "desc" : "Make sure 2D_DRAM_example.config works",
+            "cycles" : "0",
+            "overrides" : "IgnoreData=true UseLowPower=false EnergyModel=energy",
+            "returncode" : 0,
+            "checks" : [
+                "defaultMemory.channel0.FRFCFS capacity is 2048 MB.",
+                "defaultMemory.channel1.FRFCFS capacity is 2048 MB.",
+                "i0.defaultMemory.channel0.FRFCFS.mem_reads 24834",
+                "i0.defaultMemory.channel0.FRFCFS.mem_writes 24140",
+                "i0.defaultMemory.channel1.FRFCFS.mem_reads 24842",
+                "i0.defaultMemory.channel1.FRFCFS.mem_writes 24135",
+                "i0.defaultMemory.channel0.FRFCFS.channel0.rank0.totalPower 0.19862W",
+                "i0.defaultMemory.channel0.FRFCFS.channel0.rank1.totalPower 0.197845W",
+                "i0.defaultMemory.channel1.FRFCFS.channel1.rank0.totalPower 0.199224W",
+                "i0.defaultMemory.channel1.FRFCFS.channel1.rank1.totalPower 0.198082W"
+            ]
+        },
+        { 
+            "name" : "3D_DRAM_example",
+            "config" : "../Config/3D_DRAM_example.config",
+            "desc" : "Make sure 3D_DRAM_example.config works",
+            "cycles" : "0",
+            "overrides" : "IgnoreData=true",
+            "returncode" : 0,
+            "checks" : [
+                "defaultMemory.channel0.FRFCFS-WQF capacity is 256 MB.",
+                "defaultMemory.channel1.FRFCFS-WQF capacity is 256 MB.",
+                "defaultMemory.channel2.FRFCFS-WQF capacity is 256 MB.",
+                "defaultMemory.channel3.FRFCFS-WQF capacity is 256 MB.",
+                "i0.defaultMemory.channel0.FRFCFS-WQF.mem_reads 12471",
+                "i0.defaultMemory.channel0.FRFCFS-WQF.mem_writes 12082",
+                "i0.defaultMemory.channel1.FRFCFS-WQF.mem_reads 12363",
+                "i0.defaultMemory.channel1.FRFCFS-WQF.mem_writes 12058",
+                "i0.defaultMemory.channel2.FRFCFS-WQF.mem_reads 12421",
+                "i0.defaultMemory.channel2.FRFCFS-WQF.mem_writes 12080",
+                "i0.defaultMemory.channel3.FRFCFS-WQF.mem_reads 12421",
+                "i0.defaultMemory.channel3.FRFCFS-WQF.mem_writes 12055"
+            ]
+        },
+        { 
+            "name" : "3D_PredictorDRC_example",
+            "config" : "../Config/3D_PredictorDRC_example.config",
+            "desc" : "Make sure 3D_PredictorDRC_example.config works",
+            "cycles" : "100000",
+            "overrides" : "IgnoreData=true",
+            "returncode" : 0,
+            "checks" : [
+                "offChipMemory.channel0.FRFCFS capacity is 1024 MB.",
+                "offChipMemory.channel1.FRFCFS capacity is 1024 MB.",
+                "offChipMemory.channel2.FRFCFS capacity is 1024 MB.",
+                "offChipMemory.channel3.FRFCFS capacity is 1024 MB.",
+                "defaultMemory.channel0.PredictorDRC.DRC.LO_Cache0 capacity is 128 MB.",
+                "i0.defaultMemory.channel0.PredictorDRC.DRC.LO_Cache0.drc_hits 1857",
+                "i0.defaultMemory.channel0.PredictorDRC.DRC.LO_Cache0.drc_miss 0",
+                "i0.defaultMemory.channel0.PredictorDRC.DRC.LO_Cache0.drc_hitrate 1",
+                "i0.offChipMemory.channel0.FRFCFS.mem_reads 783",
+                "i0.offChipMemory.channel1.FRFCFS.mem_reads 781",
+                "i0.offChipMemory.channel2.FRFCFS.mem_reads 800",
+                "i0.offChipMemory.channel3.FRFCFS.mem_reads 820",
+                "i0.offChipMemory.channel0.FRFCFS.mem_writes 0",
+                "i0.offChipMemory.channel1.FRFCFS.mem_writes 0",
+                "i0.offChipMemory.channel2.FRFCFS.mem_writes 0",
+                "i0.offChipMemory.channel3.FRFCFS.mem_writes 0"
+            ]
+        },
+        { 
+            "name" : "3D_DRAMCache_example",
+            "config" : "../Config/3D_DRAMCache_example.config",
+            "desc" : "Make sure 3D_DRAMCache_example.config works",
+            "cycles" : "100000",
+            "overrides" : "IgnoreData=true",
+            "returncode" : 0,
+            "checks" : [
+                "offChipMemory.channel0.FRFCFS capacity is 1024 MB.",
+                "offChipMemory.channel1.FRFCFS capacity is 1024 MB.",
+                "offChipMemory.channel2.FRFCFS capacity is 1024 MB.",
+                "offChipMemory.channel3.FRFCFS capacity is 1024 MB.",
+                "defaultMemory.channel0.DRC.LO_Cache0 capacity is 128 MB.",
+                "i0.defaultMemory.channel0.DRC.LO_Cache0.drc_hits 1856",
+                "i0.defaultMemory.channel0.DRC.LO_Cache0.drc_miss 3181",
+                "i0.defaultMemory.channel0.DRC.LO_Cache0.drc_hitrate 0.368473",
+                "i0.defaultMemory.channel0.DRC.LO_Cache0.drc_fills 3176",
+                "i0.defaultMemory.channel0.DRC.LO_Cache0.drc_evicts 1857",
+                "i0.offChipMemory.channel0.FRFCFS.mem_reads 783",
+                "i0.offChipMemory.channel1.FRFCFS.mem_reads 778",
+                "i0.offChipMemory.channel2.FRFCFS.mem_reads 800",
+                "i0.offChipMemory.channel3.FRFCFS.mem_reads 820",
+                "i0.offChipMemory.channel0.FRFCFS.mem_writes 0",
+                "i0.offChipMemory.channel1.FRFCFS.mem_writes 0",
+                "i0.offChipMemory.channel2.FRFCFS.mem_writes 0",
+                "i0.offChipMemory.channel3.FRFCFS.mem_writes 0"
+            ]
+        },
+        { 
+            "name" : "LO_Cache_regression_1",
+            "config" : "../Config/3D_DRAMCache_example.config",
+            "desc" : "Test non-refresh DRAM cache",
+            "cycles" : "100000",
+            "overrides" : "IgnoreData=true UseRefresh=false",
+            "returncode" : 0,
+            "checks" : [
+                "offChipMemory.channel0.FRFCFS capacity is 1024 MB.",
+                "offChipMemory.channel1.FRFCFS capacity is 1024 MB.",
+                "offChipMemory.channel2.FRFCFS capacity is 1024 MB.",
+                "offChipMemory.channel3.FRFCFS capacity is 1024 MB.",
+                "defaultMemory.channel0.DRC.LO_Cache0 capacity is 128 MB.",
+                "i0.defaultMemory.channel0.DRC.LO_Cache0.drc_hits 1856",
+                "i0.defaultMemory.channel0.DRC.LO_Cache0.drc_miss 3182",
+                "i0.defaultMemory.channel0.DRC.LO_Cache0.drc_hitrate 0.3684",
+                "i0.defaultMemory.channel0.DRC.LO_Cache0.drc_fills 3177",
+                "i0.defaultMemory.channel0.DRC.LO_Cache0.drc_evicts 1857",
+                "i0.offChipMemory.channel0.FRFCFS.mem_reads 783",
+                "i0.offChipMemory.channel1.FRFCFS.mem_reads 779",
+                "i0.offChipMemory.channel2.FRFCFS.mem_reads 800",
+                "i0.offChipMemory.channel3.FRFCFS.mem_reads 820",
+                "i0.offChipMemory.channel0.FRFCFS.mem_writes 0",
+                "i0.offChipMemory.channel1.FRFCFS.mem_writes 0",
+                "i0.offChipMemory.channel2.FRFCFS.mem_writes 0",
+                "i0.offChipMemory.channel3.FRFCFS.mem_writes 0"
+            ]
+        },
+        { 
+            "name" : "LO_Cache_regression_2",
+            "config" : "../Config/3D_DRAMCache_example.config",
+            "desc" : "Test non-refresh DRAM cache with open-page policy",
+            "cycles" : "100000",
+            "overrides" : "IgnoreData=true UseRefresh=false ClosePage=0",
+            "returncode" : 0,
+            "checks" : [
+                "offChipMemory.channel0.FRFCFS capacity is 1024 MB.",
+                "offChipMemory.channel1.FRFCFS capacity is 1024 MB.",
+                "offChipMemory.channel2.FRFCFS capacity is 1024 MB.",
+                "offChipMemory.channel3.FRFCFS capacity is 1024 MB.",
+                "defaultMemory.channel0.DRC.LO_Cache0 capacity is 128 MB.",
+                "i0.defaultMemory.channel0.DRC.LO_Cache0.drc_hits 1856",
+                "i0.defaultMemory.channel0.DRC.LO_Cache0.drc_miss 3181",
+                "i0.defaultMemory.channel0.DRC.LO_Cache0.drc_hitrate 0.368473",
+                "i0.defaultMemory.channel0.DRC.LO_Cache0.drc_fills 3175",
+                "i0.defaultMemory.channel0.DRC.LO_Cache0.drc_evicts 1857",
+                "i0.offChipMemory.channel0.FRFCFS.mem_reads 783",
+                "i0.offChipMemory.channel1.FRFCFS.mem_reads 778",
+                "i0.offChipMemory.channel2.FRFCFS.mem_reads 800",
+                "i0.offChipMemory.channel3.FRFCFS.mem_reads 820",
+                "i0.offChipMemory.channel0.FRFCFS.mem_writes 0",
+                "i0.offChipMemory.channel1.FRFCFS.mem_writes 0",
+                "i0.offChipMemory.channel2.FRFCFS.mem_writes 0",
+                "i0.offChipMemory.channel3.FRFCFS.mem_writes 0"
+            ]
+        },
+        { 
+            "name" : "LO_Cache_regression_3",
+            "config" : "../Config/3D_DRAMCache_example.config",
+            "desc" : "Test DRAM cache with open-page policy and refresh",
+            "cycles" : "100000",
+            "overrides" : "IgnoreData=true UseRefresh=true ClosePage=0",
+            "returncode" : 0,
+            "checks" : [
+                "offChipMemory.channel0.FRFCFS capacity is 1024 MB.",
+                "offChipMemory.channel1.FRFCFS capacity is 1024 MB.",
+                "offChipMemory.channel2.FRFCFS capacity is 1024 MB.",
+                "offChipMemory.channel3.FRFCFS capacity is 1024 MB.",
+                "defaultMemory.channel0.DRC.LO_Cache0 capacity is 128 MB.",
+                "i0.defaultMemory.channel0.DRC.LO_Cache0.drc_hits 1856",
+                "i0.defaultMemory.channel0.DRC.LO_Cache0.drc_miss 3181",
+                "i0.defaultMemory.channel0.DRC.LO_Cache0.drc_hitrate 0.368473",
+                "i0.defaultMemory.channel0.DRC.LO_Cache0.drc_fills 3176",
+                "i0.defaultMemory.channel0.DRC.LO_Cache0.drc_evicts 1857",
+                "i0.offChipMemory.channel0.FRFCFS.mem_reads 783",
+                "i0.offChipMemory.channel1.FRFCFS.mem_reads 778",
+                "i0.offChipMemory.channel2.FRFCFS.mem_reads 800",
+                "i0.offChipMemory.channel3.FRFCFS.mem_reads 820",
+                "i0.offChipMemory.channel0.FRFCFS.mem_writes 0",
+                "i0.offChipMemory.channel1.FRFCFS.mem_writes 0",
+                "i0.offChipMemory.channel2.FRFCFS.mem_writes 0",
+                "i0.offChipMemory.channel3.FRFCFS.mem_writes 0"
+            ]
+        },
+        { 
+            "name" : "PCM_example",
+            "config" : "../Config/PCM_ISSCC_2012_4GB.config",
+            "desc" : "Make sure 2D_DRAM_example.config works",
+            "cycles" : "0",
+            "overrides" : "IgnoreData=true",
+            "returncode" : 0,
+            "checks" : [
+                "defaultMemory.channel0.FRFCFS-WQF capacity is 4096 MB.",
+                "i0.defaultMemory.channel0.FRFCFS-WQF.mem_reads 49676",
+                "i0.defaultMemory.channel0.FRFCFS-WQF.mem_writes 48275"
+            ]
+        },
+        { 
+            "name" : "RRAM_example",
+            "config" : "../Config/RRAM_ISSCC_2012_4GB.config",
+            "desc" : "Make sure RRAM_ISSCC_2012_4GB.config works",
+            "cycles" : "0",
+            "overrides" : "IgnoreData=true",
+            "returncode" : 0,
+            "checks" : [
+                "defaultMemory.channel0.FRFCFS-WQF capacity is 1024 MB.",
+                "defaultMemory.channel1.FRFCFS-WQF capacity is 1024 MB.",
+                "defaultMemory.channel2.FRFCFS-WQF capacity is 1024 MB.",
+                "defaultMemory.channel3.FRFCFS-WQF capacity is 1024 MB.",
+                "i0.defaultMemory.channel0.FRFCFS-WQF.mem_reads 12661",
+                "i0.defaultMemory.channel0.FRFCFS-WQF.mem_writes 11873",
+                "i0.defaultMemory.channel1.FRFCFS-WQF.mem_reads 12381",
+                "i0.defaultMemory.channel1.FRFCFS-WQF.mem_writes 12109",
+                "i0.defaultMemory.channel2.FRFCFS-WQF.mem_reads 12330",
+                "i0.defaultMemory.channel2.FRFCFS-WQF.mem_writes 12288",
+                "i0.defaultMemory.channel3.FRFCFS-WQF.mem_reads 12304",
+                "i0.defaultMemory.channel3.FRFCFS-WQF.mem_writes 12005"
+            ]
+        },
+        { 
+            "name" : "STTRAM_example",
+            "config" : "../Config/STTRAM_Everspin_4GB.config",
+            "desc" : "Make sure STTRAM_Everspin_4GB.config works",
+            "cycles" : "0",
+            "overrides" : "IgnoreData=true",
+            "returncode" : 0,
+            "checks" : [
+                "defaultMemory.channel0.FRFCFS-WQF capacity is 1024 MB.",
+                "defaultMemory.channel1.FRFCFS-WQF capacity is 1024 MB.",
+                "defaultMemory.channel2.FRFCFS-WQF capacity is 1024 MB.",
+                "defaultMemory.channel3.FRFCFS-WQF capacity is 1024 MB.",
+                "i0.defaultMemory.channel0.FRFCFS-WQF.mem_reads 12701",
+                "i0.defaultMemory.channel0.FRFCFS-WQF.mem_writes 12106",
+                "i0.defaultMemory.channel1.FRFCFS-WQF.mem_reads 12347",
+                "i0.defaultMemory.channel1.FRFCFS-WQF.mem_writes 11593",
+                "i0.defaultMemory.channel2.FRFCFS-WQF.mem_reads 12311",
+                "i0.defaultMemory.channel2.FRFCFS-WQF.mem_writes 12288",
+                "i0.defaultMemory.channel3.FRFCFS-WQF.mem_reads 12317",
+                "i0.defaultMemory.channel3.FRFCFS-WQF.mem_writes 12288"
+            ]
+        }
+    ],
+
+    "traces" : [
+        "Traces/hello_world.nvt"
+    ]
+}

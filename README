@@ -1,0 +1,238 @@
+NVMain - An Architectural Level Main Memory Simulator
+         for Emerging Non-Volatile Memories
+
+======================================================
+
+Sections
+
+    1. Overview
+    2. Building NVMain
+       a. Trace Simulation
+       b. Simulator-Connected Simulation
+    3. Running NVMain
+    4. Configuring NVMain
+    5. Hacking NVMain
+    6. README Changelog
+
+------------------------------------------------------  
+
+1. Overview
+
+    NVMain is a cycle accurate main memory simulator
+    designed to simulate emerging non-volatile
+    memories at the architectural level. Since the 
+    current status of non-volatile memory is unknown
+    and this is a research tool, flexability is 
+    provided to implement different variations of
+    memory controllers, interconnects, organizations,
+    etc. Detailed modification information is
+    provided in section 5. Thanks for trying NVMain!
+
+
+------------------------------------------------------
+
+2. Building NVMain
+
+    NVMain can be build as a standalone executable to
+    run trace-based simulations, or it can be patched
+    into a CPU simulator to provide closer to full
+    system simulation. 
+
+    2a. Trace Simulation
+
+        The trace simulation can be build using scons:
+
+        $ scons --build-type=[release|debug]
+
+        Compiling with scons will automatically set 
+        the compile flags needed for trace-based
+        simulation. You can use --build-type=debug
+        to add debugging symbol, or release for 
+        -03 optimization.
+
+    2b. Simulator-Connected Simulation
+
+        Running NVMain under a simulator depends on
+        the simulator use. The 'patches' directory
+        contains a directory for each of the supported
+        simulators.
+
+        gem5 [Recommended]:
+
+           The gem5 patch is the most up-to-date patch
+           in most cases. It is recommended to use 
+           mercurial to manage NVMain patches. The 
+           patch can be imported with qimport and 
+           updated and removed using qrefresh and
+           qdel.
+
+           To install the patch, go to the gem5
+           root directory and import the patch
+
+           $ hg qimport /path/to/nvmain/patches/gem5/nvmain
+
+           Apply the path using qpush:
+
+           $ hg qpush
+
+           You can check that the patch was applied using
+           qapplied:
+
+           $ hg qapplied
+
+           You can build gem5 normally at this point.
+           You will need mercurial queues setup to do
+           this. More information can be found at 
+           http://mercurial.selenic.com/wiki/MqExtension/
+           In general you should add the following to ~/.hgrc:
+
+           [extensions]
+           mq =
+
+           and you should initialize queues in gem5 using:
+
+           $ hg qinit
+
+
+           To update the gem5 patch, first remove it and 
+           delete it. It can then be imported again. In
+           order to save your modifications, you can create
+           your own patch before re-importing the nvmain 
+           patch:
+
+           $ hg qnew mychanges.patch
+           $ hg qrefresh
+              
+           Now your changes are saved in the "mychanges.patch"
+           file. Feel free to rename this :). Next re-import
+           NVmain:
+
+           $ hg qpop -a
+           $ hg qdel nvmain
+           $ hg qimport /path/to/nvmain/patches/gem5/nvmain
+           $ hg qpush -a
+
+        GEMS:
+
+           The patch to the legacy GEMS (using Simics) can be
+           applied using the patch command. From the GEMS/ruby
+           root directory, run:
+
+           $ patch -p0 < /path/to/nvmain/patches/GEMS/gems.patch
+
+           Note: This patch is no longer supported.
+
+
+------------------------------------------------------
+
+3. Running NVMain
+
+
+    NVMain can be run on the command line with trace-based
+    simulation via:
+
+    ./nvmain CONFIG_FILE TRACE_FILE [Cycles]
+
+
+    The CONFIG_FILE is the path to the configuration file
+    for the memory system being simulated. The TRACE_FILE
+    is the path to the trace file with the memory requests
+    to simulate. Cycles is optional and specifies the max
+    number of cycles to simulate. By default the entire
+    trace file is simulated.
+
+    A various number of trace formats are supported, such
+    as GEMS traces from either gem5 or GEMS or NVMain 
+    traces which contain the minimum amount of information
+    needed to simulate a request.
+
+
+
+
+    Running NVMain with GEMS or gem5 only requires the 
+    configuration file to be specified. In GEMS this
+    can be added to your GEMS configuration:
+
+    ruby0.setparam_str MM_CONFIG "/path/to/nvmain/config.cfg"
+
+
+
+    For gem5, simulation is setup using python scripts.
+    Example NVMain scripts are provided:
+
+    configs/example/se.py - Run in SE mode
+    configs/example/fs.py - Run in FS mode
+
+    When running gem5, the parameter --mem-type=nvmain can
+    be used to enable NVMain, or --ruby-mem-type=nvmain for
+    ruby caches. The option --nvmain-config must be used to
+    specify the NVMain configuration file.
+
+    $ gem5.fast config/example/se.py -c hello_world      \
+                --mem-type=nvmain --cpu-type=detailed    \
+                --caches --l2cache --l1i_size 32kB       \
+                --l1d_size 32kB --l2_size 2MB            \
+                --nvmain-config=/path/to/nvmain.config
+
+
+------------------------------------------------------
+
+4. Configuring NVMain
+
+
+    NVMain can be configured using the configuration files.
+    Several example configuration files can be found in
+    the Config/ folder in the NVMain trunk. 
+
+    A more detailed listing of configuration parameter 
+    names and potential values are on the NVMain wiki page.
+
+
+------------------------------------------------------
+
+5. Hacking NVMain
+
+
+    As mentioned in the overview, NVMain is meant to 
+    be flexible. Writing your own interconnect, 
+    memory controller, endurance model, address 
+    translator, etc. Can be done by creating a new 
+    C++ file with your new class.
+
+    Each unit has a Factory class which selects 
+    the class to used based on the configuration
+    file input. You can create a class by looking
+    at one of the example classes in each folder:
+
+    MemControl - Custom Memory Controllers
+    FaultModels - Custom hard-fault models
+    Decoders - Custom address translators
+    Endurance - Custom Endurance models
+    Interconnect - Custom Interconnects
+    Prefetchers - Custom prefetchers
+    SimInterface - Simulator interface used to
+                   gather useful statistics from
+                   the CPU simulator such as
+                   instructions executed, cache
+                   miss rates, etc.
+    traceReader - Custom trace file readers
+
+    When adding a class, make sure to update
+    the factory class to #include your class
+    header and to initialize your class if 
+    the configuration is set to your class'
+    name.
+
+    In some folders there is a "GenerateSConscript.sh"
+    This script should also be run when you
+    create a new class so gem5 knows about it.
+
+
+------------------------------------------------------
+
+
+8/17/2012 - Created first README
+
+
+
+
