@@ -55,7 +55,7 @@ NVMObject_hook::~NVMObject_hook( )
 
 bool NVMObject_hook::IssueCommand( NVMainRequest *req )
 {
-    bool rv;
+    bool rv = true, dropRequest = false;
     std::vector<NVMObject *>& preHooks  = trampoline->GetHooks( NVMHOOK_PREISSUE );
     std::vector<NVMObject *>& postHooks = trampoline->GetHooks( NVMHOOK_POSTISSUE );
     std::vector<NVMObject *>::iterator it;
@@ -64,12 +64,13 @@ bool NVMObject_hook::IssueCommand( NVMainRequest *req )
     for( it = preHooks.begin(); it != preHooks.end(); it++ )
     {
         (*it)->SetParent( trampoline );
-        (*it)->IssueCommand( req );
+        dropRequest = !(*it)->IssueCommand( req );
         (*it)->UnsetParent( );
     }
 
     /* Call IssueCommand. */
-    rv = trampoline->IssueCommand( req );
+    if( !dropRequest )
+        rv = trampoline->IssueCommand( req );
 
     /* Call post-issue hooks. */
     for( it = postHooks.begin(); it != postHooks.end(); it++ )
@@ -89,7 +90,7 @@ bool NVMObject_hook::IsIssuable( NVMainRequest *req, FailReason *reason )
 
 bool NVMObject_hook::IssueAtomic( NVMainRequest *req )
 {
-    bool rv;
+    bool rv = true, dropRequest = false;
     std::vector<NVMObject *>& preHooks  = trampoline->GetHooks( NVMHOOK_PREISSUE );
     std::vector<NVMObject *>& postHooks = trampoline->GetHooks( NVMHOOK_POSTISSUE );
     std::vector<NVMObject *>::iterator it;
@@ -98,12 +99,13 @@ bool NVMObject_hook::IssueAtomic( NVMainRequest *req )
     for( it = preHooks.begin(); it != preHooks.end(); it++ )
     {
         (*it)->SetParent( trampoline );
-        (*it)->IssueAtomic( req );
+        dropRequest = !(*it)->IssueAtomic( req );
         (*it)->UnsetParent( );
     }
 
     /* Call IssueCommand. */
-    rv = trampoline->IssueAtomic( req );
+    if( !dropRequest )
+        rv = trampoline->IssueAtomic( req );
 
     /* Call post-issue hooks. */
     for( it = postHooks.begin(); it != postHooks.end(); it++ )
@@ -118,7 +120,7 @@ bool NVMObject_hook::IssueAtomic( NVMainRequest *req )
 
 bool NVMObject_hook::IssueFunctional( NVMainRequest *req )
 {
-    bool rv;
+    bool rv = true, dropRequest = false;
     std::vector<NVMObject *>& preHooks  = trampoline->GetHooks( NVMHOOK_PREISSUE );
     std::vector<NVMObject *>& postHooks = trampoline->GetHooks( NVMHOOK_POSTISSUE );
     std::vector<NVMObject *>::iterator it;
@@ -127,12 +129,13 @@ bool NVMObject_hook::IssueFunctional( NVMainRequest *req )
     for( it = preHooks.begin(); it != preHooks.end(); it++ )
     {
         (*it)->SetParent( trampoline );
-        (*it)->IssueAtomic( req );
+        dropRequest = !(*it)->IssueAtomic( req );
         (*it)->UnsetParent( );
     }
 
     /* Call IssueCommand. */
-    rv = trampoline->IssueFunctional( req );
+    if( !dropRequest )
+        rv = trampoline->IssueFunctional( req );
 
     /* Call post-issue hooks. */
     for( it = postHooks.begin(); it != postHooks.end(); it++ )
