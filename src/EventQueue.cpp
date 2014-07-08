@@ -130,6 +130,13 @@ void EventQueue::InsertEvent( EventType type, NVMObject_hook *recipient, NVMainR
     event->SetRequest( req );
     event->SetCycle( when );
 
+    InsertEvent( event, when, priority );
+}
+
+void EventQueue::InsertEvent( Event *event, ncycle_t when, int priority )
+{
+    event->SetCycle( when );
+
     /* If this event time is before our previous nextEventCycle, change it. */
     if( when < nextEventCycle )
     {
@@ -170,34 +177,6 @@ void EventQueue::InsertEvent( EventType type, NVMObject_hook *recipient, NVMainR
     }
 }
 
-void EventQueue::InsertEvent( Event *event, ncycle_t when )
-{
-    event->SetCycle( when );
-
-    /* If this event time is before our previous nextEventCycle, change it. */
-    if( when < nextEventCycle )
-    {
-        nextEventCycle = when;
-    }
-
-    /* If there are no events at this time, create a new mapping. */ 
-    if( eventMap.count( when ) == 0 )
-    {
-        EventList eventList;
-
-        eventList.push_back( event );
-
-        eventMap.insert( std::pair<ncycle_t, EventList>( when, eventList ) );
-    }
-    /* Otherwise append this event to the event list for this cycle. */
-    else
-    {
-        EventList& eventList = eventMap[when];
-
-        eventList.push_back( event );
-    }
-}
-
 
 bool EventQueue::RemoveEvent( Event *event, ncycle_t when )
 {
@@ -226,6 +205,15 @@ bool EventQueue::RemoveEvent( Event *event, ncycle_t when )
 
                 break;
             }
+        }
+
+        if( eventMap.empty() )
+        {
+            nextEventCycle = std::numeric_limits<uint64_t>::max( );
+        }
+        else
+        {
+            nextEventCycle = eventMap.begin()->first;
         }
     }
 
@@ -482,12 +470,8 @@ void GlobalEventQueue::Cycle( ncycle_t steps )
         ncycle_t localQueueSteps = nextEventQueue->GetNextEvent( ) - nextEventQueue->GetCurrentCycle( );
         nextEventQueue->Loop( localQueueSteps );
 
-        //std::cout << "Looping eventQueue " << (void*)(nextEventQueue) << " by " << localQueueSteps << std::endl;
-
         currentCycle += globalQueueSteps;
         iterationSteps += globalQueueSteps;
-
-        //std::cout << "Cycled " << globalQueueSteps << " steps to " << currentCycle << std::endl;
 
         Sync( );
     }
@@ -514,6 +498,13 @@ ncycle_t GlobalEventQueue::GetNextEvent( EventQueue **eq )
 
     for( iter = eventQueues.begin( ); iter != eventQueues.end( ); iter++ )
     {
+        /* 
+         *  If there is no event, we must skip frequency alignment to prevent
+         *  underflow causing an invalid nextEventCycle.
+         */
+        if( iter->first->GetNextEvent( ) == std::numeric_limits<ncycle_t>::max( ) )
+            continue;
+
         double frequencyMultiplier = frequency / iter->second;
         double globalEventCycle = iter->first->GetNextEvent( ) * frequencyMultiplier;
 
@@ -544,7 +535,6 @@ void GlobalEventQueue::Sync( )
 
         if( static_cast<ncycle_t>(setCycle) > iter->first->GetCurrentCycle( ) )
         {
-            //std::cout << "Stepping eventQueue " << (void*)(iter->first) << " by " << stepCount << std::endl;
             iter->first->Loop( stepCount );
         }
     }

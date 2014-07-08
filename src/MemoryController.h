@@ -130,6 +130,7 @@ class MemoryController : public NVMObject
     ncycle_t lastCommandWake;
     bool commandWakeScheduled;
     ncounter_t wakeupCount;
+    ncycle_t lastIssueCycle;
 
     std::list<NVMainRequest *> *transactionQueues;
     std::deque<NVMainRequest *> *commandQueues;
