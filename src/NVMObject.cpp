@@ -541,6 +541,9 @@ void NVMObject::CreateCheckpoint( std::string dir )
     {
         (*it)->GetTrampoline( )->CreateCheckpoint( dir );
     }
+
+    if( GetDecoder( ) )
+        GetDecoder( )->CreateCheckpoint( dir );
 }
 
 void NVMObject::RestoreCheckpoint( std::string dir )
@@ -551,6 +554,9 @@ void NVMObject::RestoreCheckpoint( std::string dir )
     {
         (*it)->GetTrampoline( )->RestoreCheckpoint( dir );
     }
+
+    if( GetDecoder( ) )
+        GetDecoder( )->RestoreCheckpoint( dir );
 }
 
 void NVMObject::PrintHierarchy( int depth )

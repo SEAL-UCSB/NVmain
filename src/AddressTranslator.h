@@ -89,6 +89,9 @@ class AddressTranslator
     virtual void RegisterStats( ) { } 
     virtual void CalculateStats( ) { }
 
+    virtual void CreateCheckpoint( std::string /*dir*/ ) { }
+    virtual void RestoreCheckpoint( std::string /*dir*/ ) { }
+
   private:
     TranslationMethod *method;
     TranslationField defaultField;
