@@ -96,7 +96,8 @@ class Config;
 enum HookType { NVMHOOK_NONE = 0,
                 NVMHOOK_PREISSUE,                /* Call hook before IssueCommand */
                 NVMHOOK_POSTISSUE,               /* Call hook after IssueCommand */
-                NVMHOOK_COUNT
+                NVMHOOK_COUNT,                   /* Number of UNIQUE hook types. */
+                NVMHOOK_BOTHISSUE                /* Call hook before and after */
 };
 
 /*
@@ -209,6 +210,9 @@ class NVMObject
     HookType GetHookType( );
     void SetHookType( HookType );
 
+    HookType GetCurrentHookType( );
+    void SetCurrentHookType( HookType );
+
     void AddHook( NVMObject *hook );
     std::vector<NVMObject *>& GetHooks( HookType h );
 
@@ -225,7 +229,10 @@ class NVMObject
     GlobalEventQueue *globalEventQueue;
     std::ostream *debugStream;
     TagGenerator *tagGen;
-    HookType hookType;
+    HookType hookType, currentHookType;
+
+    void AddHookUnique( std::vector<NVMObject *>& list, NVMObject *hook );
+
     ncycle_t MAX( const ncycle_t, const ncycle_t );
     ncycle_t MIN( const ncycle_t, const ncycle_t );
 };

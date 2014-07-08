@@ -41,6 +41,7 @@
 #include "src/Debug.h"
 
 #include <cassert>
+#include <algorithm>
 
 using namespace NVM;
 
@@ -64,6 +65,7 @@ bool NVMObject_hook::IssueCommand( NVMainRequest *req )
     for( it = preHooks.begin(); it != preHooks.end(); it++ )
     {
         (*it)->SetParent( trampoline );
+        (*it)->SetCurrentHookType( NVMHOOK_PREISSUE );
         dropRequest = !(*it)->IssueCommand( req );
         (*it)->UnsetParent( );
     }
@@ -76,6 +78,7 @@ bool NVMObject_hook::IssueCommand( NVMainRequest *req )
     for( it = postHooks.begin(); it != postHooks.end(); it++ )
     {
         (*it)->SetParent( trampoline );
+        (*it)->SetCurrentHookType( NVMHOOK_POSTISSUE );
         (*it)->IssueCommand( req );
         (*it)->UnsetParent( );
     }
@@ -99,6 +102,7 @@ bool NVMObject_hook::IssueAtomic( NVMainRequest *req )
     for( it = preHooks.begin(); it != preHooks.end(); it++ )
     {
         (*it)->SetParent( trampoline );
+        (*it)->SetCurrentHookType( NVMHOOK_PREISSUE );
         dropRequest = !(*it)->IssueAtomic( req );
         (*it)->UnsetParent( );
     }
@@ -111,6 +115,7 @@ bool NVMObject_hook::IssueAtomic( NVMainRequest *req )
     for( it = postHooks.begin(); it != postHooks.end(); it++ )
     {
         (*it)->SetParent( trampoline );
+        (*it)->SetCurrentHookType( NVMHOOK_POSTISSUE );
         (*it)->IssueAtomic( req );
         (*it)->UnsetParent( );
     }
@@ -129,6 +134,7 @@ bool NVMObject_hook::IssueFunctional( NVMainRequest *req )
     for( it = preHooks.begin(); it != preHooks.end(); it++ )
     {
         (*it)->SetParent( trampoline );
+        (*it)->SetCurrentHookType( NVMHOOK_PREISSUE );
         dropRequest = !(*it)->IssueAtomic( req );
         (*it)->UnsetParent( );
     }
@@ -141,6 +147,7 @@ bool NVMObject_hook::IssueFunctional( NVMainRequest *req )
     for( it = postHooks.begin(); it != postHooks.end(); it++ )
     {
         (*it)->SetParent( trampoline );
+        (*it)->SetCurrentHookType( NVMHOOK_POSTISSUE );
         (*it)->IssueAtomic( req );
         (*it)->UnsetParent( );
     }
@@ -175,6 +182,7 @@ bool NVMObject_hook::RequestComplete( NVMainRequest *req )
     {
         //(*it)->SetParent( trampoline->GetChild( req )->GetTrampoline( ) );
         (*it)->SetParent( trampoline );
+        (*it)->SetCurrentHookType( NVMHOOK_PREISSUE );
         (*it)->RequestComplete( req );
         (*it)->UnsetParent( );
     }
@@ -184,6 +192,7 @@ bool NVMObject_hook::RequestComplete( NVMainRequest *req )
     {
         //(*it)->SetParent( trampoline->GetChild( req )->GetTrampoline( ) );
         (*it)->SetParent( trampoline );
+        (*it)->SetCurrentHookType( NVMHOOK_POSTISSUE );
         (*it)->RequestComplete( req );
         (*it)->UnsetParent( );
     }
@@ -607,11 +616,37 @@ void NVMObject::SetHookType( HookType h )
     hookType = h;
 }
 
+HookType NVMObject::GetCurrentHookType( )
+{
+    return currentHookType;
+}
+
+void NVMObject::SetCurrentHookType( HookType h )
+{
+    currentHookType = h;
+}
+
 void NVMObject::AddHook( NVMObject *hook )
 {
     HookType h = hook->GetHookType( );
 
-    hooks[h].push_back( hook );
+    if( h == NVMHOOK_BOTHISSUE )
+    {
+        AddHookUnique( hooks[NVMHOOK_PREISSUE], hook );
+        AddHookUnique( hooks[NVMHOOK_POSTISSUE], hook );
+    }
+    else
+    {
+        AddHookUnique( hooks[h], hook );
+    }
+}
+
+void NVMObject::AddHookUnique( std::vector<NVMObject *>& list, NVMObject *hook )
+{
+    if( std::find( list.begin(), list.end(), hook ) == list.end() )
+    {
+        list.push_back( hook );
+    }
 }
 
 std::vector<NVMObject *>& NVMObject::GetHooks( HookType h )
