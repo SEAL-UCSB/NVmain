@@ -59,6 +59,7 @@ MemoryController::MemoryController( )
     lastCommandWake = 0;
     commandWakeScheduled = false;
     wakeupCount = 0;
+    lastIssueCycle = 0;
 
     starvationThreshold = 4;
     subArrayNum = 1;
@@ -1735,6 +1736,7 @@ void MemoryController::CycleCommandQueues( )
         FailReason fail;
 
         if( !commandQueues[queueId].empty( )
+            && lastIssueCycle != GetEventQueue()->GetCurrentCycle()
             && GetChild( )->IsIssuable( commandQueues[queueId].at( 0 ), &fail ) )
         {
             *debugStream << GetEventQueue()->GetCurrentCycle() << " MemoryController: Issued request type "
@@ -1743,6 +1745,9 @@ void MemoryController::CycleCommandQueues( )
                          << std::dec << " for queue " << queueId << std::endl;
 
             GetChild( )->IssueCommand( commandQueues[queueId].at( 0 ) );
+
+            if( GetEventQueue( )->GetCurrentCycle( ) != lastIssueCycle )
+                lastIssueCycle = GetEventQueue( )->GetCurrentCycle( );
 
             commandQueues[queueId].erase( commandQueues[queueId].begin( ) );
 

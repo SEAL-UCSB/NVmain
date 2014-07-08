@@ -86,8 +86,8 @@ int TraceMain::RunTrace( int argc, char *argv[] )
     bool IgnoreData = false;
     bool EventDriven = false;
 
-    unsigned int simulateCycles;
-    unsigned int currentCycle;
+    uint64_t simulateCycles;
+    uint64_t currentCycle;
     
     if( argc < 4 )
     {
@@ -167,7 +167,7 @@ int TraceMain::RunTrace( int argc, char *argv[] )
     AddChild( nvmain );
     nvmain->SetParent( this );
 
-    globalEventQueue->SetFrequency( config->GetEnergy( "CLK" ) * 1000000.0 );
+    globalEventQueue->SetFrequency( config->GetEnergy( "CPUFreq" ) * 1000000.0 );
     globalEventQueue->AddSystem( nvmain, config );
 
     simInterface->SetConfig( config, true );
@@ -189,9 +189,16 @@ int TraceMain::RunTrace( int argc, char *argv[] )
     else
         simulateCycles = atoi( argv[3] );
 
-    simulateCycles *= (unsigned int)ceil( (double)(config->GetValue( "CPUFreq" )) 
-                        / (double)(config->GetValue( "CLK" )) ); 
+    std::cout << "*** Simulating " << simulateCycles << " input cycles. (";
 
+    /*
+     *  The trace cycle is assumed to be the rate that the CPU/LLC is issuing. 
+     *  Scale the simulation cycles to be the number of *memory cycles* to run.
+     */
+    simulateCycles = (uint64_t)ceil( ((double)(config->GetValue( "CPUFreq" )) 
+                    / (double)(config->GetValue( "CLK" ))) * simulateCycles ); 
+
+    std::cout << simulateCycles << " memory cycles) ***" << std::endl;
 
     currentCycle = 0;
     while( currentCycle <= simulateCycles || simulateCycles == 0 )
@@ -201,20 +208,20 @@ int TraceMain::RunTrace( int argc, char *argv[] )
             std::cout << "Could not read next line from trace file!" 
                 << std::endl;
 
+            /* We don't know when to end without tracking requests. */
             break;
 
-            /* Just ride it out 'til the end. */
-            while( currentCycle < simulateCycles )
-            {
-                if( EventDriven )
-                    globalEventQueue->Cycle( 1 );
-                else 
-                    GetChild( )->Cycle( 1 );
-              
-                currentCycle++;
-            }
+            //while( currentCycle < simulateCycles )
+            //{
+            //    if( EventDriven )
+            //        globalEventQueue->Cycle( 1 );
+            //    else 
+            //        GetChild( )->Cycle( 1 );
+            //  
+            //    currentCycle++;
+            //}
 
-            break;
+            //break;
         }
 
         NVMainRequest *request = new NVMainRequest( );
@@ -249,6 +256,8 @@ int TraceMain::RunTrace( int argc, char *argv[] )
             if( EventDriven )
             {
                 globalEventQueue->Cycle( simulateCycles - currentCycle );
+                currentCycle += simulateCycles - currentCycle;
+
                 break;
             }
 
@@ -275,7 +284,7 @@ int TraceMain::RunTrace( int argc, char *argv[] )
                 if( EventDriven )
                 {
                     globalEventQueue->Cycle( tl->GetCycle() - currentCycle );
-                    currentCycle += tl->GetCycle() - currentCycle;
+                    currentCycle = globalEventQueue->GetCurrentCycle( );
                 }
                 else
                 {
@@ -305,11 +314,15 @@ int TraceMain::RunTrace( int argc, char *argv[] )
                     break;
 
                 if( EventDriven )
+                {
                     globalEventQueue->Cycle( 1 );
+                    currentCycle = globalEventQueue->GetCurrentCycle( );
+                }
                 else 
+                {
                     GetChild( )->Cycle( 1 );
-
-                currentCycle++;
+                    currentCycle++;
+                }
             }
 
             GetChild( )->IssueCommand( request );
