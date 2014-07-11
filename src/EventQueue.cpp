@@ -221,7 +221,7 @@ bool EventQueue::RemoveEvent( Event *event, ncycle_t when )
 }
 
 
-Event *EventQueue::FindEvent( EventType type, NVMObject *recipient, NVMainRequest *req, ncycle_t when )
+Event *EventQueue::FindEvent( EventType type, NVMObject *recipient, NVMainRequest *req, ncycle_t when ) const
 {
     /* The parent has our hook in the children list, we need to find this. */
     std::vector<NVMObject_hook *>& children = recipient->GetParent( )->GetTrampoline( )->GetChildren( );
@@ -243,22 +243,26 @@ Event *EventQueue::FindEvent( EventType type, NVMObject *recipient, NVMainReques
 }
 
 
-Event *EventQueue::FindEvent( EventType type, NVMObject_hook *recipient, NVMainRequest *req, ncycle_t when )
+Event *EventQueue::FindEvent( EventType type, NVMObject_hook *recipient, NVMainRequest *req, ncycle_t when ) const
 {
     Event *rv = NULL;
-    EventList& eventList = eventMap[when];
+    //if(eventMap.find(when) == eventMap.end()){exit(1);}
+    if (eventMap.count(when) == 0) {
+        return rv;
+    } else {
+        const EventList& eventList = eventMap.find(when)->second;
 
-    EventList::iterator it;
-    for( it = eventList.begin(); it != eventList.end(); it++ )
-    {
-        if( (*it)->GetType( ) == type && (*it)->GetRecipient( ) == recipient
-            && (*it)->GetRequest( ) == req )
+        EventList::const_iterator it;
+        for( it = eventList.begin(); it != eventList.end(); it++ )
         {
-            rv = (*it);
+            if( (*it)->GetType( ) == type && (*it)->GetRecipient( ) == recipient
+                && (*it)->GetRequest( ) == req )
+            {
+                rv = (*it);
+            }
         }
+        return rv;
     }
-
-    return rv;
 }
 
 

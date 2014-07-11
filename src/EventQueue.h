@@ -97,8 +97,8 @@ class EventQueue
     void InsertEvent( EventType type, NVMObject_hook *recipient, ncycle_t when, int priority = 0 );
     void InsertEvent( EventType type, NVMObject *recipient, ncycle_t when, int priority = 0 );
     void InsertEvent( Event *event, ncycle_t when, int priority = 0 );
-    Event *FindEvent( EventType type, NVMObject *recipient, NVMainRequest *req, ncycle_t when );
-    Event *FindEvent( EventType type, NVMObject_hook *recipient, NVMainRequest *req, ncycle_t when );
+    Event *FindEvent( EventType type, NVMObject *recipient, NVMainRequest *req, ncycle_t when ) const;
+    Event *FindEvent( EventType type, NVMObject_hook *recipient, NVMainRequest *req, ncycle_t when ) const;
     bool RemoveEvent( Event *event, ncycle_t when );
     void Process( );
     void Loop( );
