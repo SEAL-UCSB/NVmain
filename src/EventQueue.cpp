@@ -246,7 +246,7 @@ Event *EventQueue::FindEvent( EventType type, NVMObject *recipient, NVMainReques
 Event *EventQueue::FindEvent( EventType type, NVMObject_hook *recipient, NVMainRequest *req, ncycle_t when ) const
 {
     Event *rv = NULL;
-    //if(eventMap.find(when) == eventMap.end()){exit(1);}
+
     if (eventMap.count(when) == 0) {
         return rv;
     } else {
