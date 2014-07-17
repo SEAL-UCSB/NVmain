@@ -73,7 +73,7 @@ EventQueue::~EventQueue( )
 {
 }
 
-void EventQueue::InsertEvent( EventType type, NVMObject *recipient, ncycle_t when, int priority )
+void EventQueue::InsertEvent( EventType type, NVMObject *recipient, ncycle_t when, void *data, int priority )
 {
     /* The parent has our hook in the children list, we need to find this. */
     std::vector<NVMObject_hook *>& children = recipient->GetParent( )->GetTrampoline( )->GetChildren( );
@@ -91,15 +91,15 @@ void EventQueue::InsertEvent( EventType type, NVMObject *recipient, ncycle_t whe
 
     assert( hook != NULL );
 
-    InsertEvent( type, hook, NULL, when, priority );
+    InsertEvent( type, hook, NULL, when, data, priority );
 }
 
-void EventQueue::InsertEvent( EventType type, NVMObject_hook *recipient, ncycle_t when, int priority )
+void EventQueue::InsertEvent( EventType type, NVMObject_hook *recipient, ncycle_t when, void *data, int priority )
 {
-    InsertEvent( type, recipient, NULL, when, priority );
+    InsertEvent( type, recipient, NULL, when, data, priority );
 }
 
-void EventQueue::InsertEvent( EventType type, NVMObject *recipient, NVMainRequest *req, ncycle_t when, int priority )
+void EventQueue::InsertEvent( EventType type, NVMObject *recipient, NVMainRequest *req, ncycle_t when, void *data, int priority )
 {
     /* The parent has our hook in the children list, we need to find this. */
     std::vector<NVMObject_hook *>& children = recipient->GetParent( )->GetTrampoline( )->GetChildren( );
@@ -117,10 +117,10 @@ void EventQueue::InsertEvent( EventType type, NVMObject *recipient, NVMainReques
 
     assert( hook != NULL );
 
-    InsertEvent( type, hook, req, when, priority );
+    InsertEvent( type, hook, req, when, data, priority );
 }
 
-void EventQueue::InsertEvent( EventType type, NVMObject_hook *recipient, NVMainRequest *req, ncycle_t when, int priority )
+void EventQueue::InsertEvent( EventType type, NVMObject_hook *recipient, NVMainRequest *req, ncycle_t when, void *data, int priority )
 {
     /* Create our event */
     Event *event = new Event( );
@@ -129,6 +129,7 @@ void EventQueue::InsertEvent( EventType type, NVMObject_hook *recipient, NVMainR
     event->SetRecipient( recipient );
     event->SetRequest( req );
     event->SetCycle( when );
+    event->SetData( data );
 
     InsertEvent( event, when, priority );
 }

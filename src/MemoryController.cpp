@@ -150,7 +150,7 @@ void MemoryController::Cycle( ncycle_t steps )
             if( commandQueues[queueIdx].empty( )
                 && TransactionAvailable( queueIdx ) )
             {
-                GetEventQueue( )->InsertEvent( EventCycle, this, nextWakeup, transactionQueuePriority );
+                GetEventQueue( )->InsertEvent( EventCycle, this, nextWakeup, NULL, transactionQueuePriority );
 
                 //std::cout << "CY Scheduled transaction queue wakeup at " << nextWakeup << std::endl;
 
@@ -195,7 +195,7 @@ void MemoryController::Enqueue( ncounter_t queueNum, NVMainRequest *request )
 
             if( GetEventQueue( )->FindEvent( EventCycle, this, NULL, nextWakeup ) == NULL )
             {
-                GetEventQueue( )->InsertEvent( EventCycle, this, nextWakeup, transactionQueuePriority );
+                GetEventQueue( )->InsertEvent( EventCycle, this, nextWakeup, NULL, transactionQueuePriority );
 
                 //std::cout << "Waking up transaction scheduler at " << nextWakeup << std::endl;
             }
@@ -232,7 +232,7 @@ void MemoryController::ScheduleCommandWake( )
     {
         ncycle_t nextWakeup = NextIssuable( NULL );
 
-        GetEventQueue( )->InsertEvent( EventCallback, this, nextWakeup, commandQueuePriority );
+        GetEventQueue( )->InsertEvent( EventCallback, this, nextWakeup, NULL, commandQueuePriority );
         commandWakeScheduled = true;
 
         //std::cout << "SCW Scheduled command queue wakeup at " << nextWakeup << std::endl;
@@ -253,7 +253,7 @@ void MemoryController::Callback( void * /*data*/ )
 
     if( nextWakeup != std::numeric_limits<ncycle_t>::max( ) )
     {
-        GetEventQueue( )->InsertEvent( EventCallback, this, nextWakeup, commandQueuePriority );
+        GetEventQueue( )->InsertEvent( EventCallback, this, nextWakeup, NULL, commandQueuePriority );
 
         //std::cout << "CB Scheduled command queue wakeup at " << nextWakeup << std::endl;
     }
@@ -1759,7 +1759,7 @@ void MemoryController::CycleCommandQueues( )
                 {
                     ncycle_t nextWakeup = GetEventQueue( )->GetCurrentCycle( );
 
-                    GetEventQueue( )->InsertEvent( EventCycle, this, nextWakeup, transactionQueuePriority );
+                    GetEventQueue( )->InsertEvent( EventCycle, this, nextWakeup, NULL, transactionQueuePriority );
 
                     //std::cout << "Scheduled transaction queue wakeup at " << nextWakeup << std::endl;
                 }
