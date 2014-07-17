@@ -464,9 +464,9 @@ void GlobalEventQueue::Cycle( ncycle_t steps )
         }
 
         /* Next event occurs after the current number of steps. */
-        if( globalQueueSteps > steps )
+        if( globalQueueSteps > (steps - iterationSteps))
         {
-            currentCycle += steps;
+            currentCycle += steps - iterationSteps;
             Sync( );
             break;
         }
