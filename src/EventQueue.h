@@ -45,7 +45,9 @@ class Event;
 class NVMObject_hook;
 class Config;
 class NVMain;
+
 typedef std::list<Event *> EventList;
+typedef void (NVMObject::*CallbackPtr)(void*);
 
 enum EventType { EventUnknown,
                  EventCycle,
@@ -58,7 +60,7 @@ enum EventType { EventUnknown,
 class Event
 {
   public:
-    Event() : type(EventUnknown), recipient(NULL), request(NULL), data(NULL), priority(0) {}
+    Event() : type(EventUnknown), recipient(NULL), request(NULL), data(NULL), cycle(0), priority(0) {}
     ~Event() {}
 
     void SetType( EventType e ) { type = e; }
@@ -68,6 +70,7 @@ class Event
     void SetData( void *d ) { data = d; }
     void SetCycle( ncycle_t c ) { cycle = c; }
     void SetPriority( int p ) { priority = p; }
+    void SetCallback( CallbackPtr m ) { method = m; }
 
     EventType GetType( ) { return type; }
     NVMObject_hook *GetRecipient( ) { return recipient; }
@@ -75,6 +78,7 @@ class Event
     void *GetData( ) { return data; }
     ncycle_t GetCycle( ) { return cycle; }
     int GetPriority( ) { return priority; }
+    CallbackPtr GetCallback( ) { return method; }
 
  private:
     EventType type;              /* Type of event (which callback to invoke). */
@@ -83,6 +87,7 @@ class Event
     void *data;                  /* Generic data to pass to callback. */
     ncycle_t cycle;
     int priority;
+    CallbackPtr method;
 };
 
 
@@ -97,9 +102,16 @@ class EventQueue
     void InsertEvent( EventType type, NVMObject_hook *recipient, ncycle_t when, void *data = NULL, int priority = 0 );
     void InsertEvent( EventType type, NVMObject *recipient, ncycle_t when, void *data = NULL, int priority = 0 );
     void InsertEvent( Event *event, ncycle_t when, int priority = 0 );
+
+    void InsertCallback( NVMObject *recipient, CallbackPtr method, ncycle_t when, void *data = NULL, int priority = 0 );
+
     Event *FindEvent( EventType type, NVMObject *recipient, NVMainRequest *req, ncycle_t when ) const;
     Event *FindEvent( EventType type, NVMObject_hook *recipient, NVMainRequest *req, ncycle_t when ) const;
+
+    Event *FindCallback( NVMObject *recipient, CallbackPtr method, ncycle_t when, void *data = NULL, int priority = 0 ) const;
+
     bool RemoveEvent( Event *event, ncycle_t when );
+
     void Process( );
     void Loop( );
     void Loop( ncycle_t steps );
