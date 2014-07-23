@@ -63,8 +63,11 @@ enum QueueModel { PerRankQueues, PerBankQueues, PerSubArrayQueues };
  *  By default, the transaction queue has *lower* priority to more closely
  *  model the execution driven order.
  */
-const int transactionQueuePriority = 1;
-const int commandQueuePriority = -1;
+const int transactionQueuePriority = 30;
+const int commandQueuePriority = 40;
+const int refreshPriority = 20;
+const int lowPowerPriority = 10;
+const int cleanupPriority = -10;
 
 class SchedulingPredicate
 {
@@ -112,7 +115,9 @@ class MemoryController : public NVMObject
     virtual void RegisterStats( );
     virtual void CalculateStats( );
 
-    virtual void Callback( void *data );
+    void CommandQueueCallback( void *data );
+    void CleanupCallback( void *data );
+    void RefreshCallback( void *data );
     virtual void Cycle( ncycle_t steps ); 
 
     virtual void SetConfig( Config *conf, bool createChildren = true );
@@ -128,7 +133,6 @@ class MemoryController : public NVMObject
     Config *config;
     ncounter_t psInterval;
     ncycle_t lastCommandWake;
-    bool commandWakeScheduled;
     ncounter_t wakeupCount;
     ncycle_t lastIssueCycle;
 
@@ -141,6 +145,7 @@ class MemoryController : public NVMObject
     ncounter_t GetCommandQueueId( NVMAddress addr );
 
     bool **activateQueued;
+    bool **refreshQueued;
     ncounter_t ***effectiveRow;
     ncounter_t ***effectiveMuxedRow;
     ncounter_t ***activeSubArray;
@@ -229,12 +234,16 @@ class MemoryController : public NVMObject
     void SetRefresh(const ncounter_t, const ncounter_t); 
     /* reset the refresh flag for a given bank group */
     void ResetRefresh(const ncounter_t, const ncounter_t); 
+
+    /* reset the refresh queued flag for a given bank group */
+    void ResetRefreshQueued( const ncounter_t bank, const ncounter_t rank );
     
     /* increment the delayedRefreshCounter in a given bank group */
     void IncrementRefreshCounter(const ncounter_t, const ncounter_t); 
     /* decrement the delayedRefreshCounter in a given bank group */
     void DecrementRefreshCounter(const ncounter_t, const ncounter_t); 
     
+    ncycle_t handledRefresh;
     /* next Refresh rank and bank */
     ncounter_t nextRefreshRank, nextRefreshBank; 
     /* issue REFRESH command if necessary; otherwise do nothing */
@@ -246,6 +255,9 @@ class MemoryController : public NVMObject
     void PowerDown( const ncounter_t& );
     void PowerUp( const ncounter_t& );
     virtual void HandleLowPower( );
+
+    /* Check if a command queue is empty or will be cleaned up. */
+    bool EffectivelyEmpty( const ncounter_t& );
     
     class DummyPredicate : public SchedulingPredicate
     {
