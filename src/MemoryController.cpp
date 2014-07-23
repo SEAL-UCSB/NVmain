@@ -1906,6 +1906,13 @@ void MemoryController::MoveCurrentQueue( )
 
 void MemoryController::CalculateStats( )
 {
+    /* Sync all the child modules to the same cycle before calculating stats. */
+    if( p->EventDriven )
+    {
+        ncycle_t syncCycles = GetEventQueue( )->GetCurrentCycle( ) - lastCommandWake;
+        GetChild( )->Cycle( syncCycles );
+    }
+
     simulation_cycles = GetEventQueue()->GetCurrentCycle();
 
     GetChild( )->CalculateStats( );
