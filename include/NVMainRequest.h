@@ -178,6 +178,7 @@ class NVMainRequest
         FLAG_PAUSED = 16,               // This write was paused
         FLAG_FORCED = 32,               // This write can not be paused or cancelled
         FLAG_PRIORITY = 64,             // Request (or precursor) that takes priority over write
+        FLAG_ISSUED = 128,              // Request has left the command queue
         FLAG_COUNT
     };
 

@@ -700,7 +700,7 @@ ncycle_t DDR3Bank::NextIssuable( NVMainRequest *request )
 {
     ncycle_t nextCompare = 0;
 
-    if( request->type == ACTIVATE ) nextCompare = nextActivate;
+    if( request->type == ACTIVATE || request->type == REFRESH ) nextCompare = nextActivate;
     else if( request->type == READ || request->type == READ_PRECHARGE ) nextCompare = nextRead;
     else if( request->type == WRITE || request->type == WRITE_PRECHARGE ) nextCompare = nextWrite;
     else if( request->type == PRECHARGE || request->type == PRECHARGE_ALL ) nextCompare = nextPrecharge;
