@@ -179,6 +179,22 @@ void EventQueue::InsertEvent( Event *event, ncycle_t when, int priority )
 }
 
 
+void EventQueue::InsertCallback( NVMObject *recipient, CallbackPtr method,
+                                 ncycle_t when, void *data, int priority )
+{
+    Event *event = new Event( );
+
+    event->SetType( EventCallback );
+    event->SetRecipient( recipient );
+    event->SetData( data );
+    event->SetCycle( when );
+    event->SetPriority( priority );
+    event->SetCallback( method );
+
+    InsertEvent( event, when, priority );
+}
+
+
 bool EventQueue::RemoveEvent( Event *event, ncycle_t when )
 {
     bool rv = false;
@@ -267,6 +283,32 @@ Event *EventQueue::FindEvent( EventType type, NVMObject_hook *recipient, NVMainR
 }
 
 
+Event *EventQueue::FindCallback( NVMObject *recipient, CallbackPtr method, ncycle_t when, void *data, int priority ) const
+{
+    Event *rv = NULL;
+
+    if( eventMap.count(when) != 0 )
+    {
+        const EventList& eventList = eventMap.find(when)->second;
+
+        EventList::const_iterator it;
+        for( it = eventList.begin(); it != eventList.end(); it++ )
+        {
+            if( (*it)->GetRecipient()->GetTrampoline() == recipient
+                && (*it)->GetCallback() == method
+                && (*it)->GetData() == data 
+                && (*it)->GetPriority() == priority )
+            {
+                rv = (*it);
+                break;
+            }
+        }
+    }
+
+    return rv;
+}
+
+
 void EventQueue::Loop( )
 {
     /* 
@@ -342,7 +384,12 @@ void EventQueue::Process( )
                 break;
 
             case EventCallback:
-                (*it)->GetRecipient( )->Callback( (*it)->GetData() );
+            {
+                CallbackPtr cb = (*it)->GetCallback( );
+                NVMObject *thisPtr = (*it)->GetRecipient( )->GetTrampoline( );
+                (*thisPtr.*cb)( (*it)->GetData() );
+                break;
+            }
 
             case EventUnknown:
                 // TODO: Add this
