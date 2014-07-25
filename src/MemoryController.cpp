@@ -40,6 +40,7 @@
 #include "Interconnect/InterconnectFactory.h"
 #include "src/Rank.h"
 #include "src/SubArray.h"
+#include "include/NVMHelpers.h"
 
 #include <sstream>
 #include <cassert>
@@ -187,6 +188,15 @@ void MemoryController::Prequeue( ncounter_t queueNum, NVMainRequest *request )
 
 void MemoryController::Enqueue( ncounter_t queueNum, NVMainRequest *request )
 {
+    /* Retranslate once for this channel, but leave channel the same */
+    ncounter_t channel, rank, bank, row, col, subarray;
+
+    GetDecoder( )->Translate( request->address.GetPhysicalAddress( ), 
+                               &row, &col, &bank, &rank, &channel, &subarray );
+    channel = request->address.GetChannel( );
+    request->address.SetTranslatedAddress( row, col, bank, rank, channel, subarray );
+
+    /* Enqueue the request. */
     assert( queueNum < transactionQueueCount );
 
     transactionQueues[queueNum].push_back( request );
@@ -365,12 +375,44 @@ void MemoryController::SetConfig( Config *conf, bool createChildren )
     
     if( createChildren )
     {
+        uint64_t channels, ranks, banks, rows, cols, subarrays;
+
         /* When selecting a child, use the bank field from the decoder. */
         AddressTranslator *mcAT = DecoderFactory::CreateDecoderNoWarn( conf->GetString( "Decoder" ) );
-        mcAT->SetTranslationMethod( GetParent( )->GetTrampoline( )->GetDecoder( )->GetTranslationMethod( ) );
         mcAT->SetDefaultField( NO_FIELD );
         mcAT->SetConfig( conf, createChildren );
         SetDecoder( mcAT );
+
+        /* Get the parent's method information. */
+        GetParent()->GetTrampoline()->GetDecoder()->GetTranslationMethod()->GetCount(
+                    &rows, &cols, &banks, &ranks, &channels, &subarrays );
+
+        /* Allows for differing layouts per channel by overwriting the method. */
+        if( conf->KeyExists( "MATHeight" ) )
+        {
+            rows = p->MATHeight;
+            subarrays = p->ROWS / p->MATHeight;
+        }
+        else
+        {
+            rows = p->ROWS;
+            subarrays = 1;
+        }
+        cols = p->COLS;
+        banks = p->BANKS;
+        ranks = p->RANKS;
+
+        TranslationMethod *method = new TranslationMethod( );
+
+        method->SetBitWidths( NVM::mlog2( rows ), 
+                    NVM::mlog2( cols ), 
+                    NVM::mlog2( banks ), 
+                    NVM::mlog2( ranks ), 
+                    NVM::mlog2( channels ), 
+                    NVM::mlog2( subarrays )
+                    );
+        method->SetCount( rows, cols, banks, ranks, channels, subarrays );
+        mcAT->SetTranslationMethod( method );
 
         /* Initialize interconnect */
         std::stringstream confString;
