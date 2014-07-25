@@ -44,7 +44,6 @@
 #include "src/EnduranceModel.h"
 #include "include/NVMAddress.h"
 #include "include/NVMainRequest.h"
-#include "src/Params.h"
 #include "src/SubArray.h"
 #include "src/Stats.h"
 
@@ -86,7 +85,6 @@ class DDR3Bank : public Bank
     virtual ncycle_t NextIssuable( NVMainRequest *request );
 
     virtual void SetConfig( Config *c, bool createChildren = true );
-    virtual void SetParams( Params *params ) { p = params; }
 
     DDR3BankState GetState( );
 
@@ -167,8 +165,6 @@ class DDR3Bank : public Bank
 
     ncounter_t bankId;
  
-    Params *p;
-
     virtual bool Activate( NVMainRequest *request );
     virtual bool Read( NVMainRequest *request );
     virtual bool Write( NVMainRequest *request );

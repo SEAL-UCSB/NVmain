@@ -38,7 +38,6 @@
 
 #include "src/Rank.h"
 #include "src/Bank.h"
-#include "src/Params.h"
 
 #include <cstdint>
 #include <list>
@@ -77,7 +76,6 @@ class StandardRank : public Rank
     ~StandardRank( );
 
     void SetConfig( Config *c, bool createChildren = true );
-    void SetParams( Params *params ) { p = params; }
 
     bool IssueCommand( NVMainRequest *request );
     bool IsIssuable( NVMainRequest *request, FailReason *reason = NULL );
@@ -144,8 +142,6 @@ class StandardRank : public Rank
     bool PowerUp( NVMainRequest *request );
     bool CanPowerDown( NVMainRequest *request );
     bool CanPowerUp( NVMainRequest *request );
-
-    Params *p;
 };
 
 };

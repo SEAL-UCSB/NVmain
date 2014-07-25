@@ -42,7 +42,6 @@
 #include "src/Config.h"
 #include "src/Interconnect.h"
 #include "src/AddressTranslator.h"
-#include "src/Params.h"
 #include "include/NVMainRequest.h"
 #include <deque>
 #include <iostream>
@@ -122,7 +121,6 @@ class MemoryController : public NVMObject
 
     virtual void SetConfig( Config *conf, bool createChildren = true );
     void SetMappingScheme( );
-    void SetParams( Params *params ) { p = params; }
     Config *GetConfig( );
 
     void SetID( unsigned int id );
@@ -269,8 +267,6 @@ class MemoryController : public NVMObject
 
     /* Stats */
     ncounter_t simulation_cycles;
-
-    Params *p;
 };
 
 };

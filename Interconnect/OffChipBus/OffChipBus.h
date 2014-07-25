@@ -47,7 +47,6 @@ class OffChipBus : public Interconnect
     ~OffChipBus( );
 
     void SetConfig( Config *c, bool createChildren = true );
-    void SetParams( Params *params ) { p = params; }
 
     bool IssueCommand( NVMainRequest *req );
     bool IsIssuable( NVMainRequest *req, FailReason *reason = NULL );
@@ -66,8 +65,6 @@ class OffChipBus : public Interconnect
     Config *conf;
 
     double CalculateIOPower( bool isRead, unsigned int bitValue );
-
-    Params *p;
 };
 
 };

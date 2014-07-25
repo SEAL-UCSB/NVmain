@@ -60,7 +60,6 @@ class NVMain : public NVMObject
     ~NVMain( );
 
     void SetConfig( Config *conf, std::string memoryName = "defaultMemory", bool createChildren = true );
-    void SetParams( Params *params ) { p = params; } 
 
     Config *GetConfig( );
 
@@ -101,8 +100,6 @@ class NVMain : public NVMObject
 
     void PrintPreTrace( NVMainRequest *request );
     void GeneratePrefetches( NVMainRequest *request, std::vector<NVMAddress>& prefetchList );
-
-    Params *p;
 };
 
 };
