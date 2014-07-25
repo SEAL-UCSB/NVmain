@@ -37,6 +37,7 @@
 #include "Utils/Visualizer/Visualizer.h"
 #include "Utils/RequestTracer/RequestTracer.h"
 #include "Utils/PostTrace/PostTrace.h"
+#include "Utils/CoinMigrator/CoinMigrator.h"
 
 
 using namespace NVM;
@@ -49,6 +50,7 @@ NVMObject *HookFactory::CreateHook( std::string hookName )
     if( hookName == "Visualizer" ) hook = new Visualizer( );
     else if( hookName == "RequestTracer" ) hook = new RequestTracer( );
     else if( hookName == "PostTrace" ) hook = new PostTrace( );
+    else if( hookName == "CoinMigrator" ) hook = new CoinMigrator( );
     //else if( hookName == "MyHook" ) hook = new MyHook( );
 
     if( hook != NULL )
