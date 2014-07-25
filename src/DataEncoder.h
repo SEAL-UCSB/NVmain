@@ -51,7 +51,6 @@ class DataEncoder : public NVMObject
     ~DataEncoder( );
 
     virtual void SetConfig( Config *conf, bool createChildren = true );
-    void SetParams( Params *params ) { p = params; }
 
     virtual ncycle_t Read( NVMainRequest *request );
     virtual ncycle_t Write( NVMainRequest *request );
@@ -60,8 +59,6 @@ class DataEncoder : public NVMObject
 
     virtual void Cycle( ncycle_t steps );
 
-  protected:
-    Params *p;
 };
 
 

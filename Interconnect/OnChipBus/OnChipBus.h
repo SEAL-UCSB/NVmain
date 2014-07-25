@@ -36,7 +36,6 @@
 
 #include "src/Rank.h"
 #include "src/Interconnect.h"
-#include "src/Params.h"
 #include <iostream>
 
 namespace NVM {
@@ -48,7 +47,6 @@ class OnChipBus : public Interconnect
     ~OnChipBus( );
 
     void SetConfig( Config *c, bool createChildren = true );
-    void SetParams( Params *params ) { p = params; }
 
     bool IssueCommand( NVMainRequest *mop );
     bool IsIssuable( NVMainRequest *mop, FailReason *reason = NULL );
@@ -66,8 +64,6 @@ class OnChipBus : public Interconnect
 
     Config *conf;
     Rank **ranks;
-
-    Params *p;
 };
 
 };

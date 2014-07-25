@@ -62,8 +62,6 @@ class EnduranceModel : public NVMObject
 
     virtual void SetConfig( Config *conf, bool createChildren = true );
 
-    void SetParams( Params *params ) { p = params; }
-
     uint64_t GetWorstLife( );
     uint64_t GetAverageLife( );
 
@@ -74,7 +72,6 @@ class EnduranceModel : public NVMObject
   protected:
     EnduranceDistribution *enduranceDist;
     std::map<uint64_t, uint64_t> life;
-    Params *p;
     
     bool DecrementLife( uint64_t addr );
     bool IsDead( uint64_t addr );

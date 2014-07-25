@@ -92,6 +92,7 @@ class GlobalEventQueue;
 class AddressTranslator;
 class NVMObject;
 class Config;
+class Params;
 
 enum HookType { NVMHOOK_NONE = 0,
                 NVMHOOK_PREISSUE,                /* Call hook before IssueCommand */
@@ -201,6 +202,9 @@ class NVMObject
     Stats* GetStats( );
     virtual void RegisterStats( );
 
+    void SetParams( Params *params );
+    Params *GetParams( );
+
     void StatName( std::string name );
     std::string StatName( );
 
@@ -222,6 +226,7 @@ class NVMObject
     NVMObject_hook *parent;
     AddressTranslator *decoder;
     Stats *stats;
+    Params *p;
     std::string statName;
     std::vector<NVMObject_hook *> children;
     std::vector<NVMObject *> *hooks;

@@ -95,7 +95,6 @@ class SubArray : public NVMObject
     ncycle_t NextIssuable( NVMainRequest *request );
 
     void SetConfig( Config *c, bool createChildren = true );
-    void SetParams( Params *params ) { p = params; }
 
     SubArrayState GetState( );
 
@@ -195,8 +194,6 @@ class SubArray : public NVMObject
 
     ncounter_t subArrayId;
  
-    Params *p;
-
     std::map<uint64_t, uint64_t> mlcTimingMap;
     std::map<uint64_t, uint64_t> cancelCountMap;
     std::map<double, uint64_t> wpPauseMap;
