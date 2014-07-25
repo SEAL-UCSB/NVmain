@@ -38,6 +38,11 @@
 
 using namespace NVM;
 
+NormalDistribution::NormalDistribution( )
+{
+    nextEndurance = 0.0f;
+}
+
 NormalDistribution::NormalDistribution( Config *conf )
 {
     config = conf;
@@ -65,7 +70,6 @@ NormalDistribution::NormalDistribution( Config *conf )
         variance = conf->GetValue( "EnduranceDistVariance" );
     }
 
-    srand( (unsigned int)time( NULL ) );
     nextEndurance = 0.0f;
 }
 
