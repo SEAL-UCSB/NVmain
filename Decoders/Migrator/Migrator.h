@@ -31,52 +31,69 @@
 *                     Website: http://www.cse.psu.edu/~poremba/ )
 *******************************************************************************/
 
-#include "Decoders/DecoderFactory.h"
-#include <iostream>
+#ifndef __COIN_MIGRATOR_H__
+#define __COIN_MIGRATOR_H__
 
-/* Add your decoder's include file below. */
-#include "Decoders/DRCDecoder/DRCDecoder.h"
-#include "Decoders/Migrator/Migrator.h"
+#include "src/AddressTranslator.h"
+#include "src/Config.h"
+#include "include/NVMAddress.h"
 
-using namespace NVM;
-
-AddressTranslator *DecoderFactory::CreateDecoder( std::string decoder )
+namespace NVM
 {
-    AddressTranslator *trans = NULL;
 
-    if( decoder == "Default" ) trans = new AddressTranslator( );
-    else if( decoder == "DRCDecoder" ) trans = new DRCDecoder( );
-    else if( decoder == "Migrator" ) trans = new Migrator( );
 
-    return trans;
-}
+enum MigratorState
+{      
+    MIGRATION_UNKNOWN = 0, // Error state
+    MIGRATION_READING,     // Read in progress for this page
+    MIGRATION_BUFFERED,    // Read is done, waiting for writes to be queued
+    MIGRATION_WRITING,     // Writes queued, waiting for request complete
+    MIGRATION_DONE         // Migration successfully completed
+};
 
-AddressTranslator *DecoderFactory::CreateNewDecoder( std::string decoder )
+
+class Migrator : public AddressTranslator
 {
-    AddressTranslator *trans = NULL;
+  public:
+    Migrator();
+    ~Migrator();
 
-    trans = CreateDecoder( decoder );
+    void SetConfig( Config *config, bool createChildren = true );
 
-    /* If decoder isn't found, default to the regular address translator */
-    if( trans == NULL )
-    {
-        trans = new AddressTranslator( );
-        
-        std::cout << "Could not find Decoder named `" << decoder 
-            << "'. Using default decoder." << std::endl;
-    }
+    virtual void Translate( uint64_t address, uint64_t *row, uint64_t *col, uint64_t *bank, 
+                            uint64_t *rank, uint64_t *channel, uint64_t *subarray );
+    using AddressTranslator::Translate;
 
-    return trans;
-}
+    void StartMigration( NVMAddress& promotee, NVMAddress& demotee );
+    void SetMigrationState( NVMAddress& address, MigratorState newState );
+    bool Migrating( );
+    bool IsBuffered( NVMAddress& address );
+    bool IsMigrated( NVMAddress& address );
 
-AddressTranslator *DecoderFactory::CreateDecoderNoWarn( std::string decoder )
-{
-    AddressTranslator *trans = NULL;
+    void RegisterStats( );
 
-    trans = CreateDecoder( decoder );
+    void CreateCheckpoint( std::string dir );
+    void RestoreCheckpoint( std::string dir );
 
-    if( trans == NULL ) 
-        trans = new AddressTranslator( );
+  private:
+    std::map<uint64_t, uint64_t> migrationMap;
+    std::map<uint64_t, MigratorState> migrationState;
 
-    return trans;
-}
+    uint64_t numChannels, numBanks, numRanks, numSubarrays;
+
+    /* Pages being swapped in and swapped out. */
+    bool migrating;
+    uint64_t inputPage, outputPage;
+
+    ncounter_t migratedAccesses;
+
+    uint64_t GetAddressKey( NVMAddress& address );
+
+};
+
+
+};
+
+
+#endif
+

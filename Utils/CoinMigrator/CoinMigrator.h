@@ -31,52 +31,60 @@
 *                     Website: http://www.cse.psu.edu/~poremba/ )
 *******************************************************************************/
 
-#include "Decoders/DecoderFactory.h"
-#include <iostream>
+#ifndef __NVMAIN_UTILS_COINMIGRATOR_H__
+#define __NVMAIN_UTILS_COINMIGRATOR_H__
 
-/* Add your decoder's include file below. */
-#include "Decoders/DRCDecoder/DRCDecoder.h"
-#include "Decoders/Migrator/Migrator.h"
+#include "src/NVMObject.h"
+#include "src/Params.h"
+#include "include/NVMainRequest.h"
 
-using namespace NVM;
+namespace NVM {
 
-AddressTranslator *DecoderFactory::CreateDecoder( std::string decoder )
+#define MIG_READ_TAG GetTagGenerator( )->CreateTag("MIGREAD")
+#define MIG_WRITE_TAG GetTagGenerator( )->CreateTag("MIGWRITE")
+
+class Migrator;
+
+class CoinMigrator : public NVMObject
 {
-    AddressTranslator *trans = NULL;
+  public:
+    CoinMigrator( );
+    ~CoinMigrator( );
 
-    if( decoder == "Default" ) trans = new AddressTranslator( );
-    else if( decoder == "DRCDecoder" ) trans = new DRCDecoder( );
-    else if( decoder == "Migrator" ) trans = new Migrator( );
+    void Init( Config *config );
 
-    return trans;
-}
+    bool IssueAtomic( NVMainRequest *request );
+    bool IssueCommand( NVMainRequest *request );
+    bool RequestComplete( NVMainRequest *request );
 
-AddressTranslator *DecoderFactory::CreateNewDecoder( std::string decoder )
-{
-    AddressTranslator *trans = NULL;
+    void Cycle( ncycle_t steps );
 
-    trans = CreateDecoder( decoder );
+  private:
+    bool promoBuffered, demoBuffered; 
+    NVMAddress demotee, promotee; 
+    NVMainRequest *promoRequest;
+    NVMainRequest *demoRequest;
 
-    /* If decoder isn't found, default to the regular address translator */
-    if( trans == NULL )
-    {
-        trans = new AddressTranslator( );
-        
-        std::cout << "Could not find Decoder named `" << decoder 
-            << "'. Using default decoder." << std::endl;
-    }
+    unsigned int seed;
+    double probability;
+    ncounter_t numCols;
+    bool queriedMemory;
+    ncycle_t bufferReadLatency;
+    Params *promotionChannelParams;
+    ncounter_t totalPromotionPages;
+    ncounter_t currentPromotionPage;
+    ncounter_t promotionChannel;
 
-    return trans;
-}
+    ncounter_t migrationCount;
+    ncounter_t queueWaits;
+    ncounter_t bufferedReads;
 
-AddressTranslator *DecoderFactory::CreateDecoderNoWarn( std::string decoder )
-{
-    AddressTranslator *trans = NULL;
+    bool CheckIssuable( NVMAddress address, OpType type );
+    bool TryMigration( NVMainRequest *request, bool atomic );
+    void ChooseVictim( Migrator *at, NVMAddress& promo, NVMAddress& victim );
+};
 
-    trans = CreateDecoder( decoder );
+};
 
-    if( trans == NULL ) 
-        trans = new AddressTranslator( );
+#endif
 
-    return trans;
-}
