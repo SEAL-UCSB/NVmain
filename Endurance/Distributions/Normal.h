@@ -41,7 +41,7 @@ namespace NVM {
 class NormalDistribution : public EnduranceDistribution
 {
   public:
-    NormalDistribution( ) { }
+    NormalDistribution( );
     NormalDistribution( Config *conf );
     ~NormalDistribution( ) { }
 
