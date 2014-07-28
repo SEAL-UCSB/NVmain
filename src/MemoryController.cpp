@@ -689,7 +689,7 @@ bool MemoryController::HandleRefresh( )
             ncounter_t j = (nextRefreshBank + bankIdx * p->BanksPerRefresh) % p->BANKS;
             FailReason fail;
 
-            if( NeedRefresh( j, i ) && IsRefreshBankQueueEmpty( j , i ) )
+            if( NeedRefresh( j, i ) /*&& IsRefreshBankQueueEmpty( j , i )*/ )
             {
                 /* create a refresh command that will be sent to ranks */
                 NVMainRequest* cmdRefresh = MakeRefreshRequest( 0, 0, j, i, 0 );
@@ -713,8 +713,6 @@ bool MemoryController::HandleRefresh( )
 
                             commandQueues[queueId].push_back( cmdRefPre );
 
-                            ScheduleCommandWake( );
-
                             /* clear all active subarrays */
                             for( ncounter_t sa = 0; sa < subArrayNum; sa++ )
                             {
@@ -724,9 +722,6 @@ bool MemoryController::HandleRefresh( )
                             }
                             activateQueued[i][refBank] = false;
                         }
-
-                        /* Disallow queuing commands to non-bank-head queues. */
-                        refreshQueued[i][refBank] = true;
                     }
                 }
 
@@ -735,6 +730,14 @@ bool MemoryController::HandleRefresh( )
                 /* send the refresh command to the rank */
                 cmdRefresh->issueCycle = GetEventQueue()->GetCurrentCycle();
                 commandQueues[queueId].push_back( cmdRefresh );
+
+                for( ncounter_t tmpBank = 0; tmpBank < p->BanksPerRefresh; tmpBank++ )
+                {
+                    ncounter_t refBank = (tmpBank + j) % p->BANKS;
+
+                    /* Disallow queuing commands to non-bank-head queues. */
+                    refreshQueued[i][refBank] = true;
+                }
 
                 /* decrement the corresponding counter by 1 */
                 DecrementRefreshCounter( j, i );
@@ -755,6 +758,8 @@ bool MemoryController::HandleRefresh( )
                 }
 
                 handledRefresh = GetEventQueue()->GetCurrentCycle();
+
+                ScheduleCommandWake( );
 
                 /* we should return since one time only one command can be issued */
                 return true;  
@@ -1895,14 +1900,14 @@ void MemoryController::CycleCommandQueues( )
 
             GetChild( )->IssueCommand( queueHead );
 
+            queueHead->flags |= NVMainRequest::FLAG_ISSUED;
+
             if( queueHead->type == REFRESH )
                 ResetRefreshQueued( queueHead->address.GetBank(),
                                     queueHead->address.GetRank() );
 
             if( GetEventQueue( )->GetCurrentCycle( ) != lastIssueCycle )
                 lastIssueCycle = GetEventQueue( )->GetCurrentCycle( );
-
-            queueHead->flags |= NVMainRequest::FLAG_ISSUED;
 
             /* Get this cleaned this up. */
             ncycle_t cleanupCycle = GetEventQueue()->GetCurrentCycle() + 1;
