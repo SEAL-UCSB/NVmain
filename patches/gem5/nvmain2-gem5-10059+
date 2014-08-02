@@ -1,0 +1,152 @@
+# HG changeset patch
+# Parent dd0cecdfa4afc0f456314588d7760937b1c38f4e
+Fix having multiple instances of NVMainMemory, such as X86 with more than 3GB of memory
+
+diff -r dd0cecdfa4af configs/common/MemConfig.py
+--- a/configs/common/MemConfig.py	Mon Jul 28 18:40:18 2014 -0400
++++ b/configs/common/MemConfig.py	Mon Jul 28 18:40:35 2014 -0400
+@@ -49,6 +49,7 @@
+ # fina; list. A target may be specified as a tuple, in which case the
+ # first available memory controller model in the tuple will be used.
+ _mem_aliases_all = [
++    ("nvmain", "NVMainMemory"),
+     ("simple_mem", "SimpleMemory"),
+     ("ddr3_1600_x64", "DDR3_1600_x64"),
+     ("lpddr2_s4_1066_x32", "LPDDR2_S4_1066_x32"),
+diff -r dd0cecdfa4af configs/common/Options.py
+--- a/configs/common/Options.py	Mon Jul 28 18:40:18 2014 -0400
++++ b/configs/common/Options.py	Mon Jul 28 18:40:35 2014 -0400
+@@ -55,6 +55,12 @@
+     sys.exit(0)
+ 
+ def addCommonOptions(parser):
++    # Check for extra nvmain configuration override options
++    for arg in sys.argv:
++        if arg[:9] == "--nvmain-":
++            parser.add_option(arg, type="string", default="NULL",
++                       help="Set NVMain configuration value for a parameter")
++
+     # system options
+     parser.add_option("--list-cpu-types",
+                       action="callback", callback=_listCpuTypes,
+diff -r dd0cecdfa4af configs/ruby/Ruby.py
+--- a/configs/ruby/Ruby.py	Mon Jul 28 18:40:18 2014 -0400
++++ b/configs/ruby/Ruby.py	Mon Jul 28 18:40:35 2014 -0400
+@@ -47,6 +47,86 @@
+ 
+ addToPath('../topologies')
+ 
++import inspect
++from textwrap import TextWrapper
++
++RubyMemoryControl = None
++
++_ruby_mem_aliases_all = [
++    ("ruby", "RubyMemoryControl"),
++    ("nvmain", "NVMMemoryControl"),
++    ]
++
++_ruby_mem_classes = {}
++_ruby_mem_aliases = {}
++
++def is_ruby_mem_class(cls):
++    """Determine if a class is a memory controller that can be instantiated"""
++
++    # We can't use the normal inspect.isclass because the ParamFactory
++    # and ProxyFactory classes have a tendency to confuse it.
++    try:
++        return issubclass(cls, m5.objects.MemoryControl) and \
++            not cls.abstract
++    except TypeError:
++        return False
++
++# Add all memory controllers in the object hierarchy.
++for name, cls in inspect.getmembers(m5.objects, is_ruby_mem_class):
++    _ruby_mem_classes[name] = cls
++
++for alias, target in _ruby_mem_aliases_all:
++    if isinstance(target, tuple):
++        # Some aliases contain a list of CPU model sorted in priority
++        # order. Use the first target that's available.
++        for t in target:
++            if t in _ruby_mem_classes:
++                _ruby_mem_aliases[alias] = t
++                break
++    elif target in _ruby_mem_classes:
++        # Normal alias
++        _ruby_mem_aliases[alias] = target
++
++def ruby_mem_names():
++    """Return a list of valid CPU names."""
++    return _ruby_mem_classes.keys() + _ruby_mem_aliases.keys()
++
++def print_ruby_mem_list():
++    """Print a list of available memory classes including their aliases."""
++
++    print "Available memory classes:"
++    doc_wrapper = TextWrapper(initial_indent="\t\t", subsequent_indent="\t\t")
++    for name, cls in _ruby_mem_classes.items():
++        print "\t%s" % name
++
++        # Try to extract the class documentation from the class help
++        # string.
++        doc = inspect.getdoc(cls)
++        if doc:
++            for line in doc_wrapper.wrap(doc):
++                print line
++
++    if _ruby_mem_aliases:
++        print "\nMemory aliases:"
++        for alias, target in _ruby_mem_aliases.items():
++            print "\t%s => %s" % (alias, target)
++
++def get_ruby_mem_class(name):
++    """Get a memory class from a user provided class name or alias."""
++
++    real_name = _ruby_mem_aliases.get(name, name)
++
++    try:
++        ruby_mem_class = _ruby_mem_classes[real_name]
++        return ruby_mem_class
++    except KeyError:
++        print "%s is not a valid memory controller." % (name,)
++        sys.exit(1)
++
++def _listRubyMemTypes(option, opt, value, parser):
++    print_ruby_mem_list()
++    sys.exit(0)
++
+ def define_options(parser):
+     # By default, ruby uses the simple timing cpu
+     parser.set_defaults(cpu_type="timing")
+@@ -75,6 +155,14 @@
+                       help="high order address bit to use for numa mapping. " \
+                            "0 = highest bit, not specified = lowest bit")
+ 
++    # memory controller options
++    parser.add_option("--ruby-mem-type", type="choice", default="nvmain",
++                      choices=ruby_mem_names(),
++                      help = "type of memory to use with ruby")
++    parser.add_option("--list-ruby-mem-types",
++                      action="callback", callback=_listRubyMemTypes,
++                      help="List available memory types")
++
+     # ruby sparse memory options
+     parser.add_option("--use-map", action="store_true", default=False)
+     parser.add_option("--map-levels", type="int", default=4)
+@@ -116,6 +204,15 @@
+         print "Error: could not create sytem for ruby protocol %s" % protocol
+         raise
+ 
++    # Override the memBuffer for each directory.
++    for i in xrange(options.num_dirs):
++        print "Changing memory type to %s" % options.ruby_mem_type
++        mem_cntrl_class = get_ruby_mem_class(options.ruby_mem_type)
++        new_mem_cntrl = mem_cntrl_class(version = i, ruby_system = ruby)
++        ruby.no_mem_vec = False
++
++        exec("ruby.dir_cntrl%d.memBuffer = new_mem_cntrl" % i)
++
+     # Create a port proxy for connecting the system port. This is
+     # independent of the protocol and kept in the protocol-agnostic
+     # part (i.e. here).
