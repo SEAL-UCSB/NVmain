@@ -203,10 +203,16 @@ class SubArray : public NVMObject
     std::string wpPauseHisto;
     std::string wpCancelHisto;
 
-    ncycle_t WriteCellData( NVMainRequest *request );
+    ncycle_t WriteCellData1( NVMainRequest *request );
+    ncycle_t WriteCellData2( NVMainRequest *request );
     void CheckWritePausing( );
 
     ncycle_t UpdateEndurance( NVMainRequest *request );
+
+    ncounter_t Count32MLC2( uint8_t value, uint32_t data );
+    ncounter_t CountBitsMLC2( uint8_t value, uint32_t *data, ncounter_t words );
+    ncounter_t Count32MLC1( uint32_t data );
+    ncounter_t CountBitsMLC1( uint8_t value, uint32_t *data, ncounter_t words );
 };
 
 };
