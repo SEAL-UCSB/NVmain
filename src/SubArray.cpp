@@ -46,6 +46,8 @@
 #include <iostream>
 #include <limits>
 
+#define WriteCellData WriteCellData2
+
 using namespace NVM;
 
 SubArray::SubArray( )
@@ -912,17 +914,20 @@ bool SubArray::BetweenWriteIterations( )
     return rv;
 }
 
-ncycle_t SubArray::WriteCellData( NVMainRequest *request )
+ncycle_t SubArray::WriteCellData2( NVMainRequest *request )
 {
+    writeIterationStarts.clear( );
+
     if( p->UniformWrites )
     {
-        writeIterationStarts.clear( );
-
-        for( ncounter_t iter = 0; iter < averageWriteIterations; iter++ )
+        if( p->MLCLevels > 1 )
         {
-            ncycle_t iterStart = GetEventQueue( )->GetCurrentCycle( );
-            iterStart += iter * static_cast<ncycle_t>(p->tWP / averageWriteIterations);
-            writeIterationStarts.insert( iterStart );
+            for( ncounter_t iter = 0; iter < averageWriteIterations; iter++ )
+            {
+                ncycle_t iterStart = GetEventQueue( )->GetCurrentCycle( );
+                iterStart += iter * static_cast<ncycle_t>(p->tWP / averageWriteIterations);
+                writeIterationStarts.insert( iterStart );
+            }
         }
 
         return p->tWP;
@@ -930,183 +935,127 @@ ncycle_t SubArray::WriteCellData( NVMainRequest *request )
 
     ncycle_t maxDelay = 0;
 
-    Bank *parentBank = dynamic_cast<Bank*>(GetParent( )->GetTrampoline( ));
-    assert( parentBank != NULL );
-
-    ncounter_t parentBankId = parentBank->GetId( );
     unsigned int memoryWordSize = static_cast<unsigned int>(p->tBURST * p->RATE * p->BusWidth);
-    unsigned int deviceCount = static_cast<unsigned int>(p->BusWidth / p->DeviceWidth);
-    unsigned int writeSize = memoryWordSize / deviceCount;
-    unsigned int writeBytes = writeSize / 8;
+    unsigned int writeBytes32 = memoryWordSize / 32;
+    uint32_t *rawData = reinterpret_cast<uint32_t*>(request->data.rawData);
 
-    /* Assume that data written is not interleaved over devices. */
-    unsigned int offset = writeBytes * static_cast<unsigned int>(parentBankId);
-    std::deque<uint8_t> writeBits;
-    std::deque<uint8_t> writeMask;
+    /* No data... assume all 0. */
+    if( !rawData )
+        return p->tWP0;
 
-    /* Get each byte, then push back each bit to the writeBits vector. */
-    for( unsigned int byteIdx = 0; byteIdx < writeBytes; byteIdx++ )
+    /* Check the data for the worst-case write time. */
+    if( p->MLCLevels == 1 )
     {
-        uint8_t curByte = request->data.GetByte( byteIdx + offset );
-        uint8_t curMask = request->data.GetMask( byteIdx + offset );
+        ncounter_t writeCount0 = CountBitsMLC1( 0, rawData, writeBytes32 );
+        ncounter_t writeCount1 = CountBitsMLC1( 1, rawData, writeBytes32 );
 
-        for( unsigned int bitIdx = 0; bitIdx < 8; bitIdx++ )
+        if( p->EnergyModel != "current" )
         {
-            writeBits.push_back( ((curByte & 0x80) ? 1 : 0) );
-            writeMask.push_back( ((curMask & 0x80) ? 1 : 0) );
-            curByte = curByte << 1;
+            subArrayEnergy += p->Ereset * writeCount0;
+            subArrayEnergy += p->Eset * writeCount1;
+            writeEnergy += p->Ereset * writeCount0;
+            writeEnergy += p->Eset * writeCount1;
         }
+
+        ncycle_t delay0 = (writeCount0 == 0) ? 0 : p->tWP0;
+        ncycle_t delay1 = (writeCount1 == 0) ? 0 : p->tWP1;
+
+        maxDelay = MAX(delay0, delay1);
     }
-
-    /* Based on the MLC level count, get this many bits at once. */
-    unsigned int writeCount = writeSize / static_cast<unsigned int>(p->MLCLevels);
-
-    for( unsigned int writeIdx = 0; writeIdx < writeCount; writeIdx++ )
+    else if( p->MLCLevels == 2 )
     {
-        unsigned int cellData = 0;
-        unsigned int maskData = 0;
+        ncounter_t writeCount00 = CountBitsMLC2( 0, rawData, writeBytes32 );
+        ncounter_t writeCount01 = CountBitsMLC2( 1, rawData, writeBytes32 );
+        ncounter_t writeCount10 = CountBitsMLC2( 2, rawData, writeBytes32 );
+        ncounter_t writeCount11 = CountBitsMLC2( 3, rawData, writeBytes32 );
 
-        for( unsigned int bitIdx = 0; bitIdx < p->MLCLevels; bitIdx++ )
+        assert( (writeCount00 + writeCount01 + writeCount10 + writeCount11)
+                == (memoryWordSize/2) );
+
+        /* 
+         *  Naive scheduling -- Assume we have enough write drivers for all the data.
+         *  Then, simply choose the max write pulse time as the delay value.
+         *
+         *  TODO -- Tetris the write pulses based on number of write drivers.
+         */
+        ncycle_t oncePulseDelay = 0;
+        ncycle_t repeatPulseDelay = 0;
+
+        ncycle_t delay00 = (writeCount00 == 0) ? 0 : p->nWP00;
+        ncycle_t delay01 = (writeCount01 == 0) ? 0 : p->nWP01;
+        ncycle_t delay10 = (writeCount10 == 0) ? 0 : p->nWP10;
+        ncycle_t delay11 = (writeCount11 == 0) ? 0 : p->nWP11;
+
+        ncycle_t programPulseCount = MAX( MAX( delay00, delay01 ),
+                                          MAX( delay10, delay11 ) );
+        ncycle_t thisPulseCount = 0;
+
+        /* Randomize the pulse count for intermediate states. */
+        if( writeCount01 || writeCount10 )
         {
-            cellData <<= 1;
-            cellData |= writeBits.front( );
-            writeBits.pop_front( );
-
-            maskData <<= 1;
-            maskData |= writeMask.front( );
-            writeMask.pop_front( );
-        }
-
-        /* If all bits are masked out we don't need to write this cell at all. */
-        if( maskData == 0 )
-            continue;
-
-        /* Get the delay and add the energy. Assume one-RESET-multiple-SET */
-        ncycle_t writePulseTime = 0;
-        ncounters_t programPulseCount = 0;
-
-        if( p->MLCLevels == 1 )
-        {
-            if( cellData == 0 )
-                writePulseTime = p->tWP0;
-            else
-                writePulseTime = p->tWP1;
-
-            writeIterationStarts.insert( GetEventQueue( )->GetCurrentCycle( ) );
-        }
-        else if( p->MLCLevels == 2 )
-        {
+            /* Inhibit weird outlier numbers. Using max stddev = 3 */
             ncounters_t max_stddev = p->WPMaxVariance;
+            ncounters_t maxPulseCount = max_stddev + programPulseCount;
+            ncounters_t minPulseCount = programPulseCount - max_stddev;
+            if( minPulseCount < 0 ) minPulseCount = 0;
 
-            if( cellData == 0 )
+            NormalDistribution norm;
+
+            norm.SetMean( programPulseCount );
+            norm.SetVariance( p->WPVariance );
+
+            thisPulseCount = norm.GetEndurance( );
+
+            if( thisPulseCount > static_cast<ncycle_t>(maxPulseCount) )
+                thisPulseCount = static_cast<ncycle_t>(maxPulseCount);
+            if( thisPulseCount < static_cast<ncycle_t>(minPulseCount) )
+                thisPulseCount = static_cast<ncycle_t>(minPulseCount);
+
+            if( p->programMode == ProgramMode_SRMS )
             {
-                programPulseCount = 0;
-                num00Writes++;
-                max_stddev = 0; // assume single RESET does not fail
+                oncePulseDelay = p->tWP0;
+                repeatPulseDelay = p->tWP1;
             }
-            else if( cellData == 1 ) // 01 -> Assume 1 RESET + nWP01 SETs
+            else // SSMR
             {
-                programPulseCount = p->nWP01;
-                num01Writes++;
-            }
-            else if( cellData == 2 ) // 10 -> Assume 1 RESET + nWP1 SETs
-            {
-                programPulseCount = p->nWP10;
-                num10Writes++;
-            }
-            else if( cellData == 3 ) // 11 -> Assume 1 RESET + nWP11 SETs
-            {
-                programPulseCount = p->nWP11;
-                num11Writes++;
-                max_stddev = 0; // assume single SET does not fail
-            }
-            else
-            {
-                std::cout << "SubArray: Unknown cell value: " << (int)cellData << std::endl;
-            }
-
-            /* Simulate program and verify failures */
-            if( programPulseCount > 0 )
-            {
-                /* Inhibit weird outlier numbers. Using max stddev = 3 */
-                ncounters_t maxPulseCount = max_stddev + programPulseCount;
-                ncounters_t minPulseCount = programPulseCount - max_stddev;
-
-                NormalDistribution norm;
-
-                norm.SetMean( programPulseCount );
-                norm.SetVariance( p->WPVariance );
-
-                programPulseCount = norm.GetEndurance( );
-
-                /* Make sure this is at least one. */
-                if( programPulseCount < 1 ) programPulseCount = 1;
-
-                if( programPulseCount > maxPulseCount )
-                    programPulseCount = maxPulseCount;
-                if( programPulseCount < minPulseCount )
-                    programPulseCount = minPulseCount;
-
-                if( p->programMode == ProgramMode_SRMS )
-                {
-                    writeIterationStarts.clear( );
-                    ncycle_t iterStart = GetEventQueue( )->GetCurrentCycle( );
-
-                    writePulseTime = p->tWP0 + programPulseCount * p->tWP1;
-                    writeIterationStarts.insert( iterStart );
-                    iterStart += p->tWP0;
-
-                    for( ncounters_t iter = 0; iter < programPulseCount; iter++ )
-                    {
-                        writeIterationStarts.insert( iterStart );
-                        iterStart += p->tWP1;
-                    }
-                }
-                else // SSMR
-                {
-                    writeIterationStarts.clear( );
-                    ncycle_t iterStart = GetEventQueue( )->GetCurrentCycle( );
-
-                    writePulseTime = p->tWP1 + programPulseCount * p->tWP0;
-                    writeIterationStarts.insert( iterStart );
-                    iterStart += p->tWP1;
-
-                    for( ncounters_t iter = 0; iter < programPulseCount; iter++ )
-                    {
-                        writeIterationStarts.insert( iterStart );
-                        iterStart += p->tWP0;
-                    }
-                }
-            }
-            else
-            {
-                writeIterationStarts.clear( );
-                ncycle_t iterStart = GetEventQueue( )->GetCurrentCycle( );
-                writeIterationStarts.insert( iterStart );
-
-                writePulseTime = p->tWP0;
-            }
-
-            /* Only calculate energy for energy-mode model. */
-            if( p->EnergyModel != "current" )
-            {
-                subArrayEnergy += p->Ereset + static_cast<double>(programPulseCount) * p->Eset;
-                writeEnergy += p->Ereset + static_cast<double>(programPulseCount) * p->Eset;
+                oncePulseDelay = p->tWP1;
+                repeatPulseDelay = p->tWP0;
             }
         }
+        else if( writeCount00 && !writeCount11 )
+        {
+            oncePulseDelay = p->tWP0;
+        }
+        else if( !writeCount00 && writeCount11 )
+        {
+            oncePulseDelay = p->tWP1;
+        }
+        else
+        {
+            assert(false);
+        }
 
-        /* See if this writePulseTime is the longest. */
-        if( writePulseTime > maxDelay )
-            maxDelay = writePulseTime;
+        /* Insert times for write cancellation and pausing. */
+        ncycle_t iterStart = GetEventQueue( )->GetCurrentCycle( );
+        writeIterationStarts.insert( iterStart );
+        iterStart += oncePulseDelay;
+
+        for( ncycle_t iter = 0; iter < thisPulseCount; iter++ )
+        {
+            writeIterationStarts.insert( iterStart );
+            iterStart += repeatPulseDelay;
+        }
+
+        maxDelay = oncePulseDelay + thisPulseCount * repeatPulseDelay;
+
+        if( mlcTimingMap.count( maxDelay ) > 0 )
+            mlcTimingMap[maxDelay]++;
+        else
+            mlcTimingMap[maxDelay] = 1;
+
+        if( maxDelay > worstCaseWrite )
+            worstCaseWrite = maxDelay;
     }
-
-    if( mlcTimingMap.count( maxDelay ) > 0 )
-        mlcTimingMap[maxDelay]++;
-    else
-        mlcTimingMap[maxDelay] = 1;
-
-    if( maxDelay > worstCaseWrite )
-        worstCaseWrite = maxDelay;
 
     return maxDelay;
 }
@@ -1489,3 +1438,75 @@ void SubArray::Cycle( ncycle_t )
 {
 }
 
+/*
+ *  Count the appearances for "value" for 2-bit MLC where value
+ *  can be 0 (binary 00), 1 (binary 01), 2 (binary 10) or 3
+ *  (binary 11).
+ */
+ncounter_t __attribute__((optimize("0"))) SubArray::Count32MLC2( uint8_t value, uint32_t data )
+{
+    /*
+     *  This method counts the number of 11 pairs, so we need to convert
+     *  the bit pattern we are looking for to be 11.
+     */
+    if( value == 0 )
+        data ^= 0xFFFFFFFF;
+    else if( value == 1 )
+        data ^= 0xAAAAAAAA;
+    else if( value == 2 )
+        data ^= 0x55555555;
+
+    assert( value < 4 );
+
+    /* 
+     *  Count number of "11" pairs by ANDing together every-event bit
+     *  with every odd bit. The resulting ANDed value will be 1 if both
+     *  even and odd bit are 1 (i.e. "11") and 0 otherwise.
+     */
+    uint32_t count = (data & 0x55555555) & ((data & 0xAAAAAAAA) >> 1);
+
+    return Count32MLC1(count);
+}
+
+
+ncounter_t __attribute__((optimize("0"))) SubArray::CountBitsMLC2( uint8_t value, uint32_t *data, ncounter_t words )
+{
+    ncounter_t count = 0;
+
+    for( ncounter_t i = 0; i < words; i++ )
+    {
+        count += Count32MLC2( value, data[i] );
+    }
+
+    return count;
+}
+
+
+ncounter_t __attribute__((optimize("0"))) SubArray::Count32MLC1( uint32_t data )
+{
+    /*
+     *  Count the number of ones in this value using some
+     *  bit-manipulation magic.
+     */
+    uint32_t count = data;
+    count = count - ((count >> 1) & 0x55555555);
+    count = (count & 0x33333333) + ((count >> 2) & 0x33333333);
+    count = (((count + (count >> 4)) & 0x0f0f0f0f) * 0x01010101) >> 24;
+
+    return static_cast<ncounter_t>(count);
+}
+
+
+ncounter_t __attribute__((optimize("0"))) SubArray::CountBitsMLC1( uint8_t value, uint32_t *data, ncounter_t words )
+{
+    ncounter_t count = 0;
+
+    for( ncounter_t i = 0; i < words; i++ )
+    {
+        count += Count32MLC1( data[i] );
+    }
+
+    count = (value == 1) ? count : (words*32 - count);
+
+    return count;
+}
