@@ -45,7 +45,7 @@ class NullModel : public EnduranceModel
     ~NullModel( );
 
     ncycles_t Read( NVMainRequest *request );
-    ncycles_t Write( NVMainRequest *request, NVMDataBlock oldData );
+    ncycles_t Write( NVMainRequest *request, NVMDataBlock& oldData );
 };
 
 };

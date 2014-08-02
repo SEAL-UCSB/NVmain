@@ -45,12 +45,12 @@ class NVMDataBlock
   public:
     NVMDataBlock( );
     ~NVMDataBlock( );
+
+    void SetSize( uint64_t s );
+    uint64_t GetSize( );
     
     uint8_t GetByte( uint64_t byte );
     void SetByte( uint64_t byte, uint8_t value );
-
-    uint8_t GetMask( uint64_t byte );
-    void SetMask( uint64_t byte, uint8_t value );
 
     void SetValid( bool valid );
     bool IsValid( );
@@ -59,18 +59,13 @@ class NVMDataBlock
     
     NVMDataBlock& operator=( const NVMDataBlock& m );
 
-    /*
-     *  Normally the Get/SetByte should be used, but
-     *  if the data block will store non-standard data
-     *  (e.g., something other than cache lines) this
-     *  construct may be more convenient.
-     */
-    void *rawData;
+    uint8_t *rawData;
   
   private:
-    std::vector< uint8_t > data;
-    std::vector< uint8_t > mask;
     bool isValid;
+    uint64_t size;
+
+    NVMDataBlock( const NVMDataBlock& ) { }
 };
 
 };

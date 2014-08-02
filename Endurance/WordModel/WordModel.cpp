@@ -102,9 +102,8 @@ ncycles_t WordModel::Read( NVMainRequest *request )
     return rv;
 }
 
-ncycles_t WordModel::Write( NVMainRequest *request, NVMDataBlock /*oldData*/ ) 
+ncycles_t WordModel::Write( NVMainRequest *request, NVMDataBlock& /*oldData*/ ) 
 {
-    NVMDataBlock newData = request->data;
     NVMAddress address = request->address;
 
     /*

@@ -57,7 +57,7 @@ class GemsInterface : public SimInterface
     bool HasCacheHits( );
 
     int  GetDataAtAddress( uint64_t address, NVMDataBlock *data );
-    void SetDataAtAddress( uint64_t address, NVMDataBlock data );
+    void SetDataAtAddress( uint64_t address, NVMDataBlock& data );
 
     void SetSystemPtr( System *system_ptr );
     void SetEventQueuePtr( EventQueue *eventQueue_ptr );

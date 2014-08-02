@@ -46,13 +46,13 @@ class TraceLine
     TraceLine();
     ~TraceLine();
     
-    void SetLine( NVMAddress addr, OpType op, ncycle_t cycle, 
-                  NVMDataBlock data, ncounters_t threadId );
+    void SetLine( NVMAddress& addr, OpType op, ncycle_t cycle, 
+                  NVMDataBlock& data, ncounters_t threadId );
 
-    NVMAddress GetAddress( );
+    NVMAddress& GetAddress( );
     OpType GetOperation( );
     ncycle_t GetCycle( );
-    NVMDataBlock GetData( );
+    NVMDataBlock& GetData( );
     ncounters_t GetThreadId( );
 
   private:

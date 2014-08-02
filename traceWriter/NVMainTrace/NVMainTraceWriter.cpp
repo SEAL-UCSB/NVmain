@@ -87,7 +87,7 @@ bool NVMainTraceWriter::SetNextAccess( TraceLine *nextAccess )
 
 void NVMainTraceWriter::WriteTraceLine( std::ostream& stream, TraceLine *line )
 {
-    NVMDataBlock data = line->GetData( );
+    NVMDataBlock& data = line->GetData( );
 
     /* Only print reads or writes. */
     if( line->GetOperation() != READ && line->GetOperation() != WRITE )

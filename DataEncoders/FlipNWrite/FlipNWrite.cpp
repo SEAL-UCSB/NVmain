@@ -126,8 +126,8 @@ ncycle_t FlipNWrite::Read( NVMainRequest* /*request*/ )
 
 ncycle_t FlipNWrite::Write( NVMainRequest *request ) 
 {
-    NVMDataBlock newData = request->data;
-    NVMDataBlock oldData = request->oldData;
+    NVMDataBlock& newData = request->data;
+    NVMDataBlock& oldData = request->oldData;
     NVMAddress address = request->address;
 
     /*

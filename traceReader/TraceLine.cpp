@@ -53,7 +53,7 @@ TraceLine::~TraceLine( )
 }
 
 /* Set the values of the address and memory operation. */
-void TraceLine::SetLine( NVMAddress addr, OpType op, ncycle_t cy, NVMDataBlock data, ncounters_t threadId )
+void TraceLine::SetLine( NVMAddress& addr, OpType op, ncycle_t cy, NVMDataBlock& data, ncounters_t threadId )
 {
     this->address = addr;
     this->operation = op;
@@ -63,7 +63,7 @@ void TraceLine::SetLine( NVMAddress addr, OpType op, ncycle_t cy, NVMDataBlock d
 }
 
 /* Get the address of the memory operation. */
-NVMAddress TraceLine::GetAddress( )
+NVMAddress& TraceLine::GetAddress( )
 {
     return address;
 }
@@ -79,7 +79,7 @@ ncycle_t TraceLine::GetCycle( )
     return cycle;
 }
 
-NVMDataBlock TraceLine::GetData( )
+NVMDataBlock& TraceLine::GetData( )
 {
     return data;
 }
