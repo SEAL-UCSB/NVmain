@@ -110,7 +110,7 @@ bool VerilogTraceWriter::SetNextAccess( TraceLine *nextAccess )
 
 void VerilogTraceWriter::WriteTraceLine( std::ostream& stream, TraceLine *line )
 {
-    NVMDataBlock data = line->GetData( );
+    NVMDataBlock& data = line->GetData( );
     NVMAddress addr = line->GetAddress( );
 
     assert( addr.IsTranslated() );

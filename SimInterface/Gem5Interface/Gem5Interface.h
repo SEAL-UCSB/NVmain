@@ -54,7 +54,7 @@ class Gem5Interface : public SimInterface
     bool HasCacheHits( );
 
     int  GetDataAtAddress( uint64_t address, NVMDataBlock *data );
-    void SetDataAtAddress( uint64_t address, NVMDataBlock data );
+    void SetDataAtAddress( uint64_t address, NVMDataBlock& data );
 };
 
 };

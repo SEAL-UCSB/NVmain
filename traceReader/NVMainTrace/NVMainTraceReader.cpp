@@ -33,7 +33,9 @@
 
 #include "traceReader/NVMainTrace/NVMainTraceReader.h"
 #include <sstream>
-#include <stdlib.h>
+#include <cstdlib>
+#include <cassert>
+#include <cstring>
 
 using namespace NVM;
 
@@ -139,37 +141,25 @@ bool NVMainTraceReader::GetNextAccess( TraceLine *nextAccess )
                 int byte;
                 int start, end;
 
-                /*
-                 *  Default all bytes to zero.
-                 */
-                /* Assumes 64-bit words.... */
-                for( byte = 0; byte < 8; byte++ )
-                   dataBlock.SetByte( byte, 0 );
+                /* Assumes 64-byte memory words.... */
+                // TODO: Drop assumption and use field.length()/2 bytes
+                assert(sizeof(uint64_t)*8 == 64);
+                assert(field.length() == 128); // 1 char per 4 bits
+
+                dataBlock.SetSize( 64 );
+
+                uint64_t *rawData = reinterpret_cast<uint64_t*>(dataBlock.rawData);
+                memset(rawData, 0, 64);
                 
-                byte = 0;
-                end = (int)field.length( ) - 2*byte;
-                start = (int)field.length( ) - 2*byte - 2;
-
-                while( end >= 0 )
+                for( byte = 0; byte < 8; byte++ )
                 {
-                    uint8_t decimal;
                     std::stringstream fmat;
-                    
+
+                    end = (int)field.length( ) - 16*byte;
+                    start = (int)field.length( ) - 16*byte - 16;
+
                     fmat << std::hex << field.substr( start, end - start );
-                    fmat >> decimal;
-
-                    dataBlock.SetByte( byte, decimal );
-                    
-                    byte++;
-
-                    if( start == 0 )
-                        break;
-                    
-                    end = (int)field.length( ) - 2*byte;
-                    start = (int)field.length( ) - 2*byte - 2;
-
-                    if( start < 0 ) 
-                        start = 0;
+                    fmat >> rawData[byte];
                 }
             }
             else if( fieldId == 4 )

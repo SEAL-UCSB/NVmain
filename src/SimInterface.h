@@ -56,13 +56,13 @@ class SimInterface
     virtual bool HasCacheHits( ) = 0;
 
     virtual int  GetDataAtAddress( uint64_t address, NVMDataBlock *data );
-    virtual void SetDataAtAddress( uint64_t address, NVMDataBlock data );
+    virtual void SetDataAtAddress( uint64_t address, NVMDataBlock& data );
 
     void SetConfig( Config *conf, bool createChildren = true );
     Config *GetConfig( );
 
   private:
-    std::map< uint64_t, NVMDataBlock > memoryData;
+    std::map< uint64_t, NVMDataBlock* > memoryData;
     std::map< uint64_t, unsigned int > accessCounts;
     Config *conf;
 

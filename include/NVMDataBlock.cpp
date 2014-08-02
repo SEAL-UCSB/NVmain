@@ -33,67 +33,59 @@
 
 #include "include/NVMDataBlock.h"
 #include <iomanip>
+#include <cassert>
+#include <cstring>
+#include <iostream>
 
 using namespace NVM;
 
 NVMDataBlock::NVMDataBlock( )
 {
-    data.clear( );
-    mask.clear( );
     rawData = NULL;
     isValid = false;
+    size = 0;
 }
 
 NVMDataBlock::~NVMDataBlock( )
 {
-    data.clear( );
-    mask.clear( );
+    delete rawData;
+    rawData = NULL;
+}
+
+void NVMDataBlock::SetSize( uint64_t s )
+{
+    assert( rawData == NULL );
+    rawData = new uint8_t[s];
+    size = s;
+}
+
+uint64_t NVMDataBlock::GetSize( )
+{
+    return size;
 }
 
 uint8_t NVMDataBlock::GetByte( uint64_t byte )
 {
-    if( byte >= data.size( ) )
-        return 0;
+    uint8_t rv = 0;
 
-    return data[ byte ];
+    if( isValid && byte <= size )
+    {
+        rv = *((uint8_t*)(rawData)+byte);
+    }
+
+    return rv;
 }
 
 void NVMDataBlock::SetByte( uint64_t byte, uint8_t value )
 {
-    if( byte >= data.size( ) )
+    if( byte <= size )
     {
-        /* 
-         *  There's probably some other way to do this, but extend
-         *  the vector size by pushing 0s on the end.
-         */
-        for( size_t i = data.size( ); i <= byte; i++ )
-            data.push_back( 0 );
+        rawData[byte] = value;
     }
-
-    data[ byte ] = value;
-}
-
-uint8_t NVMDataBlock::GetMask( uint64_t byte )
-{
-    if( byte >= mask.size( ) )
-        return 0xFF;
-
-    return mask[ byte ];
-}
-
-void NVMDataBlock::SetMask( uint64_t byte, uint8_t value )
-{
-    if( byte >= mask.size( ) )
+    else
     {
-        /* 
-         *  There's probably some other way to do this, but extend
-         *  the vector size by pushing 0s on the end.
-         */
-        for( size_t i = mask.size( ); i <= byte; i++ )
-            mask.push_back( 0xFF );
+        assert( false );
     }
-
-    mask[ byte ] = value;
 }
 
 void NVMDataBlock::SetValid( bool valid )
@@ -108,19 +100,24 @@ bool NVMDataBlock::IsValid( )
 
 void NVMDataBlock::Print( std::ostream& out ) const
 {
-    for( size_t i = 0; i < data.size( ); i++ )
-        out << std::hex << std::setw( 2 ) << std::setfill( '0' ) 
-            << (int)data[ data.size( ) - i - 1 ] << std::dec;
+    out << std::hex;
+    for( uint64_t i = 0; i < size; i++ )
+    {
+        out << std::setw(2) << std::setfill('0') << (int)rawData[i];
+    }
+    out << std::dec;
 }
 
 NVMDataBlock& NVMDataBlock::operator=( const NVMDataBlock& m )
 {
-    data.clear( );
-    for( size_t it = 0; it < m.data.size( ); it++ )
+    if( m.rawData )
     {
-        data.push_back( m.data[it] );
+        if( rawData == NULL )
+            rawData = new uint8_t[m.size];
+        memcpy(rawData, m.rawData, m.size);
     }
-    rawData = m.rawData;
+    isValid = m.isValid;
+    size = m.size;
 
     return *this;
 }

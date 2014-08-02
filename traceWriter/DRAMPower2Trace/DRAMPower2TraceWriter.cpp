@@ -174,7 +174,6 @@ bool DRAMPower2TraceWriter::SetNextAccess( TraceLine *nextAccess )
 
 void DRAMPower2TraceWriter::WriteTraceLine( std::ostream& stream, TraceLine *line )
 {
-    NVMDataBlock data = line->GetData( );
     NVMAddress addr = line->GetAddress( );
 
     assert( addr.IsTranslated() );

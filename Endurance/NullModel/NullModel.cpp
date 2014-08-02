@@ -48,7 +48,7 @@ ncycles_t NullModel::Read( NVMainRequest* /*request*/ )
     return 0;
 }
 
-ncycles_t NullModel::Write( NVMainRequest* /*request*/, NVMDataBlock /*oldData*/ ) 
+ncycles_t NullModel::Write( NVMainRequest* /*request*/, NVMDataBlock& /*oldData*/ ) 
 {
     return 0;
 }

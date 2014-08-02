@@ -113,7 +113,7 @@ EventQueue *GemsInterface::GetEventQueuePtr( )
     return gems_eventQueue_ptr;
 }
 
-void GemsInterface::SetDataAtAddress( uint64_t /*address*/, NVMDataBlock /*data*/ )
+void GemsInterface::SetDataAtAddress( uint64_t /*address*/, NVMDataBlock& /*data*/ )
 {
     /*
      *  Simics stores the values of memory, so there's no reason

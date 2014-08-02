@@ -47,21 +47,28 @@ int SimInterface::GetDataAtAddress( uint64_t address, NVMDataBlock *data )
     }
     else
     {
-        *data = memoryData[ address ];
+        data = memoryData[ address ];
         retval = 1;
     }
 
     return retval;
 }
 
-void SimInterface::SetDataAtAddress( uint64_t address, NVMDataBlock data )
+void SimInterface::SetDataAtAddress( uint64_t address, NVMDataBlock& data )
 {
-    memoryData[ address ] = data;
-
     if( !accessCounts.count( address ) )
+    {
+        NVMDataBlock *newData = new NVMDataBlock( );
+        memoryData[ address ] = newData;
+        *newData = data;
         accessCounts[ address ] = 0;
+    }
     else
+    {
+        NVMDataBlock *newData = memoryData[ address ];
+        *newData = data;
         accessCounts[ address ]++;
+    }
 }
 
 void SimInterface::SetConfig( Config *config, bool /*createChildren*/ )

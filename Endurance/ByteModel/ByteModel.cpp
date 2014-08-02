@@ -112,9 +112,9 @@ ncycles_t ByteModel::Read( NVMainRequest *request )
 
     return rv;
 }
-ncycles_t ByteModel::Write( NVMainRequest *request, NVMDataBlock oldData ) 
+ncycles_t ByteModel::Write( NVMainRequest *request, NVMDataBlock& oldData ) 
 {
-    NVMDataBlock newData = request->data;
+    NVMDataBlock& newData = request->data;
     NVMAddress address = request->address;
 
     /*

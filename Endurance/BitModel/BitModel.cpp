@@ -112,10 +112,10 @@ ncycles_t BitModel::Read( NVMainRequest *request )
     return rv;
 }
 
-ncycles_t BitModel::Write( NVMainRequest *request, NVMDataBlock oldData ) 
+ncycles_t BitModel::Write( NVMainRequest *request, NVMDataBlock& oldData ) 
 {
-    NVMDataBlock newData = request->data;
-    NVMAddress address = request->address;
+    NVMDataBlock& newData = request->data;
+    NVMAddress& address = request->address;
 
     /*
      *  The default life map is an stl map< uint64_t, uint64_t >. 

@@ -175,7 +175,7 @@ bool MissMap::IssueAtomic( NVMainRequest *req )
     {
         missMap->Read( req->address, &data );
 
-        lineMap = static_cast<uint64_t *>(data.rawData);
+        lineMap = reinterpret_cast<uint64_t *>(data.rawData);
 
         if( !((*lineMap) & lineMask) ) // NOT in MissMap.
         {
@@ -199,7 +199,7 @@ bool MissMap::IssueAtomic( NVMainRequest *req )
         lineMap = new uint64_t;
 
         *lineMap = lineMask;
-        data.rawData = lineMap;
+        data.rawData = reinterpret_cast<uint8_t*>(lineMap);
 
         missMap->Install( testAddr, data ); 
     }
@@ -267,7 +267,7 @@ bool MissMap::RequestComplete( NVMainRequest *req )
                 uint64_t lineOffset; 
 
                 lineOffset = ((req->address.GetPhysicalAddress( ) >> 6) & 0xFFF) / 64;
-                lineMap = static_cast<uint64_t *>(cacheReq->data.rawData);
+                lineMap = reinterpret_cast<uint64_t *>(cacheReq->data.rawData);
                 lineMask = (uint64_t)(1ULL << lineOffset);
 
                 /* Check for this bit corresponding to this cache line. */
@@ -321,7 +321,7 @@ bool MissMap::RequestComplete( NVMainRequest *req )
                     CacheRequest *fillCReq = new CacheRequest( );
 
                     *lineMap |= (uint64_t)(1ULL << lineOffset);
-                    fillCReq->data.rawData = static_cast<void *>( lineMap );
+                    fillCReq->data.rawData = reinterpret_cast<uint8_t *>( lineMap );
 
                     fillCReq->optype = CACHE_WRITE;
                     fillCReq->address = req->address; 
@@ -379,7 +379,7 @@ bool MissMap::RequestComplete( NVMainRequest *req )
 
                 *lineMap = 0;
                 *lineMap |= (uint64_t)(1ULL << lineOffset);
-                fillCReq->data.rawData = lineMap;
+                fillCReq->data.rawData = reinterpret_cast<uint8_t *>(lineMap);
 
                 fillCReq->optype = CACHE_WRITE;
                 fillCReq->address = req->address; 
@@ -439,7 +439,7 @@ bool MissMap::RequestComplete( NVMainRequest *req )
 #endif
 
                 /* Count the number of cachelines being evicted. */
-                uint64_t *lineMap = static_cast<uint64_t *>(creq->data.rawData);
+                uint64_t *lineMap = reinterpret_cast<uint64_t *>(creq->data.rawData);
                 uint64_t lineCount = 0;
 
                 for( int i = 0; i < 64; i++ )

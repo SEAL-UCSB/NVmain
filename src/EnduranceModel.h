@@ -58,7 +58,7 @@ class EnduranceModel : public NVMObject
     /* Return -(latency+1) on error, or the additional number of cycles needed by the model otherwise. */
     virtual ncycles_t Read( NVMainRequest *request ) = 0;
     /* Return -(latency+1) on error, or the additional number of cycles needed by the model otherwise. */
-    virtual ncycles_t Write( NVMainRequest *request, NVMDataBlock oldData ) = 0;
+    virtual ncycles_t Write( NVMainRequest *request, NVMDataBlock& oldData ) = 0;
 
     virtual void SetConfig( Config *conf, bool createChildren = true );
 

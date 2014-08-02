@@ -83,9 +83,8 @@ ncycles_t RowModel::Read( NVMainRequest *request )
     return rv;
 }
 
-ncycles_t RowModel::Write( NVMainRequest *request, NVMDataBlock /*oldData*/ ) 
+ncycles_t RowModel::Write( NVMainRequest *request, NVMDataBlock& /*oldData*/ ) 
 {
-    NVMDataBlock newData = request->data;
     NVMAddress address = request->address;
 
     /*
