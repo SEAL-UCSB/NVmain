@@ -74,7 +74,7 @@ class NVMainMemory : public AbstractMemory, public NVM::NVMObject
 
 //        SlavePacketQueue queueImpl;
         NVMainMemory& memory;
-        NVMainMemory& wtfgdb;
+        NVMainMemory& forgdb;
 
       public:
 
@@ -106,7 +106,12 @@ class NVMainMemory : public AbstractMemory, public NVM::NVMObject
 
     class NVMainStatPrinter : public Callback
     {
+        friend class NVMainMemory;
+
       public:
+        NVMainMemory *memory;
+        NVMainMemory *forgdb;
+
         void process();
 
         NVM::NVMain *nvmainPtr;
