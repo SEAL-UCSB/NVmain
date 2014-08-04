@@ -280,6 +280,9 @@ NVMainMemory::SetRequestData(NVMainRequest *request, PacketPtr pkt)
 {
     uint8_t *hostAddr;
 
+    request->data.SetSize( pkt->getSize() );
+    request->oldData.SetSize( pkt->getSize() );
+
     if (pkt->isRead())
     {
         Request *dataReq = new Request(pkt->getAddr(), pkt->getSize(), 0, Request::funcMasterId);
@@ -292,6 +295,7 @@ NVMainMemory::SetRequestData(NVMainRequest *request, PacketPtr pkt)
 
         for(int i = 0; i < pkt->getSize(); i++ )
         {
+            request->oldData.SetByte(i, *(hostAddr + (pkt->getSize() - 1) - i));
             request->data.SetByte(i, *(hostAddr + (pkt->getSize() - 1) - i));
         }
 
@@ -308,25 +312,20 @@ NVMainMemory::SetRequestData(NVMainRequest *request, PacketPtr pkt)
         uint8_t *hostAddrT = new uint8_t[ pkt->getSize() ];
         memcpy( hostAddrT, dataPkt->getPtr<uint8_t>(), pkt->getSize() );
 
+        hostAddr = new uint8_t[ pkt->getSize() ];
+        memcpy( hostAddr, pkt->getPtr<uint8_t>(), pkt->getSize() );
+
         for(int i = 0; i < pkt->getSize(); i++ )
         {
             request->oldData.SetByte(i, *(hostAddrT + (pkt->getSize() - 1) - i));
+            request->data.SetByte(i, *(hostAddr + (pkt->getSize() - 1) - i));
         }
 
         delete dataPkt;
         delete dataReq;
-        delete hostAddrT;
-
-        hostAddr = new uint8_t[ pkt->getSize() ];
-
-        memcpy( hostAddr, pkt->getPtr<uint8_t>(), pkt->getSize() );
+        delete [] hostAddrT;
+        delete [] hostAddr;
     }
-
-    for(int i = 0; i < pkt->getSize(); i++ )
-    {
-        request->data.SetByte(i, *(hostAddr + (pkt->getSize() - 1) - i));
-    }
-    delete [] hostAddr;
 }
 
 
