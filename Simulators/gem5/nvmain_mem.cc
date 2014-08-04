@@ -158,6 +158,9 @@ NVMainMemory::init()
                                          std::ofstream::out | std::ofstream::app );
         }
 
+        statPrinter.memory = this;
+        statPrinter.forgdb = this;
+
         //registerExitCallback( &statPrinter );
         ::Stats::registerDumpCallback( &statPrinter );
         ::Stats::registerResetCallback( &statReseter );
@@ -246,6 +249,16 @@ void NVMainMemory::NVMainStatPrinter::process()
 {
     assert(nvmainPtr != NULL);
 
+    if( memory->m_eventDriven )
+    {
+        assert(curTick() >= memory->lastWakeup);
+        Tick stepCycles = (curTick() - memory->lastWakeup) / memory->clock;
+
+        //DPRINTF(NVMain, "NVMainMemory: Syncing global event queue for stat dump.");
+
+        memory->m_nvmainGlobalEventQueue->Cycle( stepCycles );
+    }
+
     nvmainPtr->CalculateStats();
     std::ostream& refStream = (statStream.is_open()) ? statStream : std::cout;
     nvmainPtr->GetStats()->PrintAll( refStream );
@@ -261,7 +274,7 @@ void NVMainMemory::NVMainStatReseter::process()
 
 
 NVMainMemory::MemoryPort::MemoryPort(const std::string& _name, NVMainMemory& _memory)
-    : SlavePort(_name, &_memory), memory(_memory), wtfgdb(_memory)
+    : SlavePort(_name, &_memory), memory(_memory), forgdb(_memory)
 {
 
 }
@@ -436,6 +449,8 @@ NVMainMemory::MemoryPort::recvTimingReq(PacketPtr pkt)
 
             pkt->busFirstWordDelay = pkt->busLastWordDelay = 0;
             memory.responseQueue.push_back(pkt);
+
+            memory.ScheduleResponse( );
         } else {
             memory.pendingDelete.push_back(pkt);
         }
@@ -563,7 +578,7 @@ NVMainMemory::MemoryPort::recvTimingReq(PacketPtr pkt)
 
             //assert(nextEvent >= currentCycle);
             ncycle_t stepCycles = nextEvent - currentCycle;
-            if( stepCycles == 0 )
+            if( stepCycles == 0 || nextEvent < currentCycle )
                 stepCycles = 1;
 
             Tick nextWake = curTick() + memory.clock * static_cast<Tick>(stepCycles);
