@@ -468,8 +468,6 @@ bool SubArray::Read( NVMainRequest *request )
      */
     if( conf->GetSimInterface( ) != NULL && endrModel != NULL )
     {
-        NVMDataBlock dataBlock;
-
         /*
          *  In a trace-based simulation, or a live simulation where simulation is
          *  started in the middle of execution, some data being read maybe have never
@@ -481,7 +479,7 @@ bool SubArray::Read( NVMainRequest *request )
          *  copy it there.
          */
         if( !conf->GetSimInterface( )->GetDataAtAddress( 
-                    request->address.GetPhysicalAddress( ), &dataBlock ) )
+                    request->address.GetPhysicalAddress( ), NULL ) )
         {
             //std::cout << "Setting data block for 0x" << std::hex << request->address.GetPhysicalAddress( )
             //          << std::dec << " to " << request->data << std::endl;
