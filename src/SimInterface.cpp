@@ -47,7 +47,8 @@ int SimInterface::GetDataAtAddress( uint64_t address, NVMDataBlock *data )
     }
     else
     {
-        data = memoryData[ address ];
+        if( data )
+            data = memoryData[ address ];
         retval = 1;
     }
 
