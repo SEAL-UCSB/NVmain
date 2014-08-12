@@ -89,6 +89,7 @@ StandardRank::StandardRank( )
     backgroundEnergy = 0.0f;
 
     psInterval = 0;
+    lastReset = 0;
 }
 
 StandardRank::~StandardRank( )
@@ -972,12 +973,11 @@ void StandardRank::CalculateStats( )
     
     if( p->EnergyModel == "current" )
     {
-        // TODO: Need to get number of cycles since last stat reset
-        simulationTime = GetEventQueue()->GetCurrentCycle();
+        simulationTime = GetEventQueue()->GetCurrentCycle() - lastReset;
     }
     else
     {
-        simulationTime = static_cast<double>(GetEventQueue()->GetCurrentCycle()) 
+        simulationTime = static_cast<double>(GetEventQueue()->GetCurrentCycle() - lastReset) 
                        * (1000.0 / static_cast<double>(p->CLK));
     }
 
@@ -1021,3 +1021,9 @@ void StandardRank::CalculateStats( )
     rrdWaitAverage = static_cast<double>(rrdWaitTotal) / static_cast<double>(rrdWaits);
     fawWaitAverage = static_cast<double>(fawWaitTotal) / static_cast<double>(fawWaits);
 }
+
+void StandardRank::ResetStats( )
+{
+    lastReset = GetEventQueue()->GetCurrentCycle();
+}
+

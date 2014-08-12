@@ -91,6 +91,7 @@ class StandardRank : public Rank
 
     void RegisterStats( );
     void CalculateStats( );
+    void ResetStats( );
 
   protected:
     Config *conf;
@@ -117,6 +118,7 @@ class StandardRank : public Rank
     ncounter_t fastExitActiveCycles;
     ncounter_t fastExitPrechargeCycles;
     ncounter_t slowExitCycles;
+    ncycle_t lastReset;
 
     ncounter_t rrdWaits;
     ncounter_t rrdWaitTotal;
