@@ -269,6 +269,7 @@ void NVMainMemory::NVMainStatReseter::process()
 {
     assert(nvmainPtr != NULL);
 
+    nvmainPtr->ResetStats();
     nvmainPtr->GetStats()->ResetAll( );
 }
 
