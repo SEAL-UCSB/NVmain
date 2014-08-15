@@ -694,7 +694,8 @@ bool MemoryController::HandleRefresh( )
                 /* create a refresh command that will be sent to ranks */
                 NVMainRequest* cmdRefresh = MakeRefreshRequest( 0, 0, j, i, 0 );
 
-                if( GetChild( )->IsIssuable( cmdRefresh, &fail ) == false && p->UsePrecharge )
+                /* Always check if precharge is needed, even if REF is issublable. */
+                if( p->UsePrecharge )
                 {
                     for( ncounter_t tmpBank = 0; tmpBank < p->BanksPerRefresh; tmpBank++ ) 
                     {
