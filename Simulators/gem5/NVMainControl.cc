@@ -329,17 +329,28 @@ NVMainControl::enqueueMemRef(MemoryNode *memRef)
     //  }
     //std::cout << std::dec << std::endl;
 
+    const MemoryMsg* memMess = safe_cast<const MemoryMsg*>(memRef->m_msgptr.get());
+
+    request->data.SetSize( transfer_size );
+    request->oldData.SetSize( transfer_size );
+
     request->access = UNKNOWN_ACCESS;
     for(int i = 0; i < transfer_size; i++)
     {
         // memRef's m_msgptr's DataBlk is only correct for write data (since data is not read yet)
         // However, nvmain needs data being read otherwise data is assumed 0 on first write, which
         // may not be correct.
-        request->data.SetByte(i, *(hostAddr + (transfer_size - 1) - i));
+        request->oldData.SetByte(i, *(hostAddr + (transfer_size - 1) - i));
+        if (memRef->m_is_mem_read)
+            request->data.SetByte(i, *(hostAddr + (transfer_size - 1) - i));
+        else
+            request->data.SetByte(i, memMess->m_DataBlk.getByte(i));
     }
     request->address.SetPhysicalAddress(memRef->m_addr);
     request->status = MEM_REQUEST_INCOMPLETE;
     request->type = (memRef->m_is_mem_read) ? READ : WRITE;
+
+    delete hostAddr;
 
     if(!m_slot_available)
     {
