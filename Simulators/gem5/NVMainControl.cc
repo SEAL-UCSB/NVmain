@@ -340,9 +340,9 @@ NVMainControl::enqueueMemRef(MemoryNode *memRef)
         // memRef's m_msgptr's DataBlk is only correct for write data (since data is not read yet)
         // However, nvmain needs data being read otherwise data is assumed 0 on first write, which
         // may not be correct.
-        request->oldData.SetByte(i, *(hostAddr + (transfer_size - 1) - i));
+        request->oldData.SetByte(i, *(hostAddr + i));
         if (memRef->m_is_mem_read)
-            request->data.SetByte(i, *(hostAddr + (transfer_size - 1) - i));
+            request->data.SetByte(i, *(hostAddr + i));
         else
             request->data.SetByte(i, memMess->m_DataBlk.getByte(i));
     }
