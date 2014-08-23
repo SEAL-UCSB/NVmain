@@ -44,7 +44,9 @@ NVMainSource('Visualizer/Visualizer.cpp')
 NVMainSource('RequestTracer/RequestTracer.cpp')
 NVMainSource('PostTrace/PostTrace.cpp')
 
+# TODO: Create SConscripts for each hook instead of this single file.
 NVMainSource('AccessPredictor/AccessPredictor.cpp')
 NVMainSource('AccessPredictor/AccessPredictorFactory.cpp')
 NVMainSource('AccessPredictor/PerfectPredictor/PerfectPredictor.cpp')
+NVMainSource('AccessPredictor/VariablePredictor/VariablePredictor.cpp')
 

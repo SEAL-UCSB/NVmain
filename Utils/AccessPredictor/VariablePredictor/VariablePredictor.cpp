@@ -31,33 +31,84 @@
 *                     Website: http://www.cse.psu.edu/~poremba/ )
 *******************************************************************************/
 
-#include "Utils/AccessPredictor/AccessPredictorFactory.h"
 
-#include "Utils/AccessPredictor/PerfectPredictor/PerfectPredictor.h"
 #include "Utils/AccessPredictor/VariablePredictor/VariablePredictor.h"
+#include "NVM/nvmain.h"
+#include "src/MemoryController.h"
+#include "MemControl/DRAMCache/DRAMCache.h"
 
-
-#include <cstdlib>
 #include <iostream>
+#include <cstdlib>
+#include <cassert>
+
 
 
 using namespace NVM;
 
 
-AccessPredictor *AccessPredictorFactory::CreateAccessPredictor( std::string name )
+
+VariablePredictor::VariablePredictor( )
 {
-    AccessPredictor *predictor = NULL;
+    /* Approximate default value from the literature. */
+    accuracy = 0.95;
 
-    if( name == "PerfectPredictor" ) predictor = new PerfectPredictor( );
-    else if( name == "VariablePredictor" ) predictor = new VariablePredictor( );
+    seed = 1;
+}
 
-    if( predictor == NULL )
+
+VariablePredictor::~VariablePredictor( )
+{
+
+}
+
+
+void VariablePredictor::SetConfig( Config *config, bool /*createChildren*/ )
+{
+    /* Check for user defined accuracy. */
+    config->GetEnergy( "VariablePredictorAccuracy", accuracy ); 
+
+    AddStat(truePredictions);
+    AddStat(falsePredictions);
+}
+
+uint64_t VariablePredictor::Translate( NVMainRequest *request )
+{
+    ncounter_t dest = GetMissDestination( );
+
+    /* 
+     * We assume the "hit" destination is some kind of cache for this to make sense.
+     * For now, assume that it is a DRAM cache, although later this may be changed
+     * to be any generic type of cache.
+     *
+     * This predictor only returns which route the request should take. We assume
+     * that this module's parent has two children representing the multiple routes.
+     * The parent module must set this module's parent on initialization.
+     */
+    assert( parent != NULL );
+
+    double coinToss = static_cast<double>(::rand_r(&seed)) 
+                    / static_cast<double>(RAND_MAX);
+    bool hit = GetParent()->GetTrampoline()->GetChild(GetHitDestination())->IssueFunctional(request);
+
+    /* Predict correctly with probability "p" (accuracy) and mispredict with 1-p. */
+    if( (hit && coinToss < accuracy) || (!hit && coinToss >= accuracy) )
     {
-        std::cout << "Error: Could not find AccessPredictor named `" << name << "'!" << std::endl;
-        exit(1);
+        if (hit) truePredictions++;
+        else falsePredictions++;
+
+        /* Request would be success to cache, issue there. */
+        dest = GetHitDestination( ); 
+    }
+    else
+    {
+        if (hit) falsePredictions++;
+        else truePredictions++;
+
+        /* Request would fail to cache, issue to backing memory. */
+        dest = GetMissDestination( ); 
     }
 
-    return predictor;
+    return dest;
 }
 
 

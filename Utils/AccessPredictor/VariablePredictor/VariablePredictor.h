@@ -31,34 +31,40 @@
 *                     Website: http://www.cse.psu.edu/~poremba/ )
 *******************************************************************************/
 
-#include "Utils/AccessPredictor/AccessPredictorFactory.h"
-
-#include "Utils/AccessPredictor/PerfectPredictor/PerfectPredictor.h"
-#include "Utils/AccessPredictor/VariablePredictor/VariablePredictor.h"
+#ifndef __UTILS_VARIABLEPREDICTOR_H__
+#define __UTILS_VARIABLEPREDICTOR_H__
 
 
-#include <cstdlib>
-#include <iostream>
+#include "Utils/AccessPredictor/AccessPredictor.h"
+
+#include <set>
 
 
-using namespace NVM;
+namespace NVM {
 
 
-AccessPredictor *AccessPredictorFactory::CreateAccessPredictor( std::string name )
+class VariablePredictor : public AccessPredictor
 {
-    AccessPredictor *predictor = NULL;
+  public:
+    VariablePredictor( );
+    ~VariablePredictor( );
 
-    if( name == "PerfectPredictor" ) predictor = new PerfectPredictor( );
-    else if( name == "VariablePredictor" ) predictor = new VariablePredictor( );
+    void SetConfig( Config *conf, bool createChildren );
 
-    if( predictor == NULL )
-    {
-        std::cout << "Error: Could not find AccessPredictor named `" << name << "'!" << std::endl;
-        exit(1);
-    }
+    using AccessPredictor::Translate;
+    uint64_t Translate( NVMainRequest *request );
 
-    return predictor;
-}
+  private:
+    unsigned int seed;
+    double accuracy;
+
+    ncounter_t truePredictions, falsePredictions;
+
+};
 
 
+};
+
+
+#endif
 
