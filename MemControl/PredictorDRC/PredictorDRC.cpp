@@ -62,18 +62,23 @@ void PredictorDRC::SetConfig( Config *conf, bool createChildren )
 {
     if( createChildren )
     {
+        /* Initialize DRAM cache */
+        std::stringstream formatter;
+
         /* Initialize access predictor. */
         if( !conf->KeyExists( "DRCPredictor" ) )
         {
             std::cout << "Error: No DRC predictor specified." << std::endl;
         }
 
+        formatter.str( "" );
+        formatter << StatName( ) << "." << conf->GetString( "DRCPredictor" );
+
         predictor = AccessPredictorFactory::CreateAccessPredictor( conf->GetString( "DRCPredictor" ) );
         predictor->SetParent( this );
+        predictor->StatName( formatter.str() );
+        predictor->SetConfig( conf, createChildren );
         SetDecoder( predictor );
-
-        /* Initialize DRAM cache */
-        std::stringstream formatter;
 
         DRC = new DRAMCache( );
 
