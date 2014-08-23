@@ -309,8 +309,8 @@ NVMainMemory::SetRequestData(NVMainRequest *request, PacketPtr pkt)
 
         for(int i = 0; i < pkt->getSize(); i++ )
         {
-            request->oldData.SetByte(i, *(hostAddr + (pkt->getSize() - 1) - i));
-            request->data.SetByte(i, *(hostAddr + (pkt->getSize() - 1) - i));
+            request->oldData.SetByte(i, *(hostAddr + i));
+            request->data.SetByte(i, *(hostAddr + i));
         }
 
         delete dataPkt;
@@ -331,8 +331,8 @@ NVMainMemory::SetRequestData(NVMainRequest *request, PacketPtr pkt)
 
         for(int i = 0; i < pkt->getSize(); i++ )
         {
-            request->oldData.SetByte(i, *(hostAddrT + (pkt->getSize() - 1) - i));
-            request->data.SetByte(i, *(hostAddr + (pkt->getSize() - 1) - i));
+            request->oldData.SetByte(i, *(hostAddrT + i));
+            request->data.SetByte(i, *(hostAddr + i));
         }
 
         delete dataPkt;
