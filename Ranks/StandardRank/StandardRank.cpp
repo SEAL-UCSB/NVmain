@@ -424,6 +424,9 @@ bool StandardRank::Precharge( NVMainRequest *request )
     if( Idle( ) )
         state = STANDARDRANK_CLOSED;
 
+    nextPrecharge = MAX( nextPrecharge, 
+                         GetEventQueue()->GetCurrentCycle() + p->tPPD );
+
     if( success == false )
     {
         std::cerr << "NVMain Error: Rank Precharge FAILED! Did you check IsIssuable?" 
