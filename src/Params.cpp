@@ -153,6 +153,7 @@ Params::Params( )
     tRP = 9;
     tRRDR = 5;
     tRRDW = 5;
+    tPPD = 0;
     tRTP = 5;
     tRTRS = 1;
     tWP = 0;
@@ -343,6 +344,7 @@ void Params::SetParams( Config *c )
     ConvertTiming( c, "tRP", tRP );
     ConvertTiming( c, "tRRDR", tRRDR );
     ConvertTiming( c, "tRRDW", tRRDW );
+    ConvertTiming( c, "tPPD", tPPD );
     ConvertTiming( c, "tRTP", tRTP );
     ConvertTiming( c, "tRTRS", tRTRS );
     ConvertTiming( c, "tWP", tWP );
