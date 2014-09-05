@@ -55,6 +55,7 @@ elif build_type == "prof":
     env.Append(CCFLAGS='-fPIC')
     env.Append(CCFLAGS='-std=c++0x')
     env.Append(CCFLAGS='-DNDEBUG')
+    env.Append(LINKFLAGS='-pg')
     env['OBJSUFFIX'] = '.po'
 
 
