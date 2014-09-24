@@ -30,8 +30,14 @@
 #                     Website: http://www.cse.psu.edu/~poremba/ )
 
 import os
+import subprocess
 
 from os.path import basename
+
+
+HG_COMMAND = 'hg'
+if 'NVMAIN_HG' in os.environ:
+    HG_COMMAND = os.environ['NVMAIN_HG']
 
 
 Import('*')
@@ -46,6 +52,26 @@ if 'TARGET_ISA' in env and not 'NVMAIN_BUILD' in env:
     def NVMainSource(src):
         return Source(src)
     Export('NVMainSource')
+
+    # Attempt to check the revision number of gem5
+    print "Checking gem5 revision number...",
+
+    # Count the number of patches applied to subtract from revision number
+    proc = subprocess.Popen([HG_COMMAND, 'qapplied'], stdout=subprocess.PIPE,
+                            stderr = open(os.devnull, 'w'))
+    patch_count = proc.communicate()[0].count('\n')
+
+    # Use 'hg tip' to get revision number information
+    proc = subprocess.Popen([HG_COMMAND, 'tip'], stdout=subprocess.PIPE,
+                            stderr = open(os.devnull, 'w'))
+    tip_info = proc.communicate()[0].splitlines()
+    rv_string = tip_info[0].split(':')[1]
+    gem5_rv = int(rv_string) - int(patch_count)
+
+    print gem5_rv
+
+    gem5_rv_define = '-DNVM_GEM5_RV=' + str(gem5_rv)
+    env.Append(CCFLAGS=gem5_rv_define)
 
 
 NVMainSource('NVM/nvmain.cpp')
