@@ -484,7 +484,7 @@ NVMainControl::printStats(std::ostream& out) const
 void
 NVMainControl::enqueueToDirectory(MemoryNode *req, Cycles latency)
 {
-    Time arrival_time = clockEdge(latency);
+    auto arrival_time = clockEdge(latency);
     Cycles ruby_arrival_time = g_system_ptr->ticksToCycles(arrival_time);
     req->m_time = ruby_arrival_time;
     m_response_queue.push_back(req);
