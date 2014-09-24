@@ -448,7 +448,11 @@ NVMainMemory::MemoryPort::recvTimingReq(PacketPtr pkt)
         if (needsResponse) {
             assert(pkt->isResponse());
 
+#if NVM_GEM5_RV < 10405
             pkt->busFirstWordDelay = pkt->busLastWordDelay = 0;
+#else
+            pkt->firstWordDelay = pkt->lastWordDelay = 0;
+#endif
             memory.responseQueue.push_back(pkt);
 
             memory.ScheduleResponse( );
@@ -475,7 +479,11 @@ NVMainMemory::MemoryPort::recvTimingReq(PacketPtr pkt)
     }
 
     // Bus latency is modeled in NVMain.
+#if NVM_GEM5_RV < 10405
     pkt->busFirstWordDelay = pkt->busLastWordDelay = 0;
+#else
+    pkt->firstWordDelay = pkt->lastWordDelay = 0;
+#endif
 
     NVMainRequest *request = new NVMainRequest( );
 

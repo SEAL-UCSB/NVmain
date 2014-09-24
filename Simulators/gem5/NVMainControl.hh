@@ -75,8 +75,13 @@
 #include "mem/ruby/common/Global.hh"
 #include "mem/ruby/profiler/MemCntrlProfiler.hh"
 #include "mem/ruby/slicc_interface/Message.hh"
+#if NVM_GEM5_RV < 10301
 #include "mem/ruby/system/MemoryControl.hh"
 #include "mem/ruby/system/MemoryNode.hh"
+#else
+#include "mem/ruby/structures/MemoryControl.hh"
+#include "mem/ruby/structures/MemoryNode.hh"
+#endif
 #include "mem/ruby/system/System.hh"
 #include "mem/physical.hh"
 #include "params/NVMMemoryControl.hh"
