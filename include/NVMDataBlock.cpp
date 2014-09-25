@@ -57,6 +57,7 @@ void NVMDataBlock::SetSize( uint64_t s )
     assert( rawData == NULL );
     rawData = new uint8_t[s];
     size = s;
+    isValid = true;
 }
 
 uint64_t NVMDataBlock::GetSize( )

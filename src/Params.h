@@ -89,6 +89,7 @@ class Params
     double Erd;
     double Eref;
     double Ewr;
+    double Ewrpb;
     double Eactstdby;
     double Eprestdby;
     double Epda;
@@ -183,6 +184,7 @@ class Params
     ncounter_t MLCLevels;
     ncounter_t WPVariance;
     bool UniformWrites;
+    bool WriteAllBits; // Set false to calculate write energy on a per-bit basis
 
     /* SLC energy */
     double Ereset; 
