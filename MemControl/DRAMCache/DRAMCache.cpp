@@ -148,11 +148,12 @@ void DRAMCache::SetConfig( Config *conf, bool createChildren )
 
             drcChannels[i]->SetParent( this );
             AddChild( drcChannels[i] );
-            AddChild( mainMemory );
 
             drcChannels[i]->SetConfig( conf, createChildren );
             drcChannels[i]->RegisterStats( );
         }
+        /* Add mainMemory as the last child */
+        AddChild( mainMemory );
     }
 
     /* DRC Variant will call base SetConfig */
