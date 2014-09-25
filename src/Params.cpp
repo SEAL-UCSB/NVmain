@@ -71,6 +71,7 @@ Params::Params( )
     Erd = 3.405401;
     Eopenrd = 1.081080;
     Ewr = 1.023750;
+    Ewrpb = Ewr / 512.0; // Estimated value
     Eref = 38.558533;
     Eactstdby = 0.090090;
     Eprestdby = 0.083333;
@@ -182,6 +183,7 @@ Params::Params( )
     MLCLevels = 1;
     WPVariance = 1;
     UniformWrites = true; // Disable MLC by default
+    WriteAllBits = true;
 
     Ereset = 0.054331;
     Eset = 0.101581;
@@ -280,6 +282,7 @@ void Params::SetParams( Config *c )
     c->GetEnergy( "Erd", Erd );
     c->GetEnergy( "Eref", Eref );
     c->GetEnergy( "Ewr", Ewr );
+    c->GetEnergy( "Ewrpb", Ewrpb );
     c->GetEnergy( "Eactstdby", Eactstdby );
     c->GetEnergy( "Eprestdby", Eprestdby );
     c->GetEnergy( "Epda", Epda );
@@ -296,6 +299,7 @@ void Params::SetParams( Config *c )
     c->GetValue( "RanksPerDIMM", RanksPerDIMM );
 
     c->GetString( "EnduranceModel", EnduranceModel );
+    c->GetString( "DataEncoder", DataEncoder );
     c->GetString( "EnergyModel", EnergyModel );
 
     c->GetBool( "UseLowPower", UseLowPower );
@@ -382,6 +386,7 @@ void Params::SetParams( Config *c )
     c->GetValueUL( "MLCLevels", MLCLevels );
     c->GetValueUL( "WPVariance",  WPVariance );
     c->GetBool( "UniformWrites", UniformWrites );
+    c->GetBool( "WriteAllBits", WriteAllBits );
 
     c->GetEnergy( "Ereset", Ereset );
     c->GetEnergy( "Eset", Eset );

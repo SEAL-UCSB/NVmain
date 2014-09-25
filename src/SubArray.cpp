@@ -501,6 +501,8 @@ bool SubArray::Write( NVMainRequest *request )
 {
     uint64_t writeRow;
     ncycle_t writeTimer;
+    ncycle_t encLat = 0, endrLat = 0;
+    ncounter_t numUnchangedBits = 0;
 
     request->address.GetTranslatedAddress( &writeRow, NULL, NULL, NULL, NULL, NULL );
 
@@ -523,6 +525,31 @@ bool SubArray::Write( NVMainRequest *request )
         std::cerr << "NVMain Error: try to write a row that is not opened "
             << "in a subarray!" << std::endl;
         return false;
+    }
+
+    if( writeMode == WRITE_THROUGH )
+    {
+        encLat = (dataEncoder ? dataEncoder->Write( request ) : 0);
+        endrLat = UpdateEndurance( request );
+
+        /* Count the number of bits modified. */
+        if( !p->WriteAllBits )
+        {
+            uint8_t *bitCountData = new uint8_t[request->data.GetSize()];
+
+            for( uint64_t bitCountByte = 0; bitCountByte < request->data.GetSize(); bitCountByte++ )
+            {
+                bitCountData[bitCountByte] = request->data.GetByte( bitCountByte )
+                                           ^ request->oldData.GetByte( bitCountByte );
+            }
+
+            ncounter_t bitCountWords = request->data.GetSize()/4;
+
+            ncounter_t numChangedBits = CountBitsMLC1( 1, (uint32_t*)bitCountData, bitCountWords );
+
+            assert( request->data.GetSize()*8 > numChangedBits );
+            numUnchangedBits = request->data.GetSize()*8 - numChangedBits;
+        }
     }
 
     /* Determine the write time. */
@@ -570,9 +597,6 @@ bool SubArray::Write( NVMainRequest *request )
 
     if( writeMode == WRITE_THROUGH )
     {
-        ncycle_t encLat = (dataEncoder ? dataEncoder->Write( request ) : 0);
-        ncycle_t endrLat = UpdateEndurance( request );
-
         writeTimer += encLat + endrLat;
 
         averageWriteTime = ((averageWriteTime * static_cast<double>(measuredWriteTimes)) + static_cast<double>(writeTimer)) 
@@ -680,9 +704,9 @@ bool SubArray::Write( NVMainRequest *request )
     else
     {
         /* Flat energy model. */
-        subArrayEnergy += p->Ewr; // - p->Ewrpb * numUnchangedBits;
+        subArrayEnergy += p->Ewr - p->Ewrpb * numUnchangedBits;
 
-        burstEnergy += p->Ewr; // - p->Ewrpb * numUnchangedBits;
+        burstEnergy += p->Ewr;
     }
 
     writeCycle = true;
