@@ -1,0 +1,56 @@
+read-configuration /home/grads/poremba/class/CSE530/GEMS/gems-2.1/NVMAIN_WORKSPACE/nvmain.config
+
+magic-break-enable;
+run-python-file /home/grads/poremba/class/CSE530/GEMS/gems-2.1/NVMAIN_WORKSPACE/magic-handle.py
+
+
+@conf.con0.input = "cd /host\n";
+@conf.con0.input = "cd ocean/contiguo; ./ocean -p2 \n";
+c
+c 1
+
+
+istc-disable
+dstc-disable
+cpu-switch-time 1
+instruction-fetch-mode instruction-fetch-trace
+
+load-module ruby
+ruby0.setparam g_NUM_PROCESSORS 2
+ruby0.setparam g_PROCS_PER_CHIP 2
+ruby0.setparam g_MEMORY_SIZE_BYTES 268435456
+ruby0.setparam NUMBER_OF_VIRTUAL_NETWORKS 5
+ruby0.setparam L2_CACHE_ASSOC 2
+ruby0.setparam L2_CACHE_NUM_SETS_BITS 11
+ruby0.setparam L1_CACHE_ASSOC 2
+ruby0.setparam L1_CACHE_NUM_SETS_BITS 8
+ruby0.init
+
+load-module opal
+opal0.setparam MAX_FETCH 1
+opal0.setparam MAX_DECODE 1
+opal0.setparam MAX_DISPATCH 1
+opal0.setparam MAX_EXECUTE 1
+opal0.setparam MAX_RETIRE 1
+opal0.setparam IL1_SET_BITS 8
+opal0.setparam IL1_ASSOC 2
+opal0.setparam IL1_BLOCK_BITS 6
+opal0.setparam DL1_SET_BITS 8
+opal0.setparam DL1_ASSOC 2
+opal0.setparam DL1_BLOCK_BITS 6
+opal0.setparam L2_SET_BITS 11
+opal0.setparam L2_ASSOC 2
+opal0.setparam L2_BLOCK_BITS 6
+opal0.init
+
+ruby0.tracer-output-file "oceantest.trace"
+ruby0.debug-start-time "1"
+
+ruby0.periodic-stats-file "ocean.pstats"
+opal0.sim-start "ocean.opal"
+opal0.sim-step 100000
+
+opal0.stats
+ruby0.dump-stats "ocean.stats"
+echo "Endpoint"
+exit
