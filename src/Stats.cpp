@@ -51,7 +51,7 @@ Stats::~Stats( )
     {
         /* Free reset value memory. */
         uint8_t *rval = static_cast<uint8_t *>((*it)->GetResetValue( ));
-        delete rval; 
+        delete[] rval; 
         delete (*it);
     }
 }
@@ -79,7 +79,7 @@ void Stats::removeStat( StatType stat )
         {
             /* Free reset value memory. */
             uint8_t *rval = static_cast<uint8_t *>((*it)->GetResetValue( ));
-            delete rval; 
+            delete[] rval; 
 
             statList.erase( it );
             break;

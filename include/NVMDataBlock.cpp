@@ -48,7 +48,7 @@ NVMDataBlock::NVMDataBlock( )
 
 NVMDataBlock::~NVMDataBlock( )
 {
-    delete rawData;
+    delete[] rawData;
     rawData = NULL;
 }
 
