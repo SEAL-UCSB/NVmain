@@ -187,6 +187,18 @@ bool DRAMCache::IssueAtomic( NVMainRequest *req )
     return drcChannels[chan]->IssueAtomic( req );
 }
 
+bool DRAMCache::IsIssuable( NVMainRequest * req, FailReason * /*fail*/ )
+{
+    uint64_t chan;
+
+    Retranslate( req );
+    req->address.GetTranslatedAddress( NULL, NULL, NULL, NULL, &chan, NULL );
+    assert( chan < numChannels );
+    assert( GetChild(req)->GetTrampoline() == drcChannels[chan] );
+
+    return drcChannels[chan]->IsIssuable( req );
+}
+
 bool DRAMCache::IssueCommand( NVMainRequest *req )
 {
     uint64_t chan;

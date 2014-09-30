@@ -241,6 +241,21 @@ bool LH_Cache::IssueFunctional( NVMainRequest *req )
     return functionalCache[rank][bank]->Present( req->address );
 }
 
+bool LH_Cache::IsIssuable( NVMainRequest * /*request*/, FailReason * /*fail*/ )
+{
+    bool rv = true;
+
+    /*
+     *  Limit the number of commands in the queue. This will stall the caches/CPU.
+     */ 
+    if( drcQueue->size( ) >= drcQueueSize )
+    {
+        rv = false;
+    }
+
+    return rv;
+}
+
 bool LH_Cache::IssueCommand( NVMainRequest *req )
 {
     if( drcQueue->size( ) >= drcQueueSize )
