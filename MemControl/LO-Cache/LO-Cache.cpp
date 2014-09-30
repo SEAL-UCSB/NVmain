@@ -52,6 +52,9 @@ LO_Cache::LO_Cache( )
 
     std::cout << "Created a Latency Optimized DRAM Cache!" << std::endl;
 
+    drcQueueSize = 32;
+    starvationThreshold = 4;
+
     mainMemory = NULL;
     mainMemoryConfig = NULL;
     functionalCache = NULL;
@@ -89,10 +92,6 @@ LO_Cache::~LO_Cache( )
 void LO_Cache::SetConfig( Config *conf, bool createChildren )
 {
     ncounter_t rows;
-
-    /* Set Defauls */
-    drcQueueSize = 32;
-    starvationThreshold = 4;
 
     if( conf->KeyExists( "StarvationThreshold" ) )
         starvationThreshold = static_cast<ncounter_t>( conf->GetValue( "StarvationThreshold" ) );
@@ -213,6 +212,21 @@ bool LO_Cache::IssueFunctional( NVMainRequest *req )
     return functionalCache[rank][bank]->Present( req->address );
 }
 
+bool LO_Cache::IsIssuable( NVMainRequest * /*request*/, FailReason * /*fail*/ )
+{
+    bool rv = true;
+
+    /*
+     *  Limit the number of commands in the queue. This will stall the caches/CPU.
+     */ 
+    if( drcQueue->size( ) >= drcQueueSize )
+    {
+        rv = false;
+    }
+
+    return rv;
+}
+
 bool LO_Cache::IssueCommand( NVMainRequest *req )
 {
     bool rv = true;
@@ -294,6 +308,18 @@ bool LO_Cache::RequestComplete( NVMainRequest *req )
          */
         else if( req->tag == DRC_MEMREAD )
         {
+            /* Check if there are outstanding memory requests.
+             * This assumes that all outstanding will eventually be issued here, which might 
+             * not be the case if there are more than inflight DRC_MEMREAD requests. */
+            if( !outstandingMemoryRequests.empty() ) {
+                NVMainRequest *staleMemReq = outstandingMemoryRequests.front();
+                if( mainMemory->IsIssuable(staleMemReq, NULL) ) {
+                    mainMemory->IssueCommand( staleMemReq );
+                    outstandingMemoryRequests.pop();
+                    //std::cout << "LOC: Issued stale memory request for 0x" << std::hex << staleMemReq->address.GetPhysicalAddress() << std::dec << std::endl;
+                }
+            }
+
             /* Issue as a fill request. */
             NVMainRequest *fillReq = new NVMainRequest( );
 
@@ -384,7 +410,14 @@ bool LO_Cache::RequestComplete( NVMainRequest *req )
                 assert( outstandingFills.count( req ) == 0 );
                 outstandingFills.insert( std::pair<NVMainRequest*, NVMainRequest*>( memReq, req ) );
 
-                mainMemory->IssueCommand( memReq );
+                if (mainMemory->IsIssuable( memReq, NULL )) {
+                    mainMemory->IssueCommand( memReq );
+                } else {
+                    /* If the command is not issuable to main memory we need to save the request
+                     * and issue it later in time, e.g., when a DRC_MEMREAD complets. Otherwise,
+                     * this request to main memory would be lost. */
+                    outstandingMemoryRequests.push(memReq);
+                }
 
                 drc_miss++;
 

@@ -27,6 +27,7 @@ class AbstractDRAMCache : public MemoryController
    */
   virtual void SetMainMemory( NVMain *mm ) = 0;
   virtual bool IssueFunctional( NVMainRequest *req ) = 0;
+  virtual bool IsIssuable( NVMainRequest *request, FailReason *reason = NULL ) = 0;
 
 };
 

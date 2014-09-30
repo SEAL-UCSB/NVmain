@@ -52,6 +52,7 @@ class DRAMCache : public MemoryController
     void SetConfig( Config *conf, bool createChildren = true );
 
     bool IssueAtomic( NVMainRequest *req );
+    bool IsIssuable( NVMainRequest *request, FailReason *reason = NULL );
     bool IssueCommand( NVMainRequest *req );
     bool IssueFunctional( NVMainRequest *req );
     bool RequestComplete( NVMainRequest *req );
