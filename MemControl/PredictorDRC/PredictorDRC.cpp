@@ -115,6 +115,22 @@ bool PredictorDRC::IssueAtomic( NVMainRequest *req )
     return GetChild( req )->IssueAtomic( req );
 }
 
+bool PredictorDRC::IsIssuable( NVMainRequest * req, FailReason * fail )
+{
+    /* Need to check if both DRC and mainMemory can accept the request because the
+     * predictor might 'fail' and send us the other way later in IssueCommand*/
+    std::vector<NVMObject_hook *>& children = GetChildren();
+    std::vector<NVMObject_hook *>::iterator it;
+
+    for( it = children.begin(); it != children.end(); ++it ) {
+        if ( !(*it)->IsIssuable( req ) ) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 /*
  *  TODO: Issue FILL requests for any misses that occur.
  */

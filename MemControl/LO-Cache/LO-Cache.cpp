@@ -308,17 +308,6 @@ bool LO_Cache::RequestComplete( NVMainRequest *req )
          */
         else if( req->tag == DRC_MEMREAD )
         {
-            /* Check if there are outstanding memory requests.
-             * This assumes that all outstanding will eventually be issued here, which might 
-             * not be the case if there are more than inflight DRC_MEMREAD requests. */
-            if( !outstandingMemoryRequests.empty() ) {
-                NVMainRequest *staleMemReq = outstandingMemoryRequests.front();
-                if( mainMemory->IsIssuable(staleMemReq, NULL) ) {
-                    mainMemory->IssueCommand( staleMemReq );
-                    outstandingMemoryRequests.pop();
-                    //std::cout << "LOC: Issued stale memory request for 0x" << std::hex << staleMemReq->address.GetPhysicalAddress() << std::dec << std::endl;
-                }
-            }
 
             /* Issue as a fill request. */
             NVMainRequest *fillReq = new NVMainRequest( );
@@ -413,10 +402,10 @@ bool LO_Cache::RequestComplete( NVMainRequest *req )
                 if (mainMemory->IsIssuable( memReq, NULL )) {
                     mainMemory->IssueCommand( memReq );
                 } else {
-                    /* If the command is not issuable to main memory we need to save the request
-                     * and issue it later in time, e.g., when a DRC_MEMREAD complets. Otherwise,
-                     * this request to main memory would be lost. */
-                    outstandingMemoryRequests.push(memReq);
+                    /* If the request is not issuable to main memory we need to save the request
+                     * and issue it later in time, e.g., when a main memory request completes.
+                     * Otherwise, this request to main memory would be lost. */
+                    mainMemory->EnqueuePendingMemoryRequests( memReq );
                 }
 
                 drc_miss++;
