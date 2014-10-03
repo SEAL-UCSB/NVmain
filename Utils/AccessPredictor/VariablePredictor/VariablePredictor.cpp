@@ -73,6 +73,10 @@ void VariablePredictor::SetConfig( Config *config, bool /*createChildren*/ )
 
 uint64_t VariablePredictor::Translate( NVMainRequest *request )
 {
+    /* Write always hits, no prediction should be done. */
+    if( request->type == WRITE || request->type == WRITE_PRECHARGE )
+        return GetHitDestination( );
+
     ncounter_t dest = GetMissDestination( );
 
     /* 

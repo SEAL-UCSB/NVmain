@@ -41,7 +41,6 @@
 
 
 #include <map>
-#include <queue>
 
 
 namespace NVM {
@@ -97,7 +96,6 @@ class LO_Cache : public AbstractDRAMCache
     double drc_hitrate;
 
     std::map<NVMainRequest *, NVMainRequest *> outstandingFills;
-    std::queue<NVMainRequest *> outstandingMemoryRequests;
 };
 
 

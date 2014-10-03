@@ -42,6 +42,7 @@
 #include "src/Prefetcher.h"
 #include "include/NVMainRequest.h"
 #include "traceWriter/GenericTraceWriter.h"
+#include <queue>
 
 namespace NVM {
 
@@ -77,6 +78,8 @@ class NVMain : public NVMObject
 
     void Cycle( ncycle_t steps );
 
+    void EnqueuePendingMemoryRequests( NVMainRequest *request );
+
   private:
     Config *config;
     Config **channelConfig;
@@ -94,6 +97,7 @@ class NVMain : public NVMObject
 
     Prefetcher *prefetcher;
     std::list<NVMainRequest *> prefetchBuffer;
+    std::queue<NVMainRequest *> pendingMemoryRequests;
 
     std::ofstream pretraceOutput;
     GenericTraceWriter *preTracer;

@@ -53,6 +53,7 @@ class PredictorDRC : public MemoryController
     void SetConfig( Config *conf, bool createChildren = true );
 
     bool IssueAtomic( NVMainRequest *req );
+    bool IsIssuable( NVMainRequest * req, FailReason * fail = NULL );
     bool IssueCommand( NVMainRequest *req );
     bool RequestComplete( NVMainRequest *req );
 

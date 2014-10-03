@@ -495,6 +495,17 @@ bool NVMain::RequestComplete( NVMainRequest *request )
         rv = GetParent( )->RequestComplete( request );
     }
 
+    /* This is used in the main memory system when a DRAMCache is present.
+     * DRAMCache misses need to issue main memory requests than might not
+     * be issuable at that time. Try to issue these here. */
+    if( !pendingMemoryRequests.empty() ){
+       NVMainRequest *staleMemReq = pendingMemoryRequests.front();
+        if( IsIssuable(staleMemReq, NULL) ) {
+            IssueCommand( staleMemReq );
+            pendingMemoryRequests.pop();
+        }
+    }
+
     return rv;
 }
 
@@ -543,5 +554,10 @@ void NVMain::CalculateStats( )
 {
     for( unsigned int i = 0; i < numChannels; i++ )
         memoryControllers[i]->CalculateStats( );
+}
+
+void NVMain::EnqueuePendingMemoryRequests( NVMainRequest *req )
+{
+    pendingMemoryRequests.push(req);
 }
 
