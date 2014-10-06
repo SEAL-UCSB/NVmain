@@ -56,17 +56,10 @@ if 'TARGET_ISA' in env and not 'NVMAIN_BUILD' in env:
     # Attempt to check the revision number of gem5
     print "Checking gem5 revision number...",
 
-    # Count the number of patches applied to subtract from revision number
-    proc = subprocess.Popen([HG_COMMAND, 'qapplied'], stdout=subprocess.PIPE,
-                            stderr = open(os.devnull, 'w'))
-    patch_count = proc.communicate()[0].count('\n')
-
-    # Use 'hg tip' to get revision number information
-    proc = subprocess.Popen([HG_COMMAND, 'tip'], stdout=subprocess.PIPE,
-                            stderr = open(os.devnull, 'w'))
-    tip_info = proc.communicate()[0].splitlines()
-    rv_string = tip_info[0].split(':')[1]
-    gem5_rv = int(rv_string) - int(patch_count)
+    # Use 'hg log' to get qparent revision number information
+    proc = subprocess.Popen([HG_COMMAND, 'log', '--template', '{rev}\n', '-r', 'qparent'], 
+                            stdout=subprocess.PIPE, stderr = open(os.devnull, 'w'))
+    gem5_rv = int(proc.communicate()[0].rstrip())
 
     print gem5_rv
 
