@@ -95,6 +95,7 @@ bool RubyTraceReader::GetNextAccess( TraceLine *nextAccess )
     while( 1 )
     {
         NVMDataBlock dataBlock;
+        NVMDataBlock oldDataBlock;
         unsigned int threadId;
 
         threadId = 0;
@@ -107,7 +108,7 @@ bool RubyTraceReader::GetNextAccess( TraceLine *nextAccess )
         {
             NVMAddress nAddress;
             nAddress.SetPhysicalAddress( 0xDEADC0DEDEADBEEFULL );
-            nextAccess->SetLine( nAddress, NOP, 0, dataBlock, 0 );
+            nextAccess->SetLine( nAddress, NOP, 0, dataBlock, oldDataBlock, 0 );
             return false;
         }
         getline( trace, fullLine );
@@ -208,7 +209,7 @@ bool RubyTraceReader::GetNextAccess( TraceLine *nextAccess )
                 nAddress.SetPhysicalAddress( decAddress );
 
                 nextAccess->SetLine( nAddress, memOp, currentCycle - cycles, 
-                                     dataBlock, threadId );
+                                     dataBlock, oldDataBlock, threadId );
                 break;
             }
         }
