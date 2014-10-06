@@ -231,6 +231,7 @@ int TraceMain::RunTrace( int argc, char *argv[] )
         request->bulkCmd = CMD_NOP;
         request->threadId = tl->GetThreadId( );
         if( !IgnoreData ) request->data = tl->GetData( );
+        if( !IgnoreData ) request->oldData = tl->GetOldData( );
         request->status = MEM_REQUEST_INCOMPLETE;
         request->owner = (NVMObject *)this;
         
@@ -241,7 +242,7 @@ int TraceMain::RunTrace( int argc, char *argv[] )
         if( config->KeyExists( "IgnoreTraceCycle" ) 
                 && config->GetString( "IgnoreTraceCycle" ) == "true" )
             tl->SetLine( tl->GetAddress( ), tl->GetOperation( ), 0, 
-                            tl->GetData( ), tl->GetThreadId( ) );
+                         tl->GetData( ), tl->GetOldData( ), tl->GetThreadId( ) );
 
         if( request->type != READ && request->type != WRITE )
             std::cout << "traceMain: Unknown Operation: " << request->type 

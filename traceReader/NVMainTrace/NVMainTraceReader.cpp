@@ -92,6 +92,7 @@ bool NVMainTraceReader::GetNextAccess( TraceLine *nextAccess )
     OpType operation = READ;
     uint64_t address;
     NVMDataBlock dataBlock;
+    NVMDataBlock oldDataBlock;
     unsigned int threadId = 0;
     
     /* There are no more lines in the trace... Send back a "dummy" line */
@@ -100,7 +101,7 @@ bool NVMainTraceReader::GetNextAccess( TraceLine *nextAccess )
     {
         NVMAddress nAddress;
         nAddress.SetPhysicalAddress( 0xDEADC0DEDEADBEEFULL );
-        nextAccess->SetLine( nAddress, NOP, 0, dataBlock, 0 );
+        nextAccess->SetLine( nAddress, NOP, 0, dataBlock, oldDataBlock, 0 );
         std::cout << "NVMainTraceReader: Reached EOF!" << std::endl;
         return false;
     }
@@ -169,6 +170,12 @@ bool NVMainTraceReader::GetNextAccess( TraceLine *nextAccess )
         }
     }
 
+    /* Zero out old data in 1.0 trace format. */
+    oldDataBlock.SetSize( 64 );
+
+    uint64_t *rawData = reinterpret_cast<uint64_t*>(oldDataBlock.rawData);
+    memset(rawData, 0, 64);
+
     static unsigned int linenum = 0;
 
     linenum++;
@@ -185,7 +192,7 @@ bool NVMainTraceReader::GetNextAccess( TraceLine *nextAccess )
 
     nAddress.SetPhysicalAddress( address );
 
-    nextAccess->SetLine( nAddress, operation, cycle, dataBlock, threadId );
+    nextAccess->SetLine( nAddress, operation, cycle, dataBlock, oldDataBlock, threadId );
 
     return true;
 }

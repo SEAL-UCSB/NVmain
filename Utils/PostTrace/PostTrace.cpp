@@ -184,6 +184,7 @@ bool PostTrace::IssueCommand( NVMainRequest *request )
                     request->type,
                     GetEventQueue( )->GetCurrentCycle( ),
                     request->data,
+                    request->oldData,
                     request->threadId 
                   );
 
