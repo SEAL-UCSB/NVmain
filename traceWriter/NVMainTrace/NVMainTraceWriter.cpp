@@ -59,6 +59,9 @@ void NVMainTraceWriter::SetTraceFile( std::string file )
         std::cout << "Warning: Could not open trace file " << file
                   << ". Output will be suppressed." << std::endl;
     }
+
+    /* Write version number of this writer. */
+    trace << "NVMV1" << std::endl;
 }
 
 std::string NVMainTraceWriter::GetTraceFile( )
@@ -88,6 +91,7 @@ bool NVMainTraceWriter::SetNextAccess( TraceLine *nextAccess )
 void NVMainTraceWriter::WriteTraceLine( std::ostream& stream, TraceLine *line )
 {
     NVMDataBlock& data = line->GetData( );
+    NVMDataBlock& oldData = line->GetOldData( );
 
     /* Only print reads or writes. */
     if( line->GetOperation() != READ && line->GetOperation() != WRITE )
@@ -108,6 +112,9 @@ void NVMainTraceWriter::WriteTraceLine( std::ostream& stream, TraceLine *line )
 
     /* Print data. */
     stream << data << " ";
+
+    /* Print previous data. */
+    stream << oldData << " ";
 
     /* Print the thread ID */
     stream << line->GetThreadId( ) << std::endl;
