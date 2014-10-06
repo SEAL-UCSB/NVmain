@@ -36,12 +36,16 @@
 #include <cstdlib>
 #include <cassert>
 #include <cstring>
+#include <arpa/inet.h>
 
 using namespace NVM;
 
 NVMainTraceReader::NVMainTraceReader( )
 {
     traceFile = "";
+
+    traceVersion = 0;
+    readVersion = false;
 }
 
 NVMainTraceReader::~NVMainTraceReader( )
@@ -105,6 +109,18 @@ bool NVMainTraceReader::GetNextAccess( TraceLine *nextAccess )
         std::cout << "NVMainTraceReader: Reached EOF!" << std::endl;
         return false;
     }
+
+    if( !readVersion )
+    {
+        if( fullLine.substr( 0, 4 ) == "NVMV" )
+        {
+            std::string versionString = fullLine.substr( 4, std::string::npos );
+            traceVersion = atoi( versionString.c_str( ) );
+        }
+
+        readVersion = true;
+        getline( trace, fullLine );
+    }
     
     std::istringstream lineStream( fullLine );
     std::string field;
@@ -149,32 +165,70 @@ bool NVMainTraceReader::GetNextAccess( TraceLine *nextAccess )
 
                 dataBlock.SetSize( 64 );
 
-                uint64_t *rawData = reinterpret_cast<uint64_t*>(dataBlock.rawData);
+                uint32_t *rawData = reinterpret_cast<uint32_t*>(dataBlock.rawData);
                 memset(rawData, 0, 64);
                 
-                for( byte = 0; byte < 8; byte++ )
+                for( byte = 0; byte < 16; byte++ )
                 {
                     std::stringstream fmat;
 
-                    end = (int)field.length( ) - 16*byte;
-                    start = (int)field.length( ) - 16*byte - 16;
+                    end = 8*byte + 8;
+                    start = 8*byte;
 
                     fmat << std::hex << field.substr( start, end - start );
                     fmat >> rawData[byte];
+                    rawData[byte] = htonl( rawData[byte] );
                 }
             }
             else if( fieldId == 4 )
+            {
+                if( traceVersion == 0 )
+                {
+                    threadId = atoi( field.c_str( ) );
+
+                    /* Zero out old data in 1.0 trace format. */
+                    oldDataBlock.SetSize( 64 );
+
+                    uint64_t *rawData = reinterpret_cast<uint64_t*>(oldDataBlock.rawData);
+                    memset(rawData, 0, 64);
+                }
+                else
+                {
+                    int byte;
+                    int start, end;
+
+                    /* Assumes 64-byte memory words.... */
+                    // TODO: Drop assumption and use field.length()/2 bytes
+                    assert(sizeof(uint64_t)*8 == 64);
+                    assert(field.length() == 128); // 1 char per 4 bits
+
+                    oldDataBlock.SetSize( 64 );
+
+                    uint32_t *rawData = reinterpret_cast<uint32_t*>(oldDataBlock.rawData);
+                    memset(rawData, 0, 64);
+                    
+                    for( byte = 0; byte < 16; byte++ )
+                    {
+                        std::stringstream fmat;
+
+                        end = 8*byte + 8;
+                        start = 8*byte;
+
+                        fmat << std::hex << field.substr( start, end - start );
+                        fmat >> rawData[byte];
+                        rawData[byte] = htonl( rawData[byte] );
+                    }
+                }
+            }
+            else if( fieldId == 5 )
+            {
+                assert( traceVersion != 0 );
                 threadId = atoi( field.c_str( ) );
+            }
             
             fieldId++;
         }
     }
-
-    /* Zero out old data in 1.0 trace format. */
-    oldDataBlock.SetSize( 64 );
-
-    uint64_t *rawData = reinterpret_cast<uint64_t*>(oldDataBlock.rawData);
-    memset(rawData, 0, 64);
 
     static unsigned int linenum = 0;
 

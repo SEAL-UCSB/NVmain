@@ -56,6 +56,8 @@ class NVMainTraceReader : public GenericTraceReader
   private:
     std::string traceFile;
     std::ifstream trace;
+    unsigned int traceVersion;
+    bool readVersion;
 };
 
 };
