@@ -35,10 +35,12 @@
 #include "src/EventQueue.h"
 
 #ifndef TRACE
+#ifdef GEM5
   #include "base/statistics.hh"
   #include "base/types.hh"
   #include "sim/core.hh"
   #include "sim/stat_control.hh"
+#endif
 #endif
 
 #include <iostream>
