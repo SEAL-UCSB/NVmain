@@ -115,7 +115,7 @@ bool PredictorDRC::IssueAtomic( NVMainRequest *req )
     return GetChild( req )->IssueAtomic( req );
 }
 
-bool PredictorDRC::IsIssuable( NVMainRequest * req, FailReason * fail )
+bool PredictorDRC::IsIssuable( NVMainRequest * req, FailReason * /*fail*/ )
 {
     /* Need to check if both DRC and mainMemory can accept the request because the
      * predictor might 'fail' and send us the other way later in IssueCommand*/
