@@ -29,7 +29,7 @@
 #   Matt Poremba    ( Email: mrp5060 at psu dot edu 
 #                     Website: http://www.cse.psu.edu/~poremba/ )
 
-import os
+import os, sys
 import subprocess
 
 from os.path import basename
@@ -66,24 +66,23 @@ if 'TARGET_ISA' in env and not 'NVMAIN_BUILD' in env:
     gem5_rv_define = '-DNVM_GEM5_RV=' + str(gem5_rv)
     env.Append(CCFLAGS=gem5_rv_define)
 
-
+# Common source files for any build
 NVMainSource('NVM/nvmain.cpp')
 NVMainSource('SimInterface/NullInterface/NullInterface.cpp')
 NVMainSource('MemControl/MemoryControllerFactory.cpp')
 NVMainSource('traceReader/TraceLine.cpp')
 
-# Assume that this is a gem5 extras build if this is set.
-if not 'TARGET_ISA' in env:
+if 'NVMAIN_BUILD' in env:
+    # NVMain build.
     NVMainSource('traceSim/traceMain.cpp')
 
     NVMainSource('traceReader/TraceReaderFactory.cpp')
     NVMainSource('traceReader/RubyTrace/RubyTraceReader.cpp')
     NVMainSource('traceReader/NVMainTrace/NVMainTraceReader.cpp')
 
-else:
+elif 'TARGET_ISA' in env:
+    # Assume that this is a gem5 extras build if this is set.
     NVMainSource('SimInterface/Gem5Interface/Gem5Interface.cpp')
-
-
 
     generated_dir = Dir('../protocol')
 
@@ -98,5 +97,12 @@ else:
         include_action = MakeAction(MakeIncludeAction, Transform("MAKE INC", 1))
         env.Command(target, source, include_action)
 
-
     MakeInclude('SimInterface/Gem5Interface/Gem5Interface.h')
+elif "NVMAINPATH" in os.environ:
+    # Assume that this is a Zsim build if this is set.
+    # Nothing to be done here for now.
+    pass
+else:
+    print "ERROR: What kind of build is this?"
+    sys.exit(1)
+
