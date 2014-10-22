@@ -35,11 +35,13 @@
 #include "src/EventQueue.h"
 #include "include/NVMainRequest.h"
 #ifndef TRACE
+#ifdef GEM5
   #include "SimInterface/Gem5Interface/Gem5Interface.h"
   #include "base/statistics.hh"
   #include "base/types.hh"
   #include "sim/core.hh"
   #include "sim/stat_control.hh"
+#endif
 #endif
 #include <iostream>
 #include <set>
