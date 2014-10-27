@@ -208,20 +208,18 @@ int TraceMain::RunTrace( int argc, char *argv[] )
             std::cout << "Could not read next line from trace file!" 
                 << std::endl;
 
-            /* We don't know when to end without tracking requests. */
+            /* Wait for requests to drain. */
+            while( outstandingRequests > 0 )
+            {
+                if( EventDriven )
+                    globalEventQueue->Cycle( 1 );
+                else 
+                    GetChild( )->Cycle( 1 );
+              
+                currentCycle++;
+            }
+
             break;
-
-            //while( currentCycle < simulateCycles )
-            //{
-            //    if( EventDriven )
-            //        globalEventQueue->Cycle( 1 );
-            //    else 
-            //        GetChild( )->Cycle( 1 );
-            //  
-            //    currentCycle++;
-            //}
-
-            //break;
         }
 
         NVMainRequest *request = new NVMainRequest( );
@@ -326,6 +324,7 @@ int TraceMain::RunTrace( int argc, char *argv[] )
                 }
             }
 
+            outstandingRequests++;
             GetChild( )->IssueCommand( request );
 
             if( currentCycle >= simulateCycles && simulateCycles != 0 )
@@ -339,6 +338,9 @@ int TraceMain::RunTrace( int argc, char *argv[] )
 
     std::cout << "Exiting at cycle " << currentCycle << " because simCycles " 
         << simulateCycles << " reached." << std::endl; 
+    if( outstandingRequests > 0 )
+        std::cout << "Note: " << outstandingRequests << " requests still in-flight."
+                  << std::endl;
 
     delete config;
     delete stats;
@@ -349,6 +351,18 @@ int TraceMain::RunTrace( int argc, char *argv[] )
 void TraceMain::Cycle( ncycle_t /*steps*/ )
 {
 
+}
+
+bool TraceMain::RequestComplete( NVMainRequest* request )
+{
+    /* This is the top-level module, so there are no more parents to fallback. */
+    assert( request->owner == this );
+
+    outstandingRequests--;
+
+    delete request;
+
+    return true;
 }
 
 
