@@ -52,6 +52,11 @@ class TraceMain : public NVMObject
     int RunTrace( int argc, char *argv[] );
 
     void Cycle( ncycle_t steps );
+
+    bool RequestComplete( NVMainRequest *request );
+
+  private:
+    ncounter_t outstandingRequests;
 };
 
 
