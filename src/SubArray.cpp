@@ -308,7 +308,7 @@ bool SubArray::Activate( NVMainRequest *request )
     /* the request is deleted by RequestComplete() */
     request->owner = this;
     GetEventQueue( )->InsertEvent( EventResponse, this, request, 
-                    GetEventQueue()->GetCurrentCycle() + MAX( p->tRCD, p->tRAS ) );
+                    GetEventQueue()->GetCurrentCycle() + p->tRCD );
 
     /* 
      * The relative row number is record rather than the absolute row number 
