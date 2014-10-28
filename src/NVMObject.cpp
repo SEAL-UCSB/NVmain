@@ -165,6 +165,11 @@ bool NVMObject_hook::Idle( )
     return trampoline->Idle( );
 }
 
+bool NVMObject_hook::Drain( )
+{
+    return trampoline->Drain( );
+}
+
 void NVMObject_hook::Notify( NVMainRequest *req )
 {
     trampoline->Notify( req );
@@ -319,6 +324,23 @@ ncycle_t NVMObject::NextIssuable( NVMainRequest *req )
 bool NVMObject::Idle( )
 {
     return true;
+}
+
+bool NVMObject::Drain( )
+{
+    bool rv = true;
+
+    /* Assuming no requests to drain this module -- Drain children. */
+    std::vector<NVMObject_hook *>::iterator it;
+
+    for( it = children.begin(); it != children.end(); it++ )
+    {
+        bool child_rv = (*it)->Drain( );
+
+        rv = !child_rv ? false : rv;
+    }
+
+    return rv;
 }
 
 bool NVMObject::RequestComplete( NVMainRequest *request )

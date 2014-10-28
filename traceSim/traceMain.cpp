@@ -205,6 +205,9 @@ int TraceMain::RunTrace( int argc, char *argv[] )
     {
         if( !trace->GetNextAccess( tl ) )
         {
+            /* Force all modules to drain requests. */
+            bool draining = Drain( );
+
             std::cout << "Could not read next line from trace file!" 
                 << std::endl;
 
@@ -217,6 +220,10 @@ int TraceMain::RunTrace( int argc, char *argv[] )
                     GetChild( )->Cycle( 1 );
               
                 currentCycle++;
+
+                /* Retry drain each cycle if it failed. */
+                if( !draining )
+                    draining = Drain( );
             }
 
             break;
