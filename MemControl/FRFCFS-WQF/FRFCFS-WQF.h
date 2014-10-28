@@ -54,6 +54,7 @@ class FRFCFS_WQF : public MemoryController
     void SetConfig( Config *conf, bool createChildren = true );
 
     void Cycle( ncycle_t steps );
+    bool Drain( );
 
     void RegisterStats( );
     void CalculateStats( );
@@ -76,6 +77,7 @@ class FRFCFS_WQF : public MemoryController
 
     /* write draining flag */
     bool     m_draining;
+    bool     force_drain;
 
     /* State variables */
     uint64_t m_request_per_drain;

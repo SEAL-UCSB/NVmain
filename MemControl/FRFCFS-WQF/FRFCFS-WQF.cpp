@@ -68,6 +68,7 @@ FRFCFS_WQF::FRFCFS_WQF( ) : readQueueId(0), writeQueueId(1)
     LowWaterMark = 0;
 
     /* Drain control / statistics variables. */
+    force_drain = false;
     m_draining = false;
     m_drain_start_cycle = 0;
     m_drain_end_cycle = 0;
@@ -233,7 +234,7 @@ bool FRFCFS_WQF::IsIssuable( NVMainRequest *request, FailReason * /*fail*/ )
     /* during a write drain, no write can enqueue */
     if( (request->type == READ  && readQueue->size()  >= readQueueSize) 
             || (request->type == WRITE && ( writeQueue->size() >= writeQueueSize 
-                    || m_draining == true ) ) )
+                    || m_draining == true || force_drain == true ) ) )
     {
         rv = false;
     }
@@ -332,7 +333,7 @@ bool FRFCFS_WQF::RequestComplete( NVMainRequest * request )
 void FRFCFS_WQF::Cycle( ncycle_t steps )
 {
     /* check whether it is the time to switch from read to write drain */
-    if( m_draining == false && writeQueue->size() >= HighWaterMark )
+    if( m_draining == false && writeQueue->size() >= HighWaterMark && force_drain == false )
     {
         /* record the drain start cycle */
         m_drain_start_cycle = GetEventQueue()->GetCurrentCycle();
@@ -342,7 +343,7 @@ void FRFCFS_WQF::Cycle( ncycle_t steps )
         m_draining = true;
     }
     /* or, if the write drain has completed */
-    else if( m_draining == true && writeQueue->size() <= LowWaterMark )
+    else if( m_draining == true && writeQueue->size() <= LowWaterMark && force_drain == false )
     {
         /* record the drain end cycle */
         m_drain_end_cycle = GetEventQueue()->GetCurrentCycle();
@@ -441,7 +442,7 @@ void FRFCFS_WQF::Cycle( ncycle_t steps )
     NVMainRequest *nextRequest = NULL;
 
     /* if we are draining the write, only write queue is checked */
-    if( m_draining == true )
+    if( m_draining == true || (force_drain == true && readQueue->size() == 0) )
     {
         if( FindStarvedRequest( *writeQueue, &nextRequest ) )
         {
@@ -497,7 +498,7 @@ void FRFCFS_WQF::Cycle( ncycle_t steps )
     if( nextRequest != NULL )
     {
         /* If we are draining, do not allow write cancellation or pausing. */
-        if( m_draining == true )
+        if( m_draining == true || force_drain == true )
             nextRequest->flags |= NVMainRequest::FLAG_FORCED;
 
         IssueMemoryCommands( nextRequest );
@@ -532,3 +533,11 @@ void FRFCFS_WQF::CalculateStats( )
 
     MemoryController::CalculateStats( );
 }
+
+bool FRFCFS_WQF::Drain( )
+{
+    force_drain = true;
+
+    return true;
+}
+

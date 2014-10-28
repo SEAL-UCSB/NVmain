@@ -119,6 +119,7 @@ class NVMObject_hook
     void Notify( NVMainRequest *req );
     ncycle_t NextIssuable( NVMainRequest *req );
     virtual bool Idle( );
+    virtual bool Drain( );
 
     bool RequestComplete( NVMainRequest *req );
     void Callback( void *data );
@@ -165,6 +166,7 @@ class NVMObject
     virtual void Notify( NVMainRequest *req );
     virtual ncycle_t NextIssuable( NVMainRequest *req );
     virtual bool Idle( );
+    virtual bool Drain( );
 
     virtual bool RequestComplete( NVMainRequest *req );
     virtual void Callback( void *data );
