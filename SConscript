@@ -59,12 +59,18 @@ if 'TARGET_ISA' in env and not 'NVMAIN_BUILD' in env:
     # Use 'hg log' to get qparent revision number information
     proc = subprocess.Popen([HG_COMMAND, 'log', '--template', '{rev}\n', '-r', 'qparent'], 
                             stdout=subprocess.PIPE, stderr = open(os.devnull, 'w'))
-    gem5_rv = int(proc.communicate()[0].rstrip())
+    proc.wait()
 
-    print gem5_rv
+    # If the return code is not successful, assume no patches are applied
+    if proc.returncode == 0:
+        gem5_rv = int(proc.communicate()[0].rstrip())
+        print gem5_rv
 
-    gem5_rv_define = '-DNVM_GEM5_RV=' + str(gem5_rv)
-    env.Append(CCFLAGS=gem5_rv_define)
+        gem5_rv_define = '-DNVM_GEM5_RV=' + str(gem5_rv)
+        env.Append(CCFLAGS=gem5_rv_define)
+    else:
+        print "N/A"
+
 
 # Common source files for any build
 NVMainSource('NVM/nvmain.cpp')
