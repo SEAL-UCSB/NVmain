@@ -62,15 +62,15 @@ if 'TARGET_ISA' in env and not 'NVMAIN_BUILD' in env:
     proc.wait()
 
     # If the return code is not successful, assume no patches are applied
+    gem5_rv = 0
     if proc.returncode == 0:
         gem5_rv = int(proc.communicate()[0].rstrip())
         print gem5_rv
-
-        gem5_rv_define = '-DNVM_GEM5_RV=' + str(gem5_rv)
-        env.Append(CCFLAGS=gem5_rv_define)
     else:
         print "N/A"
 
+    gem5_rv_define = '-DNVM_GEM5_RV=' + str(gem5_rv)
+    env.Append(CCFLAGS=gem5_rv_define)
 
 # Common source files for any build
 NVMainSource('NVM/nvmain.cpp')
