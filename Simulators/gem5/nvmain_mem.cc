@@ -315,6 +315,7 @@ NVMainMemory::SetRequestData(NVMainRequest *request, PacketPtr pkt)
 
         delete dataPkt;
         delete dataReq;
+        delete [] hostAddr;
     }
     else
     {
