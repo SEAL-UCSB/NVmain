@@ -71,6 +71,7 @@ if 'TARGET_ISA' in env and not 'NVMAIN_BUILD' in env:
 
     gem5_rv_define = '-DNVM_GEM5_RV=' + str(gem5_rv)
     env.Append(CCFLAGS=gem5_rv_define)
+    env['NVM_GEM5_RV'] = gem5_rv
 
 # Common source files for any build
 NVMainSource('NVM/nvmain.cpp')
