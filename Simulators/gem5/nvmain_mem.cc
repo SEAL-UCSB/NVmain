@@ -50,6 +50,7 @@
 #include "base/statistics.hh"
 #include "debug/NVMain.hh"
 #include "debug/NVMainMin.hh"
+#include "config/the_isa.hh"
 
 using namespace NVM;
 
@@ -201,6 +202,13 @@ NVMainMemory::init()
         m_nvmainPtr->SetParent( this );
         m_nvmainGlobalEventQueue->AddSystem( m_nvmainPtr, m_nvmainConfig );
         m_nvmainPtr->SetConfig( m_nvmainConfig );
+
+        masterInstance->allInstances.push_back(this);
+    }
+    else
+    {
+        masterInstance->allInstances.push_back(this);
+        masterInstance->otherInstance = this;
     }
 }
 
@@ -501,10 +509,18 @@ NVMainMemory::MemoryPort::recvTimingReq(PacketPtr pkt)
      *  this fix up value.
      */
     uint64_t addressFixUp = 0;
+#if THE_ISA == X86_ISA
     if( masterInstance != &memory )
     {
         addressFixUp = 0x40000000;
     }
+#elif THE_ISA == ARM_ISA
+    /* 
+     *  ARM regions are 2GB - 4GB followed by 34 GB - 64 GB. Work for up to
+     *  34 GB of memory. Further regions from 512 GB - 992 GB.
+     */
+    addressFixUp = (masterInstance == &memory) ? 0x80000000 : 0x800000000;
+#endif
 
     request->access = UNKNOWN_ACCESS;
     request->address.SetPhysicalAddress(pkt->req->getPaddr() - addressFixUp);
@@ -544,12 +560,12 @@ NVMainMemory::MemoryPort::recvTimingReq(PacketPtr pkt)
         DPRINTF(NVMain, "nvmain_mem.cc: Enqueued Mem request for 0x%x of type %s\n", request->address.GetPhysicalAddress( ), ((pkt->isRead()) ? "READ" : "WRITE") );
 
         /* See if we need to reschedule the wakeup event sooner. */
-        ncycle_t nextEvent = memory.m_nvmainGlobalEventQueue->GetNextEvent(NULL);
+        ncycle_t nextEvent = memory.masterInstance->m_nvmainGlobalEventQueue->GetNextEvent(NULL);
         DPRINTF(NVMain, "NVMainMemory: Next event after issue is %d\n", nextEvent);
         if( memory.m_eventDriven && nextEvent < memory.nextEventCycle
             && memory.clockEvent.scheduled() )
         {
-            ncycle_t currentCycle = memory.m_nvmainGlobalEventQueue->GetCurrentCycle();
+            ncycle_t currentCycle = memory.masterInstance->m_nvmainGlobalEventQueue->GetCurrentCycle();
 
             //assert(nextEvent >= currentCycle);
             ncycle_t stepCycles;
@@ -570,13 +586,13 @@ NVMainMemory::MemoryPort::recvTimingReq(PacketPtr pkt)
         {
             /*while( true )
             {
-                nextEvent = memory.m_nvmainGlobalEventQueue->GetNextEvent(NULL);
+                nextEvent = memory.masterInstance->m_nvmainGlobalEventQueue->GetNextEvent(NULL);
 
-                if( nextEvent == memory.m_nvmainGlobalEventQueue->GetCurrentCycle() )
+                if( nextEvent == memory.masterInstance->m_nvmainGlobalEventQueue->GetCurrentCycle() )
                 {
                     DPRINTF(NVMain, "NVMainMemory: Next event in same cycle (%d)!\n", nextEvent);
 
-                    memory.m_nvmainGlobalEventQueue->Cycle( 0 );
+                    memory.masterInstance->m_nvmainGlobalEventQueue->Cycle( 0 );
                 }
                 else
                 {
@@ -584,7 +600,7 @@ NVMainMemory::MemoryPort::recvTimingReq(PacketPtr pkt)
                 }
             }*/
 
-            ncycle_t currentCycle = memory.m_nvmainGlobalEventQueue->GetCurrentCycle();
+            ncycle_t currentCycle = memory.masterInstance->m_nvmainGlobalEventQueue->GetCurrentCycle();
 
             //assert(nextEvent >= currentCycle);
             ncycle_t stepCycles = nextEvent - currentCycle;
@@ -738,12 +754,28 @@ bool NVMainMemory::RequestComplete(NVM::NVMainRequest *req)
             ownerInstance->access(memRequest->packet);
         }
 
+        for( auto retryIter = masterInstance->allInstances.begin(); 
+             retryIter != masterInstance->allInstances.end(); retryIter++ )
+        {
+            if( (*retryIter)->retryRead && (isRead || isWrite) )
+            {
+                (*retryIter)->retryRead = false;
+                (*retryIter)->port.sendRetry();
+            }
+            if( (*retryIter)->retryWrite && (isRead || isWrite) )
+            {
+                (*retryIter)->retryWrite = false;
+                (*retryIter)->port.sendRetry();
+            }
+        }
+
         /*
          *  If we have combined queues (FRFCFS/FCFS) there is a problem.
          *  I assume that gem5 will stall such that only one type of request
          *  will need a retry, however I do not explicitly enfore that only
          *  one sendRetry() be called.
          */
+        /*
         if( ownerInstance->retryRead == true && (isRead || isWrite) )
         {
             ownerInstance->retryRead = false;
@@ -754,13 +786,14 @@ bool NVMainMemory::RequestComplete(NVM::NVMainRequest *req)
             ownerInstance->retryWrite = false;
             ownerInstance->port.sendRetry();
         }
+        */
 
         DPRINTF(NVMain, "Completed Mem request for 0x%x of type %s\n", req->address.GetPhysicalAddress( ), (isRead ? "READ" : "WRITE"));
 
         if(respond)
         {
             ownerInstance->responseQueue.push_back(memRequest->packet);
-            ScheduleResponse( );
+            ownerInstance->ScheduleResponse( );
 
             delete req;
             delete memRequest;
@@ -784,6 +817,7 @@ bool NVMainMemory::RequestComplete(NVM::NVMainRequest *req)
 
 
     masterInstance->m_request_map.erase(iter);
+    //assert(m_requests_outstanding > 0);
     m_requests_outstanding--;
 
     return true;

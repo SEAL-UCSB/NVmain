@@ -199,6 +199,8 @@ class NVMainMemory : public AbstractMemory, public NVM::NVMObject
 
     MemoryPort port;
     static NVMainMemory *masterInstance;
+    NVMainMemory *otherInstance;
+    std::vector<NVMainMemory *> allInstances;
     bool retryRead, retryWrite, retryResp;
     std::deque<PacketPtr> responseQueue;
     std::vector<PacketPtr> pendingDelete;
