@@ -115,12 +115,15 @@ for trace in testdata["traces"]:
                         checkvalue = float(''.join(c for c in check.split(' ')[1] if fval.match(c)))
                         if checkstat in line:
                             refvalue = float(''.join(c for c in line.split(' ')[1] if fval.match(c)))
-                            fuzz = max( (1.0 - (checkvalue / refvalue)) * 100.0, (1.0 - (refvalue / checkvalue)) * 100.0)
-                            if fuzz < options.max_fuzz:
-                                checkcounter = checkcounter + 1
-                                passedchecks.append(check)
-                            else:
-                                print "Stat '%s' has value '%s' while reference has '%s'. Fuzz = %f" % (checkstat, checkvalue, refvalue, fuzz)
+                            try:
+                                fuzz = max( (1.0 - (checkvalue / refvalue)) * 100.0, (1.0 - (refvalue / checkvalue)) * 100.0)
+                                if fuzz < options.max_fuzz:
+                                    checkcounter = checkcounter + 1
+                                    passedchecks.append(check)
+                                else:
+                                    print "Stat '%s' has value '%s' while reference has '%s'. Fuzz = %f" % (checkstat, checkvalue, refvalue, fuzz)
+                            except ZeroDivisionError:
+                                print "Warning: Stat '%s' has reference value (%s) or check value (%s) of zero." % (checkstat, refvalue, checkvalue)
 
         if checkcounter == checkcount:
             print "[Passed %d/%d]" % (checkcounter, checkcount)
