@@ -939,6 +939,9 @@ bool SubArray::BetweenWriteIterations( )
 ncycle_t SubArray::WriteCellData2( NVMainRequest *request )
 {
     writeIterationStarts.clear( );
+    uint32_t *rawData = reinterpret_cast<uint32_t*>(request->data.rawData);
+    unsigned int memoryWordSize = static_cast<unsigned int>(p->tBURST * p->RATE * p->BusWidth);
+    unsigned int writeBytes32 = memoryWordSize / 32;
 
     if( p->UniformWrites )
     {
@@ -952,14 +955,22 @@ ncycle_t SubArray::WriteCellData2( NVMainRequest *request )
             }
         }
 
+        /* Since we are skipping MLC checks below, we need to calculate the energy here. */
+        ncounter_t writeCount0 = CountBitsMLC1( 0, rawData, writeBytes32 );
+        ncounter_t writeCount1 = CountBitsMLC1( 1, rawData, writeBytes32 );
+
+        if( p->EnergyModel != "current" )
+        {
+            subArrayEnergy += p->Ereset * writeCount0;
+            subArrayEnergy += p->Eset * writeCount1;
+            writeEnergy += p->Ereset * writeCount0;
+            writeEnergy += p->Eset * writeCount1;
+        }
+
         return p->tWP;
     }
 
     ncycle_t maxDelay = 0;
-
-    unsigned int memoryWordSize = static_cast<unsigned int>(p->tBURST * p->RATE * p->BusWidth);
-    unsigned int writeBytes32 = memoryWordSize / 32;
-    uint32_t *rawData = reinterpret_cast<uint32_t*>(request->data.rawData);
 
     /* No data... assume all 0. */
     if( !rawData )
