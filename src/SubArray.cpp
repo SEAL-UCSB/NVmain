@@ -956,8 +956,20 @@ ncycle_t SubArray::WriteCellData2( NVMainRequest *request )
         }
 
         /* Since we are skipping MLC checks below, we need to calculate the energy here. */
-        ncounter_t writeCount0 = CountBitsMLC1( 0, rawData, writeBytes32 );
-        ncounter_t writeCount1 = CountBitsMLC1( 1, rawData, writeBytes32 );
+        ncounter_t writeCount0;
+        ncounter_t writeCount1;
+
+        if( rawData )
+        {
+            writeCount0 = CountBitsMLC1( 0, rawData, writeBytes32 );
+            writeCount1 = CountBitsMLC1( 1, rawData, writeBytes32 );
+        }
+        else
+        {
+            /* Assume uniformly random data if we don't have data. */
+            writeCount0 = 256;
+            writeCount1 = 256;
+        }
 
         if( p->EnergyModel != "current" )
         {
