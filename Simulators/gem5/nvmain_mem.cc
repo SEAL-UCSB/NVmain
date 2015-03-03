@@ -709,6 +709,12 @@ unsigned int NVMainMemory::drain(DrainManager *dm)
 }
 
 
+void NVMainMemory::MemoryPort::recvRespRetry( )
+{
+    memory.recvRetry( );
+}
+
+
 void NVMainMemory::MemoryPort::recvRetry( )
 {
     memory.recvRetry( );
@@ -764,33 +770,22 @@ bool NVMainMemory::RequestComplete(NVM::NVMainRequest *req)
             if( (*retryIter)->retryRead && (isRead || isWrite) )
             {
                 (*retryIter)->retryRead = false;
+#if NVM_GEM5_RV < 10713
                 (*retryIter)->port.sendRetry();
+#else
+                (*retryIter)->port.sendRetryReq();
+#endif
             }
             if( (*retryIter)->retryWrite && (isRead || isWrite) )
             {
                 (*retryIter)->retryWrite = false;
+#if NVM_GEM5_RV < 10713
                 (*retryIter)->port.sendRetry();
+#else
+                (*retryIter)->port.sendRetryReq();
+#endif
             }
         }
-
-        /*
-         *  If we have combined queues (FRFCFS/FCFS) there is a problem.
-         *  I assume that gem5 will stall such that only one type of request
-         *  will need a retry, however I do not explicitly enfore that only
-         *  one sendRetry() be called.
-         */
-        /*
-        if( ownerInstance->retryRead == true && (isRead || isWrite) )
-        {
-            ownerInstance->retryRead = false;
-            ownerInstance->port.sendRetry();
-        }
-        if( ownerInstance->retryWrite == true && (isRead || isWrite) )
-        {
-            ownerInstance->retryWrite = false;
-            ownerInstance->port.sendRetry();
-        }
-        */
 
         DPRINTF(NVMain, "Completed Mem request for 0x%x of type %s\n", req->address.GetPhysicalAddress( ), (isRead ? "READ" : "WRITE"));
 

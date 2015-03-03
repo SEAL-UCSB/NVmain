@@ -72,7 +72,6 @@ class NVMainMemory : public AbstractMemory, public NVM::NVMObject
     {
         friend class NVMainMemory;
 
-//        SlavePacketQueue queueImpl;
         NVMainMemory& memory;
         NVMainMemory& forgdb;
 
@@ -89,6 +88,7 @@ class NVMainMemory : public AbstractMemory, public NVM::NVMObject
         bool recvTimingReq(PacketPtr pkt);
 
         void recvRetry( );
+        void recvRespRetry( );
 
         AddrRangeList getAddrRanges() const;
 
