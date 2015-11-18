@@ -881,7 +881,7 @@ void NVMainMemory::ScheduleClockEvent( Tick nextWake )
 }
 
 
-void NVMainMemory::serialize(std::ostream& os)
+void NVMainMemory::serialize(CheckpointOut &cp) const
 {
     if (masterInstance != this)
         return;
@@ -900,7 +900,7 @@ void NVMainMemory::serialize(std::ostream& os)
 }
 
 
-void NVMainMemory::unserialize(Checkpoint *cp, const std::string& section)
+void NVMainMemory::unserialize(CheckpointIn &cp)
 {
     if (masterInstance != this)
         return;
