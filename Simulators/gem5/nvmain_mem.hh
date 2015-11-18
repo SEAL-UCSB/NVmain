@@ -194,8 +194,8 @@ class NVMainMemory : public AbstractMemory, public NVM::NVMObject
 
     unsigned int drain(DrainManager *dm);
 
-    void serialize(std::ostream& os);
-    void unserialize(Checkpoint *cp, const std::string& section);
+    void serialize(CheckpointOut &cp) const override;
+    void unserialize(CheckpointIn &cp) override;
 
     MemoryPort port;
     static NVMainMemory *masterInstance;
