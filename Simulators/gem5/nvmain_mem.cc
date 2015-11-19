@@ -689,23 +689,16 @@ void NVMainMemory::doFunctionalAccess(PacketPtr pkt)
 }
 
 
-unsigned int NVMainMemory::drain(DrainManager *dm)
+DrainState NVMainMemory::drain()
 {
-    unsigned int rv= 0;
-
     if( !masterInstance->m_request_map.empty() )
     {
-        setDrainState(Drainable::Draining);
-        drainManager = dm;
-        rv = 1;
+        return DrainState::Draining;
     }
     else
     {
-        setDrainState(Drainable::Drained);
-        rv = 0;
+        return DrainState::Drained;
     }
-
-    return rv;
 }
 
 
@@ -881,7 +874,7 @@ void NVMainMemory::ScheduleClockEvent( Tick nextWake )
 }
 
 
-void NVMainMemory::serialize(std::ostream& os)
+void NVMainMemory::serialize(CheckpointOut &cp) const
 {
     if (masterInstance != this)
         return;
@@ -900,7 +893,7 @@ void NVMainMemory::serialize(std::ostream& os)
 }
 
 
-void NVMainMemory::unserialize(Checkpoint *cp, const std::string& section)
+void NVMainMemory::unserialize(CheckpointIn &cp)
 {
     if (masterInstance != this)
         return;

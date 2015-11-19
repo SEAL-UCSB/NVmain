@@ -192,10 +192,10 @@ class NVMainMemory : public AbstractMemory, public NVM::NVMObject
 
     void Cycle(NVM::ncycle_t) { }
 
-    unsigned int drain(DrainManager *dm);
+    DrainState drain() override;
 
-    void serialize(std::ostream& os);
-    void unserialize(Checkpoint *cp, const std::string& section);
+    void serialize(CheckpointOut &cp) const override;
+    void unserialize(CheckpointIn &cp) override;
 
     MemoryPort port;
     static NVMainMemory *masterInstance;
