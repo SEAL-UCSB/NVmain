@@ -192,7 +192,7 @@ class NVMainMemory : public AbstractMemory, public NVM::NVMObject
 
     void Cycle(NVM::ncycle_t) { }
 
-    unsigned int drain(DrainManager *dm);
+    DrainState drain() override;
 
     void serialize(CheckpointOut &cp) const override;
     void unserialize(CheckpointIn &cp) override;

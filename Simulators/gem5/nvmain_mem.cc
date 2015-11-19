@@ -689,23 +689,16 @@ void NVMainMemory::doFunctionalAccess(PacketPtr pkt)
 }
 
 
-unsigned int NVMainMemory::drain(DrainManager *dm)
+DrainState NVMainMemory::drain()
 {
-    unsigned int rv= 0;
-
     if( !masterInstance->m_request_map.empty() )
     {
-        setDrainState(Drainable::Draining);
-        drainManager = dm;
-        rv = 1;
+        return DrainState::Draining;
     }
     else
     {
-        setDrainState(Drainable::Drained);
-        rv = 0;
+        return DrainState::Drained;
     }
-
-    return rv;
 }
 
 
