@@ -511,7 +511,7 @@ void LO_Cache::CreateCheckpoint( std::string dir )
 
             if( !cpt_handle.is_open( ) )
             {
-                std::cout << "LO_Cache: Warning: Could not open checkpoint file: " << cpt_file << "!" << std::endl;
+                std::cout << "LO_Cache: Warning: Could not open checkpoint file: " << cpt_file.str() << "!" << std::endl;
             }
             else
             {
@@ -565,7 +565,7 @@ void LO_Cache::RestoreCheckpoint( std::string dir )
 
             if( !cpt_handle.is_open( ) )
             {
-                std::cout << "LO_Cache: Warning: Could not open checkpoint file: " << cpt_file << "!" << std::endl;
+                std::cout << "LO_Cache: Warning: Could not open checkpoint file: " << cpt_file.str() << "!" << std::endl;
             }
             else
             {
