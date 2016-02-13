@@ -66,6 +66,18 @@ if 'TARGET_ISA' in env and not 'NVMAIN_BUILD' in env:
     if proc.returncode == 0:
         gem5_rv = int(proc.communicate()[0].rstrip())
         print gem5_rv
+    elif proc.returncode == 255:
+        # If a failure returned, we may not have any patches applied:
+        # Try to get the revision number another way
+        proc = subprocess.Popen([HG_COMMAND, 'identify', '--num'], 
+                                stdout=subprocess.PIPE, stderr = open(os.devnull, 'w'))
+        proc.wait()
+
+        if proc.returncode == 0:
+            gem5_rv = int(proc.communicate()[0].rstrip())
+            print gem5_rv
+        else:
+            print "N/A"
     else:
         print "N/A"
 
