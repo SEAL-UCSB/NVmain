@@ -355,8 +355,13 @@ NVMainMemory::SetRequestData(NVMainRequest *request, PacketPtr pkt)
 Tick
 NVMainMemory::MemoryPort::recvAtomic(PacketPtr pkt)
 {
+#if NVM_GEM5_RV < 11284
     if (pkt->memInhibitAsserted())
         return 0;
+#else
+    if (pkt->cacheResponding())
+        return 0;
+#endif
 
     /*
      * calculate the latency. Now it is only random number
@@ -441,10 +446,17 @@ NVMainMemory::MemoryPort::recvTimingReq(PacketPtr pkt)
         delete memory.pendingDelete[x];
     memory.pendingDelete.clear();
 
+#if NVM_GEM5_RV < 11284
     if (pkt->memInhibitAsserted()) {
         memory.pendingDelete.push_back(pkt);
         return true;
     }
+#else
+    if (pkt->cacheResponding()) {
+        memory.pendingDelete.push_back(pkt);
+        return true;
+    }
+#endif
 
 
     if (!pkt->isRead() && !pkt->isWrite()) {
