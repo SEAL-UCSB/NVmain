@@ -1017,8 +1017,8 @@ void StandardRank::CalculateStats( )
         refreshPower *= (double)deviceCount;
     }
 
-    totalEnergy = activateEnergy + burstEnergy + refreshEnergy + backgroundEnergy;
-    totalPower = activatePower + burstPower + refreshPower + backgroundPower;
+    totalEnergy += activateEnergy + burstEnergy + refreshEnergy + backgroundEnergy;
+    totalPower += activatePower + burstPower + refreshPower + backgroundPower;
 
     actWaitAverage = static_cast<double>(actWaitTotal) / static_cast<double>(actWaits);
     rrdWaitAverage = static_cast<double>(rrdWaitTotal) / static_cast<double>(rrdWaits);
