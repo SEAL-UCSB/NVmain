@@ -35,9 +35,6 @@ if 'TARGET_ISA' in env and not 'NVMAIN_BUILD' in env:
     env.Append(CPPPATH=Dir('.'))
 
     Source('nvmain_mem.cc')
-    if 'NVM_GEM5_RV' in env and env['NVM_GEM5_RV'] < 10524:
-        Source('NVMainControl.cc') # ruby
-        SimObject('NVMainControl.py') # ruby
 
     DebugFlag('NVMain')
     DebugFlag('NVMainMin')
