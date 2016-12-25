@@ -1,0 +1,20 @@
+# HG changeset patch
+# Parent 78ef8daecd81de0c392034809b3bc155396bf983
+gem5: Updated for gem5 revisions 10789+
+
+diff --git a/configs/common/Options.py b/configs/common/Options.py
+--- a/configs/common/Options.py
++++ b/configs/common/Options.py
+@@ -63,6 +63,12 @@
+ # being used, and consequently no CPUs, but rather various types of
+ # testers and traffic generators.
+ def addNoISAOptions(parser):
++    # Check for extra nvmain configuration override options
++    for arg in sys.argv:
++        if arg[:9] == "--nvmain-":
++            parser.add_option(arg, type="string", default="NULL",
++                       help="Set NVMain configuration value for a parameter")
++
+     parser.add_option("-n", "--num-cpus", type="int", default=1)
+     parser.add_option("--sys-voltage", action="store", type="string",
+                       default='1.0V',
