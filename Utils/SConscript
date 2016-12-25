@@ -41,7 +41,7 @@ if 'NVMAIN_BUILD' in env:
 NVMainSource('HookFactory.cpp')
 NVMainSource('Caches/CacheBank.cpp')
 NVMainSource('Visualizer/Visualizer.cpp')
-NVMainSource('RequestTracer/RequestTracer.cpp')
+#NVMainSource('RequestTracer/RequestTracer.cpp')
 NVMainSource('PostTrace/PostTrace.cpp')
 
 # TODO: Create SConscripts for each hook instead of this single file.

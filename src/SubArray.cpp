@@ -48,6 +48,12 @@
 
 #define WriteCellData WriteCellData2
 
+#if defined(__clang__)
+#define NO_OPT __attribute__((optnone))
+#else
+#define NO_OPT __attribute__((optimize("0")))
+#endif
+
 using namespace NVM;
 
 SubArray::SubArray( )
@@ -1507,7 +1513,7 @@ void SubArray::Cycle( ncycle_t )
  *  can be 0 (binary 00), 1 (binary 01), 2 (binary 10) or 3
  *  (binary 11).
  */
-ncounter_t __attribute__((optimize("0"))) SubArray::Count32MLC2( uint8_t value, uint32_t data )
+ncounter_t NO_OPT SubArray::Count32MLC2( uint8_t value, uint32_t data )
 {
     /*
      *  This method counts the number of 11 pairs, so we need to convert
@@ -1533,7 +1539,7 @@ ncounter_t __attribute__((optimize("0"))) SubArray::Count32MLC2( uint8_t value, 
 }
 
 
-ncounter_t __attribute__((optimize("0"))) SubArray::CountBitsMLC2( uint8_t value, uint32_t *data, ncounter_t words )
+ncounter_t NO_OPT SubArray::CountBitsMLC2( uint8_t value, uint32_t *data, ncounter_t words )
 {
     ncounter_t count = 0;
 
@@ -1546,7 +1552,7 @@ ncounter_t __attribute__((optimize("0"))) SubArray::CountBitsMLC2( uint8_t value
 }
 
 
-ncounter_t __attribute__((optimize("0"))) SubArray::Count32MLC1( uint32_t data )
+ncounter_t NO_OPT SubArray::Count32MLC1( uint32_t data )
 {
     /*
      *  Count the number of ones in this value using some
@@ -1561,7 +1567,7 @@ ncounter_t __attribute__((optimize("0"))) SubArray::Count32MLC1( uint32_t data )
 }
 
 
-ncounter_t __attribute__((optimize("0"))) SubArray::CountBitsMLC1( uint8_t value, uint32_t *data, ncounter_t words )
+ncounter_t NO_OPT SubArray::CountBitsMLC1( uint8_t value, uint32_t *data, ncounter_t words )
 {
     ncounter_t count = 0;
 
