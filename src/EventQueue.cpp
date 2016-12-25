@@ -446,7 +446,6 @@ void EventQueue::SetCurrentCycle( ncycle_t curCycle )
 GlobalEventQueue::GlobalEventQueue( )
 {
     currentCycle = 0;
-    eventDriven = false;
 }
 
 GlobalEventQueue::~GlobalEventQueue( )
@@ -458,28 +457,6 @@ void GlobalEventQueue::AddSystem( NVMain *subSystem, Config *config )
 {
     double subSystemFrequency = config->GetEnergy( "CLK" ) * 1000000.0;
     EventQueue *queue = subSystem->GetEventQueue( );
-    bool eventDrivenSub = config->GetBool( "EventDriven" );
-
-    /* First subsystem decides if the entire system is event driven or not. */
-    if( eventQueues.empty( ) )
-        eventDriven = eventDrivenSub;
-
-    if( eventDrivenSub != eventDriven )
-    {
-        std::cout << "NVMain: Warning: Subsystem setting of event driven does not match parent!"
-                  << std::endl;
-
-        if( eventDriven )
-        {
-            std::cout << "                 Forcing subsystem to be event driven." << std::endl;
-            config->SetBool( "EventDriven", true );
-        }
-        else
-        {
-            std::cout << "                 Forcing subsystem to be execution driven." << std::endl;
-            config->SetBool( "EventDriven", false );
-        }
-    }
 
     assert( subSystemFrequency <= frequency );
 

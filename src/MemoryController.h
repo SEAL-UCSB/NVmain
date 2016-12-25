@@ -60,7 +60,7 @@ enum QueueModel { PerRankQueues, PerBankQueues, PerSubArrayQueues };
  *  same clock cycle. 
  *
  *  By default, the transaction queue has *lower* priority to more closely
- *  model the execution driven order.
+ *  model an execution driven order.
  */
 const int transactionQueuePriority = 30;
 const int commandQueuePriority = 40;
