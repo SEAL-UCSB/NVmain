@@ -509,37 +509,8 @@ bool NVMain::RequestComplete( NVMainRequest *request )
     return rv;
 }
 
-void NVMain::Cycle( ncycle_t steps )
+void NVMain::Cycle( ncycle_t /*steps*/ )
 {
-    assert( !p->EventDriven );
-    /*
-     *  Previous errors can prevent config from being set. Likewise, if the first memoryController is
-     *  NULL, so are all the others, so return here instead of seg faulting.
-     */
-    if( !config || !memoryControllers )
-      return;
-
-    /* Sync the memory clock with the cpu clock. */
-    double cpuFreq = static_cast<double>(p->CPUFreq);
-    double busFreq = static_cast<double>(p->CLK);
-
-    syncValue += static_cast<double>( busFreq / cpuFreq );
-
-    if( syncValue >= 1.0f )
-    {
-        syncValue -= 1.0f;
-    }
-    else
-    {
-        return;
-    }
-
-    for( unsigned int i = 0; i < numChannels; i++ )
-    {
-        memoryControllers[i]->Cycle( 1 );
-    }
-
-    GetEventQueue()->Loop( steps );
 }
 
 void NVMain::RegisterStats( )

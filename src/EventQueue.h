@@ -151,7 +151,6 @@ class GlobalEventQueue
   private:
     ncycle_t currentCycle;
     double frequency;
-    bool eventDriven;
 
     std::map<EventQueue *, double> eventQueues;
 

@@ -68,7 +68,6 @@ NVMainMemory::NVMainMemory(const Params *p)
 
     char *saveptr1, *saveptr2;
 
-    m_eventDriven = false;
     nextEventCycle = 0;
 
     m_nvmainPtr = NULL;
@@ -145,9 +144,6 @@ NVMainMemory::init()
         m_nvmainGlobalEventQueue = new NVM::GlobalEventQueue( );
         m_tagGenerator = new NVM::TagGenerator( 1000 );
 
-        /* Main config file determines if we are event driven or not. */
-        m_nvmainConfig->GetBool( "EventDriven", m_eventDriven );
-
         m_nvmainConfig->SetSimInterface( m_nvmainSimInterface );
 
         statPrinter.nvmainPtr = m_nvmainPtr;
@@ -223,8 +219,7 @@ void NVMainMemory::startup()
      *  If we are in atomic/fast-forward, wakeup will be disabled upon
      *  the first atomic request receieved in recvAtomic().
      */
-    if( !m_eventDriven )
-        schedule(clockEvent, curTick() + clock);
+    schedule(clockEvent, curTick() + clock);
     m_awake = true;
 
     lastWakeup = curTick();
@@ -235,9 +230,8 @@ void NVMainMemory::wakeup()
 {
     DPRINTF(NVMain, "NVMainMemory: wakeup() called.\n");
     DPRINTF(NVMainMin, "NVMainMemory: wakeup() called.\n");
-    if( !m_eventDriven )
-        schedule(clockEvent, clockEdge());
 
+    schedule(clockEvent, clockEdge());
     lastWakeup = curTick();
 }
 
@@ -257,15 +251,10 @@ void NVMainMemory::NVMainStatPrinter::process()
 {
     assert(nvmainPtr != NULL);
 
-    if( memory->m_eventDriven )
-    {
-        assert(curTick() >= memory->lastWakeup);
-        Tick stepCycles = (curTick() - memory->lastWakeup) / memory->clock;
+    assert(curTick() >= memory->lastWakeup);
+    Tick stepCycles = (curTick() - memory->lastWakeup) / memory->clock;
 
-        //DPRINTF(NVMain, "NVMainMemory: Syncing global event queue for stat dump.");
-
-        memory->m_nvmainGlobalEventQueue->Cycle( stepCycles );
-    }
+    memory->m_nvmainGlobalEventQueue->Cycle( stepCycles );
 
     nvmainPtr->CalculateStats();
     std::ostream& refStream = (statStream.is_open()) ? statStream : std::cout;
@@ -578,8 +567,7 @@ NVMainMemory::MemoryPort::recvTimingReq(PacketPtr pkt)
         /* See if we need to reschedule the wakeup event sooner. */
         ncycle_t nextEvent = memory.masterInstance->m_nvmainGlobalEventQueue->GetNextEvent(NULL);
         DPRINTF(NVMain, "NVMainMemory: Next event after issue is %d\n", nextEvent);
-        if( memory.m_eventDriven && nextEvent < memory.nextEventCycle
-            && memory.clockEvent.scheduled() )
+        if( nextEvent < memory.nextEventCycle && memory.clockEvent.scheduled() )
         {
             ncycle_t currentCycle = memory.masterInstance->m_nvmainGlobalEventQueue->GetCurrentCycle();
 
@@ -598,24 +586,8 @@ NVMainMemory::MemoryPort::recvTimingReq(PacketPtr pkt)
             memory.nextEventCycle = nextEvent;
             memory.ScheduleClockEvent( nextWake );
         }
-        else if( memory.m_eventDriven && !memory.clockEvent.scheduled() )
+        else if( !memory.clockEvent.scheduled() )
         {
-            /*while( true )
-            {
-                nextEvent = memory.masterInstance->m_nvmainGlobalEventQueue->GetNextEvent(NULL);
-
-                if( nextEvent == memory.masterInstance->m_nvmainGlobalEventQueue->GetCurrentCycle() )
-                {
-                    DPRINTF(NVMain, "NVMainMemory: Next event in same cycle (%d)!\n", nextEvent);
-
-                    memory.masterInstance->m_nvmainGlobalEventQueue->Cycle( 0 );
-                }
-                else
-                {
-                    break;
-                }
-            }*/
-
             ncycle_t currentCycle = memory.masterInstance->m_nvmainGlobalEventQueue->GetCurrentCycle();
 
             //assert(nextEvent >= currentCycle);
@@ -929,60 +901,32 @@ void NVMainMemory::tick( )
     // Cycle memory controller
     if (masterInstance == this)
     {
-        if( !m_eventDriven )
+        /* Keep NVMain in sync with gem5. */
+        assert(curTick() >= lastWakeup);
+        ncycle_t stepCycles = (curTick() - lastWakeup) / clock;
+
+        DPRINTF(NVMain, "NVMainMemory: Stepping %d cycles\n", stepCycles);
+        m_nvmainGlobalEventQueue->Cycle( stepCycles );
+
+        lastWakeup = curTick();
+
+        ncycle_t nextEvent;
+
+        nextEvent = m_nvmainGlobalEventQueue->GetNextEvent(NULL);
+        if( nextEvent != std::numeric_limits<ncycle_t>::max() )
         {
-            m_nvmainPtr->Cycle( 1 );
+            ncycle_t currentCycle = m_nvmainGlobalEventQueue->GetCurrentCycle();
 
-            if( m_awake || !m_request_map.empty() )
-            {
-                schedule(clockEvent, curTick() + clock);
-            }
-        }
-        else
-        {
-            /* Keep NVMain in sync with gem5. */
-            assert(curTick() >= lastWakeup);
-            ncycle_t stepCycles = (curTick() - lastWakeup) / clock;
+            assert(nextEvent >= currentCycle);
+            stepCycles = nextEvent - currentCycle;
 
-            DPRINTF(NVMain, "NVMainMemory: Stepping %d cycles\n", stepCycles);
-            m_nvmainGlobalEventQueue->Cycle( stepCycles );
+            Tick nextWake = curTick() + clock * static_cast<Tick>(stepCycles);
 
-            lastWakeup = curTick();
+            DPRINTF(NVMain, "NVMainMemory: Next event: %d CurrentCycle: %d\n", nextEvent, currentCycle);
+            DPRINTF(NVMain, "NVMainMemory: Schedule wake for %d\n", nextWake);
 
-            ncycle_t nextEvent;
-
-            /* Process any other events in the same cycle. */
-            /*while( true )
-            {
-                nextEvent = m_nvmainGlobalEventQueue->GetNextEvent(NULL);
-                if( nextEvent == m_nvmainGlobalEventQueue->GetCurrentCycle() )
-                {
-                    DPRINTF(NVMain, "NVMainMemory: Next event in same cycle (%d)!\n", nextEvent);
-
-                    m_nvmainGlobalEventQueue->Cycle( 0 );
-                }
-                else
-                {
-                    break;
-                }
-            }*/
-
-            nextEvent = m_nvmainGlobalEventQueue->GetNextEvent(NULL);
-            if( nextEvent != std::numeric_limits<ncycle_t>::max() )
-            {
-                ncycle_t currentCycle = m_nvmainGlobalEventQueue->GetCurrentCycle();
-
-                assert(nextEvent >= currentCycle);
-                stepCycles = nextEvent - currentCycle;
-
-                Tick nextWake = curTick() + clock * static_cast<Tick>(stepCycles);
-
-                DPRINTF(NVMain, "NVMainMemory: Next event: %d CurrentCycle: %d\n", nextEvent, currentCycle);
-                DPRINTF(NVMain, "NVMainMemory: Schedule wake for %d\n", nextWake);
-
-                nextEventCycle = nextEvent;
-                ScheduleClockEvent( nextWake );
-            }
+            nextEventCycle = nextEvent;
+            ScheduleClockEvent( nextWake );
         }
     }
 }

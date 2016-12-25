@@ -791,7 +791,7 @@ bool SubArray::Refresh( NVMainRequest* request )
             << std::endl;
         return false;
     }
-    else if( state != SUBARRAY_CLOSED )
+    else if( (state != SUBARRAY_CLOSED && p->UsePrecharge) )
     {
         std::cerr << "NVMain Error: try to refresh a subarray that is not idle " 
             << std::endl;
@@ -1206,7 +1206,7 @@ bool SubArray::IsIssuable( NVMainRequest *req, FailReason *reason )
     else if( req->type == REFRESH )
     {
         if( nextActivate > ( GetEventQueue()->GetCurrentCycle() ) /* if it is too early to refresh */ 
-            || state != SUBARRAY_CLOSED ) /* or, the subarray is not idle */
+            || (state != SUBARRAY_CLOSED && p->UsePrecharge) ) /* or, the subarray is not idle */
         {
             rv = false;
             if( reason )
@@ -1340,8 +1340,27 @@ bool SubArray::RequestComplete( NVMainRequest *req )
 
             case REFRESH:
                 /* close the subarray, increment the statistic number */
-                state = SUBARRAY_CLOSED;
-                openRow = p->ROWS;
+                /* Note: If precharge is not used, we still assume that
+                 * the state is open. This is because there may or may not
+                 * be some form of buffered output, which would presumably
+                 * hold the previously sensed data after a refresh command.
+                 */
+                if( p->UsePrecharge )
+                {
+                    state = SUBARRAY_CLOSED;
+                    openRow = p->ROWS;
+                }
+                else
+                {
+                    /* The memory controller will not update effectiveRow
+                     * if precharge is not used. To hold the assumption of
+                     * buffered output, we should leave the openRow the same.
+                     * If this assumption is broken, the refresh logic in
+                     * the memory controller must reset the effective row
+                     * when a refresh is pushed to the command queue.
+                     */
+                    state = SUBARRAY_OPEN;
+                }
                 refreshes++;
                 delete req;
                 break;
