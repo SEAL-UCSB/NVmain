@@ -63,7 +63,6 @@ class PredictorDRC : public MemoryController
     void CalculateStats( );
 
  private:
-    NVMain *mainMemory;
     DRAMCache *DRC;
     AccessPredictor *predictor;
     ncounter_t numChannels;

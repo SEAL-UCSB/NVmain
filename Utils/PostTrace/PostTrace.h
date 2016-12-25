@@ -31,7 +31,7 @@
 *                     Website: http://www.cse.psu.edu/~poremba/ )
 *******************************************************************************/
 
-#ifndef __NVMAIN_UTILS_POSTTRACE_H_
+#ifndef __NVMAIN_UTILS_POSTTRACE_H__
 #define __NVMAIN_UTILS_POSTTRACE_H__
 
 #include "src/NVMObject.h"

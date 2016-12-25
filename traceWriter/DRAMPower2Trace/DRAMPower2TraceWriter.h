@@ -66,7 +66,6 @@ class DRAMPower2TraceWriter : public GenericTraceWriter
     std::ofstream trace, xmlFile;
 
     ncycle_t lastCommand;
-    ncounter_t deviceWidth;
 
     void WriteTraceLine( std::ostream& , TraceLine *line );
 };
