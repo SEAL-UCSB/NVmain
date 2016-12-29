@@ -64,7 +64,7 @@ void DRCDecoder::Translate( uint64_t address, uint64_t *row, uint64_t *col,
     uint64_t workingAddr;
 
     /* 
-     *  Get the widths and order from the translation method so we know what 
+     *  Get the widths and order from the translation method so we know what
      *  the user wants for bank/rank/channel ordering.
      */
     GetTranslationMethod( )->GetBitWidths( &rowBits, &colBits, &bankBits, 
@@ -78,8 +78,11 @@ void DRCDecoder::Translate( uint64_t address, uint64_t *row, uint64_t *col,
     if( ignoreBits != 0 )
       workingAddr = workingAddr >> ignoreBits;
 
-    /* Column and subarray are ignored in our dram cache */
-    *col = 0;
+    /* Assume column is the first order mapping, we want consecutive cachelines to map to the same dram row */
+    *col = workingAddr % (1 << colBits);
+    workingAddr = workingAddr >> colBits;
+
+    /* Subarray is ignored in our dram cache */
     *subarray = 0;
 
     /* Find out if bank, rank, or channel are first, then decode accordingly */

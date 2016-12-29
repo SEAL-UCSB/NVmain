@@ -478,7 +478,7 @@ void GlobalEventQueue::Cycle( ncycle_t steps )
     EventQueue *nextEventQueue;
     ncycle_t iterationSteps = 0;
 
-    while( iterationSteps < steps )
+    while( iterationSteps <= steps )
     {
         ncycle_t nextEvent = GetNextEvent( &nextEventQueue );
 
