@@ -143,7 +143,7 @@ void LH_Cache::SetConfig( Config *conf, bool createChildren )
         {
             bankLocked[i][j] = false;
             functionalCache[i][j] = new CacheBank( 
-                                         conf->GetValue( "ROWS" ), 29, 64 );
+                                         conf->GetValue( "ROWS" ), 1, 29, 64 );
         }
     }
 

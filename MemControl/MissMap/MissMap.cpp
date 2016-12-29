@@ -122,7 +122,7 @@ void MissMap::SetConfig( Config *conf, bool createChildren )
             drcChannels[i]->SetConfig( conf, createChildren );
         }
 
-        missMap = new CacheBank( mmSets, mmAssoc, 64 ); 
+        missMap = new CacheBank( 1, mmSets, mmAssoc, 64 ); 
         missMap->isMissMap = true;
 
         missMap->SetParent( this );

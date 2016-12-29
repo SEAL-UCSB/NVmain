@@ -40,21 +40,26 @@
 
 using namespace NVM;
 
-CacheBank::CacheBank( uint64_t sets, uint64_t assoc, uint64_t lineSize )
+CacheBank::CacheBank( uint64_t rows, uint64_t sets, uint64_t assoc, uint64_t lineSize )
 {
-    uint64_t i, j;
+    uint64_t r, i, j;
 
-    cacheEntry = new CacheEntry* [ sets ];
-    for( i = 0; i < sets; i++ )
+    cacheEntry = new CacheEntry** [ rows ];
+    for( r = 0; r < rows; r++ )
     {
-        cacheEntry[i] = new CacheEntry[assoc];
-        for( j = 0; j < assoc; j++ )
+        cacheEntry[r] = new CacheEntry* [ sets ];
+        for( i = 0; i < sets; i++ )
         {
-            /* Clear valid bit, dirty bit, etc. */
-            cacheEntry[i][j].flags = CACHE_ENTRY_NONE;
+            cacheEntry[r][i] = new CacheEntry[ assoc ];
+            for( j = 0; j < assoc; j++ )
+            {
+                /* Clear valid bit, dirty bit, etc. */
+                cacheEntry[r][i][j].flags = CACHE_ENTRY_NONE;
+            }
         }
     }
 
+    numRows = rows;
     numSets = sets;
     numAssoc = assoc;
     cachelineSize = lineSize;
@@ -75,11 +80,15 @@ CacheBank::CacheBank( uint64_t sets, uint64_t assoc, uint64_t lineSize )
 
 CacheBank::~CacheBank( )
 {
-    uint64_t i;
+    uint64_t i, r;
 
-    for( i = 0; i < numSets; i++ )
+    for( r = 0; r < numRows; r++ )
     {
-        delete [] cacheEntry[i];
+        for( i = 0; i < numSets; i++ )
+        {
+            delete [] cacheEntry[r][i];
+        }
+        delete [] cacheEntry[r];
     }
 
     delete [] cacheEntry;
@@ -93,8 +102,7 @@ void CacheBank::SetDecodeFunction( NVMObject *dcClass, CacheSetDecoder dcFunc )
 
 uint64_t CacheBank::DefaultDecoder( NVMAddress &addr )
 {
-    return (addr.GetPhysicalAddress( ) >> 
-            (uint64_t)mlog2( (int)cachelineSize )) % numSets;
+    return addr.GetCol() % numSets;
 }
 
 uint64_t CacheBank::SetID( NVMAddress& addr )
@@ -123,7 +131,7 @@ CacheEntry *CacheBank::FindSet( NVMAddress& addr )
      */
     uint64_t setID = SetID( addr );
 
-    return cacheEntry[setID];
+    return cacheEntry[addr.GetRow()][setID];
 }
 
 bool CacheBank::Present( NVMAddress& addr )
@@ -378,16 +386,19 @@ double CacheBank::GetCacheOccupancy( )
     uint64_t valid, total;
 
     valid = 0;
-    total = numSets*numAssoc;
+    total = numRows*numSets*numAssoc;
 
-    for( uint64_t setIdx = 0; setIdx < numSets; setIdx++ )
+    for( uint64_t rowIdx = 0; rowIdx < numRows; rowIdx++ )
     {
-        CacheEntry *set = cacheEntry[setIdx];
-
-        for( uint64_t assocIdx = 0; assocIdx < numAssoc; assocIdx++ )
+        for( uint64_t setIdx = 0; setIdx < numSets; setIdx++ )
         {
-            if( set[assocIdx].flags & CACHE_ENTRY_VALID )
-                valid++;
+            CacheEntry *set = cacheEntry[rowIdx][setIdx];
+
+            for( uint64_t assocIdx = 0; assocIdx < numAssoc; assocIdx++ )
+            {
+                if( set[assocIdx].flags & CACHE_ENTRY_VALID )
+                    valid++;
+            }
         }
     }
 

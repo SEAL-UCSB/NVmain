@@ -76,7 +76,7 @@ struct CacheEntry
 class CacheBank : public NVMObject
 {
   public:
-    CacheBank( uint64_t sets, uint64_t assoc, uint64_t lineSize );
+    CacheBank( uint64_t rows, uint64_t sets, uint64_t assoc, uint64_t lineSize );
     ~CacheBank( );
 
     /* Return true if the address is in the cache. */
@@ -118,8 +118,8 @@ class CacheBank : public NVMObject
 
     void SetDecodeFunction( NVMObject *dcClass, CacheSetDecoder dcFunc );
 
-    uint64_t numSets, numAssoc, cachelineSize;
-    CacheEntry **cacheEntry;
+    uint64_t numRows, numSets, numAssoc, cachelineSize;
+    CacheEntry ***cacheEntry;
     uint64_t accessTime, stateTimer;
     uint64_t readTime, writeTime;
     CacheState state;
