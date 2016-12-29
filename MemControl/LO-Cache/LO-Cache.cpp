@@ -73,8 +73,6 @@ LO_Cache::LO_Cache( )
 
     psInterval = 0;
 
-    //memset( &hit_count, 0, sizeof(hit_count) );
-
     /*
     *  Queue options: One queue for all requests 
     *  or a second queue for fill/write requests
@@ -192,14 +190,6 @@ bool LO_Cache::IssueAtomic( NVMainRequest *req )
         (void)functionalCache[rank][bank]->Install( req->address, dummy );
     }
 
-    //if( (req->address.GetPhysicalAddress()/64) < 64*1024*1024 )
-    //{
-    //    if( hit_count[req->address.GetPhysicalAddress()/64] < 255 )
-    //    {
-    //        hit_count[req->address.GetPhysicalAddress()/64]++;
-    //    }
-    //}
-
     return true;
 }
 
@@ -261,16 +251,12 @@ bool LO_Cache::IssueCommand( NVMainRequest *req )
 
         GetEventQueue()->InsertEvent( EventResponse, this, req, 
                                       GetEventQueue()->GetCurrentCycle()+1 );
-
-        //delete req;
     }
     else
     {
         Enqueue( 0, req );
     }
     
-    //std::cout << "LOC: New request for 0x" << std::hex << req->address.GetPhysicalAddress() << std::dec << std::endl;
-
     return rv;
 }
 
@@ -306,8 +292,6 @@ bool LO_Cache::RequestComplete( NVMainRequest *req )
             (void)functionalCache[rank][bank]->Install( req->address, dummy );
 
             drc_fills++;
-
-            //std::cout << "LOC: Filled request for 0x" << std::hex << req->address.GetPhysicalAddress() << std::dec << std::endl;
         }
         /*
          *  Intercept memory read requests from misses to create a fill request.
@@ -333,13 +317,6 @@ bool LO_Cache::RequestComplete( NVMainRequest *req )
 
             GetParent( )->RequestComplete( originalReq );
             rv = false;
-
-            //std::cout << "LOC: Mem Read completed for 0x" << std::hex << req->address.GetPhysicalAddress() << std::dec << std::endl;
-        }
-        else
-        {
-            // Unknown tag is a problem.
-            //assert( false );
         }
 
         delete req;
@@ -377,8 +354,6 @@ bool LO_Cache::RequestComplete( NVMainRequest *req )
             /* Send back to requestor. */
             GetParent( )->RequestComplete( req );
             rv = false;
-
-            //std::cout << "LOC: Hit request for 0x" << std::hex << req->address.GetPhysicalAddress() << std::dec << std::endl;
         }
         else if( req->type == READ || req->type == READ_PRECHARGE )
         {
@@ -414,8 +389,6 @@ bool LO_Cache::RequestComplete( NVMainRequest *req )
                 }
 
                 drc_miss++;
-
-                //std::cout << "LOC: Missed request for 0x" << std::hex << req->address.GetPhysicalAddress() << std::dec << std::endl;
             }
             else
             {
@@ -424,22 +397,8 @@ bool LO_Cache::RequestComplete( NVMainRequest *req )
                 rv = false;
 
                 drc_hits++;
-
-                //std::cout << "LOC: Hit request for 0x" << std::hex << req->address.GetPhysicalAddress() << std::dec << std::endl;
             }
         }
-        else
-        {
-            //assert( false );
-        }
-
-        //if( (req->address.GetPhysicalAddress()/64) <= 64*1024*1024 )
-        //{
-        //    if( hit_count[req->address.GetPhysicalAddress()/64] < 255 )
-        //    {
-        //        hit_count[req->address.GetPhysicalAddress()/64]++;
-        //    }
-        //}
     }
 
     return rv;
@@ -478,8 +437,6 @@ void LO_Cache::Cycle( ncycle_t steps )
     /* Issue the commands for this transaction. */
     if( nextRequest != NULL )
     {
-        //std::cout << "LOC: Enqueueing request for 0x" << std::hex << nextRequest->address.GetPhysicalAddress() << std::dec << std::endl;
-
         IssueMemoryCommands( nextRequest );
     }
 
