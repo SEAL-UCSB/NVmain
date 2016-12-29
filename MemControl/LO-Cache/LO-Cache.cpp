@@ -48,8 +48,6 @@ using namespace NVM;
 
 LO_Cache::LO_Cache( )
 {
-    //decoder->GetTranslationMethod( )->SetOrder( 5, 1, 4, 3, 2, 6 );
-
     std::cout << "Created a Latency Optimized DRAM Cache!" << std::endl;
 
     drcQueueSize = 32;
@@ -63,6 +61,7 @@ LO_Cache::LO_Cache( )
     drc_miss = 0;
     drc_fills = 0;
     drc_evicts = 0;
+    drc_dirty_evicts = 0;
 
     rb_hits = 0;
     rb_miss = 0;
@@ -139,6 +138,7 @@ void LO_Cache::RegisterStats( )
     AddStat(drc_hitrate);
     AddStat(drc_fills);
     AddStat(drc_evicts);
+    AddStat(drc_dirty_evicts);
     AddStat(rb_hits);
     AddStat(rb_miss);
     AddStat(starvation_precharges);
@@ -274,24 +274,52 @@ bool LO_Cache::RequestComplete( NVMainRequest *req )
         {
             /* Install the missed request */
             uint64_t rank, bank;
-            NVMDataBlock dummy;
+            NVMDataBlock vicData;
+            bool dirtyEvict = false;
+            NVMAddress victim;
 
             req->address.GetTranslatedAddress( NULL, NULL, &bank, &rank, NULL, NULL );
 
             if( functionalCache[rank][bank]->SetFull( req->address )
                 && !functionalCache[rank][bank]->Present( req->address ) )
             {
-                NVMAddress victim;
-
                 (void)functionalCache[rank][bank]->ChooseVictim( req->address, &victim );
-                (void)functionalCache[rank][bank]->Evict( victim, &dummy );
+                dirtyEvict = functionalCache[rank][bank]->Evict( victim, &vicData );
 
                 drc_evicts++;
             }
 
-            (void)functionalCache[rank][bank]->Install( req->address, dummy );
+            (void)functionalCache[rank][bank]->Install( req->address, req->data );
 
             drc_fills++;
+
+            /* If we are replacing a dirty block we need to write back to main
+             * memory. We are assuming the DRC read miss contains the data and
+             * it is held somewhere while the new cache entry is fetched so
+             * that we do not need to re-issue a read request for the data.
+             */
+            if (dirtyEvict)
+            {
+                NVMainRequest *memReq = new NVMainRequest( );
+
+                memReq->address = victim;
+                memReq->owner = this;
+                memReq->tag = DRC_EVICT;
+                memReq->type = WRITE;
+                memReq->data = vicData;
+                memReq->arrivalCycle = GetEventQueue()->GetCurrentCycle();
+
+                if (mainMemory->IsIssuable( memReq, NULL )) {
+                    mainMemory->IssueCommand( memReq );
+                } else {
+                    /* If the request is not issuable to main memory we need to save the request
+                     * and issue it later in time, e.g., when a main memory request completes.
+                     * Otherwise, this request to main memory would be lost. */
+                    mainMemory->EnqueuePendingMemoryRequests( memReq );
+                }
+
+                drc_dirty_evicts++;
+            }
         }
         /*
          *  Intercept memory read requests from misses to create a fill request.
@@ -319,6 +347,9 @@ bool LO_Cache::RequestComplete( NVMainRequest *req )
             rv = false;
         }
 
+        /* All other tag types (e.g., DRC_EVICT) only need to free memory
+         * used for the request and nothing else.
+         */
         delete req;
         rv = true;
     }
@@ -336,24 +367,52 @@ bool LO_Cache::RequestComplete( NVMainRequest *req )
             /*
              *  LOCache has no associativity -- Just replace whatever is in the set.
              */
-            NVMDataBlock dummy;
+            NVMDataBlock vicData;
+            bool dirtyEvict = false;
+            NVMAddress victim;
 
             if( functionalCache[rank][bank]->SetFull( req->address )
                 && !functionalCache[rank][bank]->Present( req->address ) )
             {
-                NVMAddress victim;
-
                 (void)functionalCache[rank][bank]->ChooseVictim( req->address, &victim );
-                (void)functionalCache[rank][bank]->Evict( victim, &dummy );
+                dirtyEvict = functionalCache[rank][bank]->Evict( victim, &vicData );
 
                 drc_evicts++;
             }
 
-            (void)functionalCache[rank][bank]->Install( req->address, dummy );
+            (void)functionalCache[rank][bank]->Install( req->address, req->data );
 
             /* Send back to requestor. */
             GetParent( )->RequestComplete( req );
             rv = false;
+
+            /* If we are replacing a dirty block we need to write back to main
+             * memory. We are assuming the DRC read miss contains the data and
+             * it is held somewhere while the new cache entry is fetched so
+             * that we do not need to re-issue a read request for the data.
+             */
+            if (dirtyEvict)
+            {
+                NVMainRequest *memReq = new NVMainRequest( );
+
+                memReq->address = victim;
+                memReq->owner = this;
+                memReq->tag = DRC_EVICT;
+                memReq->type = WRITE;
+                memReq->data = vicData;
+                memReq->arrivalCycle = GetEventQueue()->GetCurrentCycle();
+
+                if (mainMemory->IsIssuable( memReq, NULL )) {
+                    mainMemory->IssueCommand( memReq );
+                } else {
+                    /* If the request is not issuable to main memory we need to save the request
+                     * and issue it later in time, e.g., when a main memory request completes.
+                     * Otherwise, this request to main memory would be lost. */
+                    mainMemory->EnqueuePendingMemoryRequests( memReq );
+                }
+
+                drc_dirty_evicts++;
+            }
         }
         else if( req->type == READ || req->type == READ_PRECHARGE )
         {

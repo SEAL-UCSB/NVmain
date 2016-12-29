@@ -48,6 +48,7 @@ namespace NVM {
 
 #define DRC_MEMREAD tagGen->CreateTag("DRC_MEMREAD")
 #define DRC_FILL    tagGen->CreateTag("DRC_FILL")
+#define DRC_EVICT   tagGen->CreateTag("DRC_EVICT")
 
 
 class NVMain;
@@ -88,6 +89,7 @@ class LO_Cache : public AbstractDRAMCache
 
     ncounter_t drc_hits, drc_miss;
     ncounter_t drc_evicts, drc_fills;
+    ncounter_t drc_dirty_evicts;
     ncounter_t rb_hits, rb_miss;
     ncounter_t starvation_precharges;
 
