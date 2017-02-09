@@ -88,7 +88,7 @@ LO_Cache::~LO_Cache( )
 
 void LO_Cache::SetConfig( Config *conf, bool createChildren )
 {
-    ncounter_t rows, cols, devices, lines;
+    ncounter_t rows, cols, word_size, lines;
 
     if( conf->KeyExists( "StarvationThreshold" ) )
         starvationThreshold = static_cast<ncounter_t>( conf->GetValue( "StarvationThreshold" ) );
@@ -103,7 +103,17 @@ void LO_Cache::SetConfig( Config *conf, bool createChildren )
     banks = static_cast<ncounter_t>( conf->GetValue( "BANKS" ) );
     rows  = static_cast<ncounter_t>( conf->GetValue( "ROWS" ) );
     cols  = static_cast<ncounter_t>( conf->GetValue( "COLS" ) );
-    devices  = static_cast<ncounter_t>( conf->GetValue( "BusWidth" ) ) / static_cast<ncounter_t>( conf->GetValue( "DeviceWidth" ) );
+
+    /*
+     * Calculate the memory word size under the default burst length.
+     * This will be the width of the bus multiplied by the number of
+     * beats (cycles * data rate) a request of the default bust length
+     * requires. Size BusWidth is in bits, divide by at after for bytes.
+     */
+    word_size = static_cast<ncounter_t>( conf->GetValue( "BusWidth" ) )
+              * static_cast<ncounter_t>( conf->GetValue( "RATE" ) )
+              * static_cast<ncounter_t>( conf->GetValue( "tBURST" ) );
+    word_size /= 8;
 
 
     functionalCache = new CacheBank**[ranks];
@@ -115,13 +125,13 @@ void LO_Cache::SetConfig( Config *conf, bool createChildren )
         {
             /*
              *  The number of cache lines per row depends on the number
-             *  of columns: N = (cols * 8 * devices) / (8 tag bytes + 64 cache line bytes)
+             *  of columns: N = (cols word_size) / (8 tag bytes + 64 cache line bytes)
              *  The LO-Cache has the data tag (8 bytes) along with 64
              *  bytes for the cache line. The cache is direct mapped,
              *  so we will have up to N cache lines + tags per row,
              *  an assoc of 1, and cache line size of 64 bytes.
              */
-            lines = (cols * 8 * devices) / 72;
+            lines = (cols * word_size) / 72;
             functionalCache[i][j] = new CacheBank( rows, lines, 1, 64 );
         }
     }
