@@ -64,11 +64,9 @@ class Params
 
     void SetParams( Config *c );
 
-    ncounter_t BPC;
     ncounter_t BusWidth;
     ncounter_t DeviceWidth;
     ncounter_t CLK;
-    ncounter_t MULT;
     ncounter_t RATE;
     ncounter_t CPUFreq;
 
