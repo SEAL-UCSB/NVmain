@@ -45,11 +45,9 @@ using namespace NVM;
 
 Params::Params( )
 {
-    BPC = 8;
     BusWidth = 64;
     DeviceWidth = 8;
     CLK = 666;
-    MULT = 4;
     RATE = 2;
     CPUFreq = 2000;
 
@@ -255,11 +253,9 @@ ncycle_t Params::ConvertTiming( Config *conf, std::string param )
 /* This can be called whenever timings change. (Will not update the "next" vars) */
 void Params::SetParams( Config *c )
 {
-    c->GetValueUL( "BPC", BPC );
     c->GetValueUL( "BusWidth", BusWidth );
     c->GetValueUL( "DeviceWidth", DeviceWidth );
     c->GetValueUL( "CLK", CLK );
-    c->GetValueUL( "MULT", MULT );
     c->GetValueUL( "RATE", RATE );
     c->GetValueUL( "CPUFreq", CPUFreq );
 

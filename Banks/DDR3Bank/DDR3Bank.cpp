@@ -994,7 +994,7 @@ void DDR3Bank::CalculateStats( )
 
     double idealBandwidth;
 
-    idealBandwidth = (double)(p->CLK * p->MULT * p->RATE * p->BPC);
+    idealBandwidth = (double)(p->CLK * p->RATE * p->BusWidth);
 
     if( activeCycles != 0 )
         utilization = (double)((double)dataCycles / (double)(activeCycles + standbyCycles) );
