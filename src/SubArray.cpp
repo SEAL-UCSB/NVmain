@@ -46,8 +46,10 @@
 #include <iostream>
 #include <limits>
 
-#define WriteCellData WriteCellData2
-
+/*
+ * Using -O3 in gcc causes the popcount methods to return incorrect values.
+ * Disable optimizations in these methods using compiler specific attributes.
+ */
 #if defined(__clang__)
 #define NO_OPT __attribute__((optnone))
 #else
@@ -487,8 +489,6 @@ bool SubArray::Read( NVMainRequest *request )
         if( !conf->GetSimInterface( )->GetDataAtAddress( 
                     request->address.GetPhysicalAddress( ), NULL ) )
         {
-            //std::cout << "Setting data block for 0x" << std::hex << request->address.GetPhysicalAddress( )
-            //          << std::dec << " to " << request->data << std::endl;
             conf->GetSimInterface( )->SetDataAtAddress( 
                     request->address.GetPhysicalAddress( ), request->data );
         }
@@ -564,21 +564,11 @@ bool SubArray::Write( NVMainRequest *request )
     {
         writeTimer = request->writeProgress;
         request->flags &= ~NVMainRequest::FLAG_PAUSED; // unpause this
-
-        //std::cout << "Restarted request 0x" << std::hex << request->address.GetPhysicalAddress( )
-        //          << std::dec << " with " << writeTimer << " cycles left." << std::endl;
-    }
-    else
-    {
-        writeTimer = WriteCellData( request ); // Assume write-through.
     }
 
     if( request->flags & NVMainRequest::FLAG_CANCELLED )
     {
         request->flags &= ~NVMainRequest::FLAG_CANCELLED; // restart this
-
-        //std::cout << "Restarted CANCELLED request 0x" << std::hex << request->address.GetPhysicalAddress( )
-        //          << std::dec << "... " << request->cancellations << " cancels so far" << std::endl;
     }
 
     if( writeMode == WRITE_BACK && writeCycle )
@@ -661,10 +651,6 @@ bool SubArray::Write( NVMainRequest *request )
     writeEnd = GetEventQueue()->GetCurrentCycle() + writeTimer;
     writeEventTime = GetEventQueue()->GetCurrentCycle() + p->tCWD 
                      + MAX( p->tBURST, p->tCCD ) * request->burstCount + writeTimer;
-
-    //std::cout << GetEventQueue()->GetCurrentCycle() << " write start 0x" << std::hex
-    //          << request->address.GetPhysicalAddress( ) << std::dec << " done at "
-    //          << writeEnd << std::endl;
 
     /* The parent has our hook in the children list, we need to find this. */
     std::vector<NVMObject_hook *>& children = GetParent( )->GetTrampoline( )->GetChildren( );
@@ -878,8 +864,6 @@ void SubArray::CheckWritePausing( )
                                      + writePercent) / static_cast<double>(measuredProgresses + 1);
         measuredProgresses++;
 
-        //std::cout << "GOT A READ DURING WRITE; PROGRESS IS " << writePercent << std::endl;
-
         /* Pause after 40%, cancel otherwise. */
         if( writePercent > p->PauseThreshold )
         {
@@ -942,7 +926,7 @@ bool SubArray::BetweenWriteIterations( )
     return rv;
 }
 
-ncycle_t SubArray::WriteCellData2( NVMainRequest *request )
+ncycle_t SubArray::WriteCellData( NVMainRequest *request )
 {
     writeIterationStarts.clear( );
     uint32_t *rawData = reinterpret_cast<uint32_t*>(request->data.rawData);
@@ -1288,9 +1272,6 @@ bool SubArray::RequestComplete( NVMainRequest *req )
 {
     if( req->type == WRITE || req->type == WRITE_PRECHARGE )
     {
-        //std::cout << GetEventQueue()->GetCurrentCycle() << " write done 0x" << std::hex
-        //          << req->address.GetPhysicalAddress( ) << std::dec << std::endl;
-
         /*  
          *  Write-to-write timing causes new writes to come in before the previous completes.
          *  Don't set writing to false unless this hasn't happened (writeRequest would be the
