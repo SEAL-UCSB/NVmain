@@ -203,8 +203,7 @@ class SubArray : public NVMObject
     std::string wpPauseHisto;
     std::string wpCancelHisto;
 
-    ncycle_t WriteCellData1( NVMainRequest *request );
-    ncycle_t WriteCellData2( NVMainRequest *request );
+    ncycle_t WriteCellData( NVMainRequest *request );
     void CheckWritePausing( );
 
     ncycle_t UpdateEndurance( NVMainRequest *request );
