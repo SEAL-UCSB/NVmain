@@ -54,6 +54,12 @@
 
 using namespace NVM;
 
+// This members are singleton values used to hold the main instance of
+// NVMain and it's wake/sleep (i.e., timing/atomic) status. These are
+// needed since NVMain assumes a contiguous address range while gem5
+// ISAs generally do not. The multiple instances allow for the gem5
+// AddrRanges to be used normally while this class remapped to NVMains
+// contiguous region.
 NVMainMemory *NVMainMemory::masterInstance = NULL;
 
 NVMainMemory::NVMainMemory(const Params *p)
@@ -81,8 +87,6 @@ NVMainMemory::NVMainMemory(const Params *p)
     std::cout << "NVMainControl: Reading NVMain config file: " << m_nvmainConfigPath << "." << std::endl;
 
     clock = clockPeriod( );
-
-    m_awake = false;
 
     m_avgAtomicLatency = 100.0f;
     m_numAtomicAccesses = 0;
@@ -219,8 +223,8 @@ void NVMainMemory::startup()
      *  If we are in atomic/fast-forward, wakeup will be disabled upon
      *  the first atomic request receieved in recvAtomic().
      */
-    schedule(clockEvent, curTick() + clock);
-    m_awake = true;
+    if (!masterInstance->clockEvent.scheduled())
+        schedule(masterInstance->clockEvent, curTick() + clock);
 
     lastWakeup = curTick();
 }
@@ -231,7 +235,8 @@ void NVMainMemory::wakeup()
     DPRINTF(NVMain, "NVMainMemory: wakeup() called.\n");
     DPRINTF(NVMainMin, "NVMainMemory: wakeup() called.\n");
 
-    schedule(clockEvent, clockEdge());
+    schedule(masterInstance->clockEvent, clockEdge());
+
     lastWakeup = curTick();
 }
 
@@ -392,14 +397,6 @@ NVMainMemory::MemoryPort::recvAtomic(PacketPtr pkt)
 
         delete request;
     }
-    else
-    {
-        // If we switch back to atomic mode, disable the gem5 event
-        if( memory.m_awake )
-        {
-            memory.m_awake = false;
-        }
-    }
 
     /*
      * do the memory access to get the read data and change the response tag
@@ -483,13 +480,6 @@ NVMainMemory::MemoryPort::recvTimingReq(PacketPtr pkt)
         return false;
     }
 
-    // Make sure we are awake if we are in timing mode
-    if( !memory.m_awake )
-    {
-        memory.m_awake = true;
-        memory.wakeup();
-    }
-
     // Bus latency is modeled in NVMain.
 #if NVM_GEM5_RV < 10405
     pkt->busFirstWordDelay = pkt->busLastWordDelay = 0;
@@ -567,7 +557,7 @@ NVMainMemory::MemoryPort::recvTimingReq(PacketPtr pkt)
         /* See if we need to reschedule the wakeup event sooner. */
         ncycle_t nextEvent = memory.masterInstance->m_nvmainGlobalEventQueue->GetNextEvent(NULL);
         DPRINTF(NVMain, "NVMainMemory: Next event after issue is %d\n", nextEvent);
-        if( nextEvent < memory.nextEventCycle && memory.clockEvent.scheduled() )
+        if( nextEvent < memory.nextEventCycle && masterInstance->clockEvent.scheduled() )
         {
             ncycle_t currentCycle = memory.masterInstance->m_nvmainGlobalEventQueue->GetCurrentCycle();
 
@@ -586,7 +576,7 @@ NVMainMemory::MemoryPort::recvTimingReq(PacketPtr pkt)
             memory.nextEventCycle = nextEvent;
             memory.ScheduleClockEvent( nextWake );
         }
-        else if( !memory.clockEvent.scheduled() )
+        else if( !masterInstance->clockEvent.scheduled() )
         {
             ncycle_t currentCycle = memory.masterInstance->m_nvmainGlobalEventQueue->GetCurrentCycle();
 
@@ -851,10 +841,10 @@ void NVMainMemory::ScheduleResponse( )
 
 void NVMainMemory::ScheduleClockEvent( Tick nextWake )
 {
-    if( !clockEvent.scheduled() )
-        schedule(clockEvent, nextWake);
+    if( !masterInstance->clockEvent.scheduled() )
+        schedule(masterInstance->clockEvent, nextWake);
     else
-        reschedule(clockEvent, nextWake);
+        reschedule(masterInstance->clockEvent, nextWake);
 }
 
 

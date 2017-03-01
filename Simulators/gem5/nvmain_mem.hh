@@ -145,7 +145,6 @@ class NVMainMemory : public AbstractMemory, public NVM::NVMObject
     NVM::TagGenerator *m_tagGenerator;
     std::string m_nvmainConfigPath;
 
-    bool m_awake;
     bool m_nacked_requests;
     float m_avgAtomicLatency;
     uint64_t m_numAtomicAccesses;
