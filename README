@@ -58,17 +58,26 @@ Sections
         contains a directory for each of the supported
         simulators.
 
-        gem5:
+        gem5 (git);
 
            The gem5 patch is the most up-to-date patch
-           in most cases. It is recommended to use 
-           mercurial to manage NVMain patches. The 
-           patch can be imported with qimport and 
-           updated and removed using qrefresh and
-           qdel.
+           in most cases. As of March 1st, 2017 gem5 uses
+           a git repository as the master. The NVMain patch
+           can be applied using the follwing command in the
+           gem5 root directory:
 
-           To install the patch, go to the gem5
-           root directory and import the patch
+           git apply /path/to/nvmain/patches/gem5/nvmain2-XYZ
+
+           The patch can be removed using the following:
+
+           git apply -R /path/to/nvmain/patches/gem5/nvmain2-XYZ
+
+        gem5 (mercurial):
+
+           If you are using a verison of gem5 cloned from
+           the read-only mercurial mirror, mercurial queues
+           can be used to apply the patch. To start, go to
+           the gem5 root directory and import the patch
 
            $ hg qimport /path/to/nvmain/patches/gem5/nvmain2-XYZ
 
