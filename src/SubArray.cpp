@@ -553,7 +553,7 @@ bool SubArray::Write( NVMainRequest *request )
 
             ncounter_t numChangedBits = CountBitsMLC1( 1, (uint32_t*)bitCountData, bitCountWords );
 
-            assert( request->data.GetSize()*8 > numChangedBits );
+            assert( request->data.GetSize()*8 >= numChangedBits );
             numUnchangedBits = request->data.GetSize()*8 - numChangedBits;
         }
     }
@@ -1067,7 +1067,7 @@ ncycle_t SubArray::WriteCellData( NVMainRequest *request )
         }
         else
         {
-            assert(false);
+            oncePulseDelay = MAX(p->tWP0, p->tWP1);
         }
 
         /* Insert times for write cancellation and pausing. */
