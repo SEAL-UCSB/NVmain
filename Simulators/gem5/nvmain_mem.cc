@@ -349,13 +349,8 @@ NVMainMemory::SetRequestData(NVMainRequest *request, PacketPtr pkt)
 Tick
 NVMainMemory::MemoryPort::recvAtomic(PacketPtr pkt)
 {
-#if NVM_GEM5_RV < 11284
-    if (pkt->memInhibitAsserted())
-        return 0;
-#else
     if (pkt->cacheResponding())
         return 0;
-#endif
 
     /*
      * calculate the latency. Now it is only random number
@@ -432,18 +427,10 @@ NVMainMemory::MemoryPort::recvTimingReq(PacketPtr pkt)
         delete memory.pendingDelete[x];
     memory.pendingDelete.clear();
 
-#if NVM_GEM5_RV < 11284
-    if (pkt->memInhibitAsserted()) {
-        memory.pendingDelete.push_back(pkt);
-        return true;
-    }
-#else
     if (pkt->cacheResponding()) {
         memory.pendingDelete.push_back(pkt);
         return true;
     }
-#endif
-
 
     if (!pkt->isRead() && !pkt->isWrite()) {
         DPRINTF(NVMain, "NVMainMemory: Received a packet that is neither read nor write.\n");
@@ -455,13 +442,8 @@ NVMainMemory::MemoryPort::recvTimingReq(PacketPtr pkt)
         if (needsResponse) {
             assert(pkt->isResponse());
 
-#if NVM_GEM5_RV < 10405
-            pkt->busFirstWordDelay = pkt->busLastWordDelay = 0;
-#elif NVM_GEM5_RV < 10694
-            pkt->firstWordDelay = pkt->lastWordDelay = 0;
-#else
             pkt->headerDelay = pkt->payloadDelay = 0;
-#endif
+
             memory.responseQueue.push_back(pkt);
 
             memory.ScheduleResponse( );
@@ -481,13 +463,7 @@ NVMainMemory::MemoryPort::recvTimingReq(PacketPtr pkt)
     }
 
     // Bus latency is modeled in NVMain.
-#if NVM_GEM5_RV < 10405
-    pkt->busFirstWordDelay = pkt->busLastWordDelay = 0;
-#elif NVM_GEM5_RV < 10694
-    pkt->firstWordDelay = pkt->lastWordDelay = 0;
-#else
     pkt->headerDelay = pkt->payloadDelay = 0;
-#endif
 
     NVMainRequest *request = new NVMainRequest( );
 
@@ -737,20 +713,12 @@ bool NVMainMemory::RequestComplete(NVM::NVMainRequest *req)
             if( (*retryIter)->retryRead && (isRead || isWrite) )
             {
                 (*retryIter)->retryRead = false;
-#if NVM_GEM5_RV < 10713
-                (*retryIter)->port.sendRetry();
-#else
                 (*retryIter)->port.sendRetryReq();
-#endif
             }
             if( (*retryIter)->retryWrite && (isRead || isWrite) )
             {
                 (*retryIter)->retryWrite = false;
-#if NVM_GEM5_RV < 10713
-                (*retryIter)->port.sendRetry();
-#else
                 (*retryIter)->port.sendRetryReq();
-#endif
             }
         }
 
