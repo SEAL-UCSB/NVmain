@@ -33,6 +33,7 @@ import os, sys
 import subprocess
 
 from os.path import basename
+from gem5_scons import Transform
 
 
 HG_COMMAND = 'hg'
