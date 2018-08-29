@@ -75,7 +75,7 @@ class NVMainMemory(AbstractMemory):
                 elif param_name == "config":
                     self.config = param_value
                 else:
-                    print "Setting %s to %s" % (param_name, param_value)
+                    print("Setting %s to %s" % (param_name, param_value))
                     if config_params == "":
                         config_params = param_name
                     else:
