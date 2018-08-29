@@ -28,8 +28,8 @@ parser.add_option("-f", "--max-fuzz", type="float", help="Maximum percentage sta
 nvmainexec = ".." + os.sep + "nvmain." + options.build
 
 if not os.path.isfile(nvmainexec) or not os.access(nvmainexec, os.X_OK):
-    print "Could not find Nvmain executable: '%s'" % nvmainexec
-    print "Exiting..."
+    print("Could not find Nvmain executable: '%s'" % nvmainexec)
+    print("Exiting...")
     sys.exit(1)
 
 
@@ -50,8 +50,8 @@ if options.no_gem5:
 
 
 if not os.path.isfile(gem5exec) or not os.access(gem5exec, os.X_OK):
-    print "Could not run gem5 executable: '%s'" % gem5exec
-    print "Skipping gem5 tests."
+    print("Could not run gem5 executable: '%s'" % gem5exec)
+    print("Skipping gem5 tests.")
     testgem5 = False
 
 
@@ -80,16 +80,12 @@ for trace in testdata["traces"]:
         sys.stdout.write("Testing " + testdata["tests"][idx]["name"] + " with " + trace + " ... ")
         sys.stdout.flush()
 
-        #for arg in command:
-        #    print arg,
-        #print ""
-
         try:
             subprocess.check_call(command, stdout=testlog, stderr=subprocess.STDOUT)
         except subprocess.CalledProcessError as e:
             expectedrc = testdata["tests"][idx]["returncode"]
             if e.returncode != expectedrc:
-                print "[Failed RC=%u]" % e.returncode
+                print("[Failed RC=%u]" % e.returncode)
                 shutil.copyfile(options.tempfile, faillog)
                 continue
 
@@ -121,20 +117,20 @@ for trace in testdata["traces"]:
                                     checkcounter = checkcounter + 1
                                     passedchecks.append(check)
                                 else:
-                                    print "Stat '%s' has value '%s' while reference has '%s'. Fuzz = %f" % (checkstat, checkvalue, refvalue, fuzz)
+                                    print("Stat '%s' has value '%s' while reference has '%s'. Fuzz = %f" % (checkstat, checkvalue, refvalue, fuzz))
                             except ZeroDivisionError:
-                                print "Warning: Stat '%s' has reference value (%s) or check value (%s) of zero." % (checkstat, refvalue, checkvalue)
+                                print("Warning: Stat '%s' has reference value (%s) or check value (%s) of zero." % (checkstat, refvalue, checkvalue))
 
         if checkcounter == checkcount:
-            print "[Passed %d/%d]" % (checkcounter, checkcount)
+            print("[Passed %d/%d]" % (checkcounter, checkcount))
             shutil.copyfile(options.tempfile, faillog)
         else:
-            print "[Failed %d/%d]" % (checkcounter, checkcount)
+            print("[Failed %d/%d]" % (checkcounter, checkcount))
             shutil.copyfile(options.tempfile, faillog)
 
             for check in testdata["tests"][idx]["checks"]:
                 if not check in passedchecks:
-                    print "Check %s failed." % check
+                    print("Check %s failed." % check)
 
 
 

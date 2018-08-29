@@ -31,7 +31,7 @@ common_interval = 9999999
 
 for f in files:
     s = 'Finding max interval in file ' + f
-    print s
+    print(s)
 
     handle = open(f, 'r')
     for line in handle:
@@ -43,7 +43,7 @@ for f in files:
                 max_int[index] = interval
 
     s = f + ' has ' + str(max_int[index]) + ' intervals'
-    print s
+    print(s)
 
     if max_int[index] < common_interval:
         common_interval = max_int[index]
@@ -52,7 +52,7 @@ for f in files:
     handle.close()
 
 s = 'Common interval is ' + str(common_interval)
-print s
+print(s)
 
 if options.common:
     index = 0
@@ -124,7 +124,7 @@ for f in files:
         for item in stringlist:
             if line[0:len(item)] == item:
                 #s = 'Found an item: ' + line.strip()
-                #print s
+                #print(s)
                 valuelist[item_index] = line[len(item)+1:].strip()
 
             item_index = item_index + 1
