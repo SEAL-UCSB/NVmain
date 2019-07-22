@@ -173,8 +173,8 @@ class NVMainMemory : public AbstractMemory, public NVM::NVMObject
     NVMainMemory(const Params *p);
     virtual ~NVMainMemory();
 
-    BaseSlavePort& getSlavePort(const std::string& if_name,
-                                PortID idx = InvalidPortID);
+    Port& getPort(const std::string& if_name,
+                  PortID idx = InvalidPortID);
     void init();
     void startup();
     void wakeup();
