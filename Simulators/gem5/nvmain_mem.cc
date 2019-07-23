@@ -241,11 +241,11 @@ void NVMainMemory::wakeup()
 }
 
 
-BaseSlavePort &
-NVMainMemory::getSlavePort(const std::string& if_name, PortID idx)
+Port &
+NVMainMemory::getPort(const std::string& if_name, PortID idx)
 {
     if (if_name != "port") {
-        return MemObject::getSlavePort(if_name, idx);
+        return AbstractMemory::getPort(if_name, idx);
     } else {
         return port;
     }
@@ -301,7 +301,9 @@ NVMainMemory::SetRequestData(NVMainRequest *request, PacketPtr pkt)
 
     if (pkt->isRead())
     {
-        Request *dataReq = new Request(pkt->getAddr(), pkt->getSize(), 0, Request::funcMasterId);
+        const RequestPtr dataReq =
+            std::make_shared<Request>(pkt->getAddr(), pkt->getSize(), 0,
+                                      Request::funcMasterId);
         Packet *dataPkt = new Packet(dataReq, MemCmd::ReadReq);
         dataPkt->allocate();
         doFunctionalAccess(dataPkt);
@@ -316,12 +318,13 @@ NVMainMemory::SetRequestData(NVMainRequest *request, PacketPtr pkt)
         }
 
         delete dataPkt;
-        delete dataReq;
         delete [] hostAddr;
     }
     else
     {
-        Request *dataReq = new Request(pkt->getAddr(), pkt->getSize(), 0, Request::funcMasterId);
+        const RequestPtr dataReq =
+            std::make_shared<Request>(pkt->getAddr(), pkt->getSize(), 0,
+                                      Request::funcMasterId);
         Packet *dataPkt = new Packet(dataReq, MemCmd::ReadReq);
         dataPkt->allocate();
         doFunctionalAccess(dataPkt);
@@ -339,7 +342,6 @@ NVMainMemory::SetRequestData(NVMainRequest *request, PacketPtr pkt)
         }
 
         delete dataPkt;
-        delete dataReq;
         delete [] hostAddrT;
         delete [] hostAddr;
     }
@@ -408,10 +410,6 @@ NVMainMemory::MemoryPort::recvFunctional(PacketPtr pkt)
     pkt->pushLabel(memory.name());
 
     memory.doFunctionalAccess(pkt);
-
-    for( std::deque<PacketPtr>::iterator i = memory.responseQueue.begin();
-         i != memory.responseQueue.end(); ++i )
-        pkt->checkFunctional(*i);
 
     pkt->popLabel();
 }
